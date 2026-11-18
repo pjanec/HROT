@@ -29,6 +29,7 @@ self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly at :02) �
 | CE-1246 Stride mode 2 host actions | DONE — node `HostActions` + shared `HostActionsPumpSystem`; inspector + Details get them | `8952f8c3d` | `GlobalActionDispatchSystemTests.CE1246_…` (red-proved) 4/0; `HrotStrideApp.Game` builds (restored first) | ⚠ not run on a Stride window (Windows only) |
 
 ## 3. Taken from new handoffs
+- `NOTE_Terrain_To_Ui_Obstacle_Drawing.md` (coordinator, 11:03 wake-up): its question MEASURED — all seven cultural-feature obstacles were drawn twice (an unknown box over the terrain box); fixed in `EntityBodyLayer3D.LookOf` (no-body look). Rail `Map3DTests.CE4656_…` (red before). Map3DTests + frame rails + ObstacleRow 287/3: `CE4388` wire-sphere (known, CE-1978), `E2b_V` (red at base too), `CE4582` (green alone with the fix, order-dependent in the suite).
 - HANDOFF_Coordinator_To_Ui_Bug_Queue.md at 2026-11-18 09:00 (merged coordinator `5c0…` into ui)
 
 ## 4. Notes sent / received
