@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-IN PROGRESS: the queue's 11 rows are done or recorded. ⭐ TAKEN from a note: **CE-4655's second half — a route round a KNOWN / SUSPECTED field keeps a clearance outside it** (behaviors' `NOTE_Behaviors_To_Terrain_NoWayRound_EdgeClearance.md`; their CE-2447 `mf-no-way-round` is blocked on it).
+IN PROGRESS: the queue's 11 rows are done or recorded. ✅ TAKEN from a note and DONE: **CE-4655's route half — the clearance ring** (rail red-proved; `mf-way-round`, `mf-strike-and-halt`, `mf-at-vs-vehicle`, `mf-recon-and-mark` pass; `mf-no-way-round` now goes round ⇒ behaviors re-authors it, NOTE sent). ⇒ next: the "always available" open `RW-M`+ rows of the terrain area.
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292, coordinator `12ce6cebb`).
 
 ## 2. The queue (in order)
@@ -37,6 +37,8 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 
 ## 4. Notes sent / received
 - received: `NOTE_Behaviors_To_Terrain_NoWayRound_EdgeClearance.md` (behaviors, 2026-11-18) — taken: the route clearance (above)
+- sent: `NOTE_Terrain_To_Behaviors_Route_Clearance.md` — the ring is built; `mf-no-way-round` goes round now (theirs to re-author)
+- sent: `NOTE_Terrain_To_Behaviors_Mine_Edge_Inset.md` · `NOTE_Terrain_To_Ui_Obstacle_Drawing.md`
 - none yet
 
 ## 5. Gates (rule 8)
@@ -57,4 +59,6 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | post-merge | `mf-way-round,mf-strike-and-halt,mf-recon-and-mark` (after the recon edit, behaviors + ui merged) | 4/4 · 7/7 · 6/6 |
 | CE-3440 | `QueryTimings` × 5; `Fdp.Toolkits.Tests` Terrain / Recast / Diagnostics (+ OverlayCompiler, StaticObstacle) | 6 / 6 × 5; 937 / 937 |
 | CE-3428 | the same toolkit run · `Hrot.Terrain.Import.Tests` · `Hrot.SimHost.Tests` TerrainLoad / Overlay / Bake | 937 / 937 · 54 / 55 (⚠ `ImporterTests.TheHeightStore_AtAFewPosts_*`: red only WITH SUMO installed — the synth then builds roads and the importer levels them; green at `6c2788ed3` in a clean worktree without SUMO ⇒ filed **CE-5021**, a rail gap, not CE-3428) · 97 / 97 |
+| CE-4655 (route) | `Fdp.Toolkits.Tests` Mine / Minefield / PlaceKnowledge / Recast / DangerArea · `Hrot.SimHost.Tests` Minefield / DangerArea / Recon | 208 / 208 · 13 / 13 |
+| CE-4655 (route) | `scenario-regression.sh mf-no-way-round,mf-way-round,mf-strike-and-halt,mf-at-vs-vehicle,mf-recon-and-mark` | 4 / 5 — `mf-no-way-round` goes round now (no MinefieldAhead, no blast; the x-only "enters" row and "still halted" red) ⇒ behaviors' CE-2447 re-authoring |
 | CE-5018 | live `--mode all`, bt-doors, a possessed TKB 112 rams House A | breach entity 1201 on all three perspectives (before: none) |
