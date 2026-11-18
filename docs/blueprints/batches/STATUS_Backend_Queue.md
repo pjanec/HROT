@@ -10,12 +10,12 @@ Handoff: [`HANDOFF_Coordinator_To_Backend_Bug_Queue.md`](HANDOFF_Coordinator_To_
 Self-wake-up: ✅ the scheduled task `backend self-wake-up` (hourly, :58), created `2026-11-18 08:58 UTC` without an approval prompt.
 
 ## 1. Now
-IN PROGRESS: **CE-3458** (an unreachable move never fails) — reproducing; then CE-3452 and CE-9023 under the same principle.
+IN PROGRESS: **CE-3458** (an unreachable move never fails) — fix built + rails red-proved, on the side branch `backend-wip-ce3458` (`a9758271c`); ⏳ the 46 movement scenarios verifying (output `scratchpad/v3458`); when green ⇒ commit to `backend`, then CE-3452. **Root cause:** `CgfNodes.Action_WriteMoveToChannel` (and `FollowRoute`, `JoinFormation`) re-activated on ANY channel failure, its own included (`needsActivation = … || Status == Failure`), so a failed move re-issued itself every tick for good. **Fix:** `CgfNodes.OwnActivationFailed` / `OwnMoveFailed` / `OwnRouteFailed` — this behaviour's own dispatched move to THIS destination (route) failed ⇒ the node answers Failure (Navigation v2 §3.1 / §3.3: a failed move is a BTree Failure, the retry is the caller's). Rails `MoveToLocationRoadUseTests.CE3458_*` 2/2, neighbours 79/79; red-proofs: no OwnMoveFailed ⇒ red, no OwnRouteFailed ⇒ red.
 
 ## 2. The queue (in order)
 | row | state | sha | rail | scenario |
 |---|---|---|---|---|
-| CE-3458 P1 unreachable move never fails | IN PROGRESS | | | |
+| CE-3458 P1 unreachable move never fails | IN PROGRESS — on `backend-wip-ce3458` | `a9758271c` (wip) | `CE3458_*` 2/2, red-proved | ⏳ 46 movement scenarios |
 | CE-3452 P1 bike from a standstill reports FailedBlocked | TODO | | | |
 | CE-9023 P1 disabled vehicle runs its route forever (the locomotion half) | TODO | | | |
 | CE-3457 P5 vehicles never yield to animals | TODO | | | |
