@@ -27,7 +27,7 @@ as CE-3444 (thrash between cover points).
 | CE-4652 a near-missed mover does not drop | IN PROGRESS — causes ① InertSop shooters broke and fell silent (fixed), ② near misses double-counted (fixed) | aa5a0d16c, ccd1d05cf | `StressSystemTests.CE4652_*`, `BallisticsSystemTests.CE4652_*` | ⏳ re-running |
 | CE-4653 a 10 HP man never asks to lie down | ✅ DONE — a stale check: 10 HP is under the incapacitated line (out of the fight, lies by LogicalStance); check restated, red-proved | (this commit) | — (scenario row) | ✅ `ua-fire-distribution` 5 / 5 |
 | CE-3461 the militia never break | ✅ militia rows PASS (same causes as CE-4652); the REGULARS now break at ~30 s ⇒ **D-1 SKIPPED — needs decision** (`DECISIONS_Behaviors.md`) | aa5a0d16c | as CE-4652 | ⚠ rows (1), (3) red → D-1 |
-| CE-4654 a man on a mine loses neither health nor mobility | TODO | | | |
+| CE-4654 a man on a mine loses neither health nor mobility | ✅ DONE — answered by terrain's CE-2446 (merged): the AP burst now kills him (Health 0, no move / fire); pinned by a new scenario row; maim-instead-of-kill ⇒ **D-3** | (this commit) | — (scenario row (2b), red before CE-2446) | ✅ `mf-strike-and-halt` 7 / 7 |
 | CE-2447 `mf-no-way-round`: a man enters before the squad reacts | TODO | | | `mf-no-way-round` |
 | CE-9023 the immobilised APC's play never ends | TODO | | | `uc-urban-battle` |
 | CE-3462 the waverer never breaks | TODO | | | `ts-house-defenders` |

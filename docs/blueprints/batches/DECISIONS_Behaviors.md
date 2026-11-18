@@ -6,6 +6,21 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-3 · CE-4654 — an AP mine now KILLS the man on it; should it maim him instead (alive, legs gone)? *(2026-11-18)*
+
+**Measured** (`mf-strike-and-halt` live after terrain's CE-2446): the burst leaves the struck man at Health 0 — dead, no move, no fire; the three
+others untouched. The user's complaint (no health, no mobility lost) is answered. But MF-5 says *"the casualty cared for in place"* and the
+handoff's lean says *"wounds the LEGS … the squad's casualty drill then runs"* — a dead man gets no drill.
+
+**My lean: ① — a mine's burst on the man who TRIGGERED it is a leg wound, not a whole-body blast:** the damage goes to the Leg zone
+(`AreaEffectSystem` already publishes one event per part struck, S3-4; the trigger man gets his share on the legs) so he lands INCAPACITATED (under
+30 %, alive, bleeding — the existing casualty care carries him), not dead. Cost: terrain's area effect (a "trigger man" rule) + a rail; every
+mine scenario's casualty becomes a live man (the goldens move).
+- ② leave it (dead): nothing to build; the drill never cares for anyone after a mine.
+- ③ lower the AP blast value: blunt — it also weakens the burst on everyone near.
+
+⛔ Not built. The behaviors part of CE-4654 (verify, pin) is done.
+
 ## D-2 · CE-2442 — who answers an `Engineers` request, and with what? *(2026-11-18)*
 
 **The question:** `MinefieldAhead` halts a squad and queues `RequestKind.Engineers` up the chain (MS-B4, approved), but no HQ answers it:
