@@ -14,15 +14,18 @@ Started at the merge of `origin/coordinator` (2026-11-18 09:00).
 
 IN PROGRESS: CE-4652 — fixes pushed (an InertSop man never breaks: `aa5a0d16c` + the judge commit; one near miss per man per pass:
 `ccd1d05cf`); the three scenarios (`uf-squad-under-fire`, `ts-fire-discipline`, `ua-fire-distribution`) re-running to see what is left.
-Next: CE-4653 (the hurt man) — suspect: 10 / 100 HP is under the incapacitated line (30 %), so he is out of the fight and never runs the posture
-decision; measure live.
+⚠ CE-4652 remaining cause (measured live): the hostile shooters (InertSop, CombatPosture in the open) flip TakeCover (2) ⇄ HoldProne (6) — the two
+options mirror one input (EqsTopScore of the cover search); TakeCover runs PeekAndFire, which in the open does not fire, so each flip back stands
+the fire down before the aim completes (WeaponChannel issued 37 times, ActiveAction 0, 1 round in 30 s) ⇒ the movers get no fire to drop from.
+Next step: find when `uf-squad-under-fire` last passed (bisect the CombatPosture tree / PeekAndFire changes, CE-2366 / AQ102 B) — the same family
+as CE-3444 (thrash between cover points).
 
 ## 2. The queue (in order)
 
 | row | state | sha | rail | scenario |
 |---|---|---|---|---|
 | CE-4652 a near-missed mover does not drop | IN PROGRESS — causes ① InertSop shooters broke and fell silent (fixed), ② near misses double-counted (fixed) | aa5a0d16c, ccd1d05cf | `StressSystemTests.CE4652_*`, `BallisticsSystemTests.CE4652_*` | ⏳ re-running |
-| CE-4653 a 10 HP man never asks to lie down | TODO | | | `ua-fire-distribution` |
+| CE-4653 a 10 HP man never asks to lie down | ✅ DONE — a stale check: 10 HP is under the incapacitated line (out of the fight, lies by LogicalStance); check restated, red-proved | (this commit) | — (scenario row) | ✅ `ua-fire-distribution` 5 / 5 |
 | CE-3461 the militia never break | ✅ militia rows PASS (same causes as CE-4652); the REGULARS now break at ~30 s ⇒ **D-1 SKIPPED — needs decision** (`DECISIONS_Behaviors.md`) | aa5a0d16c | as CE-4652 | ⚠ rows (1), (3) red → D-1 |
 | CE-4654 a man on a mine loses neither health nor mobility | TODO | | | |
 | CE-2447 `mf-no-way-round`: a man enters before the squad reacts | TODO | | | `mf-no-way-round` |
