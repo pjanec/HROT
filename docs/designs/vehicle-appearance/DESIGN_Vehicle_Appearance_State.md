@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-18
-build-state: DESIGN — leans VA-1…VA-12 and LK-1…LK-6 (§7, the shared look library, CE-4671) for the user; NOT approved; ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §4 components and TKB · §5 UML · §6 slices · §7 the shared look library (CE-4671)
+build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved, fold both into the design", R-4296): VA-1…VA-12, LK-1…LK-7, with §3a (partial damage, how expressed) and LK-7 (effect categories + the DIS munition type); ids fixed at dispatch
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §7 the shared look library (CE-4671) · §7a effect categories
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -80,6 +80,16 @@ references (`GlobalComponentIds`, `HrotComponentIds`, the `*ComponentIds` classe
 **≈ 112 of 512 are free** (e.g. 86–108, 171–199, 228–254, 290–299, 319–329, 500–511). ⛔ The earlier "space 0–511 is FULL" note
 (`GlobalComponentIds.cs` R-10000) counted the constants of EVERY `*Ids` class — behaviour, panel, request and tool ids too — an overcount.
 VA-3 / VA-4 take two at dispatch.
+
+## 3a. Partial damage — how it is expressed *(VA-6 / VA-7 in full; approved `2026-11-18`)*
+
+| layer | what | where |
+|---|---|---|
+| **stored** (replicated, recorded) | `PartDamage { Plan, Levels[16] }` — one byte per part, 0 untouched … 255 destroyed; vehicle ids Hull 0 · Turret 1 · Gun 2 · RunningGearL 3 · RunningGearR 4 · Engine 5; aircraft Fuselage · Cockpit · Wing · Engine · Tail · Turret · Gun · Stores; written by the Health owner when a hit lands on a part (the hit model finds the part); `Health` stays the overall pool | existing (HL-6) |
+| **stored, new** | `Health.Destruction` — None · KnockedOut · BurntOut · Catastrophic, decided ONCE at destruction | VA-7 |
+| **derived, every node** | each part belongs to a ZONE whose threshold is TKB data (per class, overridden per type — HL-12); running gear / engine over it ⇒ MOBILITY kill (`CanMove` off), turret / gun ⇒ FIREPOWER kill (`CanShoot` off) | existing (S2-8, R-263) |
+| **derived for renderers** (`VehicleLook.PartState`) | **Intact** (0) · **Damaged** (> 0, under the zone's destroy threshold) · **Destroyed** (at / over it) · **Burning** (a `FireState` spot covers the part) | new, pure |
+| **DIS** (gateway, VA-11) | overall damage (none / slight / moderate / destroyed) from `Health` + `Destruction`; the mobility-kill and firepower-kill flags from the derived kills; smoking / flaming from `FireState` | per-part detail goes beyond DIS: a direct reader of our wire maps part ids to its model parts |
 
 ## 4. Components and TKB
 
@@ -233,6 +243,7 @@ effects, and people (`DESIGN_Person_Outfits.md`). ⛔ Not three libraries.
 | **LK-3** | the wreck | `WreckSpawnSystem` retires into the thermal `FireState` (CE-4660, dispatched); `EffectRules`/`VehicleLook` answer "smoke after the fire" from the spot's end + the type's smoulder seconds | one truth: fire is simulation state |
 | **LK-4** | people | `PersonLook.Of(view, entity, tkb) → PersonAppearance` — the outfit, colours as a plain RGBA struct (⛔ no `Raylib.Color`), the face, the extras (Person Outfits design); the map converts to its colour type when drawing | the resolver is already pure apart from the colour type |
 | **LK-5** | determinism | every function a pure function of components, events, the TKB and an entity-seeded random (the outfits' seeded variety) — never the wall clock, never a frame count | the same picture on every renderer, in replay too |
+| **LK-7** | ⭐ *(approved `2026-11-18`)* effect CATEGORIES vs the DIS entity type | ⭐ BOTH, for different jobs: every `EffectSpec` carries ① the munition's DIS entity type (identity — every TKB type has one, `TkbMaster.DisType`) and ② OUR category = kind × size class × surface (§7a), built to map ONE-TO-ONE onto DIS's detonation-result vocabulary | the DIS type says WHAT exploded, not how it looks (a renderer without that munition's asset cannot size it); the category is the look every renderer and our map share; the gateway fills both DIS fields by table |
 | **LK-6** | the order | ⭐ FIRST move what exists (the effect rules, the person resolver) with their rails unchanged — a pure refactor; THEN `VehicleLook` grows there with VA-S1 | moving first is cheap and testable (the map's rails must stay green); new code then lands in its final home |
 
 | slice | builds | done when |
@@ -240,4 +251,24 @@ effects, and people (`DESIGN_Person_Outfits.md`). ⛔ Not three libraries.
 | **LK-S1** | `Hrot.Look`; `EffectRules` extracted, `EffectSpawnSystem` spawns from it, the HUD feeds moved out | the map's effect rails (`EffectTests`, the 3-D frame rails under `xvfb-run -a`) green UNCHANGED; a rail calls `EffectRules` with no presentation assembly loaded |
 | **LK-S2** | `PersonLook` extracted (RGBA, no Raylib) | the outfit / wardrobe rails green unchanged; the same rail with no presentation assembly |
 | **LK-S3** | `VehicleLook` lands here (VA-S1 onward) | as §6 |
+
+### 7a. Effect categories *(LK-7, approved `2026-11-18`)*
+
+| today (measured) | where |
+|---|---|
+| an effect TYPE = kind (MuzzleFlash · Explosion · Decal · Tracer · Fire · Smoke · Flare · Chaff) + duration, size, colour, fade | `EffectVisualDto`, `EffectDtos.cs:7-52` |
+| an AMMO type names its effect set (which flash, explosion, mark) — HEAT and APFSDS of one gun differ | VE-D, `Effect.Set` |
+| no set ⇒ a default by SIZE CLASS Small · Medium · Large · Huge, from damage per hit (< 50 small, ≥ 500 large) or explosive mass (0.01 / 1 / 5 kg) — a hit and a miss look alike | `EffectTkbCatalog.cs:46-60` (CE-1231) |
+| impacts: a puff + a mark per surface a round enters or leaves, by the same class | CE-1129 |
+
+| ⭐ the `EffectSpec` every renderer receives from `EffectRules` | |
+|---|---|
+| `Kind` · `SizeClass` (Small · Medium · Large · Huge) · `Surface` (Ground · Water · Building · Vehicle · Air) | our category — the look |
+| `MunitionDis` | the munition's DIS entity type — the identity, for a renderer with its own asset and for interop |
+| `EffectType` (TKB id) | the exact per-ammo override, when one is set |
+| anchor, lifetime, size | as today |
+
+⭐ The category set is chosen so that kind × size × surface maps 1:1 onto DIS's detonation-result codes (HE hit small / medium / large, dirt blast
+small / medium / large, water blast, building hit, air burst, smoke …). ⚠ The exact code list is pinned by the gateway slice (VA-S6) against the
+SISO reference — not verified here.
 
