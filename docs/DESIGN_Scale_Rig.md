@@ -226,7 +226,8 @@ sequenceDiagram
 3 are Idle (one `FailedUnreachable`). ⇒ ⭐ the planner answered with the polygon NEAREST an unreachable goal — `DotRecastNavmeshProvider.PlanPath` drops its
 `complete` flag on purpose (*"a partial path is still returned — the agent goes as near as it can"*) — and the follower reports a partial path's end as
 ARRIVED. ⚠ Not yet measured: WHY the goal is unreachable for so many (the lean: a man spawned on a small navmesh ISLAND of scale-1's steep ground,
-heights 500–900 m), and why the brain (CGF) holds intent 19 while the muscle (SimHost) still runs intent 15 (the re-orders do not reach it).
+heights 500–900 m — a stuck man's best reachable polygon lies ~3 m from his START, so HE is cut off, not the goal; the rig sets each squad's 8 men on a 2 m grid
+up to 6 m east / 2 m north of a random ROAD point (`scale-rig.py` `scenario()`), on the slope beside the road), and why the brain (CGF) holds intent 19 while the muscle (SimHost) still runs intent 15 (the re-orders do not reach it).
 
 ### 5.4 Still over budget — each a row with its numbers *(the biggest first)*
 
