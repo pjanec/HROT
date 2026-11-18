@@ -12,7 +12,7 @@ Started at the merge of `origin/coordinator` (2026-11-18 09:00).
 
 ## 1. Now
 
-CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. IN PROGRESS: CE-2447 re-author (a barrier with no way round). Then CE-9023.
+CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. Next: CE-9023 (`uc-urban-battle`, the immobilised APC's play).
 
 ## 2. The queue (in order)
 
@@ -22,7 +22,7 @@ CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. IN PROGRESS: C
 | CE-4653 a 10 HP man never asks to lie down | ✅ DONE — a stale check: 10 HP is under the incapacitated line (out of the fight, lies by LogicalStance); check restated, red-proved | (this commit) | — (scenario row) | ✅ `ua-fire-distribution` 5 / 5 |
 | CE-3461 the militia never break | ✅ DONE — militia rows (CE-4652's causes) + the regulars' row (D-1) | aa5a0d16c | as CE-4652 | ⚠ rows (1), (3) red → D-1 |
 | CE-4654 a man on a mine loses neither health nor mobility | ✅ DONE — answered by terrain's CE-2446 (merged): the AP burst now kills him (Health 0, no move / fire); pinned by a new scenario row; maim-instead-of-kill ⇒ **D-3** | (this commit) | — (scenario row (2b), red before CE-2446) | ✅ `mf-strike-and-halt` 7 / 7 |
-| CE-2447 `mf-no-way-round`: a man enters before the squad reacts | ⚠ **IN PROGRESS — unblocked** (terrain's CE-4655 clearance merged: the march now goes round ⇒ re-authoring a real barrier) · was BLOCKED on terrain CE-4655 — measured: the route does not cross the field, it hugs its north edge with zero clearance (leader y 110.1, the squad's position inside the edge); the reaction fires only when the squad clips the corner. Note sent | | — | ⚠ 1 row red |
+| CE-2447 `mf-no-way-round`: a man enters before the squad reacts | ✅ DONE — after terrain's CE-4655 clearance the march went round; re-authored as KG-7's 'the order goes through' (objective inside the field) + an inside-the-field check (three never-near rows; the old x-only row caught the clearance ring) | (this commit) | — (scenario) | ✅ `mf-no-way-round` 10 / 10 |
 | CE-9023 the immobilised APC's play never ends | TODO | | | `uc-urban-battle` |
 | D-1 `ts-fire-discipline` re-tune (CE-3461 regulars) | ✅ DONE — 22 rounds at 1.3 s (the measured window between the slowest militia break, ~25 s, and a centre regular's, ~33 s) | (this commit) | — (scenario) | ✅ `ts-fire-discipline` 7 / 7 |
 | D-3 the mine's trigger man maimed (CE-4654 follow-up) | ✅ DONE — `AreaEffectSystem.Maim` (cross-lane): shins, 0.75 of the incapacitation line, alive | (this commit) | `AreaEffectSystemTests.CE4654_*` (red-proved; suite 34 / 0) | ✅ `mf-strike-and-halt` 8 / 8 · `mf-at-vs-vehicle` · `mf-recon-and-mark` · `mf-way-round` |

@@ -588,3 +588,10 @@ parallel rule).
 point with Mark, the request answered; the breach after his walk, from the point to the far edge + 5 m along the requester's line) ·
 `CE2442_AnEngineerUnit_IsNeverSentToReinforce`. ✅ Red-proofs: the Engineers branch removed ⇒ the first red; `KindOf`'s engineer test removed ⇒
 both red. Strict parallel env (`HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`): 5 / 0.
+
+**CE-2447 (`2026-11-18`, behaviors) — `mf-no-way-round` re-authored.** 📐 Once a route keeps its clearance round a KNOWN field (terrain's CE-4655 ring),
+a march to (185, 80) simply went ROUND Field B (130–150, 50–110), so no `Minefield` area was ever reported — on test-town the field never blocked the
+way. Making it span the whole map did not work either (the planner wandered north looking for a way). ⭐ The scenario now uses KG-7's other case,
+*"the order goes through"*: the march's objective is INSIDE the field (145, 80), so every route enters it, the route sensor reports it, and the squad
+halts short (MinefieldAhead at 111 s) and stays halted. "Nobody enters the field" is three never-`near` rows down the field's centre line (x 140; y 60 /
+80 / 100; 10 m) — ⛔ the old `x > 130` row also caught a man walking the clearance ring OUTSIDE the field (measured: the leader at (131, 114.9)). 10 / 10.
