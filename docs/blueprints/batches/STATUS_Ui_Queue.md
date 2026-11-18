@@ -6,22 +6,22 @@ current-answer: §1
 
 # STATUS — ui, the queue
 
-self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly at :02) — KEPT: the user wants it recurring every hour (2026-11-18); its prompt now says never delete it, and on an empty queue to check the other lanes for new ui handoffs first.
+self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-**idle** — the queue is done (2 rows await decisions in `DECISIONS_Ui.md`: CE-1954, CE-1067; plus CE-1286 taken while dry). Self-wake-up kept (user).
+IN PROGRESS: CE-1954 (DECIDED A) — a press on an unselected unit selects it and the same drag moves it, threaded AND serial. Next: CE-1286 (DECIDED A).
 
 ## 2. The queue (in order)
 
 | row | state | sha | rail | scenario |
 |---|---|---|---|---|
 | CE-1133 RTS right-click orders deselected units | NOT REPRODUCED (original); the RTS right-click found BROKEN at the merge (Convoy took the ground-click gesture) — FIXED under CE-1978 | (this push) | `RtsCommandToolTests` 13/13 incl. `CE1133_EachClickGesture_…` (red-proved) | n/a (editor input) |
-| CE-1954 press on an unselected unit drags it (threaded) | SKIPPED — needs decision (`DECISIONS_Ui.md`, lean A: select + drag in both modes) | | | |
+| CE-1954 press on an unselected unit drags it (threaded) | IN PROGRESS — DECIDED A | | | |
 | CE-1470 gizmo buffer overflow drops primitives | DONE — grows after an overflowing frame; drops reported in [FrameStats] | (this push) | `DebugPrimitiveBufferLayerTests.CE1470_…` (red-proved); Diagnostics.Contracts.Tests 67/0; Presentation gizmo suites 415/0 | n/a |
 | CE-1955 three Presentation reds (five with S1 + LR1) | DONE — all stale tests vs other lanes' deliberate changes | (this push) | Map3DTests · EffectTests · TerrainAddEntityFrameRail 286/0 | n/a |
 | CE-1298 FPS bare-hand fire does nothing | DONE — empty hands: SIGHT (no lock box) and the press strikes the crosshair's unit (`Melee.Strike`); Entity Control §8s | `640d30871` | `EmbarkNodesTests.CE1298_…` (red-proved); SimHost EmbarkNodes 28/0; Toolkits fire-mode 153/0; PossessionStation 83/0 | n/a (no scenario holds a possessed bare hand) |
 | CE-1283 Debug this unit on a commander | DONE — ①③ superseded (CE-1317 / CE-1329); ② one global "Observe all brain units" switch (DBG-2) | `640d30871` | `UnitDebugSettingsTests.CE1283_…` (red-proved); Editor brain routes 7/0 | n/a |
-| CE-1067 remote terminal panel → global gizmo | SKIPPED — needs decision (`DECISIONS_Ui.md`, lean A: not a defect today) | | | |
+| CE-1067 remote terminal panel → global gizmo | CLOSED — DECIDED A: not a defect today | (this push) | n/a | n/a |
 | CE-1239 .ogg clip missing from a film | DONE — `OggReader` (raylib LoadWave) for the track | `28ce2fa8a` | `AudioTests.CE1239_…` (red-proved); Audio + FilmDirector 80/0 (3 skips pre-existing) | n/a |
 | CE-1241 15 seeded takes the scout cannot complete | PARTLY — 54/58 found (was 40/55); cc-platoon-bound fixed; the 4 left are scenario content (note to behaviors; casualty-care / police-line need the beat in the scenario) | (this push) | `scripts/director-check.py scout-all --headless` ×2 | the five scenarios' regressions: 3 PASS, 2 FAIL (behaviors) |
 | CE-1280 Brain tab: why-this-choice one line | DONE — superseded by CE-1325 W5 (one line per decision by name, the sheet inside) | `b461d8fca` | `UtilityDecisionViewTests.CE1325_*` (existing) | n/a |
