@@ -6,6 +6,30 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-8 · CE-4666 — a shot heard through our own window becomes an ENEMY at our window: SPOT → flank → the line faces away. Where should it stop? *(2026-11-18)*
+
+**Measured (`pc-defend-house`, editor, live probes):**
+1. Blue fires from ~125 m south.
+2. Each Red man remembers an ANONYMOUS SmallArms slot at his own window or post. This is AQ106 F as designed: a sound is heard from the last opening on its path (`Architect_Question_106_Sound_Paths.md` F).
+3. `SquadContacts.IsEnemy` counts every anonymous contact as an enemy, so the reserve squad SPOTs an Individual at its own post: (104.95, 205.65), at 7.24 s.
+4. In the platoon's picture that point lies at ~342°, outside the authored sector of 135°→225°, within `FlankMetres` 150. So `FlankTarget` fires `Supplement` (DA-60).
+5. Line Squad 2 is turned to 308°→358°, and later Squad 1 to 297°→27°. Their `SquadDefend` re-plans its window posts facing NORTH.
+6. Blue is all south: the line holds fire from ~45 s to 113 s live and ~143 s stepped. At 60 s the picture also holds a "Firing" Individual inside Red's own house, at (117.95, 155.98).
+
+⛔ No design says what a heard-through-an-opening point MEANS to the chain. AQ106 F rules only on what the ear perceives (searched `docs/` for heard from / last opening / SPOT anonymous).
+
+**My lean: ① — the ear keeps AQ106 F; the CHAIN learns the difference.** The memory slot gets a bit, "heard through an opening" (the ear knows the sound came in through that window). Then:
+- (a) the squad pool carries the bit;
+- (b) `ComposeSpot` leaves such contacts out of an element's position. They say where to LOOK, not where the enemy IS. A squad hearing only that reports nothing new;
+- (c) the man's own reactions are unchanged: look, take cover, a hunter's last-known point.
+
+Cost: one memory flag + one pool flag + one SPOT filter, with rails. `pc-defend-house` should open fire south much earlier; goldens of defence scenarios with an all-round reserve move.
+- ② place the heard estimate FURTHER OUT, along the path's last leg (opening + direction × a guess). That bends AQ106 F, misleads a hunter in a house, and the guess is arbitrary.
+- ③ `FlankTarget` ignores an element within the platoon's own position radius. Smallest, but it leaves the SPOT wrong for every other reader (fire support, HQ), and the turned squads still see a phantom.
+- Also, either way: a squad turned by `Supplement` is never turned back when the flank element goes stale (`TriggerFreshSeconds` 30 only stops a NEW turn). Fix that with ①, or leave it?
+
+⛔ Not built.
+
 ## D-7 · CE-4667 — `SupportByFire` has no exit for an empty weapon or dead targets: what should the base of fire do then? *(2026-11-18)*
 
 **Measured / read:** the design gives the base of fire ONE exit — the platoon LIFTS it when the assault holds a foothold (DA-11, `DESIGN_Assault_Under_Fire.md`
