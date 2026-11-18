@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-3468 (HANDOFF_Coordinator_To_Ui_Moved_Rows, row 1) — the threaded editor's Points / Best scoring root sees no scored children. Start: reproduce.
+IN PROGRESS: CE-2438 (HANDOFF_Coordinator_To_Ui_Moved_Rows, row 2) — paused-preview + run-to does not repeat on pc-defend-house. Start: reproduce the pair.
 
 ## 2. The queue (in order)
 
@@ -35,7 +35,7 @@ IN PROGRESS: CE-3468 (HANDOFF_Coordinator_To_Ui_Moved_Rows, row 1) — the threa
 
 | row | state | sha | rail | scenario |
 |---|---|---|---|---|
-| CE-3468 threaded scoring root sees no scored children | IN PROGRESS | | | |
+| CE-3468 threaded scoring root sees no scored children | DONE | the editor's loaded AI copy never contributed its rules tree to the phase (AiAssemblyLoad hook) + the last-tick view's same-version miss | AiHotReloadCoordinatorTests.CE3468, PerEntityRuleTests.CE3468, ScenarioRulesTests.CE3468 (red-proved); bw-archery-contest 5/5 (2 new rows), sr-objectives-march, sr-triggers-march pass; 2 goldens recaptured (had pinned the bug) | DESIGN_Parallel_Simulation §18 |
 | CE-2438 paused-preview + run-to does not repeat (pc-defend-house) | TODO | | | |
 | CE-1473 + CE-3451 ClusterRunner.Tests does not build; six rails drifted | TODO | | | |
 | CE-1475 SumoNetPlacementTests F5 / E1 on a Czech Windows | TODO | | | |

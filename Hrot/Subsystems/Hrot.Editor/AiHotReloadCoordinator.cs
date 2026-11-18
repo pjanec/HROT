@@ -293,6 +293,7 @@ namespace Hrot.Editor
                     // ⭐ CE-2377 — and the rebuilt copy's [BehaviorValidator] statics.
                     Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindValidators(behaviorStaging, pending.Registrars[0].DeclaringType.Assembly);
                     Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindKeepers(behaviorStaging, pending.Registrars[0].DeclaringType.Assembly);   // ⭐ rules ② R4
+                    RunLoadHook(pending.Registrars[0].DeclaringType.Assembly);   // ⭐ CE-3468 — the new copy's own load-time statics
                 }
 
                 // Step 4: apply staging behavior registry -> live registry via MergeFrom (overwrite).
@@ -420,6 +421,21 @@ namespace Hrot.Editor
             lock (_debounceLock) { path = _pendingPath; }
             if (path != null)
                 ThreadPool.QueueUserWorkItem(_ => LoadAndScan(path));
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3468 — runs the loaded copy's load hook (<c>Hrot.AI.Behaviors.Brains.AiAssemblyLoad.OnLoad</c>, looked up BY NAME: the copy lives in its
+        /// own context): its order kinds and its contribution to the brains' phase, under the one key, replacing the previous copy's. 📐 Measured: without
+        /// it the behaviours ran from this copy while the phase prepared the DEFAULT copy's rules tree ⇒ in the parallel phase a <c>Points</c> root saw
+        /// no children (the archery contest's total 0). A copy without the hook (a test assembly) is skipped.
+        /// </summary>
+        internal static bool RunLoadHook(Assembly copy)
+        {
+            var hook = copy.GetType(Hrot.AI.Behaviors.Brains.AiAssemblyLoad.TypeName)
+                ?.GetMethod(Hrot.AI.Behaviors.Brains.AiAssemblyLoad.MethodName, BindingFlags.Public | BindingFlags.Static, Type.EmptyTypes);
+            if (hook is null) return false;
+            hook.Invoke(null, null);
+            return true;
         }
 
         // ---- Private: background scan ----
