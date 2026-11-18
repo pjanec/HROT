@@ -859,5 +859,18 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.All(his, d => Assert.True(d.HasBodyPart == 1 && (d.BodyPart == Fdp.Toolkit.Physics.BodyParts.PersonPart.ShinL || d.BodyPart == Fdp.Toolkit.Physics.BodyParts.PersonPart.ShinR), $"part {d.BodyPart}"));
             Assert.True(hits.Where(d => d.HitEntity == near).Sum(d => d.TotalDamage) > 0f, "the man nearby: the ordinary blast");
         }
+
+        /// <summary>⭐ <c>CE-4654</c> D-3, terrain's review #2 — an ENCLOSED passenger nearer the burst than the man on the mine is never taken for
+        /// the trigger man (a body inside a hull never stood on it): the man on the mine is still maimed. 🔴 Red-proof: no hidden skip in
+        /// <c>TriggerManOf</c> ⇒ the passenger is "maimed" and the man on the mine gets the ordinary blast.</summary>
+        [Fact]
+        public void CE4654_AnEnclosedPassenger_NearerTheBurst_IsNotTheTriggerMan()
+        {
+            var aboard = Soldier(0.1f, 0f);
+            var onIt = Soldier(0.4f, 0f);
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            _w.AddComponent(aboard, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { Exposed = 0 });
+            Assert.Equal(onIt, AreaEffectSystem.TriggerManOf(_w, Vector3.Zero));
+        }
 }
 }
