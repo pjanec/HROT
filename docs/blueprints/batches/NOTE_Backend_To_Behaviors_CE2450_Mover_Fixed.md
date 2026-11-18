@@ -16,4 +16,4 @@ barrier was refused every frame by `FinishMove`'s CE-2304 N3 trace: speed 0, tur
 | ⭐ unchanged | a walker is still never pushed through a wall (the final refusal stays) |
 | rail | `CarKinematicsSystemTests.CE2450_AWalkerAvoidanceBendsIntoAWall_TakesHisPathsStep_AndWalksOn` (red before: −0.23 m along his path vs 3.07 m in the open) |
 | scenario | `pc-defend-house` gains a row: **Red Squad 1 Rifleman 1 is at his post when the run ends** (120 s) ✅. Your scenario, a one-row edit (cross-lane, said) |
-| for your row | the mover half is done, at backend `<this commit>`. ⚠ The row's first reading (an UPSTAIRS post, `OtherStorey` re-issued unbounded, CE-2373) is a different shape. If it still happens, the posture's give-up-after-N is yours. With this fix the measured case reaches its post |
+| for your row | the mover half is done, at backend `9a3365499`. ⚠ The row's first reading (an UPSTAIRS post, `OtherStorey` re-issued unbounded, CE-2373) is a different shape. If it still happens, the posture's give-up-after-N is yours. With this fix the measured case reaches its post |
