@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Tests.Motion
     public sealed class VehicleImpactSystemTests : IDisposable
     {
         private readonly EntityRepository _w = new();
-        private const long CarType = 9851, TruckType = 9852;
+        private const long CarType = 9851, TruckType = 9852, DozerType = 9853;
         private const float Dt = 0.1f;
 
         public VehicleImpactSystemTests()
@@ -42,6 +42,7 @@ namespace Fdp.Toolkit.Tests.Motion
             var db = new TkbDatabase();
             var car = new TkbTemplate("Car", CarType); car.AddDescriptor(new VehicleParametersDto { Mass = 1500f }); db.Register(car);
             var truck = new TkbTemplate("Truck", TruckType); truck.AddDescriptor(new VehicleParametersDto { Mass = 6000f }); db.Register(truck);
+            var dozer = new TkbTemplate("Dozer", DozerType); dozer.AddDescriptor(new VehicleParametersDto { Mass = 49_000f }); db.Register(dozer);   // the D9 (NedTkbCatalog)
             _w.SetSingletonManaged<ITkbDatabase>(db);
             _w.SetSimulationTime(10f);
         }
@@ -148,5 +149,67 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.False(Intersection2D.SweptFrontMeetsCircle(c, f, 2f, 1f, 1f, new Vector2(1.5f, 1.5f), 0.3f, out _));  // beside it
             Assert.False(Intersection2D.SweptFrontMeetsCircle(c, f, 2f, 1f, 1f, new Vector2(3f, 0f), 0.3f, out _));      // not reached yet
         }
-    }
+    
+        // ── ⭐⭐ CE-1967 (user report 2026-11-17): a bulldozer driving over soldiers only knocked them down; they stood up after it passed ──────
+
+        private Entity Dozer(Vector2 at, float speed)
+        {
+            var v = _w.CreateEntity();
+            _w.AddComponent(v, new SimTransform { Position = new Vector3(at, 0f), Rotation = Quaternion.Identity });   // facing +X
+            _w.AddComponent(v, new VehicleParams { Class = VehicleClass.Tank, Length = 8f, Width = 4.3f });             // tracked, the D9's footprint
+            _w.AddComponent(v, new VehicleState { Speed = speed });
+            _w.AddComponent(v, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)DozerType });
+            return v;
+        }
+
+        /// <summary>Drives <paramref name="v"/> forward for <paramref name="seconds"/>, frame by frame (sim time advancing), and sums the damage each body took.</summary>
+        private float DamageTo(Entity body, Entity v, float seconds)
+        {
+            var sys = new VehicleImpactSystem();
+            float sum = 0f;
+            float speed = _w.GetComponentRO<VehicleState>(v).Speed;
+            for (float t = 0f; t < seconds; t += Dt)
+            {
+                foreach (var h in Frame(sys)) if (h.HitEntity == body) sum += h.TotalDamage;
+                _w.GetComponentRW<SimTransform>(v).Position += new Vector3(speed * Dt, 0f, 0f);
+                _w.SetSimulationTime(_w.SimulationTime + Dt);
+            }
+            return sum;
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-1967 — a 49 t bulldozer at its top speed (4.5 m/s) drives straight over a standing man: he is KILLED (the damage reaches his Health),
+        /// not knocked down. 📐 Reproduced before the fix: the front strike scored ≤ 0.86 of Health (4.5 m/s × the mass factor capped at 2 = 9 m/s, the
+        /// "badly hurt" band) and the hull passing over him did nothing (front-only test, a 2 s repeat window that outlasts the 1.8 s the 8 m hull takes) —
+        /// so he lay 3 s and stood up. 🔴 Red-proof: the run-over (crush) check removed ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(4.5f)]   // the D9's top speed
+        [InlineData(1.0f)]   // creeping: under the strike threshold, the tracks still crush
+        public void CE1967_ABulldozerDrivingOverAMan_KillsHim(float speed)
+        {
+            var man = Man(new Vector2(10f, 0.5f));
+            var dozer = Dozer(new Vector2(0f, 0f), speed);
+            float dmg = DamageTo(man, dozer, 20f / speed);
+            Assert.True(dmg >= 100f, $"the man took {dmg} of 100 — run over by a 49 t bulldozer at {speed} m/s, he must die");
+        }
+
+        /// <summary>
+        /// ⭐ CE-1967 — the run-over is the HULL passing over the body, nothing wider: a man beside the dozer's path takes nothing; and a CAR (1.5 t, below the
+        /// 3.5 t crush mass) that hits a man is unchanged — its strike band alone (the ramming results stay as they were; there is no knock-back, so a car
+        /// would otherwise "pass over" every man it strikes). 🔴 Red-proof: the crush applied to every mass ⇒ the car's damage rises ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1967_ABystanderBesideTheDozer_AndACarStrike_AreUnchanged()
+        {
+            var beside = Man(new Vector2(10f, 3.2f));   // the dozer is 4.3 m wide: half 2.15 m, a 0.3 m body ⇒ clear at 3.2 m
+            var dozer = Dozer(new Vector2(0f, 0f), 4.5f);
+            Assert.Equal(0f, DamageTo(beside, dozer, 20f / 4.5f));
+
+            var man = Man(new Vector2(110f, 0f));
+            var car = Vehicle(8f); _w.GetComponentRW<SimTransform>(car).Position = new Vector3(100f, 0f, 0f);
+            float dmg = DamageTo(man, car, 3f);
+            Assert.InRange(dmg / 100f, 0.35f * 0.85f, 0.75f * 1.15f);   // ONE strike in the 8 m/s band — no crush on top
+        }
+}
 }
