@@ -69,6 +69,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 SeaLevelPressure = WireUnits.HectopascalToPascal(w.SeaLevelPressureHpa), RelativeHumidity = w.RelativeHumidity, VisibilityM = w.VisibilityM,
                 FogTopM = w.FogTopM, FogVisibilityM = w.FogVisibilityM, Precipitation = w.Precipitation,
                 PrecipitationRate = WireUnits.MillimetresPerHourToMetresPerSecond(w.PrecipitationMmPerHour), FeatherM = w.FeatherM, WindCount = w.WindCount, CloudCount = w.CloudCount,
+                Since = w.Since,   // ⭐ CE-4662 (TD-8)
             };
             s.W0Alt = w.WindAltitudeM[0]; s.W0From = WireUnits.DegToRad(w.WindFromDeg[0]); s.W0Speed = w.WindSpeedMps[0]; s.W0Gust = w.WindGustMps[0];
             s.W1Alt = w.WindAltitudeM[1]; s.W1From = WireUnits.DegToRad(w.WindFromDeg[1]); s.W1Speed = w.WindSpeedMps[1]; s.W1Gust = w.WindGustMps[1];
@@ -95,6 +96,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 RelativeHumidity = s.RelativeHumidity, VisibilityM = s.VisibilityM, FogTopM = s.FogTopM, FogVisibilityM = s.FogVisibilityM,
                 Precipitation = s.Precipitation, PrecipitationMmPerHour = WireUnits.MetresPerSecondToMillimetresPerHour(s.PrecipitationRate), FeatherM = s.FeatherM,
                 WindCount = s.WindCount, CloudCount = s.CloudCount,
+                Since = (SimInstant)s.Since,   // ⭐ CE-4662 (TD-8)
             };
             w.WindAltitudeM[0] = s.W0Alt; w.WindFromDeg[0] = WireUnits.RadToDeg(s.W0From); w.WindSpeedMps[0] = s.W0Speed; w.WindGustMps[0] = s.W0Gust;
             w.WindAltitudeM[1] = s.W1Alt; w.WindFromDeg[1] = WireUnits.RadToDeg(s.W1From); w.WindSpeedMps[1] = s.W1Speed; w.WindGustMps[1] = s.W1Gust;

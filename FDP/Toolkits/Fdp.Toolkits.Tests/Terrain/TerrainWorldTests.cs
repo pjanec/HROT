@@ -140,6 +140,46 @@ namespace Fdp.Toolkit.Terrain.Tests
                 Assert.True(TerrainMaterialLibrary.Shared.TryGet(name, out var m) && !TerrainWorldMesh.IsVolumeEffect(Box(0, m!)), name);
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-4662 (Thermal Drivers TD-9) — EVERY material and EVERY surface of EVERY shipped terrain (`assets/terrain/*`, read as a node reads it) has a
+        /// thermal class from the fixed list, and so does every material of the shared library and bare ground. 🔴 Red-proof: drop one material's
+        /// <c>thermalClass</c> from <c>materials.json</c> ⇒ red, naming the terrain and the material.
+        /// </summary>
+        [Fact]
+        public void CE4662_EveryMaterialAndSurfaceOfEveryShippedTerrain_HasAThermalClass()
+        {
+            var lib = TerrainMaterialLibrary.Shared;
+            foreach (var m in lib.All) Assert.True(TerrainThermalClass.IsKnown(m.ThermalClass), $"shared material '{m.Name}' has no thermal class");
+            Assert.True(TerrainThermalClass.IsKnown(lib.SurfaceThermalClass("ground")), "bare ground has no thermal class");
+            foreach (TerrainSurfaceType t in Enum.GetValues(typeof(TerrainSurfaceType)))
+                Assert.True(TerrainThermalClass.IsKnown(lib.SurfaceThermalClass(t.ToString().ToLowerInvariant())), $"surface '{t}' has no thermal class");
+
+            string root = Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!;
+            var terrains = Directory.GetDirectories(Path.Combine(root, "assets", "terrain")).Where(d => File.Exists(Path.Combine(d, "terrain.json"))).ToList();
+            Assert.True(terrains.Count >= 10, $"{terrains.Count} shipped terrains");
+            int materials = 0;
+            foreach (var dir in terrains)
+            {
+                string def = Path.Combine(dir, "terrain.json");
+                var world = TerrainFolderWorld.ReadWorld(def, TerrainFolderWorld.ReadDefinition(def), Path.GetFileName(dir));
+                if (world == null) continue;
+                foreach (var p in world.Prisms)
+                    if (p.Material is { } m) { materials++; Assert.True(TerrainThermalClass.IsKnown(m.ThermalClass), $"{Path.GetFileName(dir)}: material '{m.Name}' has no thermal class"); }
+                foreach (var s in world.Surfaces)
+                    Assert.True(TerrainThermalClass.IsKnown(world.Materials.SurfaceThermalClass(s.Type.ToString().ToLowerInvariant())), $"{Path.GetFileName(dir)}: surface '{s.Type}' has no thermal class");
+            }
+            Assert.True(materials > 0, "no material read from any shipped terrain");
+        }
+
+        /// <summary>⭐ CE-4662 — a name outside the fixed list fails the load (a typo never silently becomes "no class").</summary>
+        [Fact]
+        public void CE4662_AnUnknownThermalClass_FailsTheLoad()
+        {
+            var ex = Assert.Throws<ArgumentException>(() => TerrainMaterialLibrary.Parse("{\"materials\":{\"x\":{\"thermalClass\":\"lava\"}}}", "t"));
+            Assert.Contains("lava", ex.Message);
+            Assert.Throws<ArgumentException>(() => TerrainMaterialLibrary.Parse("{\"surfaceThermalClasses\":{\"open\":\"lava\"},\"materials\":{}}", "t"));
+        }
+
         [Fact]
         public void Mesh_EveryHorizontalTriangleFacesUp_AndWallsAreVertical()
         {

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved", R-4293): TD-1…TD-16 as revised by §3a–§3e; `HeatSource` trimmed to what cannot be derived (§3e, user: "yes, trim it and fold it in"); ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §5 UML · §6 a late joiner · §7 slices
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half as built (CE-4662) · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -177,13 +177,13 @@ more detailed design for it?"*
 |---|---|
 | `ThermalState` | keeps only its TKB PARAMETERS (base signature, heat rates, reference speed); ⛔ `Heat`, `BarrelHeat`, `LastX/Y/Z`, `HasLast` retire |
 | `ThermalHeatSystem` | ⛔ retires (the per-frame integration) |
-| `WeatherConditions` | gains `Since` (when the current weather began, TD-8) |
-| `TerrainMaterial` (`materials.json`) | gains `thermalClass` (TD-9) |
+| `WeatherConditions` | gains `Since` (when the current weather began, TD-8) — ✅ built, §4c |
+| `TerrainMaterial` (`materials.json`) | gains `thermalClass` (TD-9) — ✅ built, + a per-surface map (§4c) |
 
 | ⭐ type data (TKB), never sent at runtime | |
 |---|---|
 | `ThermalSignatureDto` gains | `HasPowerPlant` · `PowerClass` (a car · a truck · a tank · an aircraft) · `HotEnd` (front / rear) · idle and running heat for OUR sensor's calculator (and a body's heat per exertion step) · `FireSeconds` (how long a wreck of this type burns) · for a person `ClothingClass` |
-| a munition gains | `SmokeBlocksInfrared` (TD-12) |
+| a munition gains | `SmokeBlocksInfrared` (TD-12) — ✅ built; the cloud carries it as `AreaEffectCloud.BlocksInfrared` (§4c) |
 
 | ⭐ code that is not a component | |
 |---|---|
@@ -208,6 +208,22 @@ more detailed design for it?"*
 | kept | until it is COLD (about two hours of sim time, by `PowerClass`), then dropped by the next write to that cell; a capacity of items per cell like the craters, another entity past it |
 | read by | the external image generator (it solves the ground's temperature from the stand, the engine time, the soil's thermal class TD-9 and the weather) · our AI thermal sensor through `ThermalDriversOps.MarkWarmth(mark, now, weather)` (an observer may later report *"a recent vehicle position"* into the per-side place knowledge, `PlaceKnowledge`) · an instructor's thermal-marks map layer |
 | ⛔ never | drawn in the normal views; saved into a scenario |
+
+## 4c. As built — the environment half *(CE-4662, terrain, `2026-11-18`)*
+
+| driver | as built | where |
+|---|---|---|
+| **TD-9** materials | `thermalClass` on every shared material (`Terrain/Data/materials.json`), checked against the fixed list `TerrainThermalClass.All` — an unknown name FAILS the load; `TerrainMaterial.ThermalClass` carries it | `TerrainMaterials.cs` |
+| **TD-9** surfaces ⭐ *(added, R-5065)* | a `surfaceThermalClasses` map in the same file, keyed by the `TerrainSurfaceType` name + `ground`: ground soil-dry · open grass · forest dense-vegetation · water water · scrub grass; `TerrainMaterialLibrary.SurfaceThermalClass(name)`; a terrain folder's `materials.json` may override both | `TerrainMaterials.cs` |
+| **TD-9** export | `scripts/terrain-to-unreal.py` writes `thermal_class` on every GeoJSON feature (a wall / prism by its material, a surface by its type, a tree `wood`, a road `asphalt`) and `frame.json` `info.thermal` (the list + the ground's class) | the image generator's material map |
+| **TD-12** smoke | `WarheadDto.SmokeBlocksInfrared` (starter: the 60 / 81 / 120 mm mortar smoke bombs — phosphorus screens — true; the hand smoke grenade, a signal smoke, false); the cloud carries it as **`AreaEffectCloud.BlocksInfrared`** (byte, APPENDED, on `dtAreaEffectCloud`), set once by `AreaEffectSystem` when the burst asks for the cloud; tear gas never | `WarheadDto.cs`, `AreaEffectClouds.cs`, `EntityAreaEffectCloudTranslators.cs` |
+| **TD-8** weather | **`WeatherConditions.Since`** (SimInstant, APPENDED; `EntityWeather.Since`, seconds) — the ONE rule `Restamp(previous, now)`: a value that differs in any other field began now, an identical one keeps its start. Called by the owner's whole-value writes: `WeatherEdit.Set` and `UpdateEntityDescriptorRequestSystem` (a remote edit applied by the owner) | `WeatherConditions.cs` |
+
+| ⛔ deviation from §3 / §4 — and why | |
+|---|---|
+| TD-12 said the cloud carries the flag *"by its type"* | ⛔ every cloud is the ONE bare TKB type 7202 (`AreaEffectCloudTkb`), so a type cannot tell two smokes apart ⇒ a FIELD on the cloud, copied from the munition at creation (R-5066) |
+| TD-9 named only materials | ⭐ the ground the image generator paints is mostly SURFACES (fields, forest, water), which have no material ⇒ the surface map (R-5065) |
+| ⚠ the per-attribute weather patch (`FormAttributeInstaller`, one field at a time) does NOT restamp | its patch context has no clock; the editor and HTTP send the whole value (CE-4346), which does. A reader takes `max(0, now − Since)`; a saved scenario keeps the time it was saved with |
 
 ## 5. UML
 

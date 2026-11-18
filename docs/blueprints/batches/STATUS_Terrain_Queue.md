@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-**idle — waiting for a handoff** (`2026-11-18` ~13:00 UTC wake-up: behaviors' D-3 note reviewed, nothing else new; earlier ~12:05: re-checked after the user's message: CE-4656 · CE-4401 · CE-3428 · CE-3426 · CE-3440 are all DONE above) — the 11-row queue is done or recorded, behaviors' clearance note is done, and no open `RW-M`+ terrain row is unheld: CE-4630 waits on the user's re-check; CE-5004's rest is a cross-lane slice (a storage op — backend — + the wizard page — ui) and the deferred prune; CE-5020 / CE-5021 are `RW-S`. The self-wake-up stays (R-4292) and takes any new handoff.
+**CE-4662 (thermal drivers, the environment half) — taken `2026-11-18`** from [`HANDOFF_Coordinator_To_Terrain_Thermal_Drivers.md`](HANDOFF_Coordinator_To_Terrain_Thermal_Drivers.md) (priority: before the T2 rows). ① materials + surfaces + the export ✅ built (R-5065, for review) · ② IR-blocking smoke ✅ built (R-5066, for review) · ③ weather `Since` ✅ built — gates in §2. Then idle again: CE-4630 waits on the user's re-check; CE-5004's rest is cross-lane; CE-5020 / CE-5021 are `RW-S`.
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292); its message is now §1a's text VERBATIM (updated `2026-11-18` 12:05).
 
 ## 2. The queue (in order)

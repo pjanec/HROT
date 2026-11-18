@@ -126,6 +126,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ⭐ CE-4155 (SR-82) — who threw it (and who threw it first): every pulse of the cloud names them
                 CreatorNetworkId = NetworkIdOf(repo, evt.Shooter),
                 OriginalCreatorNetworkId = NetworkIdOf(repo, evt.OriginalShooter),
+                BlocksInfrared = (byte)(!gas && w.SmokeBlocksInfrared ? 1 : 0),   // ⭐ CE-4662 (TD-12) — the munition says; tear gas never
             });
         }
 

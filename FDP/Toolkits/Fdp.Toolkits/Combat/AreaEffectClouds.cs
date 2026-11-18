@@ -70,6 +70,10 @@ namespace Fdp.Toolkit.Combat
         /// (<c>DetonationNotification.OriginalShooter</c>); 0 = the creator threw it first. Each pulse's <c>OriginalSource</c>.</summary>
         public int OriginalCreatorNetworkId;
 
+        /// <summary>⭐ <c>CE-4662</c> (thermal drivers TD-12; APPENDED, on the wire — <c>dtAreaEffectCloud</c>) — 1 when the smoke also blocks
+        /// INFRARED (its munition's <c>WarheadDto.SmokeBlocksInfrared</c>), 0 = it blocks only sight. Set once at creation.</summary>
+        public byte BlocksInfrared;
+
         /// <summary>True once its time is up.</summary>
         public readonly bool IsOver(double now) => now >= BornAtSimSeconds + Seconds;
 
