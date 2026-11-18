@@ -307,14 +307,18 @@ namespace Fdp.Toolkit.Utility
 
         /// <summary>
         /// Returns the top-result score from the EQS sensor child matching ctx.Params.BlueprintId.
-        /// Returns 0 if no matching sensor, buffer not ready, or buffer is empty.
+        /// Returns 0 if no matching sensor, a sensor that never answered, or an empty answer.
+        /// ⭐ <c>CE-4652</c> — a sensor RE-ASKED (re-pointed at a new threat, <c>EqsChildSensor.Refresh</c>) scores its LAST answer's top until
+        /// the new one lands (<see cref="EqsCognitiveBuffer.PendingTopScore"/>): "not answered yet" is not "no cover". 📐 Read as 0 it flipped
+        /// the posture TakeCover ⇄ HoldProne every refresh (uf-squad-under-fire: ~0.5 s, no aimed fire).
         /// </summary>
         [UtilityInput("EqsTopScore")]
         public static float EqsTopScore(in UtilityInputCtx ctx)
         {
             if (!TryFindEqsChild(ctx.Repo, ctx.Self, ctx.Params.BlueprintId, out var child)) return 0f;
             ref readonly var buf = ref ctx.Repo.GetComponentRO<EqsCognitiveBuffer>(child);
-            if (!buf.IsReady || buf.Count == 0) return 0f;
+            if (!buf.IsReady) return Math.Clamp(buf.PendingTopScore, 0f, 1f);
+            if (buf.Count == 0) return 0f;
             float result = Math.Clamp(buf.GetTop().Score, 0f, 1f);
             Debug.Assert(result >= 0f && result <= 1f);
             return result;

@@ -53,7 +53,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>Every value the JSON tree's blackboard carried as a default — the posture an unconfigured soldier fights with.</summary>
-        public static CombatPostureBlackboard Defaults() => new CombatPostureBlackboard
+        public static CombatPostureBlackboard Defaults() => WithCoverReach(new CombatPostureBlackboard
         {
             Choose      = new ChooseOptionParams { Decision = UtilityDecisionRef.FromAssetId(CombatPostureDecision.DecisionAssetId) },
             IsAdvance   = new IsOptionParams { Option = (byte)Posture.AdvanceAndAttack },
@@ -73,7 +73,9 @@ namespace Hrot.AI.Behaviors.Brains
             Flank       = Approaching(),
             Firing      = Approaching(),
             Throw       = Approaching() with { SearchRadius = EqsTacticsNodes.ThrowSearchRadius },   // ⭐ WL-4 W-12f
-        };
+        });
+
+        private static CombatPostureBlackboard WithCoverReach(CombatPostureBlackboard block) { CoverReach(ref block); return block; }
 
         private static EqsTacticsParams Approaching() => new EqsTacticsParams
         {
@@ -95,6 +97,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Willing.Assault = authored.Assault ? (byte)1 : (byte)0;   // ⭐ AQ89 D
             block.Stay.Stay = block.Advance.Stay = authored.Stay ? (byte)1 : (byte)0;   // ⭐ CE-2297 slice 2a (R-2055)
             Post(in authored.Post, ref block);   // ⭐ CE-2275 D-2a / D-2d (PC-14) — his hide points and his approach moves stay on his post
+            CoverReach(ref block);
 
             // ⭐ CE-2297 LD-3e — the order carries the facing: a point he watches toward when no threat and no sector point his eyes,
             //   scanned ±30° (📄 Look Direction §3.3a)
@@ -118,6 +121,13 @@ namespace Hrot.AI.Behaviors.Brains
             if ((Vector3)a.Objective == Vector3.Zero && world.HasComponent<SimTransform>(target))
                 block.Advance.Objective = world.GetComponentRO<SimTransform>(target).Position;
         }
+
+        /// <summary>⭐ <c>CE-4652</c> — the decision's cover score looks as far as its TakeCover branch (PeekAndFire) searches, and no further:
+        /// 📐 <c>uf-squad-under-fire</c> — the score read cover within 60 m, the branch searched 15 m (G8), found none, waited its 3 s
+        /// (G2: "Failure … so the posture re-scores") and was chosen again — the hostiles never fired. With none in reach HoldProne wins
+        /// (§3.3f: lie down and return fire). The retreat query keeps its 60 m.</summary>
+        internal static void CoverReach(ref CombatPostureBlackboard block)
+            => block.Sensors.CoverSearchRadius = PeekAndFireNodes.Effective(in block.Peek).SearchRadius;
 
         /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14, DA-40) — a posted man's take-cover branch is anchored to his post: a window post flies the
         /// window column (<see cref="WindowDuelBehavior.Shape"/> A — prone under the sill, up at it), a cover post the defaults; either way a

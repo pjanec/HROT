@@ -6,7 +6,24 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-4 · `uf-squad-under-fire` row (4) "the bounds complete" — the squad now needs ~300 s: change the hostiles, or the clock? *(2026-11-18)*
+
+**Measured** (live, after CE-4652's fixes): the two InertSop hostiles now lie down and fire the whole run (Hostile 2: 103 rounds by 80 s,
+empty at 200 s — the old passing golden's ~100). Every near miss drops a mover (row 2 now PASSES), so the squad closes ~45 m by 120 s, ~60 m by
+200 s, and a rifleman reaches the objective area (25 m) only at ~300 s — after both hostiles have emptied their weapons. The old pass (2026-10-22)
+came from hostiles that BROKE and fell silent; an InertSop man no longer breaks (CE-4652 ①, by design: InertSop = no reactions). And as InertSop
+they ignore suppression, so the squad's covering half cannot quiet them — the bound never gets the cover it waits for.
+
+**My lean: ① — give the two hostiles a real soldier's SOP (they react to fire: duck, suppressed while the covering half fires)** — that is what
+fire and movement is tested against; runFor stays 120. Cost: two entities re-authored, the golden re-captured; the near-miss row must still pass.
+- ② runFor 300: passes, but only because the hostiles run dry — it tests their ammunition, not the bounds.
+- ③ fewer rounds per hostile (a fire schedule): the same problem with a shorter wait.
+
+⛔ Not changed. CE-4652's own row (a near-missed mover drops) passes at 5.75 s.
+
 ## D-3 · CE-4654 — an AP mine now KILLS the man on it; should it maim him instead (alive, legs gone)? *(2026-11-18)*
+
+**DECIDED `2026-11-18` (user, via coordinator): ① — the trigger man is MAIMED, not killed: the burst's share on him goes to the Leg zone so he lands incapacitated, alive, and the casualty drill carries him. Terrain's area effect gets the trigger-man rule (cross-lane edit allowed, say it); goldens move.**
 
 **Measured** (`mf-strike-and-halt` live after terrain's CE-2446): the burst leaves the struck man at Health 0 — dead, no move, no fire; the three
 others untouched. The user's complaint (no health, no mobility lost) is answered. But MF-5 says *"the casualty cared for in place"* and the
@@ -22,6 +39,8 @@ mine scenario's casualty becomes a live man (the goldens move).
 ⛔ Not built. The behaviors part of CE-4654 (verify, pin) is done.
 
 ## D-2 · CE-2442 — who answers an `Engineers` request, and with what? *(2026-11-18)*
+
+**DECIDED `2026-11-18` (user, via coordinator): ① — `SupportAsset.Engineers` (a free unit with a TKB 116 clearer or an engineer squad); the HQ answers with `ReconMinefield` at the request's point, then the clearer's `Breach` along the requester's route once the field is marked. Add a demo scenario with checks.**
 
 **The question:** `MinefieldAhead` halts a squad and queues `RequestKind.Engineers` up the chain (MS-B4, approved), but no HQ answers it:
 `SupportCommandBehavior.Command` answers only `FireSupport` and `Reinforce` (`SupportCommandBehavior.cs:90`, `:131`) and there is no engineer
@@ -42,6 +61,8 @@ not added to the request.
 ⛔ Not built (a new capability; the design does not say who orders them).
 
 ## D-1 · `ts-fire-discipline` (CE-3461 follow-up): the REGULARS break under the scenario's 40 over-head rounds — re-tune what? *(2026-11-18)*
+
+**DECIDED `2026-11-18` (user, via coordinator): ③ — keep the stress model (R-2076); change `ts-fire-discipline`'s fire to what the Judge means (e.g. 25 rounds or one every 2 s) and edit its description + checks. The militia must still break.**
 
 **The question:** the scenario (and `DESIGN_Temperament_And_Stress.md` §6) says *no regular breaks* under 40 rounds passing over a team every 1.3 s from
 120 m. Measured now, the two CENTRE regulars break at ~29–33 s. Which number moves: the near-miss stimulus, the calming, or the scenario's fire?
