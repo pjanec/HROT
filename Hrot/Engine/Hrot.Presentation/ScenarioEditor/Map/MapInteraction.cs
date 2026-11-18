@@ -242,6 +242,7 @@ namespace Hrot.ScenarioEditor.Map
             typeof(StatelessGizmoSystem),
             typeof(Hrot.Common.Systems.GlobalActionDispatchSystem),
             typeof(Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem),   // ⭐ CE-3123 — pins and AI-trace toggles
+            typeof(Hrot.UI.Common.Effects.HudFeedSystem),                      // ⭐ CE-4671 LK-S1 — the player messages and the kill feed (out of the spawner)
             typeof(Hrot.UI.Common.Effects.EffectSpawnSystem),                  // ⭐ CE-1042 E2 — realism effects on every host
             typeof(Hrot.UI.Common.Effects.WreckSpawnSystem),                   // ⭐ W3 — a destroyed vehicle burns and smokes
             typeof(Fdp.Toolkit.Time.LifespanSystem),                           // ⭐ W1 — removes timed entities (effects) on sim time
@@ -252,6 +253,9 @@ namespace Hrot.ScenarioEditor.Map
         /// <summary>⭐ CE-1042 E2 — makes muzzle flashes, tracers, explosions and decals from the fire / hit events
         /// (docs/DESIGN_Visual_Effects.md VE-A). Scheduled through <see cref="InteractionSystems"/>.</summary>
         public Hrot.UI.Common.Effects.EffectSpawnSystem EffectSpawn { get; } = new();
+
+        /// <summary>⭐ CE-4671 LK-S1 — the two HUD feeds (player messages, the kill feed), moved out of <see cref="EffectSpawn"/>; scheduled right before it.</summary>
+        public Hrot.UI.Common.Effects.HudFeedSystem HudFeed { get; } = new();
 
         /// <summary>⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P) — flames and smoke on a vehicle whose Health crosses to zero.</summary>
         public Hrot.UI.Common.Effects.WreckSpawnSystem WreckSpawn { get; } = new();
@@ -301,7 +305,7 @@ namespace Hrot.ScenarioEditor.Map
         /// <see cref="Unserviceable"/>, so the two cannot disagree.
         /// </summary>
         public Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] InteractionSystems
-            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { ActionDispatch, DebugStatePatch, GizmoGroup, EffectSpawn, WreckSpawn, Lifespan, MenuOrders, MenuShortcuts, Hats };
+            => new Fdp.ModuleHost.Abstractions.IEcsModuleSystem[] { ActionDispatch, DebugStatePatch, GizmoGroup, HudFeed, EffectSpawn, WreckSpawn, Lifespan, MenuOrders, MenuShortcuts, Hats };
 
         /// <summary>
         /// ⭐⭐ Returns one message per required system the host did not schedule — empty when the host
@@ -369,6 +373,8 @@ namespace Hrot.ScenarioEditor.Map
                 ? "map menu actions (layer control, centre on entity, rotate…) do nothing"
              : system == typeof(Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem)
                 ? "gizmo pins and AI-trace toggles from the map menu are published and never applied"
+             : system == typeof(Hrot.UI.Common.Effects.HudFeedSystem)
+                ? "the player's messages and the kill feed stay empty"
              : system == typeof(Hrot.UI.Common.Effects.EffectSpawnSystem)
                 ? "no muzzle flashes, tracers, explosions or impact marks appear when units fire"
              : system == typeof(Hrot.UI.Common.Effects.WreckSpawnSystem)

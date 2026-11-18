@@ -37,7 +37,7 @@ namespace Hrot.ScenarioEditor.Map
             var node = new List<IEcsModuleSystem>();
             foreach (var sys in interaction.InteractionSystems)
             {
-                bool worldWriter = ReferenceEquals(sys, interaction.DebugStatePatch) || ReferenceEquals(sys, interaction.EffectSpawn)
+                bool worldWriter = ReferenceEquals(sys, interaction.DebugStatePatch) || ReferenceEquals(sys, interaction.HudFeed) || ReferenceEquals(sys, interaction.EffectSpawn)
                                    || ReferenceEquals(sys, interaction.WreckSpawn) || ReferenceEquals(sys, interaction.Lifespan);
                 if (worldWriter) node.Add(sys); else _ui.Add(sys);
             }

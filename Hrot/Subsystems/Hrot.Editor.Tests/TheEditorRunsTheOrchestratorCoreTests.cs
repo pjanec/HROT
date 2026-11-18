@@ -276,6 +276,7 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
         "Hrot.Player.Systems.StyleResolutionSystem",
         "Fdp.Toolkit.Replication.Systems.GhostPromotionSystem",
         "Hrot.Map.Common.Services.StaticObstacleBakeSystem",
+        "Fdp.Toolkit.Aggregate.HeldChildParticipant",          // ⭐ CE-3451-style re-pin (ui, 2026-11-18) — added since the pin: CE-8013 ② (the shared EntityCreationPack)
         "Hrot.Diagnostics.Breakpoints.DebugSnapshotProvider",
         "Fdp.Toolkit.Behavior.Diagnostics.TraceBufferLifecycleSystem",
         "Fdp.Toolkit.Lifecycle.Systems.BlueprintApplicationSystem",
@@ -298,6 +299,7 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
         "Hrot.Common.Systems.ContextActionIngressSystem",
         "Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem",
         "Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup",
+        "Hrot.UI.Common.Effects.HudFeedSystem",          // ⭐ CE-4671 LK-S1 — the HUD feeds, moved out of the spawner, right before it
         "Hrot.UI.Common.Effects.EffectSpawnSystem",
         "Hrot.UI.Common.Effects.WreckSpawnSystem",
         "Fdp.Toolkit.Time.LifespanSystem",

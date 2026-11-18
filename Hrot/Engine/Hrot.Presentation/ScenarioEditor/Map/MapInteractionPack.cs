@@ -459,7 +459,8 @@ namespace Hrot.ScenarioEditor.Map
                 OrderForm      = orderForm,
                 Host           = host,   // ⭐ CE-1150
             };
-            map.EffectSpawn.FeatureGate = ctx.FeatureGate;   // ⭐ CE-4148 — the hit memory is recorded only while a hud.* reader is on
+            map.EffectSpawn.FeatureGate = ctx.FeatureGate;
+            map.HudFeed.FeatureGate = ctx.FeatureGate;   // ⭐ CE-4671 LK-S1 — the feeds moved out of the spawner keep the same gate   // ⭐ CE-4148 — the hit memory is recorded only while a hud.* reader is on
             return map;
         }
 

@@ -276,6 +276,7 @@ namespace Hrot.Presentation.Tests.Gizmos
             var scheduled = mi.GizmoGroup.GetSystems().Select(s => s.GetType()).ToHashSet();
             scheduled.Add(mi.ActionDispatch.GetType());
             scheduled.Add(mi.DebugStatePatch.GetType());   // ⭐ CE-3123 — the third member of InteractionSystems
+            scheduled.Add(mi.HudFeed.GetType());           // ⭐ CE-4671 LK-S1 — the HUD feeds, moved out of the spawner
             scheduled.Add(mi.EffectSpawn.GetType());       // ⭐ CE-1042 E2 — the effect systems, members four and five
             scheduled.Add(mi.WreckSpawn.GetType());        // ⭐ W3 — flames and smoke on a fresh wreck
             scheduled.Add(mi.Lifespan.GetType());          // ⭐ W1 — the generic lifespan collector
@@ -302,7 +303,9 @@ namespace Hrot.Presentation.Tests.Gizmos
             // ⭐ CE-3123 — the debug-state patch is the other non-group member of InteractionSystems, so it is named too;
             //   ⭐ CE-1042 E2 — and the effect systems (W1: the lifespan collector; W3: the wreck spawner).
             //   ⭐ CE-3169 — and the menu orders, whose follow-up pick would never become an order.
-            Assert.Equal(7, missing.Count);
+            //   ⭐ CE-4671 LK-S1 — and the HUD feeds, moved out of the effect spawner.
+            Assert.Equal(8, missing.Count);
+            Assert.Contains(missing, m => m.Contains("HudFeedSystem", StringComparison.Ordinal));
             Assert.Contains(missing, m => m.Contains("MenuOrders", StringComparison.Ordinal));
             Assert.Contains(missing, m => m.Contains("MenuShortcuts", StringComparison.Ordinal));   // ⭐ CE-1076
             Assert.Contains(missing, m => m.Contains("WreckSpawnSystem", StringComparison.Ordinal));

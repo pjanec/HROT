@@ -152,6 +152,7 @@ public class CgfSubsystemTests : IDisposable
         "Hrot.Common.Systems.ContextActionIngressSystem",
         "Fdp.Toolkit.Behavior.Diagnostics.DebugStatePatchSystem",
         "Fdp.ModuleHost.Scheduling.TogglablePostSimulationGroup",
+        "Hrot.UI.Common.Effects.HudFeedSystem",          // ⭐ CE-4671 LK-S1 — the HUD feeds, moved out of the spawner, right before it
         "Hrot.UI.Common.Effects.EffectSpawnSystem",
         "Hrot.UI.Common.Effects.WreckSpawnSystem",
         "Fdp.Toolkit.Time.LifespanSystem",

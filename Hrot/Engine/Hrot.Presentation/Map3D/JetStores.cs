@@ -21,9 +21,9 @@ public static class JetStores
     public const int PerKind = 2;
 
     /// <summary>An AMMUNITION TKB id is an IR missile (AIM-9X, R-73 — the air lane's contract constants).</summary>
-    public static bool IsIr(ulong ammo) => ammo == (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbAim9x || ammo == (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbR73;
+    public static bool IsIr(ulong ammo) => AirMissiles.IsIr(ammo);   // ⭐ CE-4671 LK-S1 — moved to Hrot.Look (the firing-blast rule reads it)
     /// <summary>… a radar missile (AIM-120, R-77).</summary>
-    public static bool IsRadar(ulong ammo) => ammo == (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbAim120 || ammo == (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbR77;
+    public static bool IsRadar(ulong ammo) => AirMissiles.IsRadar(ammo);
 
     /// <summary>Whether <paramref name="family"/> carries air-to-air missiles on rails at all.</summary>
     public static bool Carries(VisualFamily family) => family is VisualFamily.Jet or VisualFamily.TwinEngineJet;
