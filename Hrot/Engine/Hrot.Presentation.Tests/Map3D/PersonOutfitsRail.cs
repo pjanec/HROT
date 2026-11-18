@@ -49,6 +49,8 @@ public sealed class PersonOutfitsRail
         ("niqab",       O("Abaya", Black),      O("Hidden"),   O("None"),     O("Niqab", Black),                   O("Short", HairBlack), O("None"), O("None")),
         ("chestrig",    O("Shirt", Khaki),      O("Trousers", Grey), O("ChestRig", Olive), O("None"),              O("Short", HairBlack), O("None"), O("None")),
         ("facewrap",    O("Shirt", Khaki),      O("Trousers", Grey), O("ChestRig", Olive), O("ShemaghFaceWrap", Khaki), O("Short", HairBlack), O("None"), O("None")),
+        // ⭐ user 2026-11-18 — the plain-clothes fighter of the user's photo: an olive jacket, the baggy shalwar, no rig, the black face wrap
+        ("me-plainclothes", O("Jacket", Olive), O("Tunban", Khaki), O("None"), O("ShemaghFaceWrap", Black), O("Short", HairBlack), O("None"), O("None")),
         ("buckskin",    O("Buckskin", Buck),    O("Shorts", Skin), O("None"), O("None"),                           O("Short", HairBlack), O("None"), O("None")),
         ("breechcloth", O("TShirt", Skin),      O("Breechcloth", BuckD), O("None"), O("None"),                     O("Short", HairBlack), O("None"), O("None")),
         ("headband",    O("TShirt", Skin),      O("Shorts", Skin), O("None"), O("Headband", Red),                  O("Short", HairBlack), O("None"), O("None")),
@@ -199,15 +201,20 @@ public sealed class PersonOutfitsRail
         Outfit Of(long type, long seed) { var look = EntityBodyLayer3D.Resolve(tkb.GetByType(type)!); return Outfits.For(seed, type, look.Soldier, look.Child, null, ForceId.Hostile, look.Kit, look.Elderly, look.Sex, look.Wardrobe); }
         foreach (long type in Fighters)
         {
-            int covered = 0, rigged = 0;
+            int covered = 0, rigged = 0, baggy = 0, blackWrap = 0;
             for (int s = 1; s <= 500; s++)
             {
                 var o = Of(type, s);
                 if (o.HeadKind is OutfitHead.Shemagh or OutfitHead.ShemaghFaceWrap or OutfitHead.Skullcap) covered++;
                 if (o.OverKind == OutfitOver.ChestRig) rigged++;
+                if (o.Legwear == Legwear.Tunban) baggy++;
+                if (o.HeadKind == OutfitHead.ShemaghFaceWrap && o.HeadCloth.R < 60 && o.HeadCloth.G < 60 && o.HeadCloth.B < 60) blackWrap++;
             }
             Assert.True(covered >= 375, $"type {type}: head cover in {covered}/500");
-            Assert.True(rigged >= 300, $"type {type}: a chest rig in {rigged}/500");
+            // ⭐ user 2026-11-18 (the plain-clothes fighter photo): a rig in ~60 % (not a large majority), the baggy shalwar under a shirt / jacket, the black face wrap
+            Assert.InRange(rigged, 250, 350);
+            Assert.True(baggy >= 60, $"type {type}: the baggy shalwar in {baggy}/500");
+            Assert.True(blackWrap >= 15, $"type {type}: a black face wrap in {blackWrap}/500");
         }
         int thobes = 0;
         for (int s = 1; s <= 500; s++) if (Of(1107, s).TopKind == OutfitTop.Robe) thobes++;

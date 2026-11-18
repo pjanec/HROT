@@ -203,8 +203,9 @@ namespace Hrot.Core.Tkb
         };
 
         /// <summary>
-        /// 2003 / 2010 / 2011 / 2012 — a Middle-East FIGHTER (OF-10, OF-12): drab shirt, military jacket or robe, often an ammunition chest rig, a
-        /// shemagh (sometimes across the face), a cap or nothing, short hair, almost always bearded. ⛔ No camouflage: his top is no <c>Uniform</c>.
+        /// 2003 / 2010 / 2011 / 2012 — a Middle-East FIGHTER (OF-10, OF-12): drab shirt, military jacket or robe, often an ammunition chest rig (60 %), a
+        /// shemagh (sometimes across the face — khaki, drab, check or black), a cap or nothing, straight trousers or the baggy shalwar (a third), short hair,
+        /// almost always bearded. ⛔ No camouflage: his top is no <c>Uniform</c>.
         /// </summary>
         public static readonly OutfitDto MiddleEastFighter = new()
         {
@@ -212,11 +213,15 @@ namespace Hrot.Core.Tkb
             Top = S(O(nameof(OutfitTop.Shirt), 10f, Khaki), O(nameof(OutfitTop.Shirt), 10f, Olive), O(nameof(OutfitTop.Shirt), 10f, FieldGrey), O(nameof(OutfitTop.Shirt), 10f, FieldBlack),
                     O(nameof(OutfitTop.Jacket), 10f, Olive), O(nameof(OutfitTop.Jacket), 10f, Khaki), O(nameof(OutfitTop.Jacket), 10f, FieldGreen),
                     O(nameof(OutfitTop.Robe), 12f, White), O(nameof(OutfitTop.Robe), 10f, LightGrey), O(nameof(OutfitTop.Robe), 8f, Brown)),
-            Over = S(O(nameof(OutfitOver.ChestRig), 75f, Drab), O(nameof(OutfitOver.None), 25f)),   // ⭐ CE-4648 polish: a rig in 75 % of fighters (was 60)
-            Legs = S(O(nameof(OutfitLegs.Trousers), 100f, C(106, 100, 76), C(70, 72, 56), C(48, 48, 50), C(120, 112, 88))),
+            // ⭐ user 2026-11-18 (a photo of a plain-clothes fighter): a rig in 60 % — the fighter dressed as a civilian is common (was 75 %, CE-4648 polish)
+            Over = S(O(nameof(OutfitOver.ChestRig), 60f, Drab), O(nameof(OutfitOver.None), 40f)),
+            // ⭐ user 2026-11-18 — the baggy shalwar (our tunban) in a third of fighters, light khaki / sand / drab; straight trousers in the rest
+            Legs = S(O(nameof(OutfitLegs.Trousers), 67f, C(106, 100, 76), C(70, 72, 56), C(48, 48, 50), C(120, 112, 88)),
+                     O(nameof(OutfitLegs.Tunban), 33f, C(178, 162, 124), C(156, 144, 112), C(128, 120, 96))),
             // ⭐ CE-4648 polish (user review): head cover — a shemagh (40), a face wrap (32) or a skullcap (8) — in 80 % of fighters, a cap in 8, bareheaded in 12
             Head = S(O(nameof(OutfitHead.Shemagh), 20f, RedWhiteCheck), O(nameof(OutfitHead.Shemagh), 12f, CapWhite), O(nameof(OutfitHead.Shemagh), 8f, ClothBlack),
                      O(nameof(OutfitHead.ShemaghFaceWrap), 14f, Khaki), O(nameof(OutfitHead.ShemaghFaceWrap), 10f, Drab), O(nameof(OutfitHead.ShemaghFaceWrap), 8f, RedWhiteCheck),
+                     O(nameof(OutfitHead.ShemaghFaceWrap), 10f, FieldBlack),   // ⭐ user 2026-11-18 — the black face wrap, eyes only
                      O(nameof(OutfitHead.Skullcap), 8f, CapWhite),
                      O(nameof(OutfitHead.Cap), 4f, CapOlive), O(nameof(OutfitHead.Cap), 4f, FieldBlack), O(nameof(OutfitHead.None), 12f)),
             Hair = S(Dark(nameof(OutfitHair.Short), 100f)),
