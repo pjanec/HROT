@@ -8,8 +8,8 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-IN PROGRESS: **CE-3428** (pack the prefilled navmesh tiles) — step ①: read the row.
-Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt.
+IN PROGRESS: **CE-3428** (pack the prefilled navmesh tiles) — step ① MEASURING: the 5.5 km synthetic set + a full import with prefill running in the background (scratchpad `c3428/`); **CE-3440** next while it runs.
+Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292, coordinator `12ce6cebb`).
 
 ## 2. The queue (in order)
 
@@ -24,7 +24,7 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | T2 | CE-4656 a grey block over a baked static car | ✅ DONE — a platform-typed baked obstacle (the parked car) is `DrawnByEntity`; the terrain mesh neither draws it nor cuts the ground under it | rail `StaticObstacleBakeTests.CE4656_*` (red-proved) · NOTE to ui: do the feature obstacles draw twice? |
 | T2 | CE-4401 scale-rig roads at height 0 | ✅ DONE — the surface was fixed by ui's CE-1494; the Roads debug gizmo drew at z 0 ⇒ now on the ground (cross-lane, ui's gizmo) | rail `RoadNetworkGizmoTests.CE4401_*` (red-proved) · ⚠ filed **CE-5020** (E2b_V: 9 asphalt vertices ≤ 1.13 m off on a random terrain) |
 | T2 | CE-3428 pack the prefilled navmesh tiles | TODO | |
-| T2 | CE-3426 felling a lone tree, fragments in woods | TODO | |
+| T2 | CE-3426 felling a lone tree, fragments in woods | ✅ DONE — fragments through a wood stopped like rounds (`× (1 − Stop)`); felling was CE-4603 | rail `TerrainWoodsTests.CE3426_*` (red-proved); toolkit Woods / AreaEffect / Crater / BuildingDamage 115 / 115 · ⚠ no scenario bursts in a wood |
 | T2 | CE-3440 a breach hot-path allocation rail red 1 in 3 | TODO | |
 
 ## 3. Taken from new handoffs
