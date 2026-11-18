@@ -118,6 +118,8 @@ public sealed class StagedPresentation : IDisposable
         UiClusterView = new Fdp.Toolkit.Orchestration.ClusterView(UiEventBus, (int)node.NodeId);
         WorldGuard.Strict = !SingleThread;   // no lock: every off-thread read of S is a race
         a.SetSingletonManaged(new SimLink(Jobs, s));
+        _simClockRead = () => node.Kernel.CurrentTime.TotalTime;   // ⭐ CE-3472 — the kernel's clock, stamped after every step
+        Volatile.Write(ref _simClock, _simClockRead());
         WorldGuard.ArmSyncMask(TableMask, SingletonExcept);
         WorldGuard.Arm(s, a, -1);   // until a worker arms with its id, the guard decides by the tracer's context
         Console.WriteLine("[STAGED] the node over S, the presentation over A; table mask " + (MaskAll ? "ALL types" : "'" + maskName + "'")
@@ -182,6 +184,18 @@ public sealed class StagedPresentation : IDisposable
     /// <summary>Posts a named action to the sim thread.</summary>
     public void Post(string label, Action action) => Jobs.Post(_ => action(), label);
 
+    private double _simClock;
+    private Func<double>? _simClockRead;
+
+    /// <summary>
+    /// ⭐ <c>CE-3472</c> (the user, `2026-11-18`: a DAR seek "jumps somewhere else … even 1 minute … not consistent") — the node's KERNEL clock as of the
+    /// latest step (<c>Kernel.CurrentTime.TotalTime</c>: the clock a seek snaps — in a replay / review wall seconds after the session's zero), published
+    /// once a step as one double (0 B). ⭐ The UI's time facade reads THIS (<c>NodeRunControls.For</c>), the same clock the sim side's facade reads, so the
+    /// two cannot differ by construction. ⛔ Not A's <c>GlobalTime</c>: during a replay / review the kernel stops pushing it (<c>SuspendGlobalTimePush</c>)
+    /// and it holds the recorded frame's SIM time — read as wall seconds after the zero, the playhead fell back by every pause before it.
+    /// </summary>
+    public double SimClockSeconds => Volatile.Read(ref _simClock);
+
     /// <summary>UI thread: the frame's time, for the sim worker (never more than a quarter second behind).</summary>
     public void AddTime(float dt)
     {
@@ -231,6 +245,7 @@ public sealed class StagedPresentation : IDisposable
         SimBefore?.Invoke();
         (NodeFrame ?? throw new InvalidOperationException("The host gave the staged presentation no node frame."))(dt);
         SimAfter?.Invoke();
+        if (_simClockRead != null) Volatile.Write(ref _simClock, _simClockRead());   // ⭐ CE-3472
         for (int i = 0; i < _readouts.Count; i++) _readouts[i].PublishIfChanged(Staging);
         Staging.Publish(s, ++_tick);
     }
