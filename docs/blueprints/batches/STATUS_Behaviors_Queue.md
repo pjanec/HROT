@@ -35,7 +35,7 @@ as CE-3444 (thrash between cover points).
 | CE-3464 a pinned man never fires, walks to the house | TODO | | | `rf-pinned-in-open` |
 | CE-3465 no grenade at the wall-hugger | TODO | | | `rf-wall-hugger` |
 | CE-3444 a unit thrashes between cover points | TODO | | | `uc-urban-battle` |
-| CE-2442 no HQ answers an `Engineers` request | TODO | | | |
+| CE-2442 no HQ answers an `Engineers` request | **SKIPPED — needs decision** (D-2: who answers, with what — the design names the engineers' work, not who orders it) | | | |
 | CE-3470 the mounted riders abort under the strict parallel env | TODO | | | |
 
 ## 3. Taken from new handoffs
