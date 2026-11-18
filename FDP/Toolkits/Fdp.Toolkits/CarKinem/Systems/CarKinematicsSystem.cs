@@ -708,7 +708,14 @@ namespace CarKinem.Systems
                     // ⭐ CE-2167 (V5) — the way it MOVES, not the way it faces: a vehicle backing along its path makes progress too
                     //   (it froze: the forward vector points against the tangent while reversing).
                     var travel = state.Speed < 0f ? -fwd2D : fwd2D;
-                    nav.ProgressS += MathF.Abs(state.Speed) * dt * MathF.Max(0f, Vector2.Dot(travel, progressTangent ?? targetHeading));
+                    float along = MathF.Max(0f, Vector2.Dot(travel, progressTangent ?? targetHeading));
+                    nav.ProgressS += MathF.Abs(state.Speed) * dt * along;
+                    // ⭐ CE-3452 — a vehicle MOVING but heading more than ~75° off the tangent at its progress gains (almost) nothing by the tangent: then its
+                    //   progress is the point of the path it is ON, ahead within the lookahead (a path starting at an angle to its heading). Only then — in a
+                    //   corner the tangent still gains, and an early jump would move the aim point and cut it (the CE-3029 clearance rails)
+                    if (along < PathProgress.StuckAlong && MathF.Abs(state.Speed) > PathProgress.StuckSpeed
+                        && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var driven))
+                        nav.ProgressS = PathProgress.OnPathAhead(in driven, nav.ProgressS, pos2D, MathF.Max(PathLookahead(in @params, MathF.Abs(state.Speed)), 5f), travel);
                 }
             }
             else if (nav.Mode == KinematicsMode.RoadGraph)

@@ -34,6 +34,8 @@ public sealed class ObstacleRowOptions
         (TkbEntityTypes.Obstacle_Barrel, "Barrel", ClutterTypes.Barrel, "clutter/barrel"),                          // ⭐ CE-5010 — the other three obstacle types (TE-5)
         (TkbEntityTypes.Obstacle_JerseyBarrier, "Jersey barrier", ClutterTypes.JerseyBarrier, "clutter/barrier"),
         (TkbEntityTypes.Obstacle_GuardBooth, "Guard booth", ClutterTypes.GuardBooth, "clutter/booth"),
+        (TkbEntityTypes.Obstacle_BarrelWater, "Barrel, water-filled", ClutterTypes.BarrelWater, "clutter/barrel"),   // ⭐ CE-3473 (backend, cross-lane) — a filled drum stops rounds and a ramming car
+        (TkbEntityTypes.Obstacle_BarrelSand, "Barrel, sand-filled", ClutterTypes.BarrelSand, "clutter/barrel"),
     };
 
     /// <summary>The options of <paramref name="spec"/>, or null when it is not the row tool's spec.</summary>

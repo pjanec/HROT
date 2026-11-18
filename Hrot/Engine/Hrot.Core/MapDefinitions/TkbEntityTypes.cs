@@ -167,9 +167,13 @@ namespace Hrot.Map.Common
         public const long Obstacle_Barrel        = 8820;
         public const long Obstacle_JerseyBarrier = 8821;
         public const long Obstacle_GuardBooth    = 8822;
+        // ⭐ CE-3473 (user 2026-11-18) — a barrel's FILL decides its protection and how hard it is to ram: 8820 is the EMPTY drum; these two are filled.
+        //   ⛔ PERMANENT WIRE VALUES; 8823–8824 measured free on every origin branch's TkbEntityTypes.cs and nowhere else in the tree, 2026-11-18.
+        public const long Obstacle_BarrelWater   = 8823;
+        public const long Obstacle_BarrelSand    = 8824;
 
         /// <summary>The starter obstacle types (O4; ⭐ CE-5010 adds the barrel, the jersey barrier and the guard booth — seven).</summary>
-        public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate, Obstacle_Barrel, Obstacle_JerseyBarrier, Obstacle_GuardBooth };
+        public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate, Obstacle_Barrel, Obstacle_JerseyBarrier, Obstacle_GuardBooth, Obstacle_BarrelWater, Obstacle_BarrelSand };
 
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ CE-3216 (R-3012, W-0) — the WORLD ENVIRONMENT: one per scenario, the FIRST entity with
         //   no SimTransform (presence of SimTransform is the engine's "is this spatial?" predicate, docs/designs/tkb-1/DESIGN.md
