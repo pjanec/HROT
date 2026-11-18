@@ -367,13 +367,15 @@ namespace Hrot.Core.Tkb
             //   ⭐ Each with its OWN warhead (behaviors' mf-at-vs-vehicle finding: with none, the blast radii came from a default that hurt a man 35 m off an AT burst).
             //   Starter values: an AP mine (~0.1–0.2 kg) maims at the foot; an AT mine (~7.5 kg, directed up into the belly) kills within a few metres; the line charge's
             //   bursts are its 8 m strip's.
+            //   ⭐ CE-2446 — and the blast law's DAMAGE (the reference library's one value): with radii alone the damage inside them was 0, so an AP mine under a man hurt nobody.
+            float blast = Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.BlastLethalDamage;
             Register(tkb, MineAntiPersonnelName, TkbMineAntiPersonnel, Dis(8, 0, 2),
-                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 1f, BlastInjuryRadiusM = MineApInjuryRadiusM });
+                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 1f, BlastInjuryRadiusM = MineApInjuryRadiusM, BlastLethalDamage = blast });
             Register(tkb, MineAntiTankName, TkbMineAntiTank, Dis(2, 0, 2),
-                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 3f, BlastInjuryRadiusM = MineAtInjuryRadiusM },
+                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 3f, BlastInjuryRadiusM = MineAtInjuryRadiusM, BlastLethalDamage = blast },
                      penetrationMm: AntiTankMinePenetrationMm, damage: AntiTankMineDamage);
             Register(tkb, LineChargeName, TkbLineCharge, Dis(9, 0, 2),
-                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 4f, BlastInjuryRadiusM = LineChargeInjuryRadiusM });
+                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 4f, BlastInjuryRadiusM = LineChargeInjuryRadiusM, BlastLethalDamage = blast });
             Register(tkb, StunGrenadeName, TkbStunGrenade, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Stun, BlastLethalRadiusM = 0.5f, BlastInjuryRadiusM = 8f, EffectSeconds = 8f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-3230 (B-8, AW-7) — thrown on the arc
