@@ -619,6 +619,29 @@ public sealed class Map3DTests
         Assert.Equal((3f, 0.6f), (length, width));
     }
 
+    /// <summary>
+    /// ⭐ terrain's note (NOTE_Terrain_To_Ui_Obstacle_Drawing, CE-4656) — a baked CULTURAL-FEATURE obstacle (DIS kind 5: sandbags, block, crate,
+    /// barrel, jersey barrier, guard booth, wreck) has ONE drawer, the terrain mesh's material box: the 3-D body layer draws nothing for it (the
+    /// no-body look). The parked car (kind 1) stays a car the body layer draws (CE-4656 took it off the terrain side).
+    /// </summary>
+    [Fact]
+    public void CE4656_ACulturalFeatureObstacle_IsDrawnByTheTerrainOnly_TheCarByTheBodyLayer()
+    {
+        var db = new TkbDatabase();
+        NedTkbCatalog.RegisterObstacles(db);
+        using var world = new EntityRepository();
+        var layer = new EntityBodyLayer3D(() => world, () => db);
+        var kinds = new List<string>();
+        foreach (var type in TkbEntityTypes.Obstacles.Append(TkbEntityTypes.Obstacle_Wreck))
+        {
+            if (type == TkbEntityTypes.Obstacle_Car) continue;
+            var family = layer.LookOf(type, db).Family;
+            if (family != VisualFamily.Unit) kinds.Add($"{type}: {family}");
+        }
+        Assert.True(kinds.Count == 0, "drawn twice (a body over the terrain box): " + string.Join(", ", kinds));
+        Assert.Equal(VisualFamily.WheeledCar, layer.LookOf(TkbEntityTypes.Obstacle_Car, db).Family);
+    }
+
     /// <summary>⭐ CE-2138 — the class-table avatar picks what the (fixed) GizmoMap switch picks over the whole DIS space, and a
     /// named shape still wins.</summary>
     [Fact]
