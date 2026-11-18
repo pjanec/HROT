@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-**CE-4662 (thermal drivers, the environment half) — taken `2026-11-18`** from [`HANDOFF_Coordinator_To_Terrain_Thermal_Drivers.md`](HANDOFF_Coordinator_To_Terrain_Thermal_Drivers.md) (priority: before the T2 rows). ① materials + surfaces + the export ✅ built (R-5065, for review) · ② IR-blocking smoke ✅ built (R-5066, for review) · ③ weather `Since` ✅ built — gates in §2. Then idle again: CE-4630 waits on the user's re-check; CE-5004's rest is cross-lane; CE-5020 / CE-5021 are `RW-S`.
+**idle — CE-4662 DONE `2026-11-18`** (thermal drivers, the environment half; was taken from [`HANDOFF_Coordinator_To_Terrain_Thermal_Drivers.md`](HANDOFF_Coordinator_To_Terrain_Thermal_Drivers.md) (priority: before the T2 rows). ① materials + surfaces + the export ✅ built (R-5065, for review) · ② IR-blocking smoke ✅ built (R-5066, for review) · ③ weather `Since` ✅ built — gates in §2). Now idle: CE-4630 waits on the user's re-check; CE-5004's rest is cross-lane; CE-5020 / CE-5021 are `RW-S`.
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292); its message is now §1a's text VERBATIM (updated `2026-11-18` 12:05).
 
 ## 2. The queue (in order)
@@ -26,6 +26,7 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | T2 | CE-3428 pack the prefilled navmesh tiles | ✅ DONE — measured on `full-1` (106 260 files → about a hundred packs); `NavTilePack` (prefill seals, save merges, seed reads packs then loose) | rails `NavmeshPrefillTests` (2 red-proved) · UTM §12.4 · ⏳ the NAS / Windows staging time is the user's to measure |
 | T2 | CE-3426 felling a lone tree, fragments in woods | ✅ DONE — fragments through a wood stopped like rounds (`× (1 − Stop)`); felling was CE-4603 | rail `TerrainWoodsTests.CE3426_*` (red-proved); toolkit Woods / AreaEffect / Crater / BuildingDamage 115 / 115 · ⚠ no scenario bursts in a wood |
 | T2 | CE-3440 a breach hot-path allocation rail red 1 in 3 | ✅ DONE — the QueryTimings rails flipped a process-wide switch in parallel with it; their collection now runs alone | rail `QueryTimingsTests.CE3440_*` (red-proved) · 5 / 5 timings runs, every full run green |
+| H | CE-4662 thermal drivers, environment half (TD-8/9/12) | ✅ DONE — materials + surfaces + export (R-5065), IR-blocking smoke on the cloud (R-5066), weather `Since` | gates: Fdp.Toolkits.Tests Weather/AreaEffectCloud/TerrainWorld 124/124 · Hrot.Core.Tests NonLethalMunition 14/14 · Hrot.SimHost.Tests BodyPartReplication + TheDescriptorMapIsWired 39/39 (the cloud and weather wire rails — rule 8) · export script 1 787 features / 11 terrains · every new rail red-proved (4 mutations) · DESIGN_Thermal_Drivers §4c |
 
 ## 3. Taken from new handoffs
 - `HANDOFF_Coordinator_To_Terrain_Bug_Queue.md` at 2026-11-18 (merged coordinator at the run's start).
