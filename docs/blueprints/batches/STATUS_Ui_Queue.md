@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: none — HANDOFF_Coordinator_To_Ui_Moved_Rows worked through (CE-3468 done, CE-2438 not reproduced, CE-1473 done, CE-3451 6/9 + DECISIONS, CE-1475 done, CE-1046 partly, CE-1038 not reproduced). Open for decision: CE-3451 ②③④, CE-1147 (parked).
+idle — waiting for a handoff (2026-11-18). Last: HANDOFF_Coordinator_To_Ui_Moved_Rows worked through (CE-3468 done, CE-2438 not reproduced, CE-1473 done, CE-3451 6/9 + DECISIONS, CE-1475 done, CE-1046 partly, CE-1038 not reproduced). Open for decision: CE-3451 ②③④, CE-1147 (parked).
 
 ## 2. The queue (in order)
 
