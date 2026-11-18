@@ -42,7 +42,7 @@ IN PROGRESS: **CE-3452** (a bike from a standstill reports FailedBlocked while i
 (none yet)
 
 ## 4. Notes sent / received
-(none yet)
+- ⬅ `NOTE_Behaviors_To_Backend_NearMiss_And_LyingCap.md` ② (my `CE4649` lying-cap allocation rail red under the strict guards) — ✅ DONE: the process-wide AccessTrace growing inside the one window; three windows, cheapest 0 B; guarded 4/4, red-proved. ➡ answered in `NOTE_Backend_To_Behaviors_LyingCapRail.md`.
 
 ## 5. Gates (rule 8)
 (per row, in §2)

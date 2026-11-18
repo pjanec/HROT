@@ -532,9 +532,19 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(BallisticsSystem.LyingCap, _sys.LyingCount);
 
             for (int i = 1; i <= 5; i++) _sys.NoteLying(_world, lying[BallisticsSystem.LyingCap + i]);   // warm
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 6; i < 40; i++) _sys.NoteLying(_world, lying[BallisticsSystem.LyingCap + i]);
-            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            // ⭐ behaviors' NOTE (NearMiss_And_LyingCap ②): under the strict guards a destroy is recorded in the PROCESS-WIDE AccessTrace, whose buffer grows
+            //   with what the earlier tests recorded — a one-off growth (4 496 B, measured) landed in the one window 2 runs in 3. ⇒ three windows; the cheapest
+            //   must be 0 (a growth lands in at most one; a real per-call allocation makes every window non-zero)
+            long cheapest = long.MaxValue;
+            int next = 6;
+            for (int w = 0; w < 3; w++)
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                for (int n = 0; n < 11; n++, next++) _sys.NoteLying(_world, lying[BallisticsSystem.LyingCap + next]);
+                cheapest = Math.Min(cheapest, GC.GetAllocatedBytesForCurrentThread() - before);
+            }
+            Assert.Equal(0L, cheapest);
+            for (; next < 40; next++) _sys.NoteLying(_world, lying[BallisticsSystem.LyingCap + next]);   // every spawned round noted
             int alive = 0; foreach (var e in lying) if (_world.IsAlive(e)) alive++;
             Assert.Equal(BallisticsSystem.LyingCap, alive);
         }
