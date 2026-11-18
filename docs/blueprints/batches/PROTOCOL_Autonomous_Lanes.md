@@ -28,7 +28,24 @@ never wait idle, never end a turn on a question.
 | ⭐⭐ **the status file is rewritten at every push** — what is done, what is IN PROGRESS and exactly where (file, next step), what is next | the resumed session (or a compacted one) starts from it, not from memory |
 | ⭐ **unverified work never goes on the lane branch**: push it to `<lane>-wip-<topic>` and say so in the status | `coordinator` merges lane branches as they are — a red there costs every lane (📌 backend's `backend-wip-part-e` is the model) |
 | ⭐ **long runs in the background**, and a run's result written into the status the moment it lands | a stop mid-wait otherwise loses the result |
-| ⭐ **on resume: read your status file FIRST**, then `git fetch`, then continue the IN PROGRESS row | — |
+| ⭐ **on resume: read your status file FIRST**, then `git fetch`, then continue the IN PROGRESS row | ⭐ a resume is usually your own self-wake-up (§1a) |
+
+## 1a. ⭐⭐ The hourly SELF-WAKE-UP — so a rate-limit stop does not end the run *(user, `2026-11-18`, R-4291)*
+
+🔒 User: *"when their token rate limit stops them, and when it resets, then the lanes do not continue automatically … Would it help if they set up some
+periodic wake-up trigger that asks them to continue …"* · *"pls write that to the handoffs, no testing first"*.
+
+📐 Why it is needed: a rate-limit stop ENDS the lane's turn; when the limit resets nothing inside a stopped session starts a new turn — only a message
+from outside does (the user, another session, a scheduled task). All sessions share one account's limit, so no session can wake the others.
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐ **at the START of a handoff run, create ONE recurring scheduled task into YOUR OWN session** — `create_trigger` (claude-code-remote) with no `persistent_session_id` and no new session, `cron_expression` `0 * * * *` (hourly — the minimum; the server spreads it across the hour), name `<lane> self-wake-up` | ⭐ check `list_triggers` first: if one named `<lane> self-wake-up` exists, keep it — ⛔ never two |
+| ⭐ its message, verbatim: *"Self-wake-up (PROTOCOL_Autonomous_Lanes §1a): if you are not in the middle of work and your queue has rows left, read `docs/blueprints/batches/STATUS_<Lane>_Queue.md` and continue under the protocol. If nothing is left, write 'idle' in the status, delete this scheduled task, and stop."* | ⭐ harmless while you work: a message that arrives during a running turn waits for the turn's end |
+| ⭐ **on a wake-up**: read your status file, `git fetch`, continue the IN PROGRESS row (§1) | a firing during the limit just fails; the next hour retries |
+| ⭐⭐ **when the queue is empty** (every row DONE, SKIPPED — needs decision, or blocked, and §7's tail taken): `delete_trigger` the self-wake-up and say so in the status | ⛔ a forgotten wake-up keeps firing into an idle session |
+| ⛔ **never** a trigger to watch or wake ANOTHER lane, and never a second schedule | CLAUDE.md "NO SCHEDULED CHECK-INS" still holds for everything else |
+| ⚠ if creating it asks the user to approve, or a firing does: note it once in your status (`self-wake-up: needs approval`) and carry on | the user then knows the platform's behaviour without a separate test |
 
 ## 2. The loop — after EVERY row
 

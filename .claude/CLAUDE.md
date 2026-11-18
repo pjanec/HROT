@@ -737,6 +737,7 @@ ever considered, which is what obligation ① exists to prevent.
   |---|---|
   | ⛔ **never `send_later` / `create_trigger` a "check the other lanes" reminder** | ⭐ each firing waits for the user's approval, and the session stalls until they give it |
   | ⭐⭐ **instead: `git fetch` the other lanes at the end of each piece of work** | `git fetch origin behaviors ui coordinator` then `git diff --name-only HEAD...origin/<lane>` for new `HANDOFF_*` / `STEER_*` / `NOTE_*` addressed to your lane; follow what is there before starting the next item |
+  | ⭐⭐ **EXCEPTION `2026-11-18` — the hourly SELF-WAKE-UP after a rate-limit stop** (R-4291) | 🔒 user: *"pls write that to the handoffs, no testing first"* — a lane on a handoff under `PROTOCOL_Autonomous_Lanes.md` creates ONE hourly scheduled task into ITS OWN session that resumes its queue (§1a there); ⛔ still never a trigger to watch other lanes |
 
 - ### ⭐⭐⭐ SONNET DELEGATION *(user, `2026-10-26`, revised `2026-10-29`)*
   📐 Measured `2026-10-29`: a fresh agent spent ~100k+ tokens re-reading before any work, and 8–42 min per task — mostly cold builds and broad
