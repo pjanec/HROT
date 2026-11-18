@@ -489,12 +489,12 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐⭐ CE-4652 / CE-3461 — an <c>InertSop</c> man ("no reactions", CE-2322) past his nerve is broken (his stress shows it) but NO <c>Break</c>
+        /// ⭐⭐ CE-4652 / CE-3461 — an <c>InertSop</c> man ("no reactions", CE-2322) past his nerve is NEVER judged broken (his stress still shows), so NO <c>Break</c>
         /// reaction takes his task: the scenarios' hostile shooters keep shooting. 📐 Before: they broke within 2–5 s of being fired back at and fell
         /// silent after 0–2 rounds (ts-fire-discipline, uf-squad-under-fire). 🔴 Red-proof: the inert guard removed from StartBreak ⇒ his task becomes Break.
         /// </summary>
         [Fact]
-        public void CE4652_AnInertSopMan_PastHisNerve_IsBroken_ButKeepsHisTask()
+        public void CE4652_AnInertSopMan_PastHisNerve_IsNeverBroken_AndKeepsHisTask()
         {
             var b = new Brains(_w);
             var m = Ordered(b);
@@ -503,7 +503,8 @@ namespace Hrot.SimHost.Tests
             if (_w.HasComponent<SopState>(m)) _w.SetComponent(m, sop); else _w.AddComponent(m, sop);
             _w.GetComponentRW<Stress>(m).Level = 0.75f;   // over his 0.70 break level, as in CE2272_AtHisNerve_HeBreaks…
             b.Tick();
-            Assert.True(StressModel.IsBroken(_w, m));
+            Assert.False(StressModel.IsBroken(_w, m));       // never judged broken — being broken ends aimed fire elsewhere (live: the shooters fell silent)
+            Assert.True(_w.GetComponentRO<Stress>(m).Level >= 0.7f);   // his stress still shows
             b.Run(0.5);
             Assert.Equal(BehaviorNames.Idle, b.TaskOf(m));   // his ordered task stands
         }

@@ -204,6 +204,10 @@ namespace Hrot.AI.Behaviors.Brains
         {
             edge = null; broken = false;
             if (!world.HasComponent<Stress>(e) || !Feels(world, e)) return false;   // a man down (or no longer a combatant) breaks no more
+            // ⭐⭐ CE-4652 — an InertSop man ("no reactions", CE-2322) is never JUDGED broken: his level still rises (it shows), but being broken also
+            //   ends his aimed fire elsewhere — 📐 live: with only the Break reaction blocked, uf-squad's two hostile shooters (stress 0.99, Broken) still
+            //   fired 1 and 0 rounds in 30 s
+            if (IsInertSop(world, e)) return false;
             float breakAt = BreakLevel(world, e);
             var s = world.GetComponentRO<Stress>(e);
             if (s.Broken == 0)

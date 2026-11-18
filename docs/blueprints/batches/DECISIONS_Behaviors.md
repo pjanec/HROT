@@ -6,6 +6,41 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-3 · CE-4654 — an AP mine now KILLS the man on it; should it maim him instead (alive, legs gone)? *(2026-11-18)*
+
+**Measured** (`mf-strike-and-halt` live after terrain's CE-2446): the burst leaves the struck man at Health 0 — dead, no move, no fire; the three
+others untouched. The user's complaint (no health, no mobility lost) is answered. But MF-5 says *"the casualty cared for in place"* and the
+handoff's lean says *"wounds the LEGS … the squad's casualty drill then runs"* — a dead man gets no drill.
+
+**My lean: ① — a mine's burst on the man who TRIGGERED it is a leg wound, not a whole-body blast:** the damage goes to the Leg zone
+(`AreaEffectSystem` already publishes one event per part struck, S3-4; the trigger man gets his share on the legs) so he lands INCAPACITATED (under
+30 %, alive, bleeding — the existing casualty care carries him), not dead. Cost: terrain's area effect (a "trigger man" rule) + a rail; every
+mine scenario's casualty becomes a live man (the goldens move).
+- ② leave it (dead): nothing to build; the drill never cares for anyone after a mine.
+- ③ lower the AP blast value: blunt — it also weakens the burst on everyone near.
+
+⛔ Not built. The behaviors part of CE-4654 (verify, pin) is done.
+
+## D-2 · CE-2442 — who answers an `Engineers` request, and with what? *(2026-11-18)*
+
+**The question:** `MinefieldAhead` halts a squad and queues `RequestKind.Engineers` up the chain (MS-B4, approved), but no HQ answers it:
+`SupportCommandBehavior.Command` answers only `FireSupport` and `Reinforce` (`SupportCommandBehavior.cs:90`, `:131`) and there is no engineer
+asset kind (`SupportAsset`). `DESIGN_Minefields.md` shows the engineers recon and the clearer cut a lane, but not WHO orders them — a design gap,
+not a defect.
+
+**My lean** (the row's own, CE-2442): `SupportAsset.Engineers` = a free unit whose roster holds a TKB 116 clearer or an engineer squad; the answer is
+`ReconMinefield` at the request's point (the field resolved from the side's knowledge there, `MinefieldKnowledgeOps`), then — once the field is
+marked — the clearer's `Breach` along the requester's route. The request today carries only a point; the field's id and the far side are derived,
+not added to the request.
+
+| option | costs |
+|---|---|
+| ① the lean | one asset kind, one answer branch, the field lookup; a demo (`mf-*` + an HQ) to prove it |
+| ② the scenario orders the engineers (today) | nothing to build; the squad waits for an order no one gives unless authored |
+| ③ the squad itself asks its own attached engineers (no HQ) | a different chain; skips the request queue every other ask uses |
+
+⛔ Not built (a new capability; the design does not say who orders them).
+
 ## D-1 · `ts-fire-discipline` (CE-3461 follow-up): the REGULARS break under the scenario's 40 over-head rounds — re-tune what? *(2026-11-18)*
 
 **The question:** the scenario (and `DESIGN_Temperament_And_Stress.md` §6) says *no regular breaks* under 40 rounds passing over a team every 1.3 s from

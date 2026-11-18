@@ -67,6 +67,33 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(1f / 16f, StandardInputs.EqsResultCount(in ctx), 3);
         }
 
+        /// <summary>⭐ CE-4652 — the posture's scoring sensor and the TakeCover branch's own (PeekAndFire) run ONE template for ONE run; the
+        /// branch's fresh one takes the lowest free part id, and while it has not answered the cover score must still read the answered one.
+        /// 📐 Live (uf-squad-under-fire): it read 0 ⇒ HoldProne for a tick ⇒ the branch released its sensor ⇒ TakeCover again — ~33 flips in
+        /// 30 s and no aimed fire.</summary>
+        [Fact]
+        public void CE4652_TwoOfTheRunsOwnSensorsOnOneTemplate_TheAnsweredOneIsRead_NotAFreshOneWithALowerPartId()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>())
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>())
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+            const uint template = 0xC0FE4652u;
+            var unit = repo.CreateEntity();
+            repo.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.BehaviorState { InstanceId = 5 });
+            var answered = _world.SpawnEqsSensor(unit, template, topScore: 0.9f, count: 1, instanceId: 3);
+            repo.AddComponent(answered, new Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart { OwnerInstanceId = 5 });
+            var fresh = repo.CreateEntity();   // the branch's own, made this tick: no answer yet, a LOWER part id (a freed slot)
+            repo.AddComponent(fresh, new EqsSensor { BlueprintId = template });
+            repo.AddComponent(fresh, new EqsCognitiveBuffer { Count = 0, LastUpdateTick = 0 });
+            repo.AddComponent(fresh, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = unit, InstanceId = 1 });
+            repo.AddComponent(fresh, new Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart { OwnerInstanceId = 5 });
+
+            var ctx = MakeCtx(unit, parms: new InputParams { BlueprintId = template });
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+        }
+
         // ── SC-P1-06-1: AmmoFraction ─────────────────────────────────────────────
 
         [Fact]

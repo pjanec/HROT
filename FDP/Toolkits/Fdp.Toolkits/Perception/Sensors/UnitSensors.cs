@@ -84,12 +84,27 @@ namespace Fdp.Toolkit.Perception.Sensors
                         && view.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(e).OwnerInstanceId == currentRun ? 0
                     : tags && IsTkb(view, e) ? 1
                     : 2;
+                // ⭐ CE-4652 — within a rank an ANSWERED sensor before a fresh one: the TakeCover branch (PeekAndFire) makes its own sensor of
+                //   the posture's scoring template in the same run and it takes the lowest free part id; read first, its empty buffer scored the
+                //   cover 0 for a tick ⇒ HoldProne ⇒ the branch released it ⇒ TakeCover again (📐 uf-squad-under-fire: ~33 flips in 30 s,
+                //   no aimed fire). Then the lowest part id, as before.
+                rank = rank * 2 + (Answered(view, e) ? 0 : 1);
                 if (rank < bestRank || (rank == bestRank && meta.InstanceId < bestPart))
                 {
                     best = e; bestRank = rank; bestPart = meta.InstanceId;
                 }
             }
             return best;
+        }
+
+        /// <summary>⭐ CE-4652 — the sensor has published an answer (an EQS buffer, ready, with a result). A sensor of another result family
+        /// counts as answered (the order among those is unchanged).</summary>
+        private static bool Answered(ISimulationView view, Entity sensor)
+        {
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<EqsCognitiveBuffer>()) return true;
+            if (!view.HasComponent<EqsCognitiveBuffer>(sensor)) return true;
+            ref readonly var buffer = ref view.GetComponentRO<EqsCognitiveBuffer>(sensor);
+            return buffer.IsReady && buffer.Count > 0;
         }
 
         /// <summary>The ranked results of the unit's <paramref name="kind"/> sensor (the EQS reader API: <c>IsReady</c>, <c>GetTop</c>, …).
