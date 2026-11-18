@@ -12,7 +12,8 @@ Started at the merge of `origin/coordinator` (2026-11-18 09:00).
 
 ## 1. Now
 
-CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. CE-9023's defect fixed, rest → D-5. Next: CE-3462 (`ts-house-defenders`, the waverer never breaks).
+CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. CE-3462: Coward fixed, Waverer → D-6. Next: CE-3463 (`ia-area-defend`, the guard does not fire first).
+⚠ Measured on the way: `ts-aggression` — the bold man never advances (2 rows red; baseline before today unknown — to triage).
 
 ## 2. The queue (in order)
 
@@ -27,7 +28,7 @@ CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. CE-9023's defe
 | D-1 `ts-fire-discipline` re-tune (CE-3461 regulars) | ✅ DONE — 22 rounds at 1.3 s (the measured window between the slowest militia break, ~25 s, and a centre regular's, ~33 s) | (this commit) | — (scenario) | ✅ `ts-fire-discipline` 7 / 7 |
 | D-3 the mine's trigger man maimed (CE-4654 follow-up) | ✅ DONE — `AreaEffectSystem.Maim` (cross-lane): shins, 0.75 of the incapacitation line, alive | (this commit) | `AreaEffectSystemTests.CE4654_*` (red-proved; suite 34 / 0) | ✅ `mf-strike-and-halt` 8 / 8 · `mf-at-vs-vehicle` · `mf-recon-and-mark` · `mf-way-round` |
 | D-2 `SupportAsset.Engineers` (CE-2442) | ✅ DONE — Minefields §13 designed and built (recon when unknown, then Breach along the requester's line) | (this commit) | `SquadManeuverTests.CE2442_*` (2, red-proved; parallel env 5 / 0) | ✅ `mf-engineers-answer` 7 / 7 (new) |
-| CE-3462 the waverer never breaks | TODO | | | `ts-house-defenders` |
+| CE-3462 the waverer never breaks | ⚠ Coward FIXED (the three insurgents were InertSop — no break; re-authored to the default SOP under StayOnTask, `ebdbe7348`); the Waverer is killed at stress 0.11 before he can break ⇒ **D-6 SKIPPED — needs decision** | ebdbe7348 | (rail `CE4652_AnInertSop…` stands; `8872a8478` tried + reverted `8d0524e10`) | ⚠ 4 / 6 → D-6 |
 | CE-3463 the guard does not fire first | TODO | | | `ia-area-defend` |
 | CE-3464 a pinned man never fires, walks to the house | TODO | | | `rf-pinned-in-open` |
 | CE-3465 no grenade at the wall-hugger | TODO | | | `rf-wall-hugger` |
