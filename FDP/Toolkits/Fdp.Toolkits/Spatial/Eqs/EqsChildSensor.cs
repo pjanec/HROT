@@ -266,6 +266,9 @@ namespace Fdp.Toolkit.Spatial.Eqs
                 if (repo.HasComponent<EqsCognitiveBuffer>(child))
                 {
                     ref var buffer = ref repo.GetComponentRW<EqsCognitiveBuffer>(child);
+                    // ⭐ CE-4652 — the entries stay; entry 0 carries the last answer's top score (0 when it was empty) for the scoring
+                    //   input while the new answer is pending (EqsCognitiveBuffer.PendingTopScore)
+                    if (buffer.Count == 0) buffer.GetSpanRW()[0].Score = 0f;
                     buffer.Count = 0;
                     buffer.LastUpdateTick = 0;
                 }

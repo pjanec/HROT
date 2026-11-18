@@ -94,6 +94,31 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
         }
 
+        /// <summary>⭐ CE-4652 — a sensor RE-ASKED (re-pointed at a new threat) scores its last answer until the new one lands; one whose last
+        /// answer was empty still reads 0. 📐 Live (uf-squad-under-fire): the posture's own cover sensor was refreshed every ~0.5 s as the
+        /// hostile's top threat changed, the decision re-scored in that tick, read 0 ⇒ HoldProne ⇒ TakeCover again — no aimed fire.</summary>
+        [Fact]
+        public void CE4652_AReAskedSensor_ScoresItsLastAnswer_UntilTheNewOneLands_AnEmptyOneStillReadsZero()
+        {
+            var repo = _world.Repo;
+            const uint template = 0xC0DE4652u;
+            var unit = repo.CreateEntity();
+            var sensor = _world.SpawnEqsSensor(unit, template, topScore: 0.9f, count: 1, instanceId: 1);
+            var ctx = MakeCtx(unit, parms: new InputParams { BlueprintId = template });
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+
+            Assert.True(EqsChildSensor.Refresh(repo, sensor));
+            Assert.False(repo.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);   // no reader takes a POINT from it
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+
+            // an EMPTY answer, then re-asked: nothing to hold
+            ref var buffer = ref repo.GetComponentRW<EqsCognitiveBuffer>(sensor);
+            buffer.Count = 0; buffer.LastUpdateTick = 7;
+            Assert.Equal(0f, StandardInputs.EqsTopScore(in ctx));
+            Assert.True(EqsChildSensor.Refresh(repo, sensor));
+            Assert.Equal(0f, StandardInputs.EqsTopScore(in ctx));
+        }
+
         // ── SC-P1-06-1: AmmoFraction ─────────────────────────────────────────────
 
         [Fact]

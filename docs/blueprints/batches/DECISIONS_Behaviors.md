@@ -6,6 +6,21 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-4 · `uf-squad-under-fire` row (4) "the bounds complete" — the squad now needs ~300 s: change the hostiles, or the clock? *(2026-11-18)*
+
+**Measured** (live, after CE-4652's fixes): the two InertSop hostiles now lie down and fire the whole run (Hostile 2: 103 rounds by 80 s,
+empty at 200 s — the old passing golden's ~100). Every near miss drops a mover (row 2 now PASSES), so the squad closes ~45 m by 120 s, ~60 m by
+200 s, and a rifleman reaches the objective area (25 m) only at ~300 s — after both hostiles have emptied their weapons. The old pass (2026-10-22)
+came from hostiles that BROKE and fell silent; an InertSop man no longer breaks (CE-4652 ①, by design: InertSop = no reactions). And as InertSop
+they ignore suppression, so the squad's covering half cannot quiet them — the bound never gets the cover it waits for.
+
+**My lean: ① — give the two hostiles a real soldier's SOP (they react to fire: duck, suppressed while the covering half fires)** — that is what
+fire and movement is tested against; runFor stays 120. Cost: two entities re-authored, the golden re-captured; the near-miss row must still pass.
+- ② runFor 300: passes, but only because the hostiles run dry — it tests their ammunition, not the bounds.
+- ③ fewer rounds per hostile (a fire schedule): the same problem with a shorter wait.
+
+⛔ Not changed. CE-4652's own row (a near-missed mover drops) passes at 5.75 s.
+
 ## D-3 · CE-4654 — an AP mine now KILLS the man on it; should it maim him instead (alive, legs gone)? *(2026-11-18)*
 
 **Measured** (`mf-strike-and-halt` live after terrain's CE-2446): the burst leaves the struck man at Health 0 — dead, no move, no fire; the three
