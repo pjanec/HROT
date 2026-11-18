@@ -8,6 +8,8 @@ current-answer: the whole file
 
 ## D-8 · CE-4666 — a shot heard through our own window becomes an ENEMY at our window: SPOT → flank → the line faces away. Where should it stop? *(2026-11-18)*
 
+**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — the ear keeps AQ106 F; the memory slot and the squad pool carry "heard through an opening"; `ComposeSpot` leaves such contacts out of an element's position (where to LOOK, not where the enemy IS); the man's own reactions unchanged. ALSO: a squad turned by `Supplement` is turned back when its flank element goes stale**
+
 **Measured (`pc-defend-house`, editor, live probes):**
 1. Blue fires from ~125 m south.
 2. Each Red man remembers an ANONYMOUS SmallArms slot at his own window or post. This is AQ106 F as designed: a sound is heard from the last opening on its path (`Architect_Question_106_Sound_Paths.md` F).
@@ -32,6 +34,8 @@ Cost: one memory flag + one pool flag + one SPOT filter, with rails. `pc-defend-
 
 ## D-7 · CE-4667 — `SupportByFire` has no exit for an empty weapon or dead targets: what should the base of fire do then? *(2026-11-18)*
 
+**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — two exits inside `SupportByFire`, the platoon's lift unchanged: (a) a man with no rounds left ⇒ the squad's hold-with-return-fire (`CombatPosture`, takes cover); (b) every reported post with no live contact within 25 m for 10 s ⇒ the play stops firing (Hold, PROGRESS `TargetsDown`) and keeps its position. Resupply stays a later capability**
+
 **Measured / read:** the design gives the base of fire ONE exit — the platoon LIFTS it when the assault holds a foothold (DA-11, `DESIGN_Assault_Under_Fire.md`
 §9.1); `Suppress` runs "until the order is taken away" (Squad Tactics §7.5) and already stops firing at a dead target (it holds). ⛔ No design names an exit for
 "out of ammo" or "every reported post is dead"; no resupply exists (searched `docs/`: resupply / out of ammo — none for infantry). The live report (real-1):
@@ -48,6 +52,8 @@ the platoon still decides what comes next. Cost: two rules + rails; touches ever
 
 ## D-6 · CE-3462 — `ts-house-defenders`' Waverer is killed before he can break: how should a low-resolve man surrender in a room clearance? *(2026-11-18)*
 
+**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — a cornered low-resolve man gives up when a rifle is on him at close range (TS-6 row: resolve < 0.3 + `Covering.By` within ~5 m ⇒ Surrender), without waiting for his stress**
+
 **Measured** (editor, after CE-3462's re-author — the Coward now breaks at 30.75 s): the Waverer (resolve 0.2, the type's nerve) in closet E peaks at
 stress **0.11** and is killed when the squad enters (Health 0 by ~120 s). TS-6 lets a man surrender only as the OUTCOME of a break (effective resolve
 < 0.3 and a rifle on him), and a CQB entry is too fast for the near-miss stress to reach his break line first.
@@ -61,6 +67,8 @@ room entry is the cornered path). Cost: a StressSystem rule + a rail; touches ev
 ⛔ Not built.
 
 ## D-5 · CE-9023 — `uc-urban-battle` "the convoy moves on": the platoon holds while the ambush lasts — what should the row wait for? *(2026-11-18)*
+
+**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — author the ambush's END (the fire team withdraws or is killed by a fixed time); runFor stays 200; DA-100 unchanged**
 
 **Measured** (editor, after the boarding fix `b7a088964`): one defect found and FIXED — a KILLED man (body, Health 0) held a squad's boarding back:
 Squad A's leader boarded at 79 s, yet SquadEmbark failed on its 60 s timeout and the remount waited its 120 s (the move-on at 195 s). ⚠ What remains is
@@ -77,6 +85,8 @@ So *when* the convoy moves on is how long the ambush lives, not the convoy play.
 ⛔ Not changed. The boarding fix is in (rail `SquadManeuverTests.CE9023_*`).
 
 ## D-4 · `uf-squad-under-fire` row (4) "the bounds complete" — the squad now needs ~300 s: change the hostiles, or the clock? *(2026-11-18)*
+
+**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — the two hostiles get a real soldier's SOP (they react to fire); runFor stays 120; the near-miss row must still pass**
 
 **Measured** (live, after CE-4652's fixes): the two InertSop hostiles now lie down and fire the whole run (Hostile 2: 103 rounds by 80 s,
 empty at 200 s — the old passing golden's ~100). Every near miss drops a mover (row 2 now PASSES), so the squad closes ~45 m by 120 s, ~60 m by

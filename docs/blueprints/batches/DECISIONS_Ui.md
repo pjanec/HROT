@@ -8,6 +8,8 @@ current-answer: the whole file
 
 ## CE-3451 ②③④ — three world-boundary guard rails have drifted far past a row fix: build them, or change the rule? *(asked 2026-11-18)*
 
+**DECIDED `2026-11-18` (user, via coordinator: "approved"): ② BUILD it (CE-1980, one system at a time, a reset or a rail-backed exemption per field) · ③ CHANGE THE RULE — classification moves into the CODE: an attribute on the field (`[FrameScratch]`, `[WorldDerived]`, `[ProtocolCache]` …) the rail reads; the central hand ledger retires (R-4297; a cross-lane convention — announce it to every lane by a NOTE) · ④ BUILD it ONCE in the egress translators' shared shape (one reset on `WorldEpoch.Moved`; the wire unchanged; red-proved by removing the reset)**
+
 **Measured** (`Hrot.ClusterRunner.Tests`, ui `ac7241d8e` + this row's fixes): the other six reds of CE-3451 are fixed (a retired row, 11 `[DataPolicy]`s, 10 bus reads, the
 formation pair's registration, two stale expectations). These three are not a row each — they are an audit across every lane's code:
 
