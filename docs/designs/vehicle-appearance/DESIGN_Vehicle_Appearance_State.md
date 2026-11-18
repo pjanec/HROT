@@ -362,3 +362,45 @@ same order — the goldens and frames cannot move.
 | the classifier | `VisualFamily` / `VisualFamilies`, `WeaponKind`, `FiringBlast`, `FiringBlasts`, `AirMissiles` live in `Hrot.Look` UNDER THEIR OLD NAMESPACE `Hrot.UI.Common.Map3D` | the blast rule needs them; keeping the namespace made it a move with no caller edited (`WeaponKits` / `JetStores` forward). ⚠ known-rot: a `Hrot.UI.*` namespace in a non-UI assembly — rename when a renderer-facing name is chosen |
 | the HUD feeds | `HudFeedSystem` (presentation), scheduled right before the spawner on every map host and in the Replay Browser | the two HUD rails changed ONE line each (the system they build), their assertions unchanged |
 | unchanged | every effect type, position, anchor, lifetime and the creation ORDER | the map's effect rails pass unchanged (`EffectTests` 66 / 66 with the self-check) |
+
+### 7c. LK-S2 — `PersonLook` in `Hrot.Look` *(ui, `2026-11-18`; the plan, drawn before the build)*
+
+**INVENTORY** *(grep + the files read; `search_graph` for `PersonLook|Outfit|Wardrobe` found no look library — `2026-11-18`)*: the outfit RULES are
+`Outfits.cs` (624 lines: `Outfit`, `FaceLook`, `PartDetail`, `Outfits.For / FaceOf / Details / ColourOfPart / CarColour`), `OutfitPalettes.cs` (53) and
+`Wardrobe.cs` (107) — Raylib only through `Color`; but the INPUTS a gateway needs live in the map's `EntityBodyLayer3D` (2 300 lines): `SeedOf`
+(network id, else index), `SideOf`, `OwnColourOf` / `ColourOf` / `HasEntityColour` / `ParseHex`, and the PERSON half of `TypeLook Resolve(template)`
+(soldier, child — which reads the kit catalogue's default person height —, kit, elderly, sex, wardrobe, the type's colour). `KitFromTkb` (56) is a
+vehicle's turret geometry over `ShapeKit`'s type head (`ShapeKit.cs` lines 1–308, Raylib-free) — moved with LK-S2 as the handoff lists it, but it is
+`VehicleLook`'s material, not a person's.
+
+```mermaid
+classDiagram
+  class Rgba { <<struct, Hrot.Look>> +byte R G B A ; +FromHex(hex) Rgba? }
+  class PersonLook {
+    <<static, Hrot.Look.People>>
+    +Of(world, entity, tkb) PersonAppearance
+    +FactsOf(template) PersonFacts
+    +SeedOf(world, entity) long
+    +OwnColourOf(world, entity, facts) Rgba?
+  }
+  class PersonFacts { <<struct>> Soldier Child Kit Elderly Sex Wardrobe TypeColour? }
+  class PersonAppearance { <<struct>> Outfit Outfit ; long Seed ; ForceId Side }
+  class Outfits { <<moved, namespace kept>> For / FaceOf / Details / ColourOfPart }
+  class Outfit { <<record struct, colours Rgba>> }
+  class EntityBodyLayer3D { <<Hrot.Presentation>> Resolve takes the person half from PersonLook.FactsOf ; draws with Rgba.ToColor() }
+  PersonLook --> PersonFacts
+  PersonLook --> PersonAppearance
+  PersonLook --> Outfits
+  Outfits --> Outfit
+  Outfit --> Rgba
+  EntityBodyLayer3D --> PersonLook
+```
+*What the picture shows that prose hid:* the outfit rules alone are not enough for a gateway — the FACTS (who the type is) and the seed / side / own-colour
+reads move too, or a gateway would dress a man differently; the map's `Resolve` then TAKES its person half from `PersonLook.FactsOf` (one owner).
+
+| ⭐ step | | the check |
+|---|---|---|
+| 1 | `Rgba` in `Hrot.Look`; the map's `ToColor()` / `ToRgba()` conversions in the presentation | — |
+| 2 | move `Outfits`, `OutfitPalettes`, `Wardrobe` (namespace kept), their `Color` → `Rgba`; the person part indices `BlockFigure` names → `PersonParts` (forwarded) | the outfit / wardrobe rails, changed only where a test builds a `Raylib.Color` literal to compare (named in the report) |
+| 3 | `PersonLook.FactsOf` = the person half of `Resolve`; `Of` = `SeedOf` + `SideOf` + `OwnColourOf` + `Outfits.For` | a `Hrot.Look.Tests` rail: `PersonLook.Of` on a world with no presentation equals what the map draws for the same entity (the same `Outfit`) |
+| 4 | `KitFromTkb` + `ShapeKit`'s type head to `Hrot.Look/Kits` (namespace kept) | the kit rails unchanged |
