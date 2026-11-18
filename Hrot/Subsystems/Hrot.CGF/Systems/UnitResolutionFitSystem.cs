@@ -187,10 +187,10 @@ namespace Hrot.CGF.Systems
         {
             if (repo.Bus.IsRegisteredManaged<AssignBehaviorEvent>())
             {
-                var assigns = repo.Bus.ReadManaged<AssignBehaviorEvent>();
+                var assigns = repo.ReadManagedEvents<AssignBehaviorEvent>();
                 for (int i = 0; i < assigns.Count; i++) if (assigns[i] != null && assigns[i].Entity.Equals(unit)) return true;
             }
-            var clears = repo.Bus.Read<ClearBehaviorEvent>();
+            var clears = repo.ReadEvents<ClearBehaviorEvent>();
             for (int i = 0; i < clears.Length; i++) if (clears[i].Entity.Equals(unit)) return true;
             return false;
         }

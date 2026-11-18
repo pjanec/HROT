@@ -120,6 +120,7 @@ namespace Fdp.Toolkit.Aggregate
     /// </summary>
     [ComponentId(GlobalComponentIds.AggregateUnit)]
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct AggregateUnit
     {
         /// <summary>C-4: incoming fire is summed over this many 1 s steps.</summary>
@@ -238,6 +239,7 @@ namespace Fdp.Toolkit.Aggregate
     /// </summary>
     [ComponentId(GlobalComponentIds.UnitSlotTable)]
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct UnitSlotTable
     {
         /// <summary>The slots one table holds (a company leaf, S-6).</summary>
@@ -338,6 +340,7 @@ namespace Fdp.Toolkit.Aggregate
     /// </summary>
     [ComponentId(GlobalComponentIds.UnitHoldings)]
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct UnitHoldings
     {
         public const int Capacity = 24;
@@ -470,6 +473,7 @@ namespace Fdp.Toolkit.Aggregate
     /// </summary>
     [ComponentId(GlobalComponentIds.RunSeed)]
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct RunSeed
     {
         public uint Value;

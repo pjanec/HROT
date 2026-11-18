@@ -9,8 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-idle — waiting for a handoff (CE-1147 SKIPPED — needs decision: where the shared stance pair lives, `DECISIONS_Ui.md`; no other open ui row with an approved design — see the assessment below).
-Assessed and NOT taken: CE-1045 (its open half is the EQS inside test — owner behaviors), CE-1018 / CE-1024 / CE-1028 ("design needed"), CE-1160 (verify on the user's machine), CE-1030 (deferred by the user).
+IN PROGRESS: CE-4671 LK-S2 (HANDOFF_Coordinator_To_Ui_Look_Library, row 2) — PersonLook out of Outfits / Wardrobe / KitFromTkb into Hrot.Look (RGBA, no Raylib). LK-S1 done.
 
 ## 2. The queue (in order)
 
@@ -32,7 +31,20 @@ Assessed and NOT taken: CE-1045 (its open half is the EQS inside test — owner 
 | CE-1147 (§7) stance replicates like every one-owner datum | SKIPPED — needs decision (`DECISIONS_Ui.md`: the network pack cannot see the stance types; lean A: NED references the animation replication) | | | |
 | CE-1246 Stride mode 2 host actions | DONE — node `HostActions` + shared `HostActionsPumpSystem`; inspector + Details get them | `8952f8c3d` | `GlobalActionDispatchSystemTests.CE1246_…` (red-proved) 4/0; `HrotStrideApp.Game` builds (restored first) | ⚠ not run on a Stride window (Windows only) |
 
+### Queue 2 — HANDOFF_Coordinator_To_Ui_Moved_Rows (from backend)
+
+| row | state | sha | rail | scenario |
+|---|---|---|---|---|
+| CE-3468 threaded scoring root sees no scored children | DONE | the editor's loaded AI copy never contributed its rules tree to the phase (AiAssemblyLoad hook) + the last-tick view's same-version miss | AiHotReloadCoordinatorTests.CE3468, PerEntityRuleTests.CE3468, ScenarioRulesTests.CE3468 (red-proved); bw-archery-contest 5/5 (2 new rows), sr-objectives-march, sr-triggers-march pass; 2 goldens recaptured (had pinned the bug) | DESIGN_Parallel_Simulation §18 |
+| CE-2438 paused-preview + run-to does not repeat (pc-defend-house) | DONE — not reproduced | stepped-hash 4,4 at 2 s and 60 s: STATE EQUAL; F-3 predates the report; a mid-run hot reload (a build into the runner bin) is the measured way to part a pair | stepped-hash pair ×2 (clean: 1 hot-swap per log) | RUNBOOK §9.0 |
+| CE-1473 + CE-3451 ClusterRunner.Tests does not build; six rails drifted | 6 / 9 DONE, ②③④ SKIPPED → DECISIONS_Ui | it builds; 9 reds measured (6 stale ledgers / expectations / declarations + 3 world-boundary audits grown to 21 systems / 480 fields / 45 caches) | ClusterRunner.Tests 434 / 437 (the 3 = ②③④); touched suites: Toolkits mines/embarked/convoy/aggregate/air 149, SimHost mine/resolution 34, Core shared registry 4; mf-strike-and-halt, cv-blocked-road | DESIGN_Replay_Time_Axis §12l table |
+| CE-1475 SumoNetPlacementTests F5/E1 on a Czech Windows | DONE | the fixture wrote culture commas; one invariant helper | Traffic SumoNetPlacementTests 19/19 + a cs-CZ rail (red-proved) | — (test only) |
+| CE-1046 + CE-1038 LiveFromReplay under load; SimHost test count varies | CE-1046 PARTLY (frame waits; still 1/11 red under load, stays FlakyFact) · CE-1038 DONE — not reproduced | 2 full --blame runs: 3064/3064 reported, same failures; 9+1 pre-existing reds → CE-1980 (red at 1bc1cc911^) | LiveFromReplayTests 10/11 under full load | — |
+| CE-4671 LK-S1 — Hrot.Look + EffectRules out of EffectSpawnSystem; HUD feeds out | DONE | a pure refactor: same types, places, order | Hrot.Look.Tests 3/3 (red-proved); Presentation effects + self-check 66/66; frame rails 240/246 (the 6 reds identical on the pre-change binary); CGF / editor pinned orders; full solution | design §7b |
+| CE-4671 LK-S2 — PersonLook into Hrot.Look | IN PROGRESS | | | |
+
 ## 3. Taken from new handoffs
+- HANDOFF_Coordinator_To_Ui_Moved_Rows.md at 2026-11-18 15:20 (merged coordinator `fa5748b18`): CE-3468 · CE-2438 · CE-1473+CE-3451 · CE-1475 · CE-1046+CE-1038, in that order; §6a scenarios per row proportionate.
 - `NOTE_Terrain_To_Ui_Obstacle_Drawing.md` (coordinator, 11:03 wake-up): its question MEASURED — all seven cultural-feature obstacles were drawn twice (an unknown box over the terrain box); fixed in `EntityBodyLayer3D.LookOf` (no-body look). Rail `Map3DTests.CE4656_…` (red before). Map3DTests + frame rails + ObstacleRow 287/3: `CE4388` wire-sphere (known, CE-1978), `E2b_V` (red at base too), `CE4582` (green alone with the fix, order-dependent in the suite).
 - HANDOFF_Coordinator_To_Ui_Bug_Queue.md at 2026-11-18 09:00 (merged coordinator `5c0…` into ui)
 

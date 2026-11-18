@@ -50,7 +50,9 @@ namespace Hrot.CGF.Configuration
             // behavior and blueprint definitions share one type identity across the process.
             var aiAssembly = typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly;
 
-            Hrot.AI.Behaviors.Orders.OrderKinds.Build();   // ⭐ CE-4612 (R-2089) — the kind table at load, never first-built mid-tick
+            // ⭐ CE-7035 / CE-4612 / CE-3468 — the copy's load-time statics (the order kinds, R-2089; the brains' phase contribution — the cross reads and
+            //   the rules' tree): ONE hook, also run by the editor's hot-reload coordinator on the copy IT loads (AiAssemblyLoad)
+            Hrot.AI.Behaviors.Brains.AiAssemblyLoad.OnLoad();
 
             var bpStaging = new BlueprintRegistryStaging();
             BlueprintRegistrarScanner.Scan(aiAssembly, bpStaging, behaviorRegistry);
@@ -68,8 +70,6 @@ namespace Hrot.CGF.Configuration
             // ⭐ CE-2377 — and the optional [BehaviorValidator] statics, from the same pinned copy.
             Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindValidators(behaviorRegistry, aiAssembly);
             Hrot.Presentation.Behavior.BehaviorSchemaDiscovery.BindKeepers(behaviorRegistry, aiAssembly);   // ⭐ rules ② R4 — beside the validators
-            // ⭐ CE-7035 — the AI assembly's cross reads for the brains' parallel phase (the toolkit's are BrainReads), here so no host or test can lack them
-            Hrot.AI.Behaviors.Brains.AiBrainReads.Contribute();
         }
 
         /// <summary>

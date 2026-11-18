@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved, fold both into the design", R-4296): VA-1…VA-12, LK-1…LK-7, with §3a (partial damage, how expressed) and LK-7 (effect categories + the DIS munition type); ids fixed at dispatch — `2026-11-18`: components 290 `VehicleOpenings` · 291 `VehicleLights`; descriptors 243 · 244 (`HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md`)
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §7 the shared look library (CE-4671) · §7a effect categories
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -328,3 +328,135 @@ effects, and people (`DESIGN_Person_Outfits.md`). ⛔ Not three libraries.
 small / medium / large, water blast, building hit, air burst, smoke …). ⚠ The exact code list is pinned by the gateway slice (VA-S6) against the
 SISO reference — not verified here.
 
+
+### 7b. LK-S1 — the effect rules in `Hrot.Look` *(ui, `2026-11-18`; UML drawn before the build, folded to the as-built after)*
+
+```mermaid
+graph TD
+  FT[Fdp.Toolkits] --> LK[Hrot.Look]
+  HC[Hrot.Core: EffectTkbCatalog, EffectAnchor, EntityClassTable] --> LK
+  LK --> HP[Hrot.Presentation: the map]
+  LK --> GW[a gateway on a node - future]
+  HP -->|MapInteraction.InteractionSystems, node side| K[each map host's kernel, PostSimulation]
+  HP -->|ReplayBrowserSubsystem runs them itself| RB[the Replay Browser]
+```
+*What the picture shows that prose hid:* `Hrot.Look` sits BELOW the presentation (no Raylib / ImGui / `Hrot.UI` reference), so a gateway can call the
+same rules; the map still reaches its kernel only through `MapInteraction`, and the Replay Browser runs the same two systems by hand — both callers
+get the HUD-feed system next to the spawner, or the feeds go dark there.
+
+```mermaid
+classDiagram
+  class EffectRules {
+    <<static, Hrot.Look>>
+    +ForShot(fire, world, tkb, now, into) int
+    +ForDetonation(hit, world, tkb, now, into) int
+    +ForImpact(impact, world, tkb, now, into) int
+    +ForContactBreach(breach, tkb, now, into) int
+    +ForFrame(world, tkb, now, into) int
+    +IsInertHandItem(tkb, ammo) bool
+    +ImpactDamage(world, tkb, impact) float
+    +SurfaceOf(impact) Vector3
+    +MarkRotation(normal) Quaternion
+  }
+  class EffectSpec {
+    <<struct>>
+    +EffectKind Kind
+    +CalibreClass SizeClass
+    +EffectSurface Surface
+    +DISEntityType MunitionDis
+    +long EffectType
+    +Vector3 At
+    +Quaternion Rotation
+    +EffectAnchor? Anchor
+    +float Lifetime
+    +float Size
+  }
+  class EffectSurface { <<enum>> Ground Water Building Vehicle Person Air }
+  class FiringBlasts { <<static, Hrot.Look>> +BlastOf() FiringBlast +BackblastPoint() Vector3 +TypeOf() +KindOf() }
+  class VisualFamilies { <<moved to Hrot.Look, namespace kept>> +Of(template) VisualFamily }
+  class EffectSpawnSystem { <<Hrot.Presentation>> -Spawn(spec) ; keeps decoys, sounds, recent shots, hit memory, housekeeping }
+  class HudFeedSystem { <<Hrot.Presentation, NEW>> player messages ; kill feed }
+  class WeaponKits { <<Hrot.Presentation>> BlastOf / KindOf / TypeOf forward to FiringBlasts }
+  EffectRules --> EffectSpec : appends
+  EffectSpec --> EffectSurface
+  EffectRules --> FiringBlasts
+  FiringBlasts --> VisualFamilies
+  EffectSpawnSystem --> EffectRules : one rule per event
+  WeaponKits ..> FiringBlasts : forwards
+```
+*What the picture shows that prose hid:* the RULE (which effects, where, how long) and the SPAWN (an entity per spec) are two classes now; the blast
+rule pulls the type classifier (`VisualFamilies`, `WeaponKind`) down with it — moved with its namespace so no presentation caller changes; the
+HUD feeds leave the effect system for their own.
+
+```mermaid
+sequenceDiagram
+  participant K as kernel PostSimulation
+  participant H as HudFeedSystem
+  participant S as EffectSpawnSystem
+  participant R as EffectRules
+  K->>H: Execute (also in a replay)
+  H->>H: messages, kill feed (feature-gated)
+  K->>S: Execute
+  S->>S: strikes and hit memory, then stop if a replay
+  S->>R: ForContactBreach(each breach)
+  R-->>S: dust spec
+  S->>R: ForShot(each fire) after recent shots and the sound
+  R-->>S: flash spec, blast spec
+  S->>R: ForImpact / ForDetonation
+  R-->>S: puff + mark / explosion + ground mark
+  S->>S: Spawn(spec) = entity, SimTransform, TkbIdentity, Lifespan, EffectAnchor?, ScenarioIgnoreTag
+```
+*What the picture shows that prose hid:* the specs come back in the order the old inline code spawned them, so the effect entities are created in the
+same order — the goldens and frames cannot move.
+
+**As built (LK-S1, `2026-11-18`) — where it differs from LK-2 / §7a, and why**
+
+| | as built | why |
+|---|---|---|
+| the signature | per event: `ForShot` · `ForDetonation` · `ForImpact` · `ForContactBreach`, and `ForFrame` (all four, in the map's order) — each APPENDS `EffectSpec`s to a caller's list and returns the count | ⛔ not `→ EffectSpec[]`: an array per event allocates; a reused list keeps the steady path at 0 B (rail `LKS1_AFrameWithNoEvents_AllocatesNothing`) |
+| `EffectSurface` | Ground · Water · Building · Vehicle · **Person** · Air | a body that is not a vehicle needed its own (§7a had none); ⚠ Water is not told apart yet (reads Ground); Building = an impact more than 0.25 m off the ground — the category only, the map draws by `EffectType` |
+| the classifier | `VisualFamily` / `VisualFamilies`, `WeaponKind`, `FiringBlast`, `FiringBlasts`, `AirMissiles` live in `Hrot.Look` UNDER THEIR OLD NAMESPACE `Hrot.UI.Common.Map3D` | the blast rule needs them; keeping the namespace made it a move with no caller edited (`WeaponKits` / `JetStores` forward). ⚠ known-rot: a `Hrot.UI.*` namespace in a non-UI assembly — rename when a renderer-facing name is chosen |
+| the HUD feeds | `HudFeedSystem` (presentation), scheduled right before the spawner on every map host and in the Replay Browser | the two HUD rails changed ONE line each (the system they build), their assertions unchanged |
+| unchanged | every effect type, position, anchor, lifetime and the creation ORDER | the map's effect rails pass unchanged (`EffectTests` 66 / 66 with the self-check) |
+
+### 7c. LK-S2 — `PersonLook` in `Hrot.Look` *(ui, `2026-11-18`; the plan, drawn before the build)*
+
+**INVENTORY** *(grep + the files read; `search_graph` for `PersonLook|Outfit|Wardrobe` found no look library — `2026-11-18`)*: the outfit RULES are
+`Outfits.cs` (624 lines: `Outfit`, `FaceLook`, `PartDetail`, `Outfits.For / FaceOf / Details / ColourOfPart / CarColour`), `OutfitPalettes.cs` (53) and
+`Wardrobe.cs` (107) — Raylib only through `Color`; but the INPUTS a gateway needs live in the map's `EntityBodyLayer3D` (2 300 lines): `SeedOf`
+(network id, else index), `SideOf`, `OwnColourOf` / `ColourOf` / `HasEntityColour` / `ParseHex`, and the PERSON half of `TypeLook Resolve(template)`
+(soldier, child — which reads the kit catalogue's default person height —, kit, elderly, sex, wardrobe, the type's colour). `KitFromTkb` (56) is a
+vehicle's turret geometry over `ShapeKit`'s type head (`ShapeKit.cs` lines 1–308, Raylib-free) — moved with LK-S2 as the handoff lists it, but it is
+`VehicleLook`'s material, not a person's.
+
+```mermaid
+classDiagram
+  class Rgba { <<struct, Hrot.Look>> +byte R G B A ; +FromHex(hex) Rgba? }
+  class PersonLook {
+    <<static, Hrot.Look.People>>
+    +Of(world, entity, tkb) PersonAppearance
+    +FactsOf(template) PersonFacts
+    +SeedOf(world, entity) long
+    +OwnColourOf(world, entity, facts) Rgba?
+  }
+  class PersonFacts { <<struct>> Soldier Child Kit Elderly Sex Wardrobe TypeColour? }
+  class PersonAppearance { <<struct>> Outfit Outfit ; long Seed ; ForceId Side }
+  class Outfits { <<moved, namespace kept>> For / FaceOf / Details / ColourOfPart }
+  class Outfit { <<record struct, colours Rgba>> }
+  class EntityBodyLayer3D { <<Hrot.Presentation>> Resolve takes the person half from PersonLook.FactsOf ; draws with Rgba.ToColor() }
+  PersonLook --> PersonFacts
+  PersonLook --> PersonAppearance
+  PersonLook --> Outfits
+  Outfits --> Outfit
+  Outfit --> Rgba
+  EntityBodyLayer3D --> PersonLook
+```
+*What the picture shows that prose hid:* the outfit rules alone are not enough for a gateway — the FACTS (who the type is) and the seed / side / own-colour
+reads move too, or a gateway would dress a man differently; the map's `Resolve` then TAKES its person half from `PersonLook.FactsOf` (one owner).
+
+| ⭐ step | | the check |
+|---|---|---|
+| 1 | `Rgba` in `Hrot.Look`; the map's `ToColor()` / `ToRgba()` conversions in the presentation | — |
+| 2 | move `Outfits`, `OutfitPalettes`, `Wardrobe` (namespace kept), their `Color` → `Rgba`; the person part indices `BlockFigure` names → `PersonParts` (forwarded) | the outfit / wardrobe rails, changed only where a test builds a `Raylib.Color` literal to compare (named in the report) |
+| 3 | `PersonLook.FactsOf` = the person half of `Resolve`; `Of` = `SeedOf` + `SideOf` + `OwnColourOf` + `Outfits.For` | a `Hrot.Look.Tests` rail: `PersonLook.Of` on a world with no presentation equals what the map draws for the same entity (the same `Outfit`) |
+| 4 | `KitFromTkb` + `ShapeKit`'s type head to `Hrot.Look/Kits` (namespace kept) | the kit rails unchanged |

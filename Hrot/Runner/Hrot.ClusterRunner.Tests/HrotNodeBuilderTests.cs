@@ -766,7 +766,7 @@ public sealed class HrotNodeBuilderTests
         Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, ctx.ClusterSlave.View.State);
         Assert.True(choice.Gate.Open, choice.ClosedReason);
 
-        Hrot.UI.Common.RunMode.UserTransport.UserPlayPause(adapter);               // ▶, Live armed, in edit
+        choice.Choose(Hrot.UI.Common.RunMode.RunArmed.Live);                      // ⭐ CE-3451 — R1′ (CE-3405, AQ108 §0): the switch to Live asks; ▶ in Edit is always the Preview
         bus.SwapBuffers();
         var asked = System.Linq.Enumerable.Single(bus.ReadManaged<Fdp.Toolkit.Orchestration.CheckUnsavedIntent>());   // the master's ONE round
         Frame();
@@ -782,6 +782,7 @@ public sealed class HrotNodeBuilderTests
 
         Assert.Empty(control.Calls);                                                // still nothing loaded: the user decides
         Assert.NotNull(choice.Pending);
-        Assert.Equal(new[] { "Save and go live", "Cancel" }, System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(choice.Pending!.Buttons, b => b.Label)));
+        Assert.Equal(new[] { "Save", "Discard", "Cancel" },   // ⭐ CE-3451 — the ONE door's unsaved question (R1′); "Save and go live" retired with ▶-arms-Live
+             System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(choice.Pending!.Buttons, b => b.Label)));
     }
 }

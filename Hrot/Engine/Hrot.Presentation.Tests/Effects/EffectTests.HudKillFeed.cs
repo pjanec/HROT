@@ -13,7 +13,7 @@ namespace Hrot.Presentation.Tests.Effects;
 /// <summary>
 /// ⭐ H2 / PH-5 (CE-4228) — the effect system keeps every <see cref="ManDownedEvent"/> of the bus in the kill feed only while <c>hud.kill-feed</c> is on (null gate = ungated),
 /// one entry per event, and the player-HUD declarations are ON on every host (R-4115, PH-8 amended).
-/// Red-proof (compiles): drop the <c>RecordsKills</c> test in <c>TrackKills</c> ⇒ the feature-off rail fails.
+/// Red-proof (compiles): drop the <c>RecordsKills</c> test in <c>HudFeedSystem.Execute</c> (CE-4671 LK-S1 moved the feed there) ⇒ the feature-off rail fails.
 /// </summary>
 public sealed partial class EffectTests
 {
@@ -24,7 +24,7 @@ public sealed partial class EffectTests
         At(world, 10.0);
         for (int i = 0; i < events; i++)
             world.Bus.Publish(new ManDownedEvent { State = InjuryState.Dead, VictimSide = ForceId.Friend });
-        Tick(world, new EffectSpawnSystem { FeatureGate = () => gate }, 0.016f);
+        Tick(world, new HudFeedSystem { FeatureGate = () => gate }, 0.016f);
         return KillFeed.Of(world)?.All.Count ?? 0;
     }
 

@@ -1901,6 +1901,12 @@ namespace Fdp.Core
             _lastTick ??= new EntityRepository();
             _lastTickEpoch = ParallelReadCheck.DeclarationEpoch;   // ⭐ M-7 — before the copy: a declaration made during it retakes next time
             _lastTick.SyncFrom(this, ParallelReadCheck.DeclaredMask, includeTransient: true);
+            // ⭐⭐ CE-3468 — the copy keeps a chunk while its version EQUALS the source's: a chunk stamped THIS version before the capture (a serial
+            //   system ahead of the Simulation phase) and written again in the phase keeps the same stamp ⇒ the next capture skipped it, and the
+            //   view held that chunk's pre-phase rows FOREVER for a steady writer. 📐 Measured live: a Points root read its children's statuses
+            //   frozen at their first tick (root 0, Best "nobody qualifies") while each child read 42. ⇒ a chunk stamped at or after this version
+            //   is marked never-synced, so it is copied again next tick (the same mark RecycleForSync uses, M-4)
+            foreach (var kvp in _lastTick._componentTables) kvp.Value.InvalidateChunksStampedSince(_globalVersion);
             _lastTickFresh = true;
         }
 
