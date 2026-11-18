@@ -6,26 +6,29 @@ current-answer: §1
 
 # STATUS — ui, the queue
 
-self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly at :02) — KEPT: the user wants it recurring every hour (2026-11-18); its prompt now says never delete it, and on an empty queue to check the other lanes for new ui handoffs first.
+self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-**idle** — the queue is done (2 rows await decisions in `DECISIONS_Ui.md`: CE-1954, CE-1067; plus CE-1286 taken while dry). Self-wake-up kept (user).
+NEXT (§7, an open ui RW-M row with an accepted design, no handoff holds it): CE-1147 — body stance travels like every "one owner → every node" datum, not by host-wired role halves (accepted by the user 2026-10-16). Start: R-129 sweep for the stance replication design + `AnimationReplicationModule`; graph + grep inventory of StanceIntent / StanceStatus writers and readers.
+Assessed and NOT taken: CE-1045 (its open half is the EQS inside test — owner behaviors), CE-1018 / CE-1024 / CE-1028 ("design needed"), CE-1160 (verify on the user's machine), CE-1030 (deferred by the user).
 
 ## 2. The queue (in order)
 
 | row | state | sha | rail | scenario |
 |---|---|---|---|---|
 | CE-1133 RTS right-click orders deselected units | NOT REPRODUCED (original); the RTS right-click found BROKEN at the merge (Convoy took the ground-click gesture) — FIXED under CE-1978 | (this push) | `RtsCommandToolTests` 13/13 incl. `CE1133_EachClickGesture_…` (red-proved) | n/a (editor input) |
-| CE-1954 press on an unselected unit drags it (threaded) | SKIPPED — needs decision (`DECISIONS_Ui.md`, lean A: select + drag in both modes) | | | |
+| CE-1954 press on an unselected unit drags it (threaded) | DONE — DECIDED A: a plain left body press drives the unit's move gizmo in the one routing (both editors) | (this push) | `DataDrivenGizmoSystemRoutingTests.CE1954_…` (red-proved); gizmo 21/0; Presentation drag/selection 61/0 | n/a (editor input) |
 | CE-1470 gizmo buffer overflow drops primitives | DONE — grows after an overflowing frame; drops reported in [FrameStats] | (this push) | `DebugPrimitiveBufferLayerTests.CE1470_…` (red-proved); Diagnostics.Contracts.Tests 67/0; Presentation gizmo suites 415/0 | n/a |
 | CE-1955 three Presentation reds (five with S1 + LR1) | DONE — all stale tests vs other lanes' deliberate changes | (this push) | Map3DTests · EffectTests · TerrainAddEntityFrameRail 286/0 | n/a |
 | CE-1298 FPS bare-hand fire does nothing | DONE — empty hands: SIGHT (no lock box) and the press strikes the crosshair's unit (`Melee.Strike`); Entity Control §8s | `640d30871` | `EmbarkNodesTests.CE1298_…` (red-proved); SimHost EmbarkNodes 28/0; Toolkits fire-mode 153/0; PossessionStation 83/0 | n/a (no scenario holds a possessed bare hand) |
 | CE-1283 Debug this unit on a commander | DONE — ①③ superseded (CE-1317 / CE-1329); ② one global "Observe all brain units" switch (DBG-2) | `640d30871` | `UnitDebugSettingsTests.CE1283_…` (red-proved); Editor brain routes 7/0 | n/a |
-| CE-1067 remote terminal panel → global gizmo | SKIPPED — needs decision (`DECISIONS_Ui.md`, lean A: not a defect today) | | | |
+| CE-1067 remote terminal panel → global gizmo | CLOSED — DECIDED A: not a defect today | (this push) | n/a | n/a |
 | CE-1239 .ogg clip missing from a film | DONE — `OggReader` (raylib LoadWave) for the track | `28ce2fa8a` | `AudioTests.CE1239_…` (red-proved); Audio + FilmDirector 80/0 (3 skips pre-existing) | n/a |
 | CE-1241 15 seeded takes the scout cannot complete | PARTLY — 54/58 found (was 40/55); cc-platoon-bound fixed; the 4 left are scenario content (note to behaviors; casualty-care / police-line need the beat in the scenario) | (this push) | `scripts/director-check.py scout-all --headless` ×2 | the five scenarios' regressions: 3 PASS, 2 FAIL (behaviors) |
 | CE-1280 Brain tab: why-this-choice one line | DONE — superseded by CE-1325 W5 (one line per decision by name, the sheet inside) | `b461d8fca` | `UtilityDecisionViewTests.CE1325_*` (existing) | n/a |
 | CE-1281 Brain tab: Recent changes scroll / menu | DONE — 8-row scrolling grid, row menu Open graph of … / Copy | `b461d8fca` | `TheBrainViewTests.CE1281_…` (red-proved); TheBrainViewTests 26/0 (xvfb) | n/a |
+| CE-1286 (taken while dry) a C# behaviour's fields in the Watch | DONE — DECIDED A: section `Occurrence`, read by the slot reader, written by R-1041's writer; Add to Watch in the dump | (this push) | `TheBrainViewTests.CE1286_…` (red-proved); AiShared Watch/Variable/Brain 597/0; Editor live-value 20/2 — the 2 reds (`LiveBlackboardValueProviderTests.CE1412_…`, `CE1430_…`) expect the shipped SOP's sense list WITHOUT `AirSense`, which CE-7029 (another lane, already in the tree) added | n/a |
+| CE-1979 (§7, ui's own find) threaded map faults on a dead entity | DONE — `SyncFrom` moves the structural clock when the source's structure moved | (this push) | `EntityRepositorySyncTests.CE1979_…` (red-proved); Fdp.Core 6 reds are source scans flagging other lanes' files (env names, a shared fixture component id, JSON options, wall clock); ModuleHost snapshot/sync 61/0; Toolkits gizmo/gate 242/0 | `bt-window-duel`: 0 faults (was 20) |
 | CE-1246 Stride mode 2 host actions | DONE — node `HostActions` + shared `HostActionsPumpSystem`; inspector + Details get them | `8952f8c3d` | `GlobalActionDispatchSystemTests.CE1246_…` (red-proved) 4/0; `HrotStrideApp.Game` builds (restored first) | ⚠ not run on a Stride window (Windows only) |
 
 ## 3. Taken from new handoffs

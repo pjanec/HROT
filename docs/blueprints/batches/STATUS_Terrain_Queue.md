@@ -8,8 +8,8 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-IN PROGRESS: the queue's 11 rows are done or recorded. ⭐ TAKEN from a note: **CE-4655's second half — a route round a KNOWN / SUSPECTED field keeps a clearance outside it** (behaviors' `NOTE_Behaviors_To_Terrain_NoWayRound_EdgeClearance.md`; their CE-2447 `mf-no-way-round` is blocked on it).
-Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292, coordinator `12ce6cebb`).
+**idle — CE-4662 DONE `2026-11-18`** (thermal drivers, the environment half; was taken from [`HANDOFF_Coordinator_To_Terrain_Thermal_Drivers.md`](HANDOFF_Coordinator_To_Terrain_Thermal_Drivers.md) (priority: before the T2 rows). ① materials + surfaces + the export ✅ built (R-5065, for review) · ② IR-blocking smoke ✅ built (R-5066, for review) · ③ weather `Since` ✅ built — gates in §2). Now idle: CE-4630 waits on the user's re-check; CE-5004's rest is cross-lane; CE-5020 / CE-5021 are `RW-S`.
+Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292); its message is now §1a's text VERBATIM (updated `2026-11-18` 12:05).
 
 ## 2. The queue (in order)
 
@@ -26,6 +26,7 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | T2 | CE-3428 pack the prefilled navmesh tiles | ✅ DONE — measured on `full-1` (106 260 files → about a hundred packs); `NavTilePack` (prefill seals, save merges, seed reads packs then loose) | rails `NavmeshPrefillTests` (2 red-proved) · UTM §12.4 · ⏳ the NAS / Windows staging time is the user's to measure |
 | T2 | CE-3426 felling a lone tree, fragments in woods | ✅ DONE — fragments through a wood stopped like rounds (`× (1 − Stop)`); felling was CE-4603 | rail `TerrainWoodsTests.CE3426_*` (red-proved); toolkit Woods / AreaEffect / Crater / BuildingDamage 115 / 115 · ⚠ no scenario bursts in a wood |
 | T2 | CE-3440 a breach hot-path allocation rail red 1 in 3 | ✅ DONE — the QueryTimings rails flipped a process-wide switch in parallel with it; their collection now runs alone | rail `QueryTimingsTests.CE3440_*` (red-proved) · 5 / 5 timings runs, every full run green |
+| H | CE-4662 thermal drivers, environment half (TD-8/9/12) | ✅ DONE — materials + surfaces + export (R-5065), IR-blocking smoke on the cloud (R-5066), weather `Since` | gates: Fdp.Toolkits.Tests Weather/AreaEffectCloud/TerrainWorld 124/124 · Hrot.Core.Tests NonLethalMunition 14/14 · Hrot.SimHost.Tests BodyPartReplication + TheDescriptorMapIsWired 39/39 (the cloud and weather wire rails — rule 8) · export script 1 787 features / 11 terrains · every new rail red-proved (4 mutations) · DESIGN_Thermal_Drivers §4c |
 
 ## 3. Taken from new handoffs
 - `HANDOFF_Coordinator_To_Terrain_Bug_Queue.md` at 2026-11-18 (merged coordinator at the run's start).
@@ -33,10 +34,13 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 ## 3a. Lane decisions (for the user's review)
 | id | decision | what would change it |
 |---|---|---|
-| R-5064 | a burst that breaches a wall within 0.5 m of its face makes NO crater (a contact charge spends itself on the wall) | a big bomb landing at a wall should still crater ⇒ scale the skip by kg (e.g. only below the breach table's collapse mass) |
+| R-5064 ✅ APPROVED as built (`DECISIONS_Terrain.md`, user via coordinator `2026-11-18`) | a burst that breaches a wall within 0.5 m of its face makes NO crater (a contact charge spends itself on the wall) | a big bomb landing at a wall should still crater ⇒ scale the skip by kg (e.g. only below the breach table's collapse mass) |
 
 ## 4. Notes sent / received
+- received + reviewed: `NOTE_Behaviors_To_Terrain_Mine_Maims.md` (D-3, `3418dd0c8`) — ✅ accepted; 3 small findings sent: `NOTE_Terrain_To_Behaviors_Mine_Maims_Review.md` (the trigger man guessed vs `MineStruck.By` — terrain offers to carry it on the burst; no `IsHidden` skip; a misplaced doc comment)
 - received: `NOTE_Behaviors_To_Terrain_NoWayRound_EdgeClearance.md` (behaviors, 2026-11-18) — taken: the route clearance (above)
+- sent: `NOTE_Terrain_To_Behaviors_Route_Clearance.md` — the ring is built; `mf-no-way-round` goes round now (theirs to re-author)
+- sent: `NOTE_Terrain_To_Behaviors_Mine_Edge_Inset.md` · `NOTE_Terrain_To_Ui_Obstacle_Drawing.md`
 - none yet
 
 ## 5. Gates (rule 8)
@@ -57,4 +61,6 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | post-merge | `mf-way-round,mf-strike-and-halt,mf-recon-and-mark` (after the recon edit, behaviors + ui merged) | 4/4 · 7/7 · 6/6 |
 | CE-3440 | `QueryTimings` × 5; `Fdp.Toolkits.Tests` Terrain / Recast / Diagnostics (+ OverlayCompiler, StaticObstacle) | 6 / 6 × 5; 937 / 937 |
 | CE-3428 | the same toolkit run · `Hrot.Terrain.Import.Tests` · `Hrot.SimHost.Tests` TerrainLoad / Overlay / Bake | 937 / 937 · 54 / 55 (⚠ `ImporterTests.TheHeightStore_AtAFewPosts_*`: red only WITH SUMO installed — the synth then builds roads and the importer levels them; green at `6c2788ed3` in a clean worktree without SUMO ⇒ filed **CE-5021**, a rail gap, not CE-3428) · 97 / 97 |
+| CE-4655 (route) | `Fdp.Toolkits.Tests` Mine / Minefield / PlaceKnowledge / Recast / DangerArea · `Hrot.SimHost.Tests` Minefield / DangerArea / Recon | 208 / 208 · 13 / 13 |
+| CE-4655 (route) | `scenario-regression.sh mf-no-way-round,mf-way-round,mf-strike-and-halt,mf-at-vs-vehicle,mf-recon-and-mark` | 4 / 5 — `mf-no-way-round` goes round now (no MinefieldAhead, no blast; the x-only "enters" row and "still halted" red) ⇒ behaviors' CE-2447 re-authoring |
 | CE-5018 | live `--mode all`, bt-doors, a possessed TKB 112 rams House A | breach entity 1201 on all three perspectives (before: none) |

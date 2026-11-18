@@ -40,7 +40,7 @@ mine scenario's casualty becomes a live man (the goldens move).
 
 ## D-2 · CE-2442 — who answers an `Engineers` request, and with what? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator): ① — `SupportAsset.Engineers` (a free unit with a TKB 116 clearer or an engineer squad); the HQ answers with `ReconMinefield` at the request's point, then the clearer's `Breach` along the requester's route once the field is marked. Add a demo scenario with checks.**
+**✅ DONE `2026-11-18` (behaviors): DESIGN_Minefields §13 (MS-B5) built; demo `mf-engineers-answer` 7 / 7.** **DECIDED `2026-11-18` (user, via coordinator): ① — `SupportAsset.Engineers` (a free unit with a TKB 116 clearer or an engineer squad); the HQ answers with `ReconMinefield` at the request's point, then the clearer's `Breach` along the requester's route once the field is marked. Add a demo scenario with checks.**
 
 **The question:** `MinefieldAhead` halts a squad and queues `RequestKind.Engineers` up the chain (MS-B4, approved), but no HQ answers it:
 `SupportCommandBehavior.Command` answers only `FireSupport` and `Reinforce` (`SupportCommandBehavior.cs:90`, `:131`) and there is no engineer

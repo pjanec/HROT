@@ -281,6 +281,7 @@ graph TD
 |---|---|---|
 | the data | `MinefieldSet` (`Terrain/Minefields/MinefieldSet.cs`): per field its guid, parameters, world outline and lanes (authored + every node's `MinefieldLanes` record, side + 1); `TerrainWorld.Minefields` on the derived world; `TerrainObstacles.With(…, MinefieldSet?)` | gathered only on a node that does world queries (`TerrainResidency.BakesDamage`, the building damage's rule): a display node's terrain is never queried |
 | bake signature, dirty region | `MinefieldSet.SignatureOf(world)` (cached queries, index loops — 0 B) joins `StaticObstacleBakeSystem`'s input hash; `TerrainResidency.MinefieldDirt` adds the box (±3 m) of every field new, gone or changed (old and new place, by `TerrainMinefield.Hash`): only those tiles rebake | a lane record gone in a seek changes the hash ⇒ the same rebake |
+| ✏ CE-4655 `2026-11-18` the CLEARANCE RING | ⭐ a field's navmesh area reaches `MinePattern.RouteClearance` = max(spacing, 5 m) OUTSIDE its outline: `NavDoorways.AddClearanceRing` adds per edge the outward band and per vertex the corner parallelogram to the field's pieces (so the wood / crater composites and the lane restores apply to it too); a lane's strip runs on through it (`LaneStrip(lane, clearance)`, `LaneAt(…, extend)`); a ring polygon takes the knowledge of the nearest edge cells (`CellsOf` clamps); the field hash and the dirty box include the clearance | 📐 behaviors' measurement (`NOTE_Behaviors_To_Terrain_NoWayRound_EdgeClearance.md`): the route round a known field hugged the outline (y 110.1 vs 110) and the squad trailed inside it. With the mines' edge inset (MF-2) a man ON the edge is safe; the ring keeps the route off it. Rail `MinefieldNavTests.CE4655_ARouteRoundAKnownField_KeepsItsClearance`. What would change it: a doctrine distance per field (an authored clearance) |
 | composite areas | `MinefieldArea 5` (plain), **`MinefieldWoodsArea 6`**, **`MinefieldCraterArea 7`** (ids 6 and 7 measured free: only 2, 3, 4, 5 and Recast's 63 are used). ⚠ A Recast area is per SPAN and a later stamp wins, so a composite needs the underlying area known at stamp time: **cut by geometry** — the field's ear-clipped triangles clipped against each wood triangle / crater (and ditch) piece (convex ∩ convex, `NavDoorways.Clip`) | a masked `RcAreaModification` cannot do it (ground is 63, all bits set); a per-span "if area == X" stamp does not exist in DotRecast. Cost: field triangles × wood triangles at bake time, bbox-rejected |
 | stamp order | woods · craters + ditches · **field 5 · composites 6 (wood), 7 (crater, wins over wood) · lane restores (63, then 3, 4)** · doorways | a crater wins over a wood as the plain stamps do |
 | every area test | `NavDoorways.IsWoods / IsCrater / IsMinefield`; `PassFilter` (wheels out of a wood and of a mined wood; every vehicle out of a crater and a mined crater) and `GetCost` (the wood factor) use them | a new area that is "a kind of X" must add itself there, one place |
@@ -505,3 +506,92 @@ in `EjectionSystemTests.cs:26` only).
 | MS-U3 authoring | `MinefieldOps` (`AddEntity/`): type · spacing 2…100 · orientation wrapped to [0,360) · seed · anti-handling · known-at-start side · `AddLane` (≤ 8, width 4.5) · `DeleteLane` (compacts) — each ONE undo step, no-op when unchanged; `ShapeLock` (a Struck entry of a `MinefieldStrikes` keyed by the field's `EntityGuid`) and `Counts` (cached per field, 0 B steady). The ONE area tool: `PlacementToolRegistry.Graphics` has "Minefield" (8830); `AreaAuthoringArm.BornWith` drops the `MapOverlayStyle` (MR-8) and adds `MinefieldOps.Default()` (Mixed, 10 m, 0°, seed 1). Form: `MinefieldDetailsView` (`details.minefield`, rank 39, `Hrot.Editor.AiShared/Shell`), the mockup's rows + Lanes (trash = `DeleteLane`) + Add lane. **Add lane = the area tool in LINE mode**: `ScenarioSpawnAdapter.StartLaneAuthoringMode` arms the same `AreaAuthoringArm` (MinPoints 2, open) with a sink that calls `AddLane` with the line's first and last points (click A, click B, Enter / ✓) — no entity is spawned. **Shape lock** through ONE hook, `OutlineEditPolicy` (`ScenarioEditor/Gizmos`): `VertexEditGizmo` asks `ReasonFor(world, entity)` before a move / centre drag / insert / delete and puts the reason on the hint line; the minefield registers `MinefieldOps.OutlineRefusal`. Cross-lane, one line each: `HrotSharedComponentRegistry` registers `Minefield` (terrain's MS-T1 had not); `Icons` keys `minefield/field` (FA land-mine-on, red) and `minefield/lanes` | `MinefieldOpsTests` (7) · `MinefieldDetailsViewTests` (3, frame rail under xvfb) |
 | bound to terrain's MS-T1 / MS-T2 / MS-T4 (part), `2026-11-16` | `FlailActivity.IsOn` = the clearer's `MineClearing` active with the FLAIL (a plough / line charge never turns the drum) · the gizmo draws terrain's RUNTIME lanes (`MinefieldLanes` records, a cached query, 0 B): all for the truth, a side only those it cut (MF-10), known field or not · the mines' bursts (`EffectTkbCatalog`): AP → `ExplosionMedium` + a small scorch, AT and the line charge → `ExplosionHuge` + a large one · the knowledge cells are real (MS-T2) | `MinefieldGizmoRail.ARuntimeLane_…`, `MineClearerModelRail` (the switch) |
 | re-bind ✅ DONE `2026-11-16` | `["MineClearer"]` in `FamilyOfClass`, type 116 through the real catalogue, the picker thumbnail (`Mine_Clearer__engineer_tank_`, atlas 91), the catalog goldens | `MineClearerModelRail.TheRealType116_…`, `EntityTypeCatalogTests` |
+
+## 13. MS-B5 — the HQ answers `Engineers` *(D-2, CE-2442 — ✅ decided `2026-11-18`, user via coordinator; behaviors; build-state: BUILT `2026-11-18`)*
+
+> 🔒 **Decided (D-2 ①):** *"`SupportAsset.Engineers` (a free unit with a TKB 116 clearer or an engineer squad); the HQ answers with `ReconMinefield` at
+> the request's point, then the clearer's `Breach` along the requester's route once the field is marked. Add a demo scenario with checks."*
+
+**INVENTORY** (`2026-11-18`): `scripts/cbm.sh search_graph '.*(Engineer|MinefieldKnowledge|Breach|SupportAsset|RequestKind).*' Class` → 3 hits, all
+`BreachDoor*` (⚠ the index predates the minefield code — grep is the record here) · grep: `SupportCommandBehavior.Command` answers `FireSupport` (`:90`)
+and `Reinforce` (`:131`) only; `SupportAsset` {AttackHelicopter, StrikePlane, Battery, GroundUnit}; the request is `MinefieldAheadBehavior.Tick`'s
+`RequestKind.Engineers` at the field's NEAR side (`At`, radius 30); `ReconMinefield` (a MAN's, `{Field, At, Mark}`) and `Breach` (a UNIT's with a
+clearer vehicle + a crossing man, `{Field, Start, End, Width}`) exist; `PlaceKnowledgeTable.Marked(side, field)` answers "known in full" (marked or
+known at start); `TkbEntityTypes.Engineer_MineClearer` = 116. ⇒ **reuse all of it**; new: one asset kind, one answer branch, the far-side point.
+
+```mermaid
+classDiagram
+  class SupportCommandBehavior { <<existing, grows>> +Command() +KindOf() Engineers ; +EngineersAnswer() NEW }
+  class SupportCommandState { <<existing, grows>> +EngPhase +EngFieldNetId +EngUnit +EngNear +EngFar }
+  class SupportAsset { <<existing enum, grows>> Engineers = 5 }
+  class MinefieldAheadBehavior { <<existing>> queues RequestKind.Engineers at the near side }
+  class ReconMinefieldBehavior { <<existing>> a man: Field, At, Mark }
+  class BreachBehavior { <<existing>> a unit: clearer + crossing man }
+  class PlaceKnowledgeTable { <<existing>> +Marked(side, field) }
+  class EngineersAnswer { <<NEW static>> +FieldAt(world, at) +FarSide(world, field, from, near) }
+  MinefieldAheadBehavior ..> SupportCommandBehavior : REQUEST Engineers (up the chain)
+  SupportCommandBehavior --> SupportCommandState
+  SupportCommandBehavior ..> EngineersAnswer
+  SupportCommandBehavior ..> ReconMinefieldBehavior : assigns to the engineer unit's man
+  SupportCommandBehavior ..> BreachBehavior : assigns to the engineer unit
+  SupportCommandBehavior ..> PlaceKnowledgeTable : marked for the HQ's side?
+```
+*What the picture shows that prose hid:* nothing new runs the work — the HQ only CHOOSES and ORDERS two behaviours that already exist; its one
+new piece of state is which phase its single engineer job is in.
+
+```mermaid
+sequenceDiagram
+  participant S as Squad (MinefieldAhead)
+  participant H as HQ (SupportCommand)
+  participant E as Engineer unit
+  participant M as its man
+  S->>H: REQUEST Engineers at the near side
+  H->>H: the field at the point, the far side along the requester's line
+  alt the field is not marked for the HQ's side
+    H->>M: ReconMinefield Field, At, Mark
+    M-->>H: the field marked (the side's knowledge) or his walk ends
+  end
+  H->>E: Breach Field, Start = near side, End = far side
+  E->>E: support by fire, the clearer cuts the lane, the crossing
+  H->>H: the job ends when the Breach order no longer runs
+```
+
+```mermaid
+graph TD
+  BP[BrainPhase - per entity, parallel] --> HQ[SupportCommand tree on the HQ]
+  HQ -->|CommandOrders.Assign| EU[Engineer unit's Breach tree]
+  HQ -->|CommandOrders.Assign| EM[its man's ReconMinefield tree]
+  BP --> EU
+  BP --> EM
+```
+*Caption:* every node ticks in the brains' per-entity phase; the HQ writes only orders (commands, next tick) — no cross-entity write (the
+parallel rule).
+
+| decision | why | rejected |
+|---|---|---|
+| an Engineers asset = a UNIT whose roster holds a TKB 116 clearer; `KindOf` names it BEFORE `GroundUnit` | the decided definition; a clearer's unit must not be sent to reinforce a line | a per-entity "engineer" flag — no such component; the TKB type already says it |
+| the field = the nearest `Minefield` whose outline lies within the request's 30 m of its point | the request carries a point only (D-2: "derived, not added") | a field id in the request — a wire change |
+| the far side = where the line from the REQUESTER through the point leaves the outline, + 5 m | "along the requester's route": he came along that line | the field's centroid side — not his way |
+| marked for the HQ's side (`Marked`: marked or known at start) ⇒ Breach at once; else ReconMinefield {Mark} first, Breach when marked or his walk ends | the decided order; a known field needs no recon | waiting only for the mark — a recon that ends unmarked would stall the job for good |
+| ONE engineer job at a time (the state's phase) | an HQ has few engineers; a second request waits in the picture | a job list — no scenario needs two |
+
+**As built (`2026-11-18`)** — matches the diagrams; three findings folded:
+
+| what | as built | 📐 found |
+|---|---|---|
+| the answer | `SupportCommandBehavior.Engineers` / `AdvanceEngineers` / `OrderBreach` + `EngineersAnswer` (`FieldAt`, `FarSide`, `KnowsInFull`, `HasClearer`, `ManOf`); `SupportAsset.Engineers` named by `KindOf` before `GroundUnit`; the job's phase in `SupportCommandState` (`EngPhase` …) | — |
+| the recon man | `ManOf` = the unit's first live man on foot — ⭐ inside a sub-unit when the unit holds TEAMS (a unit is never sent on `ReconMinefield`) | the demo's engineer unit holds its crossing element as a team |
+| ⚠ the crossing element is a UNIT | `Breach` gives `CrossLane` (a unit play: its roster crosses in single file) to its LAST member on foot — authored as a TEAM, not a lone man | 📐 a lone sapper as that member: `CrossLane` failed at once, the Breach ended "Success" and cancelled the clearer's lane mid-way. ⚠ Breach itself does not refuse a lone man — a later hardening (not in D-2's scope) |
+| the demo | `mf-engineers-answer`: the squad STARTS in `MinefieldAhead` 15 m short of the field (a march's route skirts the field's edge today — CE-2447, blocked on terrain); the HQ's Engineers (a TKB 116 clearer 18 m clear of the sappers — a man inside a moving clearer's hull is run over, CE-1967 — 'Sapper 3' supporting, the 'Sapper Team' crossing) | 7 / 7: MinefieldAhead 0 s · Breach + ClearLane 3.25 s · CrossLane 22.25 s · nobody hurt |
+
+**Rails** (`SquadManeuverTests`, the HQ's suite): `CE2442_Engineers_ReconTheUnknownField_ThenTheUnitBreachesAlongTheRequestersLine` (recon at the
+point with Mark, the request answered; the breach after his walk, from the point to the far edge + 5 m along the requester's line) ·
+`CE2442_AnEngineerUnit_IsNeverSentToReinforce`. ✅ Red-proofs: the Engineers branch removed ⇒ the first red; `KindOf`'s engineer test removed ⇒
+both red. Strict parallel env (`HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`): 5 / 0.
+
+**CE-2447 (`2026-11-18`, behaviors) — `mf-no-way-round` re-authored.** 📐 Once a route keeps its clearance round a KNOWN field (terrain's CE-4655 ring),
+a march to (185, 80) simply went ROUND Field B (130–150, 50–110), so no `Minefield` area was ever reported — on test-town the field never blocked the
+way. Making it span the whole map did not work either (the planner wandered north looking for a way). ⭐ The scenario now uses KG-7's other case,
+*"the order goes through"*: the march's objective is INSIDE the field (145, 80), so every route enters it, the route sensor reports it, and the squad
+halts short (MinefieldAhead at 111 s) and stays halted. "Nobody enters the field" is three never-`near` rows down the field's centre line (x 140; y 60 /
+80 / 100; 10 m) — ⛔ the old `x > 130` row also caught a man walking the clearance ring OUTSIDE the field (measured: the leader at (131, 114.9)). 10 / 10.

@@ -4356,6 +4356,81 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(Requests(PictureOf(p, p.S.Commander)));
         }
 
+        // ── ⭐ CE-2442 D-2 — the HQ answers ENGINEERS (Minefields §13) ──────────────────────────────────────────────────────────
+
+        /// <summary>The HQ's member 3 becomes an ENGINEER unit: its man on foot and a TKB 116 clearer (a tracked vehicle). A 40 × 40 m field at the
+        /// origin; the requester (member 0) stands 50 m west of it.</summary>
+        private static (Platoon P, Entity Clearer, Entity Man, Entity Field) EngineersHq()
+        {
+            var p = Headquarters();
+            var repo = p.S.Repo;
+            Entity engineers = p.S.Members[3];
+            var clearer = repo.CreateEntity();
+            repo.AddComponent(clearer, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Hrot.Map.Common.TkbEntityTypes.Engineer_MineClearer });
+            repo.AddComponent(clearer, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked });
+            ref var roster = ref repo.GetComponentRW<UnitRoster>(engineers);
+            var man = roster.SubordinateEntities[0];   // the unit's man on foot (Headquarters() gave it one)
+            UnitRoster.Add(ref roster, clearer);
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.Minefield>()) repo.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            if (!repo.TryGetTable(typeof(Hrot.Map.Common.Components.EditablePolyline), out _)) repo.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
+            var field = repo.CreateEntity();
+            repo.AddComponent(field, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            repo.AddComponent(field, new Fdp.Toolkit.Terrain.Minefield { Type = Fdp.Toolkit.Terrain.MineType.AntiPersonnel, SpacingM = 4f });
+            repo.AddComponent(field, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7442 });
+            repo.SetManagedComponent(field, new Hrot.Map.Common.Components.EditablePolyline
+            {
+                Points = new[] { new Vector2(0f, 0f), new Vector2(40f, 0f), new Vector2(40f, 40f), new Vector2(0f, 40f) },
+            });
+            var requester = p.S.Members[0];
+            var at = new SimTransform { Position = new Vector3(-50f, 20f, 0f), Rotation = Quaternion.Identity };
+            if (repo.HasComponent<SimTransform>(requester)) repo.SetComponent(requester, at); else repo.AddComponent(requester, at);
+            return (p, clearer, man, field);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2442</c> D-2 (Minefields §13) — an Engineers request at a field's near side: the engineer unit (a clearer in its roster)
+        /// is the asset — ⭐ its MAN recons the field the side does not know (ReconMinefield at the point, Mark), the request is answered; when his
+        /// walk ends the UNIT breaches from the point to the far side along the requester's line (+5 m). Never a reinforcement, never the
+        /// requester. ✅ Red-proof: the Engineers branch removed from <c>Command</c> ⇒ no recon, the request stays.</summary>
+        [Fact]
+        public void CE2442_Engineers_ReconTheUnknownField_ThenTheUnitBreachesAlongTheRequestersLine()
+        {
+            var (p, _, man, _) = EngineersHq();
+            Entity engineers = p.S.Members[3];
+            var near = new Vector3(-5f, 20f, 0f);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.Engineers, near);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(man, BehaviorNames.ReconMinefield));
+            var recon = OrderTo<ReconMinefieldParamsJsonDto>(p, man, BehaviorNames.ReconMinefield);
+            Assert.Equal(7442, recon.Field.Ref.NetworkId);
+            Assert.Equal<Vector3>(near, recon.At);
+            Assert.True(recon.Mark);
+            Assert.Equal(0, p.OrdersTo(engineers, BehaviorNames.Breach));
+            Assert.Equal(0, p.OrdersTo(engineers, BehaviorNames.SquadDefend));
+            Assert.Empty(Requests(PictureOf(p, p.S.Commander)));
+
+            p.S.Pause(3.0);   // his walk is over (his brain never took it here): the breach follows
+            p.Ticks(2);
+            Assert.Equal(1, p.OrdersTo(engineers, BehaviorNames.Breach));
+            var breach = OrderTo<BreachParamsJsonDto>(p, engineers, BehaviorNames.Breach);
+            Assert.Equal(7442, breach.Field.Ref.NetworkId);
+            Assert.Equal<Vector3>(near, breach.Start);
+            Assert.InRange(breach.End.X, 44.9f, 45.1f);   // the far edge (x 40) + 5 m along the requester's line (west → east)
+            Assert.InRange(breach.End.Y, 19.9f, 20.1f);
+        }
+
+        /// <summary>⭐ <c>CE-2442</c> D-2 — an engineer unit is not a ground unit: a Reinforce never takes it. ✅ Red-proof: <c>KindOf</c>'s engineer
+        /// test removed ⇒ the engineers are sent to defend.</summary>
+        [Fact]
+        public void CE2442_AnEngineerUnit_IsNeverSentToReinforce()
+        {
+            var (p, _, _, _) = EngineersHq();
+            Assert.Equal(SupportAsset.Engineers, SupportCommandBehavior.KindOf(p.S.Repo, p.S.Members[3]));
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.Reinforce, new Vector3(50f, 400f, 0f));
+            p.Ticks(4);
+            Assert.Equal(0, p.OrdersTo(p.S.Members[3], BehaviorNames.SquadDefend));
+        }
+
         // ── CE-2310 — what a platoon sends up for SUPPORT (Command Chain §8d HQ-3…HQ-5) ──────────────────────────────────────
 
         /// <summary>The platoon under a body-less HQ; its staff's composer runs each frame with the harness.</summary>

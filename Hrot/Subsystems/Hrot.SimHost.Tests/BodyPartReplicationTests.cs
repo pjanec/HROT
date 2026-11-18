@@ -439,6 +439,53 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(sample, EntityAreaEffectCloudEgressTranslator.ToSample(46, cloud with { SightTransmittance = 0.6f }));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4662</c> (thermal drivers TD-12) — an IR-blocking smoke cloud SAYS SO on every node: <c>BlocksInfrared</c> rides
+        /// <c>dtAreaEffectCloud</c> both ways, and flipping it is a new sample. ✅ Red-proof: the egress not copying it ⇒ 0 on the other node ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4662_AnInfraredBlockingSmokeCloud_SaysSoOnEveryNode()
+        {
+            var cloud = new Fdp.Toolkit.Combat.AreaEffectCloud
+            {
+                Kind = Fdp.Toolkit.Combat.CloudKind.Smoke, Radius = 20f, Height = 8f, SightTransmittance = 0.1f,
+                BornAtSimSeconds = (SimInstant)5.0, Seconds = 90f, BlocksInfrared = 1,
+            };
+            var sample = EntityAreaEffectCloudEgressTranslator.ToSample(47, cloud);
+            Assert.Equal((byte)1, sample.BlocksInfrared);
+
+            var (node, unit, map) = Node(47);
+            using (node)
+            {
+                var ingress = new EntityAreaEffectCloudIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                Assert.Equal((byte)1, node.GetComponentRO<Fdp.Toolkit.Combat.AreaEffectCloud>(unit).BlocksInfrared);
+            }
+            Assert.NotEqual(sample, EntityAreaEffectCloudEgressTranslator.ToSample(47, cloud with { BlocksInfrared = 0 }));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4662</c> (thermal drivers TD-8) — a LATE JOINER reads how long it has rained: the owner stamps <c>Since</c> when the rain
+        /// starts (t = 100 s), a re-sent identical weather keeps it, and the sample a late joiner gets (TransientLocal) carries it ⇒ at t = 400 s it
+        /// has rained 300 s. ✅ Red-proof: the ingress dropping <c>Since</c> ⇒ 0 ⇒ "400 s" ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4662_ALateJoiner_ReadsHowLongItHasRained()
+        {
+            var dry = Fdp.Toolkit.Weather.WeatherConditions.Standard;
+            var rain = dry;
+            rain.Precipitation = 1; rain.PrecipitationMmPerHour = 4f;
+            rain.Restamp(dry, (SimInstant)100.0);                 // the owner: the rain began at 100 s
+            var again = rain;
+            again.Restamp(rain, (SimInstant)250.0);               // the same weather re-applied: it did not begin again
+            Assert.Equal(100.0, (double)again.Since);
+
+            var joined = EntityWeatherEgressTranslator.FromSample(EntityWeatherEgressTranslator.ToSample(61, again));
+            Assert.Equal(300.0, 400.0 - joined.Since, 1e-9);
+        }
+
         [Fact]
         public void CE3210_AnUnknownBody_IsDropped()
         {

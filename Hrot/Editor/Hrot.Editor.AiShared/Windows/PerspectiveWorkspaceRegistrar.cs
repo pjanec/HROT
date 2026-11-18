@@ -682,6 +682,14 @@ public class PerspectiveWorkspaceRegistrar
             //    EditorSubsystem to forget (R-67).
             Watch.SetRunStateSource(_runState);
 
+            // ⭐ CE-1286 (Brain View §12t) — the Brain tab's dump pins a running behaviour's field into THIS Watch (re-adding replaces the pin)
+            var watchForBrain = Watch;
+            Hrot.Editor.AiShared.Shell.EntityBrainView.AddToWatch = row =>
+            {
+                watchForBrain.Pinned.Unpin(row.Origin);
+                watchForBrain.Pinned.Pin(row, watchForBrain.BindingFor(row.Origin.Entity));
+            };
+
             // ⭐⭐⭐ AQ55 — the map picker, PASSED in the same pass that builds the window.
             // ⚠ Optional because a headless host and a shell without an IG genuinely have no map;
             //   ⛔ but a composition root that HAS one must pass it (the silent-default rule), and

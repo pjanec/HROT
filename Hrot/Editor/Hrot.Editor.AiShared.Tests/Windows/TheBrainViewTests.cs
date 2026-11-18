@@ -241,6 +241,45 @@ public sealed unsafe class TheBrainViewTests : IDisposable
         Assert.Equal(new[] { "Cursor", "Params" }, running[1].HiddenVariableMembers.ToArray());
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1286</c> (DECIDED A; Brain View §12t) — a running behaviour's field becomes a Watch row of section <c>Occurrence</c>: it READS the
+    /// live value through the slot reader (a C#-style params DTO and its working state alike), its identity is its address (the same field ⇒ the
+    /// same row), and its WRITE goes through R-1041's one live write — staged at the slot's own address, the width checked. A field that does
+    /// not exist builds no row. ✅ Red-proof: <c>OccurrenceWriteServices.Write</c> staging at offset 0 instead of the resolved address ⇒ the
+    /// staged-offset assert fails.
+    /// </summary>
+    [Fact]
+    public unsafe void CE1286_ARunningBehavioursField_IsAWatchRow_ReadLive_WrittenThroughTheOneLiveWrite()
+    {
+        var (w, e, reg, bps) = RunningWorld();
+        using var world = w;
+        var addr = new OccurrenceWatchRows.Address(Fdp.Toolkit.Behavior.SlotOwnerKind.Task, "FightFromCover", null,
+            Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldParams);
+        var row = OccurrenceWatchRows.Build(() => w, e, () => reg, () => bps, addr, "CoverRadius", out var error);
+        Assert.True(row is not null, error);
+        Assert.Equal(OccurrenceWatchRows.Section, row!.Origin.Section);
+        Assert.Equal(typeof(float), row.ClrType);
+        Assert.Equal(25f, System.BitConverter.ToSingle(row.ReadValue()));                                   // the live value
+        var again = OccurrenceWatchRows.Build(() => w, e, () => reg, () => bps, addr, "CoverRadius", out _)!;
+        Assert.Equal(row.Origin.Key, again.Origin.Key);                                                      // one identity per address
+        var phase = OccurrenceWatchRows.Build(() => w, e, () => reg, () => bps,
+            addr with { Role = Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldVariables }, "Phase", out _)!;
+        Assert.Equal(2, System.BitConverter.ToInt32(phase.ReadValue()));                                     // the working state too
+        Assert.Null(OccurrenceWatchRows.Build(() => w, e, () => reg, () => bps, addr, "NoSuchField", out var missing));
+        Assert.NotNull(missing);
+
+        (Entity E, System.Type T, int Off, byte[] B)? staged = null;
+        var services = new OccurrenceWriteServices(() => w, () => reg, () => bps, (en, t, off, b) => staged = (en, t, off, b.ToArray()));
+        var written = services.Write(e, row.Origin, System.BitConverter.GetBytes(40f));
+        Assert.True(written is { Staged: true }, written?.Error);
+        var at = Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.ResolveField(w, e, reg, bps, Fdp.Toolkit.Behavior.SlotOwnerKind.Task, "FightFromCover", null,
+            Fdp.Toolkit.Behavior.OccurrenceSlotCatalog.SlotFieldRole.FieldParams, "CoverRadius", out _)!;
+        Assert.Equal((e, at.ComponentType, at.ComponentOffset), (staged!.Value.E, staged.Value.T, staged.Value.Off));
+        Assert.Equal(40f, System.BitConverter.ToSingle(staged.Value.B));
+        Assert.False(services.Write(e, row.Origin, new byte[2])!.Staged);                                      // the width is checked
+        Assert.Null(services.Write(e, new VariableRowOrigin(System.Guid.NewGuid(), e, "Variables", "X"), new byte[4]));   // not ours
+    }
+
     /// <summary>⭐ CE-1315 (BV-45) — the dump shows a fixed list's Count items, clamped, not its buffer. 🔴 Red-proof: read the capacity
     /// instead of Count in <c>FixedListItems.TryFrom</c> ⇒ 4 items.</summary>
     [Fact]

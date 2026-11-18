@@ -660,8 +660,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
             var started = bus.Read<GizmoInteractionStartedEvent>();
             foreach (ref readonly var evt in started)
             {
-                var gizmo = FindGizmo(ResolveAnchor(repo, evt.Token.AnchorId), evt.Token.GizmoTypeId);
+                var anchor = ResolveAnchor(repo, evt.Token.AnchorId);
+                // ⭐ CE-1954 (DECIDED A) — a plain LEFT press on the entity's body (a pick with no gizmo type: the presentation's box, drawn
+                //   for every unit, selected or not) drives the entity's move gizmo, so a press on an UNSELECTED unit drags it, in the
+                //   serial and the threaded editor alike. ⛔ Before: the typeless pick went to the entity's FIRST gizmo, and the move gizmo's
+                //   own typed box is drawn for selected units only — so the serial press only selected.
+                bool bodyPress = evt.Token.GizmoTypeId == 0;
+                bool plainLeft = evt.Button == Fdp.Toolkit.Diagnostics.Gizmos.Interaction.MapMouseButton.Left;
+                var gizmo = (bodyPress && plainLeft ? FindBodyPressDrag(anchor) : null) ?? FindGizmo(anchor, evt.Token.GizmoTypeId);
                 if (gizmo == null) continue;
+                if (bodyPress && !plainLeft && gizmo is IBodyPressDragGizmo) continue;   // ⭐ CE-1954 — a right / modified body press never moves the unit
                 // ⭐ Behaviour ③ — the STEAL: touching a gizmo gives it the input, whatever held it.
                 //   The one focus behaviour with no GlobalGizmoManager counterpart (§6.2b).
                 _focus.GrantStealing(this, gizmo);
@@ -771,6 +779,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// registered gizmo as a fallback so existing behaviour is not silently broken.
         /// Injected on-demand gizmos always take priority.
         /// </summary>
+        /// <summary>⭐ <c>CE-1954</c> — the entity's <see cref="IBodyPressDragGizmo"/>, or null (none, or no entity).</summary>
+        private IEntityStatefulGizmo? FindBodyPressDrag(Entity entity)
+        {
+            if (entity.IsNull || !_activeGizmos.TryGetValue(entity, out var list)) return null;
+            for (int i = 0; i < list.Count; i++)
+                if (list[i].Instance is IBodyPressDragGizmo) return list[i].Instance;
+            return null;
+        }
+
         private IEntityStatefulGizmo? FindGizmo(Entity entity, uint gizmoTypeId)
         {
             // ⭐⭐ STRICT BOUNDARY: Entity.Null is a NORMAL input here and must route to nothing.
