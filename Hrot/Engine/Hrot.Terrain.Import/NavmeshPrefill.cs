@@ -30,7 +30,7 @@ public sealed class NavmeshPrefill : ITerrainNavmeshPrefill
         var st = factory.LastStats;
         int files = 0; long bytes = 0;
         if (Directory.Exists(navtiles))
-            foreach (var f in Directory.EnumerateFiles(navtiles, "*.navtile", SearchOption.AllDirectories)) { files++; bytes += new FileInfo(f).Length; }
+            foreach (var f in Directory.EnumerateFiles(navtiles, "*", SearchOption.AllDirectories)) { files++; bytes += new FileInfo(f).Length; }   // ⭐ CE-3428 — the packs (and any loose tile)
         return new NavmeshPrefillReport(st.Baked + st.FromCache, st.Baked, files, bytes);
     }
 }

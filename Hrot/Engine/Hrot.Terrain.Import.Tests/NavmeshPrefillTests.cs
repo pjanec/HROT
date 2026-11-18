@@ -53,6 +53,12 @@ public sealed class NavmeshPrefillTests : IDisposable
         Assert.Equal(rep.NavmeshTiles, rep.NavmeshBaked);                       // a fresh folder: every tile baked once, at import
         Assert.True(rep.NavmeshFiles > 0 && rep.NavmeshBytes > 0);
         Assert.True(rep.StageSeconds.ContainsKey("navmesh"));
+        // ⭐ CE-3428 (UTM §12.4) — the folder is PACKED: no loose tile, one .navpack per layer per 32 × 32 tiles — far fewer files than tiles.
+        //   🔴 Red-proof: drop TileCache.Seal() from RecastNavmeshFactory.Build ⇒ loose .navtile files, one per tile.
+        Assert.Empty(Directory.EnumerateFiles(navtiles, "*.navtile", SearchOption.AllDirectories));
+        int packs = Directory.EnumerateFiles(navtiles, "*" + NavTilePack.Extension, SearchOption.AllDirectories).Count();
+        Assert.True(packs > 0 && packs < rep.NavmeshTiles, $"{packs} packs for {rep.NavmeshTiles} tiles");
+        Assert.Equal(packs, rep.NavmeshFiles);
 
         var before = Files(navtiles);
         Thread.Sleep(20);                                                       // a touched file would carry a later time
@@ -84,6 +90,27 @@ public sealed class NavmeshPrefillTests : IDisposable
         var fresh = Assert.IsType<DotRecastNavmeshProvider>(withoutSeed.Build(TerrainFolderWorld.ReadWorld(def, TerrainFolderWorld.ReadDefinition(def), "b")!));
         Assert.Equal(0, withoutSeed.LastStats.FromCache);
         Assert.Equal(fresh.TileKeys.OrderBy(k => k.Key), seededProvider.TileKeys.OrderBy(k => k.Key));   // ⭐ the same tiles, tile for tile
+    }
+
+    /// <summary>
+    /// ⭐ CE-3428 — a terrain prefilled BEFORE the packs (loose <c>.navtile</c> files, one folder per tile) still seeds a load: the seed reads packs first,
+    /// then loose files. 🔴 Red-proof: drop the loose fallback (<c>?? ReadDisk(key)</c>) in <c>NavTileCache.ReadSeedOwn</c> ⇒ every tile bakes.
+    /// </summary>
+    [Fact]
+    public async Task CE3428_ATerrainPrefilledLoose_BeforeThePacks_StillSeedsALoad()
+    {
+        string folder = await Importer(prefill: false).ImportAsync(Town().Write(Path.Combine(_env.Root, "set")), "loose", false, null, default);
+        string def = Path.Combine(folder, "terrain.json");
+        var world = TerrainFolderWorld.ReadWorld(def, TerrainFolderWorld.ReadDefinition(def), "loose")!;
+        // the OLD prefill: tiles written loose into navtiles/ (a per-machine-shaped cache — it never seals)
+        var old = new RecastNavmeshFactory { TileCache = new NavTileCache(Path.Combine(folder, NavTileCache.TerrainFolderName)) };
+        old.Build(world);
+        Assert.NotEmpty(Directory.EnumerateFiles(Path.Combine(folder, NavTileCache.TerrainFolderName), "*.navtile", SearchOption.AllDirectories));
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(folder, NavTileCache.TerrainFolderName), "*" + NavTilePack.Extension, SearchOption.AllDirectories));
+
+        var (factory, _) = Load(folder, Path.Combine(_env.Root, "own-loose"));
+        Assert.Equal(0, factory.LastStats.Baked);
+        Assert.Equal(old.LastStats.Tiles, factory.LastStats.FromCache);
     }
 
     [Fact]
