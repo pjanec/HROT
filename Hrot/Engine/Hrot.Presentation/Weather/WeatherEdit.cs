@@ -35,13 +35,15 @@ public static class WeatherEdit
     /// </summary>
     public static bool Set(EntityRepository world, Entity e, in WeatherConditions weather)
     {
-        if (!TryRead(world, e, out _)) return false;
-        world.SetComponent(e, weather);
+        if (!TryRead(world, e, out var previous)) return false;
+        var next = weather;
+        next.Restamp(previous, (SimInstant)Fdp.Toolkit.Time.SimClock.Of(world).TotalTime);   // ⭐ CE-4662 (TD-8); the owner restamps a remote edit
+        world.SetComponent(e, next);
         if (world.IsComponentTypeRegistered<NetworkIdentity>() && world.HasComponent<NetworkIdentity>(e))
             world.Bus.PublishManaged(new UpdateEntityCommand
             {
                 NetworkId          = world.GetComponentRO<NetworkIdentity>(e).Value,
-                ComponentsToUpdate = new List<object> { weather },   // boxed once per edit (a user action, not a frame)
+                ComponentsToUpdate = new List<object> { next },   // boxed once per edit (a user action, not a frame)
                 RequestId          = Guid.NewGuid(),
             });
         return true;

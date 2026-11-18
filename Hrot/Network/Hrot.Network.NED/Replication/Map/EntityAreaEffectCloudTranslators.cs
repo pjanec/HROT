@@ -73,6 +73,7 @@ namespace Hrot.Map.Common.Replication.Egress
             IrritantSeconds = c.IrritantSeconds, BornAtSimSeconds = c.BornAtSimSeconds, Seconds = c.Seconds,
             SourceNetworkId = c.SourceNetworkId,   // ⭐ CE-3236
             CreatorNetworkId = c.CreatorNetworkId, OriginalCreatorNetworkId = c.OriginalCreatorNetworkId,   // ⭐ CE-4155
+            BlocksInfrared = c.BlocksInfrared,   // ⭐ CE-4662 (TD-12)
         };
 
         public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
@@ -137,6 +138,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             IrritantSeconds = d.IrritantSeconds, BornAtSimSeconds = (SimInstant)d.BornAtSimSeconds, Seconds = d.Seconds,
             SourceNetworkId = d.SourceNetworkId,   // ⭐ CE-3236
             CreatorNetworkId = d.CreatorNetworkId, OriginalCreatorNetworkId = d.OriginalCreatorNetworkId,   // ⭐ CE-4155
+            BlocksInfrared = d.BlocksInfrared,   // ⭐ CE-4662 (TD-12)
         };
 
         public void ScanAndPublish(ISimulationView view) { }

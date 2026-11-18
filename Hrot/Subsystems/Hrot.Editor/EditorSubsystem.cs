@@ -3746,7 +3746,11 @@ namespace Hrot.Editor
             //    where a variable lives (R-13). ⛔ Nothing else about it changed.
             var blueprintLiveValueWriter = new BlueprintLiveValueWriter(
                 sessionFactory: () => debugRegistry.ActiveSession as IBlueprintDebugSession,
-                store:          _blueprintSelectionStore);
+                store:          _blueprintSelectionStore,
+                // ⭐ CE-1286 — a Watch row of a running behaviour's field writes through R-1041's one live write (R-67: the editor holds these)
+                occurrence:     new Hrot.Editor.AiShared.Variables.OccurrenceWriteServices(
+                    () => _world, () => _behaviorRegistry, () => _blueprintRegistry,
+                    (e, type, offset, bytes) => _bpManager?.StageFieldMutation(e, type, offset, bytes)));
 
             // ⭐⭐⭐ BATCH 84 / R-67 — ONE shared-service bundle instead of three hand-written argument
             //    lists. 🔴🔴 The lists had diverged: facetEditService went to BTree and HSM and NOT to

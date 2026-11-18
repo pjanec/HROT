@@ -103,6 +103,20 @@ lane's status or decisions file.
 owning design · ⑥ mark the tracker row DONE with its rail. Gates per CLAUDE.md rule 8; behaviour code with `HROT_PARALLEL_SIM=1` +
 `HROT_READ_CHECK=1` + the world guard; display rails under `xvfb-run -a`; every red confirmed pre-existing against your base sha.
 
+## 6a. ⭐⭐ Scenarios per row — PROPORTIONATE, never the whole family *(user, `2026-11-18`, R-4294)*
+
+🔒 User: *"backend seems to go through many scenarios so it does not do basically any fixing just running scenarios"* · *"pls revise if running 40+
+scenarios is a good idea and if there are not more efficient ways"*. 📐 Measured: each scenario is a fresh editor process, 7–33 s (a big one ~9× slower
+than real time, up to ~30 min); backend ran 46 movement scenarios per row AND the reds again at the base — ~3 rows in 5 hours.
+
+| ⭐ the rule | |
+|---|---|
+| ⭐⭐⭐ **per row: the ROW'S OWN scenario + the scenarios of the feature it touches** (the feature's set in `docs/CAPABILITIES.md`, usually 1–5) — that is R-4277's DONE | ⛔ not every scenario that happens to move a unit |
+| ⭐⭐ **the WIDE set** (a whole family, e.g. the 46 movement scenarios) **once per several rows** — before a `-wip` branch merges into the lane, or at the end of a handoff — in the BACKGROUND while the next row is built | a red there is bisected by the per-row commits (each row is its own commit) |
+| ⭐⭐ **a red is "pre-existing" by the LAST WIDE RUN's verdict**, not by re-running the base each time | re-run the base only for a red the last wide run did not have |
+| ⭐ **fast where it is free**: `NO_BUILD=1` after the one build; 2–3 invocations in parallel on DISJOINT lists (each child has its own staging root — measured safe, Scenario_Regression §7) | ⛔ never a foreground wait (T3) |
+| ⭐ a row that changes no simulation behaviour (a document, a test fixture, a tool) runs no scenario | |
+
 ## 7. When the queue runs dry
 
 Take, in order: new handoffs / steers addressed to you (§2 ④) · requests in notes to you · the "always available" rows at the end of your handoff · open tracker rows of your area marked

@@ -644,6 +644,9 @@ namespace Hrot.NED.Descriptors
         public float C1Base; public float C1Thick; public byte C1Octas; public byte C1Kind;
         public float C2Base; public float C2Thick; public byte C2Octas; public byte C2Kind;
         public float C3Base; public float C3Thick; public byte C3Octas; public byte C3Kind;
+
+        /// <summary>⭐ CE-4662 (thermal drivers TD-8) — the sim time the current weather began, SECONDS (APPENDED, R-169).</summary>
+        public double Since;
     }
 
     // ⭐ WL-1b (CE-1049) — a turret's pose (its part child's TurretPose), published by the node owning dtTurretPose (the Muscle) and
@@ -1188,6 +1191,8 @@ namespace Hrot.NED.Descriptors
         public int CreatorNetworkId;
         /// <summary>⭐ CE-4155 (SR-82) — the first thrower when the round was thrown back; 0 = the creator threw it first (APPENDED, R-169).</summary>
         public int OriginalCreatorNetworkId;
+        /// <summary>⭐ CE-4662 (thermal drivers TD-12) — 1 when the smoke also blocks infrared, 0 = sight only (APPENDED, R-169).</summary>
+        public byte BlocksInfrared;
     }
 
     // ⭐ CE-3210 (docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md HL-6) — the damage level per body part, the Health owner

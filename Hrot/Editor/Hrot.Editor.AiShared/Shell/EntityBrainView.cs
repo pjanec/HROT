@@ -594,7 +594,8 @@ public sealed class EntityBrainView : IDetailsViewInstance
             DrawSettings(world, unit, groups, editable: !replay);
 
         if (world is not null && Running(world, unit) is { Count: > 0 } running && Section($"Running behaviours ({running.Count})", "running"))
-            DrawRunning(running, name => OpenGraphButton(world, unit, name, idScope, "rb_" + name));
+            DrawRunning(running, name => OpenGraphButton(world, unit, name, idScope, "rb_" + name),
+                AddToWatch is null ? null : (owner, behaviour, part, role, path) => WatchMenu(unit, owner, behaviour, part, role, path));
 
         DrawEmbeds(context, idScope, replay);
 
@@ -769,7 +770,30 @@ public sealed class EntityBrainView : IDetailsViewInstance
     /// <summary>⭐ <c>CE-1315</c> (BV-42, BV-43) — one tree node per running behaviour; its parameters and variables are the inspector's
     /// own read-only dump (<see cref="Fdp.Presentation.Utils.ImGuiPropertyTree"/>: the registered renderers, fixed lists at their Count).
     /// ImGui remembers what is open (BV-64).</summary>
-    private static void DrawRunning(IReadOnlyList<RunningBehaviourView> running, Action<string>? openGraph = null)
+    /// <summary>⭐ <c>CE-1286</c> (Brain View §12t) — a dump row's right-click menu: the slot (owner, behaviour, part, params / variables) and the
+    /// row's path (<c>$.A.B</c>). Null ⇒ no menu.</summary>
+    internal delegate void DumpRowMenu(SlotOwnerKind owner, string behaviour, string? part, OccurrenceSlotCatalog.SlotFieldRole role, string path);
+
+    /// <summary>⭐ <c>CE-1286</c> — pins a row into the Watch (the host's: the perspective registrar sets it where it builds the Watch).
+    /// Null ⇒ this host has no Watch, and the dump offers no <i>Add to Watch</i>.</summary>
+    public static Action<Hrot.Editor.AiShared.Variables.VariableRow>? AddToWatch { get; set; }
+
+    private string? _watchNote;
+
+    /// <summary>⭐ <c>CE-1286</c> — the dump row's <i>Add to Watch</i>: an <see cref="Hrot.Editor.AiShared.Variables.OccurrenceWatchRows"/> row,
+    /// read through the slot reader and written through R-1041's one live write (C# behaviours included).</summary>
+    private void WatchMenu(Entity unit, SlotOwnerKind owner, string behaviour, string? part, OccurrenceSlotCatalog.SlotFieldRole role, string path)
+    {
+        string field = path.StartsWith("$.", StringComparison.Ordinal) ? path[2..] : path;
+        if (!ImGui.MenuItem("Add to Watch")) return;
+        var row = Hrot.Editor.AiShared.Variables.OccurrenceWatchRows.Build(_world, unit, () => _registry?.Invoke(), () => _blueprints?.Invoke(),
+            new Hrot.Editor.AiShared.Variables.OccurrenceWatchRows.Address(owner, behaviour, part, role), field, out var error);
+        if (row is null) { _watchNote = $"cannot watch {field}: {error}"; return; }
+        AddToWatch?.Invoke(row);
+        _watchNote = $"{behaviour} · {field} is in the Watch";
+    }
+
+    private void DrawRunning(IReadOnlyList<RunningBehaviourView> running, Action<string>? openGraph = null, DumpRowMenu? rowMenu = null)
     {
         for (int i = 0; i < running.Count; i++)
         {
@@ -780,7 +804,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
             openGraph?.Invoke(r.Name);   // ⭐ CE-1326 / CE-1327 — its graph, live on this unit, on the node's own line (open or closed)
             if (open)
             {
-                DrawValues(r.Parameters, r.Variables, r.HiddenVariableMembers);
+                DrawValues(r.Parameters, r.Variables, r.HiddenVariableMembers, rowMenu, r.Owner, r.Name, null);
                 for (int p = 0; p < r.Parts.Count; p++)
                 {
                     var part = r.Parts[p];
@@ -788,7 +812,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
                     if (ExpandForRail) ImGui.SetNextItemOpen(true, ImGuiCond.Once);
                     if (ImGui.TreeNodeEx((part.IsHostedChild ? "hosted · " : "") + part.Label + "##part", ImGuiTreeNodeFlags.SpanAvailWidth))
                     {
-                        DrawValues(part.Parameters, part.Variables, Array.Empty<string>());
+                        DrawValues(part.Parameters, part.Variables, Array.Empty<string>(), rowMenu, r.Owner, r.Name, part.SlotLabel);
                         ImGui.TreePop();
                     }
                     ImGui.PopID();
@@ -799,22 +823,26 @@ public sealed class EntityBrainView : IDetailsViewInstance
         }
     }
 
-    private static void DrawValues(object? parameters, object? variables, IReadOnlyCollection<string> hidden)
+    private void DrawValues(object? parameters, object? variables, IReadOnlyCollection<string> hidden,
+        DumpRowMenu? rowMenu = null, SlotOwnerKind owner = SlotOwnerKind.OwnerUnknown, string behaviour = "", string? part = null)
     {
         if (parameters is not null)
         {
             ImGui.TextDisabled("Parameters");
             ImGui.PushID("params");
-            Fdp.Presentation.Utils.ImGuiPropertyTree.Render(parameters, null, null, out _);
+            Fdp.Presentation.Utils.ImGuiPropertyTree.Render(parameters, null, null, out _,
+                rowMenu is null ? null : path => rowMenu(owner, behaviour, part, OccurrenceSlotCatalog.SlotFieldRole.FieldParams, path));
             ImGui.PopID();
         }
         if (variables is not null)
         {
             ImGui.TextDisabled("Variables");
             ImGui.PushID("vars");
-            Fdp.Presentation.Utils.ImGuiPropertyTree.Render(variables, null, m => !hidden.Contains(m.Name), out _);
+            Fdp.Presentation.Utils.ImGuiPropertyTree.Render(variables, null, m => !hidden.Contains(m.Name), out _,
+                rowMenu is null ? null : path => rowMenu(owner, behaviour, part, OccurrenceSlotCatalog.SlotFieldRole.FieldVariables, path));
             ImGui.PopID();
         }
+        if (_watchNote is { } note) ImGui.TextDisabled(note);
         if (parameters is null && variables is null) ImGui.TextDisabled("(no parameters or variables)");
     }
 

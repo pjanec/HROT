@@ -855,7 +855,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
     // ==========================================================================
 
     // Gizmo mock that tracks interaction calls for routing tests.
-    internal sealed class TrackingGizmo : IEntityStatefulGizmo
+    internal class TrackingGizmo : IEntityStatefulGizmo
     {
         public int InteractionStartedCount;
         public int MenuActionCount;
@@ -881,16 +881,22 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         public void OnStructUpdate(string payloadJson) { StructUpdateCount++; LastStructUpdateJson = payloadJson; }
     }
 
+    // ⭐ CE-1954 — a TrackingGizmo that is the entity's body-press move gizmo.
+    internal sealed class TrackingBodyPressDragGizmo : TrackingGizmo, IBodyPressDragGizmo { }
+
     // IGizmoDefinition that produces TrackingGizmo instances.
     internal sealed class TrackingGizmoDefinition : IGizmoDefinition
     {
         private readonly List<TrackingGizmo> _instances = new();
 
-        public TrackingGizmoDefinition(Type[] requiredComponents, uint gizmoTypeId)
+        public TrackingGizmoDefinition(Type[] requiredComponents, uint gizmoTypeId, bool bodyPressDrag = false)
         {
             RequiredComponents = requiredComponents;
             GizmoTypeId = gizmoTypeId;
+            _bodyPressDrag = bodyPressDrag;
         }
+
+        private readonly bool _bodyPressDrag;
 
         public Type[] RequiredComponents { get; }
         public IGizmoVisibilityPolicy VisibilityPolicy => AlwaysVisiblePolicy.Instance;
@@ -899,7 +905,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
 
         public IEntityStatefulGizmo CreateInstance(ISimulationView view, Entity entity)
         {
-            var g = new TrackingGizmo();
+            var g = _bodyPressDrag ? new TrackingBodyPressDragGizmo() : new TrackingGizmo();
             _instances.Add(g);
             return g;
         }
@@ -948,6 +954,46 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
             repo.Bus.SwapBuffers();
 
             return (repo, sys, def1, def2, entity, interactionBus);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1954</c> (DECIDED A) — a plain LEFT press on an entity's BODY (a pick with no gizmo type — the presentation's box,
+        /// drawn for every unit, selected or not) reaches the entity's MOVE gizmo (<c>IBodyPressDragGizmo</c>), never its first gizmo; a
+        /// right press and a modifier press do not; a typed pick still reaches its own gizmo. One routing ⇒ the serial and threaded editors
+        /// agree. ✅ Red-proof: the Started routing without the body-press arm ⇒ the press reaches the first gizmo (def1) and the drag none.
+        /// </summary>
+        [Fact]
+        public void CE1954_APlainLeftPressOnTheBody_DrivesTheMoveGizmo_NotTheFirst_RightOrModifiedDoNot()
+        {
+            var repo = GizmoTestRepo.Create();
+            var bus = new FdpEventBus();
+            bus.Register<GizmoInteractionStartedEvent>(); bus.Register<GizmoDragUpdateEvent>(); bus.Register<GizmoInteractionCommitEvent>();
+            bus.Register<GizmoInteractionCancelEvent>(); bus.Register<GizmoMenuActionEvent>(); bus.Register<GizmoMouseEvent>(); bus.Register<GizmoKeyEvent>();
+            var registry = new GizmoRegistry();
+            var first = new TrackingGizmoDefinition(new[] { typeof(GizmoTestCompA) }, gizmoTypeId: 0xAA01u);
+            var move = new TrackingGizmoDefinition(new[] { typeof(GizmoTestCompA) }, gizmoTypeId: 0xAA02u, bodyPressDrag: true);
+            registry.Register(first);
+            registry.Register(move);
+            var sys = new DataDrivenGizmoSystem(registry, new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(),
+                isSelectedPredicate: (_, _) => false, interactionBus: bus);                                  // the unit is NOT selected
+            var unit = GizmoTestRepo.CreateNetworkedEntity(repo, NetId);
+            repo.AddComponent(unit, new GizmoTestCompA { Value = 1 });
+            repo.Bus.Publish(new Fdp.Toolkit.Lifecycle.Events.ConstructionOrder { Entity = unit });
+            repo.Bus.SwapBuffers(); sys.Execute(repo, 0f); repo.Bus.SwapBuffers();
+
+            void Press(MapMouseButton button, uint type)
+            {
+                bus.Publish(new GizmoInteractionStartedEvent { Token = new PickToken { AnchorId = NetId, GizmoTypeId = type }, Button = button });
+                bus.SwapBuffers(); sys.Execute(repo, 0f);
+            }
+            Press(MapMouseButton.Left, 0);
+            Assert.Equal((0, 1), (first.Instances[0].InteractionStartedCount, move.Instances[0].InteractionStartedCount));
+            Press(MapMouseButton.Right, 0);
+            Press(MapMouseButton.Left | MapMouseButton.ShiftMask, 0);
+            Assert.Equal(1, move.Instances[0].InteractionStartedCount);                                     // neither moves it (they reach the first gizmo, as before)
+            int before = first.Instances[0].InteractionStartedCount;
+            Press(MapMouseButton.Left, 0xAA01u);
+            Assert.Equal((before + 1, 1), (first.Instances[0].InteractionStartedCount, move.Instances[0].InteractionStartedCount));   // a typed pick: its own gizmo
         }
 
         // SC-GZ066-1: Two gizmos on same entity; GizmoInteractionStartedEvent with def1's

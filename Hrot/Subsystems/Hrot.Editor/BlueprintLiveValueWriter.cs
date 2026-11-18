@@ -48,6 +48,7 @@ public sealed class BlueprintLiveValueWriter
 {
     private readonly Func<IBlueprintDebugSession?> _sessionFactory;
     private readonly EditorSelectionStore          _store;
+    private readonly Hrot.Editor.AiShared.Variables.OccurrenceWriteServices? _occurrence;
 
     /// <param name="sessionFactory">
     /// ⭐ Resolves the ACTIVE blueprint debug session, or <c>null</c>. ⚠ 📌 <c>R-66</c> — a session
@@ -56,8 +57,12 @@ public sealed class BlueprintLiveValueWriter
     /// <c>TryWriteWorkingStateField</c> (📌 ruling 15), and it is NOT re-decided here.
     /// </param>
     /// <param name="store">Owns <see cref="EditorSelectionStore.SelectedEntity"/> — see the remarks.</param>
-    public BlueprintLiveValueWriter(Func<IBlueprintDebugSession?> sessionFactory, EditorSelectionStore store)
+    /// <param name="occurrence">⭐ <c>CE-1286</c> — a Watch row of a running behaviour's field (<c>OccurrenceWatchRows</c>) is written through
+    /// R-1041's one live write, not a blueprint session; the editor passes it (R-67). Null ⇒ such a row is refused as unresolvable.</param>
+    public BlueprintLiveValueWriter(Func<IBlueprintDebugSession?> sessionFactory, EditorSelectionStore store,
+        Hrot.Editor.AiShared.Variables.OccurrenceWriteServices? occurrence = null)
     {
+        _occurrence = occurrence;
         _sessionFactory = sessionFactory ?? throw new ArgumentNullException(nameof(sessionFactory));
         _store          = store          ?? throw new ArgumentNullException(nameof(store));
     }
@@ -105,6 +110,11 @@ public sealed class BlueprintLiveValueWriter
     /// </summary>
     public StagedFieldAddress? ResolveStagedField(VariableRowOrigin origin, Entity entity)
     {
+        // ⭐ CE-1286 — a running behaviour's field: the slot reader's address (the yellow and the write agree by construction)
+        if (Hrot.Editor.AiShared.Variables.OccurrenceWatchRows.TryAddress(origin, out _))
+            return _occurrence?.Resolve(entity, origin) is { } a
+                ? new StagedFieldAddress(ComponentTypeRegistry.GetId(a.ComponentType), a.ComponentOffset, a.Size)
+                : null;
         var session = _sessionFactory();
         var field   = session?.ResolveWorkingStateField(entity, origin.AssetId, origin.VariablePath);
         if (field is null) return null;
@@ -140,6 +150,15 @@ public sealed class BlueprintLiveValueWriter
     /// </summary>
     public LiveWriteOutcome WriteLive(VariableRow row, ReadOnlySpan<byte> bytes)
     {
+        // ⭐ CE-1286 — a running behaviour's field (a C# behaviour too): R-1041's one live write, with its own reason on a refusal
+        if (Hrot.Editor.AiShared.Variables.OccurrenceWatchRows.TryAddress(row.Origin, out _))
+        {
+            var unit = row.Origin.Resolve(_store.SelectedEntity);
+            if (unit.IsNull) return LiveWriteOutcome.Refused(LiveWriteAttempt.Refused(LiveWriteRefusal.NoSelectedEntity).Message);
+            var written = _occurrence?.Write(unit, row.Origin, bytes);
+            return written is null ? LiveWriteOutcome.Refused(LiveWriteAttempt.Refused(LiveWriteRefusal.FieldNotResolvable).Message)
+                 : written.Staged ? LiveWriteOutcome.Landed : LiveWriteOutcome.Refused(written.Error);
+        }
         var attempt = TryWrite(row, bytes);
         return attempt.Ok ? LiveWriteOutcome.Landed : LiveWriteOutcome.Refused(attempt.Message);
     }

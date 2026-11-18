@@ -404,16 +404,18 @@ namespace Hrot.Core.Tkb
             Register(tkb, SmokeGrenadeName, TkbSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 8f, CloudHeightM = 4f, CloudSeconds = 75f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-2278 — thrown on the arc (as the stun grenade, CE-3230)
+            // ⭐ CE-4662 (TD-12) — the mortar bombs are phosphorus screens and block infrared too (starter); the hand grenade is a signal
+            //   smoke that blocks only the eye.
             // ⭐ CE-7025 (IF-5) — the mortar smoke bombs: a screen ≈ 15 / 20 / 25 m across for 90 s where each lands (starter values; an M302-
             //   class 81 mm WP/RP screen is of that order). Impact-fused, indirect, the HE bomb's charges; DIS battlefield support, its calibre.
             Register(tkb, Mortar60mmSmokeName, Tkb60mmMortarSmoke, Dis(9, Usa, 2, 5),
-                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 15f, CloudHeightM = 6f, CloudSeconds = 90f, Indirect = true },
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 15f, CloudHeightM = 6f, CloudSeconds = 90f, Indirect = true, SmokeBlocksInfrared = true },
                      charges: ChargesFor(Mortar60RangesKm));
             Register(tkb, Mortar81mmSmokeName, Tkb81mmMortarSmoke, Dis(9, Usa, 2, 8),
-                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 20f, CloudHeightM = 8f, CloudSeconds = 90f, Indirect = true },
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 20f, CloudHeightM = 8f, CloudSeconds = 90f, Indirect = true, SmokeBlocksInfrared = true },
                      charges: ChargesFor(Mortar81RangesKm));
             Register(tkb, Mortar120mmSmokeName, Tkb120mmMortarSmoke, Dis(9, Usa, 2, 11),
-                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 25f, CloudHeightM = 10f, CloudSeconds = 90f, Indirect = true },
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 25f, CloudHeightM = 10f, CloudSeconds = 90f, Indirect = true, SmokeBlocksInfrared = true },
                      charges: ChargesFor(Mortar120RangesKm));
         }
 

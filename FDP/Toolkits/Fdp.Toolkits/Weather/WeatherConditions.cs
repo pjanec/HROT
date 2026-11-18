@@ -108,6 +108,12 @@ namespace Fdp.Toolkit.Weather
         /// <summary>⭐ W-1 — a REGION's fade past its edge, m (0 = the weight reaches 0 exactly at the edge). Unused on the global weather.</summary>
         public float FeatherM;
 
+        /// <summary>⭐ <c>CE-4662</c> (thermal drivers TD-8; APPENDED, on the wire — <c>EntityWeather.Since</c>) — the sim time the CURRENT weather
+        /// began: the owner stamps it whenever the weather's value changes (<see cref="Restamp"/>), so a node that joins late — or the image generator —
+        /// knows how long it has rained, been foggy or been calm. ⚠ A saved scenario keeps the time it was saved with; a reader takes
+        /// <c>max(0, now − Since)</c>.</summary>
+        public SimInstant Since;
+
         /// <summary>
         /// The built-in weather (C-3, the default World Environment, and what a world without one reads): an ISA day — 15 °C, 6.5 K/km,
         /// 1013.25 hPa, 60 % humidity, CALM, a few cumulus at 1500 m, 20 km visibility, no fog, no precipitation. ⭐ Calm on purpose: the
@@ -157,6 +163,29 @@ namespace Fdp.Toolkit.Weather
         public void SetCloud(int i, float baseM, float thicknessM, byte octas, CloudKind kind)
         {
             CloudBaseM[i] = baseM; CloudThicknessM[i] = thicknessM; CloudOctas[i] = octas; CloudKind[i] = (byte)kind;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4662</c> (TD-8) — the ONE rule for <see cref="Since"/>: this value replaces <paramref name="previous"/> at <paramref name="now"/>;
+        /// it began now when any field but <see cref="Since"/> differs, else it keeps the previous start. Every owner-side whole-value write calls it
+        /// (<c>WeatherEdit.Set</c>, the owner applying a remote edit). Allocation-free.
+        /// </summary>
+        public void Restamp(in WeatherConditions previous, SimInstant now) => Since = SameWeatherAs(previous) ? previous.Since : now;
+
+        /// <summary>⭐ <c>CE-4662</c> — true when every field but <see cref="Since"/> equals <paramref name="o"/>'s (the used levels and layers).</summary>
+        public readonly bool SameWeatherAs(in WeatherConditions o)
+        {
+            if (GroundTemperatureC != o.GroundTemperatureC || LapseRateKPerKm != o.LapseRateKPerKm || SeaLevelPressureHpa != o.SeaLevelPressureHpa
+                || RelativeHumidity != o.RelativeHumidity || WindCount != o.WindCount || CloudCount != o.CloudCount || VisibilityM != o.VisibilityM
+                || FogTopM != o.FogTopM || FogVisibilityM != o.FogVisibilityM || Precipitation != o.Precipitation
+                || PrecipitationMmPerHour != o.PrecipitationMmPerHour || FeatherM != o.FeatherM) return false;
+            for (int i = 0; i < WindCount && i < MaxWindLevels; i++)
+                if (WindAltitudeM[i] != o.WindAltitudeM[i] || WindFromDeg[i] != o.WindFromDeg[i] || WindSpeedMps[i] != o.WindSpeedMps[i]
+                    || WindGustMps[i] != o.WindGustMps[i]) return false;
+            for (int i = 0; i < CloudCount && i < MaxCloudLayers; i++)
+                if (CloudBaseM[i] != o.CloudBaseM[i] || CloudThicknessM[i] != o.CloudThicknessM[i] || CloudOctas[i] != o.CloudOctas[i]
+                    || CloudKind[i] != o.CloudKind[i]) return false;
+            return true;
         }
 
         // ── ⭐ CE-4346 (X-3) — the LIST operations a layer editor needs: the ONE place a level / layer is added or removed (the form's list rows and

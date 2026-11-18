@@ -139,6 +139,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         [Description("How long the cloud lasts (it thins over its last third).")]
         public float CloudSeconds { get; init; }
 
+        /// <summary>⭐ <c>CE-4662</c> (thermal drivers TD-12) — this round's SMOKE also blocks infrared (a phosphorus screen), not only sight (a
+        /// coloured signal smoke). The cloud it leaves carries it (<c>AreaEffectCloud.BlocksInfrared</c>), so an image generator knows whether a
+        /// thermal sight sees through.</summary>
+        [Description("The smoke also blocks thermal (infrared) sights, not only the eye (a phosphorus screen).")]
+        public bool SmokeBlocksInfrared { get; init; }
+
         /// <summary>⭐ <c>CE-4649</c> (bows BW-9, R-3100) — this round's SHOT is silent: no report to the AI's hearing ring, no muzzle flash, no barrel heat (an
         /// arrow, a bolt). Per MUNITION, so a man with a bow AND a rifle stays loud with the rifle. Readers ask <c>Munitions.IsSilent</c>.</summary>
         [Description("The shot makes no sound the AI hears and no muzzle flash (an arrow or a bolt).")]

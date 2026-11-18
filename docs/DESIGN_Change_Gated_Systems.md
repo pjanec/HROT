@@ -152,6 +152,13 @@ the SAME build with `HROT_CHANGE_GATE=0` (before) and `=1` (after). ⚠ Replay-p
 | `Hrot.ClusterRunner.Integration.Tests` | ⚠ **no map / presentation-parity rail exists there** (grep for the five systems' components: none) — not run |
 | scenario determinism (CE-4044: `--verify bt-grenade-posture`) | the golden is stale for 3 units' behaviour components at t=0 (`Behavior`, `Roe`, `Sop`, …) — **reproduced identically in 3 fresh processes, and byte-identical with `HROT_CHANGE_GATE=0` vs `1`** ⇒ the gates change nothing in the world; no map component (`MapDisplayComponent`, `CullingState`, `ResolvedStyle`) is in the diff |
 
+⭐ **CE-1979 (`2026-11-18`, ui) — a SYNCED world moves its structural clock.** 📐 Measured from a regression log (`bt-window-duel`, threaded editor):
+`[STAGED] map presentation fault: Entity … is not alive` from `EntityRotationGizmo.Draw` ← `StatelessGizmoSystem` — G5 ① skipped the match pass on the UI
+world because `ChangeGate` reads `StructuralChanges`, and `EntityRepository.SyncFrom` (how the threaded UI world takes the sim's) rewrote the entity
+set without moving it (only the internal `MaskEpoch` moved — which `QueryCandidateIndex` already reads, CE-2418). ⭐ Now `SyncFrom` steps the clock
+when the SOURCE's clock moved since the last sync (a still structure keeps it still, so G5 still skips on a still world). Rail
+`EntityRepositorySyncTests.CE1979_…`.
+
 ## 5. INVENTORY *(2026-11-11)*
 
 `search_graph` Class `.*(StatelessGizmoSystem|MapLayerAssignmentSystem|StyleResolutionSystem|MapCullingSystem|CycloneEgressSystem).*` (113, first 50 read — all five found) ·
