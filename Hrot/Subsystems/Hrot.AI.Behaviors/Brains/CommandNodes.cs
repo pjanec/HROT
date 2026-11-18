@@ -175,7 +175,11 @@ namespace Hrot.AI.Behaviors.Brains
             if (run == 0 || held == null || !world.IsAlive(member) || !world.HasComponent<BehaviorState>(member)) return false;
             // ⭐⭐ CE-4612 (R-D11 ④) — HIS order, by id: he runs (not paused) the very order this run gave him. ⛔ Not his behaviour's name.
             var current = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, member);
-            if (!current.Exists || current.Paused || current.Origin != BehaviorOrigin.Superior) return false;
+            // ⭐⭐ CE-4666 — PAUSED under a reaction it is still HIS order (Orders §15: "a reaction PAUSES the order, it does not replace it … the
+            //   reaction ends → resume"). ⛔ SUPERSEDED: "not paused" — the play re-sent the identical order, the gate admitted it over the
+            //   reaction, the stress break restarted at once: 📐 live pc-defend-house, every broken defender cycled Break ⇄ CombatPosture each
+            //   second and never fled to cover (lay where he broke); the ia-area-defend guard the same.
+            if (!current.Exists || current.Origin != BehaviorOrigin.Superior) return false;
             if (FindOrder(held, member, out var e)) return e.Run == run && e.Behavior == behaviour && e.Json == json && e.RequestId != System.Guid.Empty && current.RequestId == e.RequestId;
             return false;
         }

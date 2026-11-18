@@ -3906,6 +3906,42 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4666</c> (Orders §15; 📐 live pc-defend-house: broken defenders cycled Break ⇄ CombatPosture every second) — an order a
+        /// REACTION paused (same request id, in the member's paused task) is still his: the phase change does not re-send it, so the reaction
+        /// runs its course and the order resumes after. 🔴 Red-proof: "not paused" back in <c>StillRunning</c> ⇒ a second order.
+        /// </summary>
+        [Fact]
+        public void CE4666_AnOrderAReactionPaused_IsNotSentAgain_TheReactionRunsItsCourse()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire));
+            p.S.Repo.AddComponent(p.Bravo, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.SupportByFire), Origin = BehaviorOrigin.Superior });
+            RunsHisOrder(p.S, p.Bravo);
+
+            var entry = SubordinateOrders.Of(p.S.Repo, p.S.Commander)!.Orders.Single(e => e.Member.Equals(p.Bravo));
+            if (!p.S.Repo.TryGetTable(typeof(PausedTask), out _)) p.S.Repo.RegisterManagedComponent<PausedTask>();
+            p.S.Repo.SetManagedComponent(p.Bravo, new PausedTask
+            {
+                BehaviorName = entry.Behavior, JsonParams = entry.Json, Origin = BehaviorOrigin.Superior,
+                Hash = BehaviorHash.FromName(BehaviorNames.SupportByFire), RequestId = entry.RequestId,
+            });
+            ref var reacting = ref p.S.Repo.GetComponentRW<BehaviorState>(p.Bravo);
+            reacting.ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.ReactToContact);
+            reacting.Origin = BehaviorOrigin.Reaction;   // the reaction PAUSED his order (as the ingress records it)
+
+            p.ReportSet(p.Bravo);   // the phase changes and re-dirties every slot
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2277</c> (AT-2, AT-7, R-2060's area rule) — the AREA holds an enemy inside building 7 and another in the open 50 m
         /// beyond it: two objectives, nearest first — building 7 is CLEARED (`ClearBuilding` on its centre), its BuildingClear takes the
         /// platoon to the open one, whose base of fire goes up again. ✅ Red-proofs: the building match dropped ⇒ the first is assaulted
