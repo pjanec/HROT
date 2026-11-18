@@ -12,7 +12,7 @@ Started at the merge of `origin/coordinator` (2026-11-18 09:00).
 
 ## 1. Now
 
-CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. CE-3462: Coward fixed, Waverer → D-6. CE-3463 in progress (`922d6110a`): next the unreachable frame point; the other SquadDefend scenarios being re-run against the lean change.
+CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. CE-3462: Coward fixed, Waverer → D-6. CE-3463 parked at 4/6 (`d0c021f07`; the round never rotates the lone guard — measured, next on return). SquadDefend feature set re-run: no new reds (ia-house-hunt red pre-existing → CE-2449). Next: CE-3464 (`rf-pinned-in-open`).
 ⚠ Measured on the way: `ts-aggression` — the bold man never advances (2 rows red; baseline before today unknown — to triage).
 
 ## 2. The queue (in order)
@@ -29,7 +29,7 @@ CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. CE-3462: Cowar
 | D-3 the mine's trigger man maimed (CE-4654 follow-up) | ✅ DONE — `AreaEffectSystem.Maim` (cross-lane): shins, 0.75 of the incapacitation line, alive | (this commit) | `AreaEffectSystemTests.CE4654_*` (red-proved; suite 34 / 0) | ✅ `mf-strike-and-halt` 8 / 8 · `mf-at-vs-vehicle` · `mf-recon-and-mark` · `mf-way-round` |
 | D-2 `SupportAsset.Engineers` (CE-2442) | ✅ DONE — Minefields §13 designed and built (recon when unknown, then Breach along the requester's line) | (this commit) | `SquadManeuverTests.CE2442_*` (2, red-proved; parallel env 5 / 0) | ✅ `mf-engineers-answer` 7 / 7 (new) |
 | CE-3462 the waverer never breaks | ⚠ Coward FIXED (the three insurgents were InertSop — no break; re-authored to the default SOP under StayOnTask, `ebdbe7348`); the Waverer is killed at stress 0.11 before he can break ⇒ **D-6 SKIPPED — needs decision** | ebdbe7348 | (rail `CE4652_AnInertSop…` stands; `8872a8478` tried + reverted `8d0524e10`) | ⚠ 4 / 6 → D-6 |
-| CE-3463 the guard does not fire first | ⚠ IN PROGRESS — 2 of 3 causes fixed (quiet frame post never leaned; all-round frame arc faced into the house; scenario guard inside the 6 m ring); OPEN: the frame point is not reached (move ends 1.1 m short) ⇒ no lean, still 3/6 | 922d6110a | `TacticsTreesTests.CE3463_*` · `SquadManeuverTests.CE3463_*` | `ia-area-defend` 3/6 |
+| CE-3463 the guard does not fire first | ⚠ 4/6 — three fixes (quiet frame post leans; frame arc faces out of the window; a frame move stopped from outside is re-sent) + the guard inside the 6 m ring; Blue South ✅. OPEN: after Blue South is down the lone guard never rotates to an east post (round < 2 posts or never runs — unmeasured) ⇒ Blue East unseen. Parked (R-106), next on return. Found CE-2449 (ia-house-hunt, pre-existing) | 922d6110a · d0c021f07 | `TacticsTreesTests.CE3463_*` · `SquadManeuverTests.CE3463_*` · `PeekAndFireNodesTests.CE3463_*` | `ia-area-defend` 4/6 |
 | CE-3464 a pinned man never fires, walks to the house | TODO | | | `rf-pinned-in-open` |
 | CE-3465 no grenade at the wall-hugger | TODO | | | `rf-wall-hugger` |
 | CE-3444 a unit thrashes between cover points | TODO | | | `uc-urban-battle` |
