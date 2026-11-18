@@ -1,6 +1,6 @@
 using System.Globalization;
 using Hrot.Core.Tkb;
-using Raylib_cs;
+using Color = Hrot.Look.Rgba;   // ⭐ CE-4671 LK-S2 — plain bytes, no renderer colour (the map converts when it draws)
 
 namespace Hrot.UI.Common.Map3D;
 

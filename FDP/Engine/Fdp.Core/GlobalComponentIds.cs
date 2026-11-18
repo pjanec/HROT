@@ -1316,8 +1316,9 @@ namespace Fdp.Core
         public const int BuildingDamage = 485;
         /// <summary><c>WindowDamage</c> — ⭐ CE-5033 GW-2 (docs/DESIGN_Glass_Windows.md D-3): the damaged window panes of ONE building (hits, cracks, broken), on the same
         /// runtime entity as its <c>BuildingDamage</c>; replicated as <c>dtWindowDamage</c> (245). NoScenario (saved through the <c>terrainObjects</c> section).
-        /// ⚠ 487 measured free in backend, ui, behaviors and coordinator 2026-11-18.</summary>
-        public const int WindowDamage = 487;
+        /// ⚠ was 487 on the terrain branch — COLLIDED with backend's <c>HeatSource</c> (487) at the coordinator merge 2026-11-18; MOVED to 310 there
+        /// (production-free on every lane; only <c>Fdp.Core.Tests</c>' <c>EntityQueryHotFirstTests</c> uses 310, an assembly that never loads this type).</summary>
+        public const int WindowDamage = 310;
 
         /// <summary><c>GroundDamage</c> — ⭐ CE-4591 (P-4, docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7, V-7): the craters ONE deciding node made in ONE ground cell, on a
         /// runtime entity that node owns; recorded, replicated (<c>dtGroundDamage</c>, 184). NoScenario (a save section carries the craters). ⚠ 490: the `terrain` lane's ids come from the free part of the

@@ -194,7 +194,7 @@ vec3 surface(vec3 base, vec3 unit, vec3 metres, vec3 n)
     {
         if (mood != _mood) { _mood = mood; Raylib.SetShaderValue(shader.Shader, _faceMood, mood, ShaderUniformDataType.Vec3); }   // ⭐ CE-1177
         Kind(shader, SurfaceKind.Face);
-        Tones(shader, hair, look.EyeColour, look.Lips);
+        Tones(shader, hair, look.EyeColour.ToColor(), look.Lips.ToColor());   // ⭐ CE-4671 LK-S2 — the look library's plain colours
         var (axis, up) = AxesOf(on);
         if (axis != _axis) { _axis = axis; Raylib.SetShaderValue(shader.Shader, _faceAxis, axis, ShaderUniformDataType.Vec3); }
         if (up != _up) { _up = up; Raylib.SetShaderValue(shader.Shader, _faceUp, up, ShaderUniformDataType.Vec3); }
