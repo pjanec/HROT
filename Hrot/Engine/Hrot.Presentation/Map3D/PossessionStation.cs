@@ -1239,8 +1239,11 @@ namespace Hrot.UI.Common.Map3D
                 }
                 if (a.IsBusy(m)) line.Append("  LOADING");
                 // ⭐ CE-1358 (DESIGN_Weapon_Layers §5k) — the barrel: held while too hot, its heat once it is worth watching
-                if (a.IsHot(m)) line.Append("  OVERHEATED ").Append(a.HeatPercentOf(m)).Append('%');
-                else if (a.HeatPercentOf(m) >= HeatShownFromPercent) line.Append("  HEAT ").Append(a.HeatPercentOf(m)).Append('%');
+                // ⭐ CE-4659 (backend, a cross-lane edit — NOTE_Backend_To_Ui_Barrel_Heat_Computed.md): the heat is COMPUTED from the mount's last shot
+                double now = w.HasSingletonUnmanaged<GlobalTime>() ? w.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0.0;
+                int heatPercent = a.HeatPercentAt(m, now);
+                if (a.IsHot(m)) line.Append("  OVERHEATED ").Append(heatPercent).Append('%');
+                else if (heatPercent >= HeatShownFromPercent) line.Append("  HEAT ").Append(heatPercent).Append('%');
                 return line.ToString();
             }
 

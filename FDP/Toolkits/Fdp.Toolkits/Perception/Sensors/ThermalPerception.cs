@@ -99,7 +99,11 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// </summary>
         internal static float HeatOf(ISimulationView view, Entity target, in ThermalState ts, double now, bool sources, bool fires)
         {
-            float heat = ts.BarrelHeat;
+            float heat = ts.BarrelHeat;   // a station weapon carried (ThermalHeatSystem)
+            // ⭐ CE-4659 — the unit's own barrels, computed from each mount's last shot (WeaponAmmo, replicated to every node)
+            if ((view is not EntityRepository ar || ar.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponAmmo>())
+                && view.HasComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>(target))
+                heat = MathF.Max(heat, view.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(target).HottestBarrelAt(now));
             if (sources && view.HasComponent<HeatSource>(target))
             {
                 ref readonly var hs = ref view.GetComponentRO<HeatSource>(target);

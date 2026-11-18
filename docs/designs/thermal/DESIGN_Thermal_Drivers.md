@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved", R-4293): TD-1…TD-16 as revised by §3a–§3e; `HeatSource` trimmed to what cannot be derived (§3e, user: "yes, trim it and fold it in"); ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §4d the components, wire and calculator as built (CE-4657) · §4e the writer, defaults and sensor as built (CE-4658) · §5 UML · §6 a late joiner · §7 slices
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §4d the components, wire and calculator as built (CE-4657) · §4e the writer, defaults and sensor as built (CE-4658) · §4f the weapons' last burst as built (CE-4659) · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -286,6 +286,23 @@ by construction; and the speed the sensor's load reads is the same rule cover us
 | TD-3 *"the possessed vehicle by the player's ignition"* | ⏳ possession counts as crewed (Idle when stopped); an ignition KEY is a UI input (ui lane) — not built here |
 | TD-S2's *"a man who just ran reads warmer"* | proved by the rail (`ThermalHeatSystemTests.CE4658_ABody_*`), not by the scenario: a standing person is always above the observer's 0.3, so the scenario cannot tell the two apart by sight |
 | a body has no Dead state | its death time is TD-7's `Health.StateSince` (CE-4661) |
+
+## 4f. As built — the weapons' last burst *(CE-4659, TD-S3, backend, `2026-11-18`)*
+
+| piece | as built |
+|---|---|
+| **`WeaponAmmo`** (appended, R-169) | per mount: `BurstRounds` · `BurstStartedAt` · `LastShotAt` (s, −∞ = never) · `HeatAtLastShot` (0..1) · ⚠ **`CoolPerSecond`** — beyond §3d's four: the closed form needs the rate, and a reader on another node has no `WeaponState`. `HeatAt(m, now)`, `HeatPercentAt`, `HottestBarrelAt(now)` |
+| the writer | `WeaponAmmoMirrorSystem` (the brain node, unchanged home): a mount whose round count FELL since the last record took a shot ⇒ last shot = now, heat = `WeaponState.Heat` just after it; shots under `BurstGapSeconds` (1 s) apart are one burst, a longer pause opens a new one. ⭐ On a shot only — the round count already makes a shot a sample, so the burst adds none |
+| ⛔ retired | `WeaponAmmo.Heat0..3` (the sampled percent, re-sent for every percent a barrel cooled) — never written; on the wire `EntityWeaponAmmo.Heat0..3` go as 0 (kept for the layout). `HeatPercentOf` removed; the station HUD reads `HeatPercentAt(m, now)` (ui's file — NOTE_Backend_To_Ui_Barrel_Heat_Computed.md) |
+| ONE barrel rule | `Combat.BarrelHeat.At(heatAtLastShot, lastShotAt, cool, now)` — `Tick`'s linear cooling in closed form; `ThermalDriversOps.BarrelHeat` forwards to it |
+| the sensor | `HeatOf` = max(`WeaponAmmo.HottestBarrelAt(now)`, a station weapon's `ThermalState.BarrelHeat`, the source, a fire) — the unit's own barrels now right on EVERY node (`WeaponAmmo` replicates; `ThermalState.BarrelHeat` never did) |
+| `ThermalHeatSystem` | TRIMMED to a STATION weapon carried in a vehicle (a door gun: `IsEmbarkedTag`), which has no `WeaponAmmo` of its own. ⏳ It retires when a station weapon carries its own burst record |
+| rails | `WeaponAmmoMirrorSystemTests.CE4659_*` (one burst of 4, no sample while cooling, computed = the barrel, a new burst after a pause) · `BodyPartReplicationTests.CE4659_*` (field for field across the wire, the same heat at any time) · `ThermalHeatSystemTests.CE1358_AHotStationWeapon_*` |
+
+| ⛔ deviation from the handoff — and why | |
+|---|---|
+| *"a burst sends ONE sample"* | the record changes on every SHOT (the HUD shows the heat climbing while firing) — but a shot was already a sample (its round count), so the burst adds none; what is saved is the per-percent samples while a barrel cools |
+| *"retire Heat0..3"* | retired in the ECS; the wire keeps the fields as 0 (append-only) |
 
 ## 5. UML
 

@@ -1211,6 +1211,7 @@ burst cannot overshoot by the rounds already granted.*
 | the operator | `CooldownSeconds` 0 = the mount's own cyclic rate (`CooldownFor`); 0.25 s only for a mount stating no rate | ⛔ before: a fixed 0.25 s — an M134 fired 9 rounds in 2 s against its 3000/min (measured live) |
 | thermal | `ThermalState.BarrelHeat` = the hottest barrel of the unit (its own mounts and the station weapons it carries); `Signature` uses `max(Heat, BarrelHeat)` | the body's heat and the gun's are two sources; the sensor sees the hotter |
 | the station HUD | `WeaponAmmo.Hot` bit + `Heat0..3` percent (appended to `EntityWeaponAmmo`, like `LaidDown`) | the gunner sees *"HOT 72%"* / *"OVERHEATED"* on the weapon line |
+| ⭐ **SUPERSEDED `2026-11-18` (CE-4659)** — the heat on the HUD | `Heat0..3` RETIRED (a sample per cooling percent); each mount's LAST BURST (`LastShotAt`, `HeatAtLastShot`, `CoolPerSecond` …) and `HeatPercentAt(m, now)` = `BarrelHeat.At` | the same number on every node, no sample while cooling — 📄 [DESIGN_Thermal_Drivers.md §4f](designs/thermal/DESIGN_Thermal_Drivers.md) |
 
 ⚠ **One round per tick at most:** the muscle's clock resets to the next gap, it does not carry a remainder, so a cyclic rate above the
 tick rate fires at the tick rate (an M134 at 60 Hz: 50/s fits). Not changed here.

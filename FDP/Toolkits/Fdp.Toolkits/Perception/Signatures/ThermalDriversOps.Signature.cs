@@ -74,12 +74,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// (<c>Combat.BarrelHeat.Tick</c>: linear cooling at <paramref name="coolPerSecond"/>) in closed form. 0 before the shot or once cooled.
         /// </summary>
         public static float BarrelHeat(float heatAtLastShot, double lastShotAt, float coolPerSecond, double now)
-        {
-            double dt = now - lastShotAt;
-            if (heatAtLastShot <= 0f || double.IsNaN(dt) || dt < 0.0) return 0f;
-            if (double.IsPositiveInfinity(dt)) return 0f;
-            return Math.Clamp(heatAtLastShot - (float)(coolPerSecond * dt), 0f, 1f);
-        }
+            => Fdp.Toolkit.Combat.BarrelHeat.At(heatAtLastShot, lastShotAt, coolPerSecond, now);   // ⭐ CE-4659 — the ONE barrel rule
 
         /// <summary>1 − e^(−t·rate): 0 at t ≤ 0 (or a time of "never").</summary>
         private static float Warm(double t, double rate) => t <= 0.0 || double.IsNaN(t) ? 0f : (float)(1.0 - Math.Exp(-t * rate));

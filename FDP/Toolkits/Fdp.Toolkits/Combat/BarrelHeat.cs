@@ -82,6 +82,19 @@ namespace Fdp.Toolkit.Combat
             if (w.Overheated != 0 && w.Heat <= ResumeFraction) w.Overheated = 0;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4659</c> (thermal drivers TD-5) — THE barrel rule in CLOSED FORM: the heat at <paramref name="now"/> of a barrel that read
+        /// <paramref name="heatAtLastShot"/> just after its last shot at <paramref name="lastShotAt"/> — <see cref="Tick"/>'s linear cooling, so every node computes
+        /// what the firing node's <see cref="WeaponState.Heat"/> holds. 0 before the shot, once cooled, or never fired (−∞). The thermal calculator
+        /// (<c>ThermalDriversOps.BarrelHeat</c>) forwards here: one rule.
+        /// </summary>
+        public static float At(float heatAtLastShot, double lastShotAt, float coolPerSecond, double now)
+        {
+            double dt = now - lastShotAt;
+            if (heatAtLastShot <= 0f || double.IsNaN(dt) || dt < 0.0 || double.IsPositiveInfinity(dt)) return 0f;
+            return Math.Clamp(heatAtLastShot - (float)(coolPerSecond * dt), 0f, 1f);
+        }
+
         /// <summary>True while the barrel is too hot to fire.</summary>
         public static bool IsOverheated(in WeaponState w) => w.Overheated != 0;
 
