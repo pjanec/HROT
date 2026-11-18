@@ -1,0 +1,35 @@
+{
+ "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-1967 (R-2138): a heavy hull that drives over a man kills him; the man beside it is untouched.",
+ "runFor": 40,
+ "golden": false,
+ "expect": [
+  {
+   "name": "the dozer drives past the Victim's spot",
+   "on": "near",
+   "who": "Dozer",
+   "point": [
+    150,
+    140
+   ],
+   "within": 6
+  },
+  {
+   "name": "the Victim is killed by the dozer driving over him",
+   "on": "field",
+   "who": "Victim",
+   "path": "Health.Current",
+   "op": "<=",
+   "value": 0,
+   "atEnd": true
+  },
+  {
+   "name": "the Bystander beside the blade is untouched",
+   "on": "field",
+   "who": "Bystander",
+   "path": "Health.Current",
+   "op": ">=",
+   "value": 100,
+   "atEnd": true
+  }
+ ]
+}
