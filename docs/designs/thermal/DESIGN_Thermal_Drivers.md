@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: DESIGN — STORED FOR LATER (user, 2026-11-16: "Looks right. Please record to the design, but do not mark as approved. Just store for later.") — TD-1…TD-14 NOT approved (TD-15 ruled); ids fixed at dispatch. ⭐ REVISED `2026-11-18` after a review against code (user: "fold it into the design"): engine and body merged into ONE `HeatSource` (motion included); `ShotHistory` on the OWNER with ≤ 4 mount slots (mount children are never replicated); `LifeChange` dropped — `Health.StateSince` instead (the injury state stays derived, CE-2155). Still NOT approved
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §4 the components · §4b ground heat marks · §5 UML · §6 a late joiner · §7 slices
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §4 the components · §4b ground heat marks · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -60,8 +60,8 @@ more detailed design for it?"*
 | **TD-2** | where they live | ⭐ *(revised `2026-11-18`, §3a, §4)* a small FAMILY of unmanaged components, each on the entity it describes and written by ONE node: **`HeatSource`** (an engine or a living body: a vehicle, an aircraft, a generator, a person, an animal — its state, load and motion), **`ShotHistory`** (on the weapons' OWNER, ≤ 4 mount slots), **`FireState`** (anything that burns), **`Health.StateSince`** (a field, not a component — the time the derived injury band last changed), + the terrain record **`GroundHeatMarks`** (§4b) — each recorded, replicated owner → every node through its own descriptor in the shared translator pack; runtime only (`NoScenario`) except `HeatSource`'s authored start state | a rifle has no fire and a wreck no metabolism: each entity carries only what it has; each changes at its own events, so a sample is small; one replicated component = one owner (all written on the node that moves the entity or owns its Health — SimHost today, `SimHostCoreLogicPack.cs:116` — and stay separable if a writer moves) |
 | **TD-3** | the heat source (an engine, or a living body) | ⭐ *(revised `2026-11-18`)* `HeatSource` = `Kind` (Engine · Body) · `State` + `Since` (an engine: Off / Idle / Running / Dead; a body: Resting / Active — dead is NOT stored, it is `Health.StateSince`) · `Load` + `LoadSince` (an engine: the load step 0–3; a body: the exertion step 0–3 = rest / walk / run / sprint, from the speed bands the node already uses); the owning node's engine rule: RUNNING when moving or ordered to move, IDLE when stopped with crew aboard or ordered "engine on", OFF when parked and empty, ordered off, destroyed or the engine part dead; a possessed vehicle by the player's ignition; the scenario may author the start state (a convoy already on the move) | an idling tank is the classic warm target the speed-only model misses; a man who just ran is warm too (R-205) — one record answers "how much heat does it make, since when" for both |
 | **TD-4** | the running gear and motion | NOT a separate component *(the `2026-11-18` review weighed one and rejected it: same writer, same reader, a few spare bytes on a body)*: `HeatSource.Moving` + `MotionSince` (when it last started / stopped) so a late joiner knows how long it has been moving or standing | the generator integrates friction from the motion it receives |
-| **TD-5** | the weapons | `ShotHistory` on the weapons' OWNER (the vehicle or the soldier), `Count` + per mount (≤ 4): `ShotsFired` (cumulative), `LastShotAt`, `HeatAtLastShot` (the BarrelHeat index after the burst) — written at a BURST'S END, never per round | ⛔ NOT on each mount entity: mounts 1+ are LOCAL children with no network id (`CombatComponents.cs:76-79`, Sensors V2) and mount 0 lives on the owner — the per-owner 4-slot shape is the wire's own precedent (`EntityWeaponAmmo`, `SimDescriptors.cs:786`); the index lets OUR sensor compute the barrel with the same closed-form decay as `BarrelHeat` |
-| **TD-6** | fire and smoke | `Fire` = None / Smouldering / Burning, `FireSince`, `FireSeconds` (its expected life — it ends by itself); written by the node that decides the destruction (a vehicle with fuel), later by the flamethrower / napalm (CE-4635, CE-4637) | burning becomes SIMULATION state: the same on every node, a late joiner sees it; ⭐ the presentation's W3 burn READS it (one truth, ruling 9) |
+| **TD-5** | the weapons | ⭐ *(revised `2026-11-18`, §3c)* `ShotHistory` on the weapons' OWNER (the vehicle or the soldier), `Count` + per mount (≤ 4): `BurstRounds`, `BurstStartedAt`, `LastShotAt`, `HeatAtLastShot` (the BarrelHeat index after the burst) — written at a BURST'S END, never per round | a physics generator heats the barrel from the last burst's rounds and duration with its OWN weapon model; our sensor decays `HeatAtLastShot` with `BarrelHeat`'s closed form. ⛔ no cumulative shot count (it serves neither; per-scenario statistics come from the recorded shot events). ⛔ NOT on each mount entity: mounts 1+ are LOCAL children with no network id (`CombatComponents.cs:76-79`, Sensors V2); the per-owner 4-slot shape is the wire's precedent (`EntityWeaponAmmo`, `SimDescriptors.cs:786`) |
+| **TD-6** | fire and smoke | ⭐ *(revised `2026-11-18`, §3c)* `FireState` = a few FIRE SPOTS, each `{X, Y, Z, Radius, Since, Seconds, Intensity}` in the HOLDER's coordinates (each goes out by itself); ONE component on three holders: a vehicle / wagon (later a ship — its sections), a building's damage-record entity, a terrain cell's record entity (napalm, a burning field or wood); spreading = the fire's owner ADDS a spot (one write each); written by the Health owner when damage ignites (TD-16) | burning becomes SIMULATION state, the same on every node, a late joiner sees it; ⭐ the presentation's W3 burn READS it (one truth, ruling 9); a house burning in one room is not a house burning everywhere |
 | **TD-7** | people | ⭐ *(revised `2026-11-18`)* `Health` gains `StateSince` — the time its DERIVED injury band (ok / wounded / incapacitated / dead, `Injury.StateOf`) last changed, stamped by the Health owner; a body cools from it; the clothing class is TYPE data (the TKB), not sent | ⛔ no stored life state: it is derived from the replicated `Health` by design (CE-2155, "no stored state, no topic") — only the TIME is new; `EntityManDowned` is an event, so a late joiner never sees it |
 | **TD-8** | the environment | nothing new on the wire: weather (replicated), the clock (replicated), the sun (computed); ⏳ the moon later; ⭐ add `Since` to a weather change so a late joiner knows how long it has rained | the half that is already there |
 | **TD-9** | materials | a **thermal class** per terrain material and surface (`materials.json` gains `thermalClass` from a fixed list: asphalt, concrete, brick, metal, glass, wood, soil-dry, soil-wet, sand, grass, dense-vegetation, water, snow), exported with the terrain; an entity's own materials are the generator's model's (found by its DIS type) | the generator's material map for the ground; our models never pretend to be its models |
@@ -97,13 +97,37 @@ more detailed design for it?"*
 | fire in `EntityEffectState` (the person effects' until-times) | person-only; fire is on vehicles, wrecks and buildings |
 | fire stays a display decision | it cannot damage, the AI cannot avoid it, a late joiner never sees it |
 
-## 4. The components *(revised `2026-11-18`: §3a)*
+## 3c. Fire as spots, and the weapon's last burst *(`2026-11-18`)*
+
+🔒 User: *"is one fire state ok per whole entity? imagine large entities - houses, ships, terrain areas with fire"* · *"fire with few spots is ok as most scenario start with healthy or already cold burnt entities so adding fire component is happening scarcely in runtime"* · on the shot count: *"what is 'shots fired' usable for?"*
+
+| holder of `FireState` | the spots' coordinates | ⭐ why that holder (measured) |
+|---|---|---|
+| a vehicle, a wagon, later a ship | the entity's own — they move with it | one spot for a car, a few for a ship's sections |
+| a building's damage-record entity | the building's (a storey / facade area) | it already exists: one per building, keyed by `TerrainObjectKey`, with a transform, holding breaches, opening a second entity when full (`BuildingDamage.cs:33-51`, CE-4391) |
+| a terrain cell's record entity | the cell's | the generic cell record (`ICellRecord<T>`, `CellRecordSystem.cs:16`) of craters and felled trees; a spot that has gone out leaves a `BurnedArea` ground mark (§4b) |
+
+| ⭐ rule | |
+|---|---|
+| capacity | 8 spots per entity; past it the owner opens a second holder entity (the building precedent) |
+| added at runtime, rarely | the component is ADDED when something first ignites — a scenario starts healthy or with a cold, burnt-out wreck (Health 0, no fire) — so the structural change is rare and off the hot path |
+| damage (TD-16) | per spot: a man inside a spot's radius burns; a spot on a vehicle burns the vehicle |
+| ⛔ not here | HOW fire spreads (wind, materials) — the flamethrower / napalm designs (CE-4635, CE-4637); this design fixes only how fire is STORED and SENT |
+
+| rejected | the one fact |
+|---|---|
+| one fire state per entity | a house burning in one room reads as burning everywhere |
+| a component per holder kind | three copies of one concept (ruling 9) |
+| each fire its own entity | thousands for a wood fire, and nothing ties a fire to the house or vehicle it is on |
+| a cumulative shot count | a barrel solve needs the LAST burst; statistics come from the recorded shot events |
+
+## 4. The components *(revised `2026-11-18`: §3a, §3c)*
 
 | component | on | fields (unmanaged; times are `SimInstant`) | size | written by (node · system · when) | replicated / recorded / saved |
 |---|---|---|---|---|---|
 | **`HeatSource`** | a vehicle, an aircraft, a generator, a person, an animal | `Kind` (Engine · Body) · `State` · `Since` · `Load` (0–3) · `LoadSince` · `Moving` · `MotionSince` | ≈ 32 B | the node that moves the entity · `HeatSourceSystem` (serial) · on a change of state, load step or motion (the engine-on seconds of the current stand are the writer's PRIVATE state, reaching the wire only in a ground mark, §4b) | a descriptor, owner → every node · recorded · ⭐ the authored start `State` SAVED (a convoy already running), the times reset at load |
-| **`ShotHistory`** | the weapons' OWNER (a vehicle, a soldier) — beside its `WeaponState` | `Count` + per mount (≤ 4): `ShotsFired` · `LastShotAt` · `HeatAtLastShot` | ≈ 52 B | SimHost · the fire path · at a burst's END | a descriptor · recorded · not saved |
-| **`FireState`** | a vehicle, a wreck (later a building's terrain-object entity) | `Fire` (None · Smouldering · Burning) · `Since` · `Seconds` (its expected life — it goes out by itself) · `Intensity` | ≈ 16 B | the Health owner · the damage path when it ignites (TD-16 ①: a fuelled type destroyed, an incendiary hit, later an engine / fuel part) · `BurnSystem` drains Health while Burning (TD-16 ②) | a descriptor · recorded · not saved |
+| **`ShotHistory`** | the weapons' OWNER (a vehicle, a soldier) — beside its `WeaponState` | `Count` + per mount (≤ 4): `BurstRounds` · `BurstStartedAt` · `LastShotAt` · `HeatAtLastShot` | ≈ 68 B | SimHost · the fire path · at a burst's END | a descriptor · recorded · not saved |
+| **`FireState`** | a vehicle / wagon (later a ship), a building's damage-record entity, a terrain cell's record entity (§3c) | `Count` + up to 8 spots `{X, Y, Z, Radius, Since, Seconds, Intensity}` in the holder's coordinates; ADDED at the first ignition (rare) | ≤ 228 B | the Health owner · the damage path when it ignites (TD-16 ①: a fuelled type destroyed, an incendiary hit, later an engine / fuel part) · `BurnSystem` drains Health while Burning (TD-16 ②) | a descriptor · recorded · not saved |
 | **`Health.StateSince`** *(a field on the existing `Health`, replicated as `EntityDamage`)* | a person, an animal, anything with Health | `StateSince` — when the derived injury band last changed | + 8 B | the Health owner · `HealthApplicationSystem` / `BleedOutSystem` · when the band changes | rides the existing `EntityDamage` descriptor |
 | **`GroundHeatMarks`** | a per-cell TERRAIN record entity (§4b) | `Count` + up to N items `{Kind, X, Y, Heading, Length, Width, HotEnd, StandSince, LeftAt, EngineOnSeconds, PowerClass}` | ≤ 1024 B | SimHost · `HeatSourceSystem` when a stand ends | a descriptor · recorded · not saved |
 
@@ -154,11 +178,17 @@ classDiagram
   }
   class ShotHistory {
     <<new, on the weapons OWNER, 4 slots, replicated>>
-    ShotsFired LastShotAt HeatAtLastShot
+    BurstRounds BurstStartedAt LastShotAt HeatAtLastShot
   }
   class FireState {
-    <<new, replicated>>
-    Fire Since Seconds Intensity
+    <<new, replicated, up to 8 spots>>
+    Count Spots X Y Z Radius Since Seconds Intensity
+  }
+  class BuildingDamage {
+    <<existing record entity per building, a FireState holder>>
+  }
+  class GroundFireCell {
+    <<cell record entity, ICellRecord, a FireState holder>>
   }
   class Health {
     <<existing, replicated as EntityDamage, gains StateSince>>
@@ -219,7 +249,9 @@ classDiagram
   HeatSourceSystem --> HeatSource : state, load, motion
   ThermalDriverWriters --> ShotHistory : burst end
   DamagePath --> FireState : ignites - fuelled destroyed, incendiary hit
-  BurnSystem ..> FireState : while Burning
+  BurnSystem ..> FireState : per burning spot
+  BuildingDamage o-- FireState : holds
+  GroundFireCell o-- FireState : holds
   BurnSystem --> Health : drains in whole steps
   ThermalDriverWriters --> Health : band changes - StateSince
   ThermalDriverWriters ..> WeaponState : burst end
@@ -254,13 +286,13 @@ sequenceDiagram
   D-->>N: one replicated sample
   N-->>G: our protocol or the DIS gateway
   G->>G: engine deck warms from 120 s on - its own thermal solve
-  M->>D: burst of 20 rounds ends - ShotHistory slot 0 ShotsFired, LastShotAt, HeatAtLastShot
+  M->>D: burst of 20 rounds ends - ShotHistory slot 0 BurstRounds, BurstStartedAt, LastShotAt, HeatAtLastShot
   D-->>N: one sample
   Note over N: our sensor - BarrelHeat(mount, now) closed form
   M->>D: drives away after 15 min idling - Moving since 1020 s
   M->>N: one GroundHeatMarks item - VehicleStand 120 to 1020 s, engine on 900 s, rear hot
   Note over N,G: an invisible warm rectangle where it stood, cooling - the generator and our sensor compute it
-  M->>D: destroyed - Fire Burning since 300 s for 600 s
+  M->>D: destroyed - FireState spot 0 at the engine deck since 300 s for 600 s
   D-->>N: one sample
   Note over N,G: burning until 900 s on every node, a late joiner included
 ```
@@ -306,8 +338,8 @@ ground heat mark still warm (§4b), so a place a vehicle left before it joined i
 |---|---|---|
 | TD-S1 | the components (§4), their descriptors + translators, `ThermalDriversOps`, the sensor re-based, `ThermalHeatSystem` retired | the sensor's verdicts unchanged on the thermal scenarios; 0 B per steady frame |
 | TD-S2 | `HeatSource` (TD-3, TD-4): engines + bodies, motion, the possessed ignition | `th-idling-tank`: an idling, crewed tank is seen by a thermal sensor at night, a parked empty one is not; a man who just ran reads warmer than one who stood |
-| TD-S3 | the weapons per mount (TD-5) | a burst updates once; the barrel computed from the record matches `BarrelHeat` |
-| TD-S4 | fire (TD-6, TD-16): ignition in the damage path, `BurnSystem`, the W3 burn re-based | `th-burning-wreck`: a late-joining node sees the wreck burning until it goes out; a man set alight loses health in steps on every node |
+| TD-S3 | the weapons per mount (TD-5): the last burst | a burst updates once; the barrel computed from the record matches `BarrelHeat` |
+| TD-S4 | fire (TD-6, TD-16): ignition in the damage path, `BurnSystem`, the W3 burn re-based | `th-burning-wreck`: a late-joining node sees the wreck burning until it goes out; a man set alight loses health in steps on every node; a house burning in ONE room shows one spot, not the whole house |
 | TD-S5 | `Health.StateSince` (TD-7) | a body's `StateSince` is the time of death on every node, a late joiner included |
 | TD-S6 | material thermal classes (TD-9) + the terrain export; IR-blocking smoke (TD-12); weather `Since` (TD-8) | the exported terrain carries a class per surface |
 | TD-S7 | the DIS mapping (TD-11) written into the protocol reference for the gateway | the table, with the damage thresholds |
