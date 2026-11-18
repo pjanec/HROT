@@ -83,7 +83,7 @@ namespace Fdp.Toolkit.Combat.Systems
         /// </summary>
         public static float NonLethalFloor(EntityRepository repo, Entity entity, in Health health, HitEffect effect)
         {
-            if (effect == HitEffect.Kinetic) return 0f;
+            if (effect is HitEffect.Kinetic or HitEffect.Impact) return 0f;   // ⭐ CE-1967 — a vehicle's impact is lethal force, not a baton
             float line = repo.IsComponentTypeRegistered<InjuryThresholds>() && repo.HasComponent<InjuryThresholds>(entity)
                 ? repo.GetComponentRO<InjuryThresholds>(entity).IncapacitatedBelow * health.Max
                 : 0.01f * health.Max;

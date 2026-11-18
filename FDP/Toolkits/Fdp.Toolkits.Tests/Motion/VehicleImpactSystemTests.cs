@@ -108,7 +108,7 @@ namespace Fdp.Toolkit.Tests.Motion
             var hit = Assert.Single(hits);
             Assert.Equal(man, hit.HitEntity);
             Assert.Equal(car, hit.Source);
-            Assert.Equal(HitEffect.Blunt, hit.Effect);
+            Assert.Equal(HitEffect.Impact, hit.Effect);   // ⭐ CE-1967 — lethal and knocking down (Blunt was floored: never killed)
             Assert.InRange(hit.TotalDamage / 100f, lo, hi);
         }
 
@@ -210,6 +210,35 @@ namespace Fdp.Toolkit.Tests.Motion
             var car = Vehicle(8f); _w.GetComponentRW<SimTransform>(car).Position = new Vector3(100f, 0f, 0f);
             float dmg = DamageTo(man, car, 3f);
             Assert.InRange(dmg / 100f, 0.35f * 0.85f, 0.75f * 1.15f);   // ONE strike in the 8 m/s band — no crush on top
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-1967 — END TO END through the damage chain: the dozer drives over the man and <c>HealthApplicationSystem</c> applies what it published —
+        /// his Health reaches 0. 📐 This is the rail the first fix lacked: summing the published damage passed while the live man stayed at 30 of 100,
+        /// because every vehicle hit rode <c>Blunt</c> and the damage chain floors Blunt at the incapacitated line. 🔴 Red-proof: the impact published as
+        /// <c>Blunt</c> again ⇒ Health 30 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1967_ABulldozerDrivingOverAMan_LeavesHimDead_ThroughTheDamageChain()
+        {
+            _w.RegisterComponent<ActorCapabilityState>();
+            _w.RegisterComponent<InjuryThresholds>();
+            _w.RegisterComponent<EffectState>();
+            _w.RegisterEvent<Fdp.Toolkit.Combat.Events.ManDownedEvent>();
+            var man = Man(new Vector2(10f, 0.5f));
+            _w.AddComponent(man, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            var dozer = Dozer(new Vector2(0f, 0f), 4.5f);
+            var impact = new VehicleImpactSystem();
+            var health = new Fdp.Toolkit.Combat.Systems.HealthApplicationSystem();
+            for (float t = 0f; t < 20f / 4.5f; t += Dt)
+            {
+                impact.Execute(_w, Dt);
+                _w.Bus.SwapBuffers();
+                health.Execute(_w, Dt);
+                _w.GetComponentRW<SimTransform>(dozer).Position += new Vector3(4.5f * Dt, 0f, 0f);
+                _w.SetSimulationTime(_w.SimulationTime + Dt);
+            }
+            Assert.Equal(0f, _w.GetComponentRO<Health>(man).Current);
         }
 }
 }

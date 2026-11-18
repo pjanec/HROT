@@ -17,8 +17,8 @@ namespace Fdp.Toolkit.Motion
     /// ⭐⭐ <c>CE-4622</c> K-1 (docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md RM-1, KV-4) — a VEHICLE HURTS A PERSON BY IMPACT: the ground
     /// twin of <see cref="DroneImpactSystem"/>. Each frame every moving ground vehicle's hull (its footprint, turned by its heading) is swept forward by the
     /// distance it travelled (<see cref="Intersection2D.SweptFrontMeetsCircle"/>, beside the flyer's <see cref="Intersection2D.SegmentInCircle"/>); a person or
-    /// an animal whose body the FRONT reaches is struck: a <see cref="HitEffect.Blunt"/> <see cref="DamageAssessedEvent"/> (the <c>Melee.Strike</c>
-    /// precedent; Source = the vehicle) of a Health FRACTION in bands of the CLOSING speed × the vehicle's mass, with a seeded spread (<see cref="HarmFraction"/>).
+    /// an animal whose body the FRONT reaches is struck: a <see cref="HitEffect.Impact"/> <see cref="DamageAssessedEvent"/> (knocked down AND lethal —
+    /// ⛔ was <c>Blunt</c>, the <c>Melee.Strike</c> precedent, whose non-lethal floor capped every vehicle hit at the incapacitated line, CE-1967; Source = the vehicle) of a Health FRACTION in bands of the CLOSING speed × the vehicle's mass, with a seeded spread (<see cref="HarmFraction"/>).
     /// Riders (embarked) never; a closing speed under <see cref="HarmlessBelowMps"/> never (a man boarding a stopped vehicle, a nudge); a pair once per
     /// <see cref="RepeatSeconds"/>. For every vehicle, AI or a player's. Serial, after <c>CarKinematicsSystem</c>, on the node that moves the vehicles;
     /// the damage reaches the victim's Health owner through the existing chain. ⛔ It moves nobody (no knock-back) — the damage chain's knock-down does.
@@ -146,7 +146,7 @@ namespace Fdp.Toolkit.Motion
                                 float max0 = MathF.Max(1f, repo.GetComponentRO<Health>(b.E).Max);
                                 repo.Bus.Publish(new DamageAssessedEvent
                                 {
-                                    HitEntity = b.E, TotalDamage = CrushFraction * max0, Effect = HitEffect.Blunt, EffectSeconds = (SimDuration)KnockdownSeconds, Source = v,
+                                    HitEntity = b.E, TotalDamage = CrushFraction * max0, Effect = HitEffect.Impact, EffectSeconds = (SimDuration)KnockdownSeconds, Source = v,
                                 });
                                 Strikes++;
                             }
@@ -165,7 +165,7 @@ namespace Fdp.Toolkit.Motion
                     float max = MathF.Max(1f, repo.GetComponentRO<Health>(b.E).Max);
                     repo.Bus.Publish(new DamageAssessedEvent
                     {
-                        HitEntity = b.E, TotalDamage = frac * max, Effect = HitEffect.Blunt, EffectSeconds = (SimDuration)KnockdownSeconds, Source = v,
+                        HitEntity = b.E, TotalDamage = frac * max, Effect = HitEffect.Impact, EffectSeconds = (SimDuration)KnockdownSeconds, Source = v,
                     });
                     Strikes++;
                 }

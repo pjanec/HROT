@@ -21,6 +21,12 @@ namespace Fdp.Toolkit.Combat
         Stun = 3,
         /// <summary>A shove (a shield line, later a water cannon): knocked down, briefly.</summary>
         Push = 4,
+        /// <summary>
+        /// ⭐⭐ <c>CE-1967</c> (R-2139) — a LETHAL blow that also knocks the man down: a vehicle striking or running over a person. ⛔ Unlike <see cref="Blunt"/>
+        /// (a baton, a stone — non-lethal force, floored at the incapacitated line) its damage is NOT floored: it can kill. Appended: the value rides
+        /// the wire as a byte (<c>EntityHitDamage.EffectKind</c>).
+        /// </summary>
+        Impact = 5,
     }
 
     /// <summary>
@@ -53,6 +59,7 @@ namespace Fdp.Toolkit.Combat
             switch (kind)
             {
                 case HitEffect.Blunt:
+                case HitEffect.Impact:   // ⭐ CE-1967 — knocked down as a blunt hit, but lethal (no floor)
                 case HitEffect.Push:     state.KnockedDownUntil = (SimInstant)(Math.Max(state.KnockedDownUntil, until)); return true;
                 case HitEffect.Irritant: state.IrritatedUntil   = (SimInstant)(Math.Max(state.IrritatedUntil, until));   return true;
                 case HitEffect.Stun:     state.StunnedUntil     = (SimInstant)(Math.Max(state.StunnedUntil, until));     return true;
