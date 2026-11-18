@@ -15,6 +15,34 @@ namespace Fdp.Tests
         [ComponentId(189)]
         record Tag(string Label);
 
+        /// <summary>
+        /// ⭐ CE-1979 — a sync that brings a structural change (an entity destroyed or created in the source) moves the destination's
+        /// <see cref="EntityRepository.StructuralChanges"/>, so a reader keyed on it (the gizmo match pass's ChangeGate) re-matches instead of
+        /// handing a dead entity to a draw; a sync that brings none keeps it still. ✅ Red-proof: the sync without the clock step ⇒ the
+        /// after-destroy assert fails.
+        /// </summary>
+        [Fact]
+        public void CE1979_ASyncThatBringsADeath_MovesTheStructuralClock_AnUnchangedOneDoesNot()
+        {
+            using var source = new EntityRepository();
+            using var dest = new EntityRepository();
+            source.RegisterComponent<Pos>();
+            dest.RegisterComponent<Pos>();
+            var a = source.CreateEntity(); source.AddComponent(a, new Pos { X = 1 });
+            var b = source.CreateEntity(); source.AddComponent(b, new Pos { X = 2 });
+            dest.SyncFrom(source);
+            long synced = dest.StructuralChanges;
+
+            source.GetComponentRW<Pos>(a).X = 5;                 // a value change only
+            dest.SyncFrom(source);
+            Assert.Equal(synced, dest.StructuralChanges);
+
+            source.DestroyEntity(b);                              // a unit dies on the sim side
+            dest.SyncFrom(source);
+            Assert.NotEqual(synced, dest.StructuralChanges);
+            Assert.False(dest.IsAlive(b));
+        }
+
         [Fact]
         public void FullSync_CopiesAllDirtyChunks()
         {

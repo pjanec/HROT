@@ -98,6 +98,23 @@ public static class ImGuiPropertyTree
     /// all drawn.
     /// </summary>
     public static void Render(object? obj, Type? contextType, Func<MemberInfo, bool>? include, out string? doubleClickedPath)
+        => Render(obj, contextType, include, out doubleClickedPath, rowMenu: null);
+
+    /// <summary>
+    /// ⭐ <c>CE-1286</c> (Brain View §12t) — as above, with a right-click menu on every LEAF row: <paramref name="rowMenu"/> is called
+    /// inside the open popup with the row's path (<c>$.Field.Sub</c>) and draws the items (the Brain tab's <i>Add to Watch</i>).
+    /// </summary>
+    public static void Render(object? obj, Type? contextType, Func<MemberInfo, bool>? include, out string? doubleClickedPath, Action<string>? rowMenu)
+    {
+        s_rowMenu = rowMenu;
+        try { RenderTree(obj, contextType, include, out doubleClickedPath); }
+        finally { s_rowMenu = null; }
+    }
+
+    /// <summary>⭐ CE-1286 — the row menu of the Render call in progress (the UI thread only; reset when it returns).</summary>
+    [ThreadStatic] private static Action<string>? s_rowMenu;
+
+    private static void RenderTree(object? obj, Type? contextType, Func<MemberInfo, bool>? include, out string? doubleClickedPath)
     {
         doubleClickedPath = null;
         if (obj == null)
@@ -183,6 +200,13 @@ public static class ImGuiPropertyTree
                 && ImGuiApi.IsItemHovered()
                 && ImGuiApi.IsMouseDoubleClicked(ImGuiMouseButton.Left))
                 doubleClickedPath = memberPath;
+
+            // ⭐ CE-1286 — a leaf's right-click menu, when the caller asked for one
+            if (!isFoldable && s_rowMenu is { } rowMenu && ImGuiApi.BeginPopupContextItem($"rowmenu##{depth}_{i}"))
+            {
+                rowMenu(memberPath);
+                ImGuiApi.EndPopup();
+            }
 
             // ── Value column ───────────────────────────────────────────
             ImGuiApi.TableSetColumnIndex(1);

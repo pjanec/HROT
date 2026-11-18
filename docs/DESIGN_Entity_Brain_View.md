@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§12b, R-1037 — the tab's layout) · 2026-10-23 (§10 live debugging of one unit + the parallel regions, BV-26…BV-33 — R-1029, approved on the proposal: "ok write it!"; value review the same day: BV-28 now fixes `Changed` exactly instead of a re-armed threshold, BV-30 deferred, BV-31 withdrawn)
 build-state: BUILDING 2026-10-25 — §12h stages (B1 built §12i, B2 built §12j); BUILT 2026-10-23 for CE-1248 (the tab), CE-1249 (the journal + generic writers), CE-1257, CE-1258, CE-1261 — as-built §11; BUILT 2026-10-23 also Phase 3 CE-1251…CE-1256 (§11); BUILT 2026-10-23 also CE-1250 (behaviors: causes, play writers — §11 "causes — the behaviors half"); was READY: CE-1250 (behaviors: causes, play writers — ui half built); CE-1259 deferred; Phase 3 (§9, the running graph of a C#-only behaviour, in memory) APPROVED 2026-10-23 (R-1028); Phase 1 (the Brain tab, ui) and Phase 2 (the brain journal: ui the component and the generic writers, behaviors the causes and the play writers) APPROVED 2026-10-23 (R-1026); nothing built yet
-current-answer: §12s AS-BUILT the one debug-settings store (CE-1329) · §12r DECISIONS BV-65…BV-73 · §12q AS-BUILT tables, contacts, pickers search, layouts (CE-1327, CE-1273, CE-1274; Show on map measured — CE-1329) · §12p AS-BUILT names + Open graph on the blueprint list, SOP, running behaviours (CE-1326) · §12o AS-BUILT B7 (CE-1312, CE-1318) · §12n AS-BUILT B6 (CE-1316, CE-1314) · §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
+current-answer: §12t AS-BUILT a running behaviour's field in the Watch (CE-1286) · §12s AS-BUILT the one debug-settings store (CE-1329) · §12r DECISIONS BV-65…BV-73 · §12q AS-BUILT tables, contacts, pickers search, layouts (CE-1327, CE-1273, CE-1274; Show on map measured — CE-1329) · §12p AS-BUILT names + Open graph on the blueprint list, SOP, running behaviours (CE-1326) · §12o AS-BUILT B7 (CE-1312, CE-1318) · §12n AS-BUILT B6 (CE-1316, CE-1314) · §12m AS-BUILT B5 (CE-1310, CE-1317, CE-1311) · §12l AS-BUILT B3 (CE-1321) · §12k AS-BUILT B4 (CE-1319) · §12j AS-BUILT B2 (CE-1320) · §12i AS-BUILT B1 (CE-1315) · §12h THE BUILD PLAN 2026-10-25 (stages B1…B7 + the debugging stage D, every row CE-1310…CE-1321) · §12g DECIDED 2026-10-25 (R-1041: ONE live-write path for any slot's params and working state, shared by the HTTP API, the Watch and the Brain tab; params edits do not restart) · §12f the WIREFRAME 2026-10-25 (the tab's content, soldier + commander; BV-63 params are the dump + an Edit button, BV-64 open state is ImGui's) · §12e DECIDED 2026-10-25 (R-1040: every Brain-tab input is a RECORDED component — the tab rebuilds in the replay browser; BV-61 approved) · §12d APPROVED 2026-10-25 (BV-55 approved R-1039: a graph follows its Brain tab; leans BV-52, BV-56…BV-59: one target-line drawing, "My units' contacts" at every level, report and order HISTORY per commander) · §12c APPROVED 2026-10-25 (R-1038: viewing is debugging; one brain-debug gizmo family per checkbox, no Path) · §12b DECIDED 2026-10-25 (R-1037: grouped settings, every running behaviour alike with the inspector's read-only dump, blueprints managed on the tab; BV-47 awaits the user) · §12a DECIDED 2026-10-24 (R-1036: the Brain tab replaces the AI tab, full only where the brain runs, local edits saved with the scenario) · §12 RECORDED next ideas (BV-34…BV-37) · §11 AS-BUILT (read first for what exists) · §1 what · §2 INVENTORY + claim table · §3 classes · §4 sequences · §5 modules · §6 decisions BV-1…BV-16 · §7 slices and owners · §8 acceptance · §9 Phase 3 the running graph (BV-17…BV-25, CE-1252…CE-1256) · §10 live debugging of one unit and the regions (BV-26…BV-33, CE-1257, CE-1258, CE-1261 to build; CE-1259 deferred, CE-1260 withdrawn; its HTTP routes in DESIGN_Agent_Shared_View.md)
 stale-below: nothing
 known-rot: R-1036's "settings are LOCAL there" is NARROWED by R-4137 (UX/DESIGN_Initial_State.md §3a): the Character settings (skill, temperament) become attribute writes from any allowed station; the debugging half stays local · §12b's diagrams name a NEW `OccurrenceSlotCatalog` — it is the EXISTING `OccurrenceSlotCatalog` (BV-44 corrected 2026-10-25)
 known-conflict: none
@@ -1577,3 +1577,56 @@ truth and REWRITES the copy every frame, so no writer goes around it and a rewin
 switch · the menu's checks, no Debug this unit · pinned-only brain families · per-scenario memory and reset) ·
 `TheBrainAndViewRoutesAnswerTests.CE1329_DebugSettings_AreTheBrainTabsSwitches` · updated: `DebugTraceGizmoTests` (CE-3136, CE-3143),
 `LayerControlGizmoTests` (scopes now on Path). ⛔ SUPERSEDED: `UnitDebugControllerTests`.
+
+### 12t. AS-BUILT — a running behaviour's field in the Watch *(CE-1286, DECIDED A by the user `2026-11-18`, ui; build-state: BUILT)*
+
+🔒 User, `2026-10-23`: *"show the blackboard variables and parameters even for the csharp hardcoded behaviors … maybe … context menu for adding the
+variable to watch window where i can also see and edit"*. The display half was §12i (CE-1315); this is the Watch half.
+
+INVENTORY *(grep + reads; `scripts/cbm.sh` not run this session — ⚠ unconfirmed by the graph)*: the Watch row is `VariableRow` with identity
+`VariableRowOrigin (AssetId, Entity, Section, VariablePath)` (`AiWatchWindow`, `PinnedVariableRowSource`); the one slot reader is
+`OccurrenceSlotCatalog.ResolveField`; the one live write is `OccurrenceSlotWriter` (R-1041, its callers `POST /entities/{id}/variable`); the Watch's
+edit goes through the host's `WriteLiveValue` = `BlueprintLiveValueWriter.WriteLive` (and its `ResolveStagedField` for the yellow).
+
+```mermaid
+classDiagram
+  class EntityBrainView { <<existing>> DrawRunning ★row menu: Add to Watch ; +AddToWatch(VariableRow) ★static, set by the registrar }
+  class ImGuiPropertyTree { <<existing>> +Render(..., rowMenu) ★a leaf's right-click menu }
+  class OccurrenceWatchRows { <<NEW>> +Section = "Occurrence" ; +Build(world, unit, registry, blueprints, Address, path) ; +TryAddress(origin) ; AssetIdOf(Address) }
+  class OccurrenceWriteServices { <<NEW>> World · Registry · Blueprints · Stage ; +Write(unit, origin, bytes) ; +Resolve(unit, origin) }
+  class OccurrenceSlotCatalog { <<existing>> +ResolveField ⇒ SlotFieldAddress }
+  class OccurrenceSlotWriter { <<existing · R-1041>> +WriteField(json) ; +WriteFieldBytes ★ }
+  class BlueprintLiveValueWriter { <<existing>> +WriteLive ★Occurrence arm ; +ResolveStagedField ★Occurrence arm }
+  class PerspectiveWorkspaceRegistrar { <<existing>> sets EntityBrainView.AddToWatch beside the Watch it builds }
+  EntityBrainView --> ImGuiPropertyTree : rowMenu
+  EntityBrainView --> OccurrenceWatchRows : Build
+  OccurrenceWatchRows --> OccurrenceSlotCatalog : ResolveField (read, re-resolved every 30 behaviour frames)
+  BlueprintLiveValueWriter --> OccurrenceWriteServices : an Occurrence row
+  OccurrenceWriteServices --> OccurrenceSlotWriter : WriteFieldBytes
+  OccurrenceSlotWriter --> OccurrenceSlotCatalog : ResolveField
+```
+
+```mermaid
+sequenceDiagram
+  participant U as user
+  participant B as Brain tab dump
+  participant R as OccurrenceWatchRows
+  participant W as AiWatchWindow
+  participant L as BlueprintLiveValueWriter
+  participant S as OccurrenceSlotWriter
+  U->>B: right-click a field ▸ Add to Watch
+  B->>R: Build(slot address, path)
+  R-->>B: VariableRow (section Occurrence, read live)
+  B->>W: AddToWatch(row) — Pinned.Pin(row, BindingFor(unit))
+  U->>W: Edit value… (any run state)
+  W->>L: WriteLive(row, bytes)
+  L->>S: WriteFieldBytes(slot, path, bytes) — width checked
+  S-->>L: staged at (component, offset) — lands on the next advancing tick
+```
+
+*What the pictures show that prose hid:* the Watch gains NO second addressing — the row's read and its write both go through the slot reader's
+`ResolveField`, and the edit lands through R-1041's one writer; the only new identity is the row's section and an address-derived `AssetId`.
+⚠ Known gaps, as built: a pin of this section is not restored by a later session (the address table is in memory; `IsPersistable` follows the
+binding as for every concrete pin); a row of a behaviour that ended reads empty until it runs again. Rail
+`TheBrainViewTests.CE1286_ARunningBehavioursField_IsAWatchRow_ReadLive_WrittenThroughTheOneLiveWrite`.
+

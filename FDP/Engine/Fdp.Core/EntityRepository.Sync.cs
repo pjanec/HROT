@@ -89,6 +89,10 @@ namespace Fdp.Core
             try { SyncFromCore(source, mask, includeTransient, excludeTypes); } finally { AccessTrace.Unmute(); }
         }
 
+        /// <summary>⭐ CE-1979 — the world last synced INTO this one and its structural clock then (null = never synced).</summary>
+        private EntityRepository? _structureSource;
+        private long _structureSourceClock;
+
         private void SyncFromCore(EntityRepository source, BitMask512? mask, bool? includeTransient, Type[]? excludeTypes)
         {
             // 0. Determine Effective Mask
@@ -141,6 +145,16 @@ namespace Fdp.Core
             // 1. Sync EntityIndex
             // This copies critical structural data (Generations, IsActive, Masks)
             _entityIndex.SyncFrom(source._entityIndex);
+            // ⭐ CE-1979 — the copy rewrites the entity set wholesale, so THIS world's structural clock must move when the source's moved (an
+            //   entity created or destroyed there): a reader keyed on it (ChangeGate — the gizmo match pass, CE-1480 G5) otherwise reuses a
+            //   list with an entity that died, and the threaded editor's map faulted on it ("Entity … is not alive"). ⭐ Only when it moved:
+            //   an unchanged structure keeps the clock still, so a still world still skips the pass.
+            if (!ReferenceEquals(_structureSource, source) || _structureSourceClock != source._structuralChanges)
+            {
+                _structuralChanges++;
+                _structureSource = source;
+                _structureSourceClock = source._structuralChanges;
+            }
             
             // Always apply component filter (even if it's the default snapshotable mask)
             _entityIndex.ApplyComponentFilter(effectiveMask);

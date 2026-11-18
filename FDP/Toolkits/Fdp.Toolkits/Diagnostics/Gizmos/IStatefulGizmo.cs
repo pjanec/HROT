@@ -45,4 +45,13 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// </summary>
         virtual string? ToolMenuJson => null;
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-1954</c> (DECIDED A, user 2026-11-18; docs/UX/DESIGN_Map_Interaction.md §2.5) — the gizmo a plain LEFT press on the entity's BODY
+    /// drives (its move): a press on an UNSELECTED unit selects it and the same drag moves it. ⭐ A body press arrives as a plain pick (the
+    /// presentation's pick box carries no gizmo type), so <c>DataDrivenGizmoSystem</c> routes it to the entity's gizmo carrying this marker —
+    /// the same in every host and in the serial and threaded editors, because both run that one routing. ⛔ Never for a right press or a
+    /// modifier press (Shift / Ctrl / Alt are selection gestures).
+    /// </summary>
+    public interface IBodyPressDragGizmo : IEntityStatefulGizmo { }
 }
