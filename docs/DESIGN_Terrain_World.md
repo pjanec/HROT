@@ -322,6 +322,12 @@ references `StanceStatus`'s assembly or composes the stance runtime — folded i
 
 ### 4.4 W9 — the spatial grids follow the terrain (`CE-3018`, as built `2026-10-03`)
 
+⭐ **CE-1959 (`terrain` lane, `2026-11-17`) — the grids cover the GROUND ATTACHED BEYOND the terrain too:** `SpatialGridFit.Covered` = the bounds ∪ the
+footprint of `TerrainWorld.Beyond` (the SUMO net, attached by `SumoNetTerrainLoader` before the grids are fitted). ⛔ Was the bounds alone: on demo-city
+(bounds 800 m, its net to ~4.4 km) every body on the net past 850 m was outside the collider grid — no round could meet it (📐 live: 90 of 90 rounds at SUMO
+cars "StoppedByTerrain"), nor avoidance or sight. ⚠ The cells coarsen with the extent (demo-city: collider 16 m, perception 24 m — queries cost more, never
+wrong; the seven convoy scenarios pass). Rail `TerrainWorldTests.CE1959_*`.
+
 ```mermaid
 classDiagram
   class SpatialHashGrid {
