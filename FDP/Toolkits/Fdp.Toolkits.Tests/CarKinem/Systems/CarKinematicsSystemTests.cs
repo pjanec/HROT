@@ -3110,6 +3110,63 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3471</c> (a pig walked through its pen's brick wall, farm-under-fire) — a point that starts EXACTLY ON a wall's face, or inside it, may move
+        /// out but never deeper: on farm-under-fire's 0.25 m brick wall (y = 10 here, its face 9.875), a step north from the face is held, a step from just inside
+        /// back south is free, a step along the face is free. 📐 The cause: a mover held at a wall restarts from rest, its steps shrink, and a float32 coordinate
+        /// lands EXACTLY on the face; the guard then read the T = 0 crossing as "already inside" and let it through. 🔴 Red-proof: <c>Deepens</c> returning false ⇒
+        /// the step north from the face passes ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3471_APointOnAWallsFace_MayLeaveIt_NeverGoDeeper()
+        {
+            var q = new Fdp.Toolkit.Terrain.TerrainWorldQuery(GardenWall(1.0f, thickness: 0.25f));
+            const float face = 9.875f;
+            bool Blocked(Vector2 from, Vector2 to) => CarKinem.Controllers.HullClearance.StepBarrier(q, from, Vector2.UnitY, 0f, to, Vector2.UnitY, 0f, 0f, 0f, out _);
+            Assert.True(Blocked(new Vector2(30f, face), new Vector2(30f, face + 0.0035f)), "a step north from ON the face went into the wall");
+            Assert.True(Blocked(new Vector2(30f, face), new Vector2(30.003f, face + 0.0018f)), "an oblique step from ON the face went into the wall");
+            Assert.True(Blocked(new Vector2(30f, 9.95f), new Vector2(30f, 10.05f)), "a point inside walked on toward the far side");
+            Assert.False(Blocked(new Vector2(30f, 9.9f), new Vector2(30f, 9.8f)), "a point just inside could not step back out");
+            Assert.False(Blocked(new Vector2(30f, face - 0.001f), new Vector2(31f, face - 0.001f)), "a step along the face was held");
+            Assert.True(Blocked(new Vector2(30f, face - 0.005f), new Vector2(30f, face + 0.0035f)), "a step from 5 mm short into the wall passed");   // the old rule still holds
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3471</c> — the same in the kinematics, the long way: an AI pig sent THROUGH a 0.25 m brick wall pushes at it for 60 s (held, restarting from rest
+        /// every frame, as farm-under-fire's pig did) and at no frame does its centre or any corner of its body pass the wall's face. ⚠ A GUARD, not a
+        /// reproduction: measured green with the CE-3471 fix off too (this approach never lands a point exactly on the face) — the face rail above is the red-proof.
+        /// </summary>
+        [Fact]
+        public void CE3471_APigPushingAtABrickWallForAMinute_NeverPassesItsFace()
+        {
+            var (repo, e) = RunningAnimal(false, Fdp.Toolkit.Animals.AnimalMode.Calm, 0, FenceAtX15("brick", 0.25f, 1.0f));
+            repo.RemoveComponent<Fdp.Toolkit.Navigation.ManualDrive>(e);
+            var p = repo.GetComponent<VehicleParams>(e);
+            float face = 15f - 0.125f;
+            var tf = repo.GetComponent<SimTransform>(e);
+            tf.Position = new Vector3(face - p.Length * 0.5f - 0.3f, 3f, 0f);
+            tf.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.5f);   // oblique, as the pig's path met its wall
+            repo.SetComponent(e, tf);
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(40f, 20f, 0f), TargetSpeed = 0.6f, ArrivalRadius = 1f });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            float deepest = float.MinValue;
+            for (int i = 0; i < 60 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                repo.Bus.SwapBuffers();
+                var t = repo.GetComponent<SimTransform>(e);
+                var f3 = Vector3.Transform(Vector3.UnitX, t.Rotation);
+                var f = Vector2.Normalize(new Vector2(f3.X, f3.Y));
+                deepest = MathF.Max(deepest, t.Position.X);
+                foreach (var (a, b) in new[] { (1f, 1f), (1f, -1f), (-1f, 1f), (-1f, -1f) })
+                    deepest = MathF.Max(deepest, CarKinem.Controllers.HullClearance.Corner(new Vector2(t.Position.X, t.Position.Y), f, a * p.Length * 0.5f, b * p.Width * 0.5f).X);
+            }
+            Assert.True(deepest <= face + 0.02f, $"a point of the pig reached x={deepest:F3} (the wall's face at {face:F3})");
+            repo.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-4623</c> AB-7 — the animal row is for a panicked animal ONLY: a possessed CAR at full throttle into the same wire fence a
         /// panicked cow breaks still breaks nothing (wheeled vehicles break nothing, B-3). 🔴 Red-proof: let any vehicle take an animal row ⇒ red.</summary>
         [Fact]
