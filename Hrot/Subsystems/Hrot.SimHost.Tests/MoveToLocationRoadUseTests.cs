@@ -120,5 +120,32 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Failure, CgfNodes.Action_WriteFollowRouteChannel(ref p, e, repo));
             repo.Dispose();
         }
+
+        /// <summary>⭐ <c>CE-9023</c> (the locomotion half) — a vehicle IMMOBILISED while it drives its route (an IED: the hit clears
+        /// <c>CanMove</c>, <c>CombatLife</c>) ends the route through the REAL dispatcher (CE-3091 ⇒ the channel Failure) and the FollowRoute
+        /// node answers <b>Failure</b> for as long as the vehicle cannot move — 📌 before, the disabled APC "ran" <c>FollowRoute</c> for good
+        /// and satisfied <c>uc-urban-battle</c>'s "the convoy moves on" row. 🔴 Red-proof: drop the <c>OwnRouteFailed</c> line ⇒ Running.</summary>
+        [Fact]
+        public void CE9023_AnImmobilisedVehicle_StopsRunningItsRoute()
+        {
+            var (repo, e) = MoverWithBehaviour(5);
+            repo.RegisterComponent<ActorCapabilityState>();
+            repo.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
+            var dispatcher = new Fdp.Toolkit.Behavior.Systems.LocomotionDispatcherSystem();
+            var p = new CgfNodes.FollowRouteParams { TrajectoryId = 11, RouteNetworkId = 4242, Speed = 5f };
+
+            Assert.Equal(Fbt.NodeStatus.Running, CgfNodes.Action_WriteFollowRouteChannel(ref p, e, repo));
+            dispatcher.Execute(repo, 0.016f);                                   // the route starts
+            uint issued = repo.GetComponent<LocomotionChannel>(e).ActionInstanceId;
+
+            repo.GetComponentRW<ActorCapabilityState>(e).Capabilities &= ~ActorCapabilities.CanMove;   // the IED
+            for (int tick = 0; tick < 5; tick++)
+            {
+                dispatcher.Execute(repo, 0.016f);
+                Assert.Equal(Fbt.NodeStatus.Failure, CgfNodes.Action_WriteFollowRouteChannel(ref p, e, repo));
+            }
+            Assert.Equal(issued, repo.GetComponent<LocomotionChannel>(e).ActionInstanceId);   // never re-issued
+            repo.Dispose();
+        }
     }
 }
