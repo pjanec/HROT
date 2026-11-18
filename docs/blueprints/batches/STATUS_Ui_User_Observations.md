@@ -29,4 +29,7 @@ Reproduction: the editor headless over HTTP (`--mode editor`, port 8131), posses
 | `Fdp.Toolkits.Tests` `AimAndFireExecutorTests` | 145 / 0 |
 | `Hrot.Presentation.Tests` Map3DTests · Map3DGizmoTests · EffectTests · PossessionStationTests · FilmTests · area / tool rails (xvfb) | 417 / 4 — the 4 reds predate this work (CE-1955: `S1_TheIconFallback…`, `LR1_…` (the M61 warhead), `CE1309_…`, `CE1086_…`) |
 | `Fdp.Presentation.Tests` AreaShapeGizmoTests · GizmoEditStyleTests | 20 / 0 |
-| `Hrot.Editor.Tests` EditorToolStripsTests · EditorToolbarsSectionTests · AdapterTests | see the commit |
+| `Hrot.Editor.Tests` EditorToolStripsTests · EditorToolbarsSectionTests · AdapterTests | 69 / 0 |
+| red-proofs (compiling mutations, all five fixes at once) | CE1960 stream · AW-1 cone (`F1_…`) · CE1969 · CE1970 · CE1971 — each RED, restored |
+| CE-1960 in the real editor, fixed build | possessed Viper aimed 800 m behind ⇒ every round's aim now along the nose (y −504 → +290 on its heading) |
+| `scripts/scenario-regression.sh ac-guns-drone,ac-guns-turning,ac-dogfight-2v2,ac-head-on-shot,ua-air-attack` | 5 / 5 PASS |
