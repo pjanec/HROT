@@ -322,6 +322,11 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < mem.Count; i++)
             {
                 if ((mem.Modalities[i] & (byte)SensorModality.Acoustic) == 0) continue;
+                // ⭐⭐ CE-4666 — weapon fire is not "someone walking behind the wall": a shot carries hundreds of metres and is heard FROM the last
+                //   opening on its way (AQ106 F), so its remembered place is his own window, not the shooter. 📐 live pc-defend-house: rifles
+                //   189 m off, heard through the house's opening 7 m from the reserve ⇒ no calming, +0.022 / s, every defender broke by 121 s.
+                //   Fire already has its own stimuli (near miss, friend down, outnumbered).
+                if (IsFireClass(mem.SourceClass[i])) continue;
                 uint seen = mem.LastSeenTick[i];
                 if (seen > now || (now - seen) * spf > HeardFreshSeconds) continue;
                 var where = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
@@ -333,6 +338,11 @@ namespace Hrot.AI.Behaviors.Brains
             }
             return false;
         }
+
+        /// <summary>⭐ CE-4666 — a heard class that is weapon fire (small arms, a heavy weapon, an explosion): never the heard-close term.</summary>
+        public static bool IsFireClass(byte sourceClass)
+            => sourceClass is (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon
+                           or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Explosion;
 
         internal static bool Ensure(EntityRepository world, Entity e, double now)
         {
