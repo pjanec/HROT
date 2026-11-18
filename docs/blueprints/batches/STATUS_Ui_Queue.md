@@ -6,10 +6,10 @@ current-answer: §1
 
 # STATUS — ui, the queue
 
-self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms) — deleting it was DENIED 2026-11-18 10:46; still scheduled (on firing it will find the queue idle).
+self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly at :02) — KEPT: the user wants it recurring every hour (2026-11-18); its prompt now says never delete it, and on an empty queue to check the other lanes for new ui handoffs first.
 
 ## 1. Now
-**idle** — the queue is done (2 rows await decisions in `DECISIONS_Ui.md`: CE-1954, CE-1067; plus CE-1286 taken while dry). Self-wake-up NOT deleted (the delete was denied).
+**idle** — the queue is done (2 rows await decisions in `DECISIONS_Ui.md`: CE-1954, CE-1067; plus CE-1286 taken while dry). Self-wake-up kept (user).
 
 ## 2. The queue (in order)
 
