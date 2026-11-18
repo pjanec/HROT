@@ -19,7 +19,7 @@ It is the HOW for every row below: push after every row, the status file `STATUS
 (fetch · take new handoffs addressed to you · read notes · merge the others · next row), decisions SKIPPED and written to
 `DECISIONS_Terrain.md` with your lean, notes to other lanes, and what to take when the queue runs dry.
 
-⭐⭐ **First action of the run: create your hourly SELF-WAKE-UP** (protocol §1a — `terrain self-wake-up`, into your own session, unless it already exists), so a rate-limit stop does not end the run; delete it when the queue is empty.
+⭐⭐ **First action of the run: create your hourly SELF-WAKE-UP** (protocol §1a — `terrain self-wake-up`, into your own session, unless it already exists), so a rate-limit stop does not end the run; keep it: when the queue is empty it checks for new handoffs addressed to you and takes them — never delete it (R-4292).
 
 ## The queue — in order (P = the user's priority, T2 = the second tier; ⭐ each row: reproduce · root-cause · fix with a rail · its scenario passes)
 

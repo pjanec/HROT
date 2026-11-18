@@ -92,6 +92,22 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.False(w.ClosedBarrier);
         }
 
+        /// <summary>
+        /// ⭐ CE-3426 (R-4190 T-6) — a blast's FRAGMENTS through a wood are stopped by its trunks the same share as a round (the trace's woods crossing has no
+        /// resistance, only <c>Stop</c>); beside the wood they pass whole. 🔴 Red-proof: drop the <c>(1 − Stop)</c> factor in <c>AreaEffect.FragmentTransmission</c> ⇒ 1 in the wood.
+        /// </summary>
+        [Fact]
+        public void CE3426_ABlastsFragmentsThroughAWood_AreStoppedLikeRounds_BesideItTheyPass()
+        {
+            var q = new TerrainWorldQuery(Wood());
+            var fire = new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
+            q.Trace(Man(200, 250), Man(300, 250), Fdp.Toolkit.World.TracePurpose.Fire, fire);
+            float through = Fdp.Toolkit.Combat.AreaEffect.FragmentTransmission(fire, 8f);
+            Assert.InRange(through, 0.65f, 0.76f);                               // the round law's ≈ 0.71 over 100 m of trunk zone
+            q.Trace(Man(-300, 250), Man(-200, 250), Fdp.Toolkit.World.TracePurpose.Fire, fire);
+            Assert.Equal(1f, Fdp.Toolkit.Combat.AreaEffect.FragmentTransmission(fire, 8f));
+        }
+
         // ── S2: a lone tree (R-4190 T-1, T-6) ─────────────────────────────────────────────────────────────────────────────────────
         private const string LoneTree = """
             {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[

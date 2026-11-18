@@ -265,7 +265,7 @@ namespace Fdp.Toolkit.Terrain
                     var type = MinePattern.TypeAt(c.Field.Type, r);
                     if (type == MineType.None) continue;
                     if (!Reaches(vehicle, from, to, mp, halfL, halfW, fwd)) continue;
-                    if (!MinePattern.Inside(c.Outline, mp) || MinePattern.InLane(c.Field, mp)) continue;
+                    if (!MinePattern.Laid(c.Field, c.Outline, mp)) continue;   // ⭐ CE-4655 — the one test (edge inset)
                     if (type == MineType.AntiTank)
                     {
                         if (animal) { if (!AnimalSetsOffAntiTank(c, r, col, body)) continue; }
@@ -516,7 +516,7 @@ namespace Fdp.Toolkit.Terrain
                     if (type == MineType.None) continue;
                     var mp = MinePattern.At(f.Field, f.Anchor, r, col);
                     if (DistanceSquaredToSegment(mp, a, b) > h2) continue;
-                    if (!MinePattern.Inside(f.Outline, mp) || MinePattern.InLane(f.Field, mp)) continue;
+                    if (!MinePattern.Laid(f.Field, f.Outline, mp)) continue;   // ⭐ CE-4655 — the one test (edge inset)
                     if (survival > 0f && Survives(f, r, col, survival)) continue;
                     long key = KeyOf(field, r, col);
                     if (_firedThisFrame.Contains(key) || _pending.ContainsKey(key) || _gone.Contains(key)) continue;

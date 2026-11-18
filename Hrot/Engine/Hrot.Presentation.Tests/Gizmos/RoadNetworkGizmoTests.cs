@@ -53,6 +53,37 @@ public sealed class RoadNetworkGizmoTests : IDisposable
         Assert.True(bands.Max(p => p.LineEnd.Y) > 5f, "the bend is drawn, not the chord");
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-4401 — on a terrain whose ground is at 500 m (the scale rig's <c>scale-1</c> stands at ≈ 500 m) every road band, centre line and node is drawn ON the
+    /// ground (its height + <see cref="RoadNetworkGizmo.GroundLift"/>), never at z 0, 500 m under it (user finding). 🔴 Red-proof: draw at z 0 again (<c>On</c>
+    /// ignoring the terrain) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4401_OnATerrainAt500m_TheRoadsLieOnTheGround()
+    {
+        var b = new RoadNetworkBuilder();
+        b.AddNode(new Vector2(0, 0));
+        b.AddNode(new Vector2(100, 0));
+        b.AddSegment(new Vector2(0, 0), new Vector2(100, 0), new Vector2(100, 0), new Vector2(100, 0),
+            laneWidth: 3.5f, laneCount: 2, startNodeIdx: 0, endNodeIdx: 1);
+        _blob = b.Build(cellSize: 20f, gridWidth: 10, gridHeight: 10);
+        _w.SetSingleton(new ZoneEnvironmentData { RoadNetwork = _blob });
+        var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+            "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-50,-50,150,50],\"groundZ\":500},\"features\":[]}", "ce4401");
+        Assert.Equal(500f, terrain.GroundHeightAt(50f, 0f), 3);
+        _w.SetSingletonManaged(terrain);
+
+        new RoadNetworkGizmo().Draw(_w, _draw);
+
+        var roads = Roads();
+        Assert.NotEmpty(roads);
+        foreach (var p in roads)
+        {
+            float z = p.Shape == DebugPrimitiveShape.Line ? MathF.Min(p.LineStart.Z, p.LineEnd.Z) : p.SphereCenter.Z;
+            Assert.Equal(500f + RoadNetworkGizmo.GroundLift, z, 3);
+        }
+    }
+
     [Fact]
     public void CE3124_NoTerrainRoads_DrawNothing()
     {

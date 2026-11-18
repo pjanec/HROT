@@ -74,7 +74,7 @@ namespace Fdp.Toolkit.Terrain
             foreach (var prism in world.Prisms)
             {
                 if ((++built & 255) == 0) Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
-                if (!IsVolumeEffect(prism)) AddPrism(prism, v, t, g);
+                if (IsDrawn(prism)) AddPrism(prism, v, t, g);
             }
             foreach (var w in world.Walkables)
             {
@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Terrain
             foreach (int k in ix.Pieces(ix.Prisms, min, max))
             {
                 var prism = world.Prisms[k];
-                if (!IsVolumeEffect(prism)) AddPrism(prism, v, t, null);
+                if (IsDrawn(prism)) AddPrism(prism, v, t, null);
             }
             foreach (int k in ix.Pieces(ix.Walkables, min, max))
                 AddWalkable(world.Walkables[k], v, t, null);
@@ -363,7 +363,7 @@ namespace Fdp.Toolkit.Terrain
             public GroundBins(TerrainWorld world)
             {
                 foreach (var prism in world.Prisms)
-                    if (prism.Panel < 0) _cutPolys.Add((prism.Min, prism.Max, prism.Footprint));
+                    if (prism.Panel < 0 && !prism.DrawnByEntity) _cutPolys.Add((prism.Min, prism.Max, prism.Footprint));   // ⭐ CE-4656 — no hole under a self-drawn entity
                 foreach (var s in world.Surfaces)
                 {
                     if (s.Type == TerrainSurfaceType.Water) { _cutPolys.Add((s.Min, s.Max, s.Polygon)); _waterPolys.Add((s.Min, s.Max, s.Polygon)); }
@@ -417,6 +417,9 @@ namespace Fdp.Toolkit.Terrain
         /// prism itself. ⚠ Every built-in see-through material today (glass, hedge, chain-link fence) blocks movement, so none is affected.
         /// </summary>
         public static bool IsVolumeEffect(TerrainPrism prism) => prism.Material is { SightTransmittance: > 0f, BlocksMovement: false };
+
+        /// <summary>⭐ CE-4656 — the ONE test of whether the terrain mesh draws <paramref name="prism"/>: not a volume effect, and not a baked entity that draws itself.</summary>
+        public static bool IsDrawn(TerrainPrism prism) => !IsVolumeEffect(prism) && !prism.DrawnByEntity;
 
         private static void AddPrism(TerrainPrism prism, List<Vector3> v, List<int> t, List<TerrainTriangleTag>? g)
         {

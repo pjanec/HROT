@@ -77,11 +77,59 @@ namespace Fdp.Toolkit.Terrain
                 {
                     if (r < short.MinValue || r > short.MaxValue || c < short.MinValue || c > short.MaxValue) continue;
                     var p = At(f, anchor, r, c);
-                    if (!Inside(outline, p) || InLane(f, p)) continue;
+                    if (!Laid(f, outline, p)) continue;
                     into.Add(new Mine((short)r, (short)c, p, TypeAt(f.Type, r)));
                     if (++n >= MaxMines) return n;
                 }
             return n;
+        }
+
+        /// <summary>⭐ CE-4655 — the least distance a mine lies inside the outline: half a spacing, never under <see cref="MinEdgeInsetM"/>.</summary>
+        public static float EdgeInset(in Minefield f) => MathF.Max(0.5f * f.SpacingM, MinEdgeInsetM);
+        /// <summary>The floor of <see cref="EdgeInset"/> (m): a man walking the outline (foot 0.4 m) never reaches a mine.</summary>
+        public const float MinEdgeInsetM = 1f;
+
+        /// <summary>
+        /// ⭐⭐ CE-4655 — the ONE test of whether lattice point <paramref name="p"/> (jitter applied) HOLDS a mine: inside the outline, out of every lane, and at least
+        /// <see cref="EdgeInset"/> inside the outline (a laid field's mines keep off its marked edge). 📐 Before, the pattern was clipped to the outline itself, so a
+        /// squad that skirted a struck field along its edge — the route a planner takes round it — set off the mines laid on the edge. Every caller (the pattern,
+        /// the trigger, the clearing pass) goes through this one test.
+        /// </summary>
+        public static bool Laid(in Minefield f, IReadOnlyList<Vector2> outline, Vector2 p)
+            => Inside(outline, p) && !InLane(f, p) && EdgeDistanceSquared(outline, p) >= EdgeInset(f) * EdgeInset(f);
+
+        /// <summary>
+        /// ⭐ CE-4655 — the same test over an outline held as two coordinate spans (a brain's fixed blackboard buffer, <c>ReconMinefieldBehavior</c>): ONE rule, two
+        /// outline shapes — never a second copy of the rule in a caller.
+        /// </summary>
+        public static bool Laid(in Minefield f, ReadOnlySpan<float> xs, ReadOnlySpan<float> ys, Vector2 p)
+        {
+            int n = Math.Min(xs.Length, ys.Length);
+            bool inside = false;
+            float best = float.MaxValue;
+            for (int i = 0, j = n - 1; i < n; j = i++)
+            {
+                var a = new Vector2(xs[j], ys[j]); var b = new Vector2(xs[i], ys[i]);
+                if ((b.Y > p.Y) != (a.Y > p.Y) && p.X < (a.X - b.X) * (p.Y - b.Y) / (a.Y - b.Y) + b.X) inside = !inside;
+                var d = b - a; float len2 = d.LengthSquared();
+                float t = len2 < 1e-9f ? 0f : Math.Clamp(Vector2.Dot(p - a, d) / len2, 0f, 1f);
+                best = MathF.Min(best, Vector2.DistanceSquared(a + d * t, p));
+            }
+            float inset = EdgeInset(f);
+            return inside && !InLane(f, p) && best >= inset * inset;
+        }
+
+        /// <summary>The squared distance from <paramref name="p"/> to the nearest edge of <paramref name="poly"/> (index loop, 0 B).</summary>
+        public static float EdgeDistanceSquared(IReadOnlyList<Vector2> poly, Vector2 p)
+        {
+            float best = float.MaxValue;
+            for (int i = 0, j = poly.Count - 1; i < poly.Count; j = i++)
+            {
+                var a = poly[j]; var d = poly[i] - a; float len2 = d.LengthSquared();
+                float t = len2 < 1e-9f ? 0f : Math.Clamp(Vector2.Dot(p - a, d) / len2, 0f, 1f);
+                best = MathF.Min(best, Vector2.DistanceSquared(a + d * t, p));
+            }
+            return best;
         }
 
         /// <summary>True when <paramref name="p"/> lies in one of <paramref name="f"/>'s lanes.</summary>

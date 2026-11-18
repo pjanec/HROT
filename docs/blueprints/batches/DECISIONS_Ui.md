@@ -8,6 +8,8 @@ current-answer: the whole file
 
 ## CE-1286 (taken while the queue ran dry) — how does a C# behaviour's param / working-state field get into the Watch? *(asked 2026-11-18)*
 
+**DECIDED `2026-11-18` (user, via coordinator): A — a new Watch row section `Occurrence` addressed by (behaviour hash, slot kind, field path), read through `OccurrenceSlotCatalog`, written through R-1041's one live-write path; the dump's row menu gains Add to Watch.**
+
 **Where it stands:** the display half is DONE (CE-1315: the Brain tab and the inspector dump every running behaviour's params and variables, C#
 ones included, through `OccurrenceSlotCatalog`). Left: the row menu *Add to Watch*. ⚠ The Watch's pinned row is an asset-variable identity
 `(AssetId, Entity, Section, VariablePath)` (`AiWatchWindow`, `PinnedVariableRowSource`) — a C# behaviour has no asset id and its fields no section.
@@ -25,6 +27,8 @@ Add to Watch / the Watch window"*, no identity named) and `docs/DESIGN_Behaviour
 
 ## CE-1067 — should a REMOTE terminal's panel reach another node's GLOBAL gizmo? *(asked 2026-11-18)*
 
+**DECIDED `2026-11-18` (user, via coordinator): A — not a defect today; close the row (reopen when a feature needs a terminal to drive another node's global gizmo).**
+
 **The question:** `GizmoInteractionIngressTranslator` drops a remote StructUpdate / InspectorClosed whose anchor is not an entity in its world. A
 global gizmo (the layer control, picker tools — `GlobalGizmoManager.NewId()`, 8 call sites: `MapInteractionPack.cs:337/382/394`, `PickerToolHost.cs:240/354`,
 `AreaAuthoringArm.cs:116`, `ScenarioToolRegistrations.cs:139`) has a per-run, per-node id, so a remote terminal cannot name it at all — fixing the drop
@@ -41,6 +45,8 @@ alone fixes nothing.
 **State:** SKIPPED — needs decision. Nothing built.
 
 ## CE-1954 — does a PRESS-AND-DRAG on an UNSELECTED unit move it? *(asked 2026-11-18)*
+
+**DECIDED `2026-11-18` (user, via coordinator): A — a press on an unselected unit selects it and the same drag moves it, in BOTH the threaded and the serial editor.**
 
 **The question:** the threaded editor moves it, the serial one does not (it only selects); the two must agree (R-4224). Which rule?
 
