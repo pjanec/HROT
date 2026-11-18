@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — running HANDOFF_Coordinator_To_Ui_Bug_Queue.md under PROTOCOL_Autonomous_Lanes.md
-updated: 2026-11-18 09:45 UTC
+updated: 2026-11-18 10:40 UTC
 current-answer: §1
 -->
 
@@ -22,11 +22,11 @@ IN PROGRESS: CE-1241 — 15 seeded takes the scout does not complete. Start: re-
 | CE-1298 FPS bare-hand fire does nothing | DONE — empty hands: SIGHT (no lock box) and the press strikes the crosshair's unit (`Melee.Strike`); Entity Control §8s | `640d30871` | `EmbarkNodesTests.CE1298_…` (red-proved); SimHost EmbarkNodes 28/0; Toolkits fire-mode 153/0; PossessionStation 83/0 | n/a (no scenario holds a possessed bare hand) |
 | CE-1283 Debug this unit on a commander | DONE — ①③ superseded (CE-1317 / CE-1329); ② one global "Observe all brain units" switch (DBG-2) | `640d30871` | `UnitDebugSettingsTests.CE1283_…` (red-proved); Editor brain routes 7/0 | n/a |
 | CE-1067 remote terminal panel → global gizmo | SKIPPED — needs decision (`DECISIONS_Ui.md`, lean A: not a defect today) | | | |
-| CE-1239 .ogg clip missing from a film | DONE — `OggReader` (raylib LoadWave) for the track | (this push) | `AudioTests.CE1239_…` (red-proved); Audio + FilmDirector 80/0 (3 skips pre-existing) | n/a |
+| CE-1239 .ogg clip missing from a film | DONE — `OggReader` (raylib LoadWave) for the track | `28ce2fa8a` | `AudioTests.CE1239_…` (red-proved); Audio + FilmDirector 80/0 (3 skips pre-existing) | n/a |
 | CE-1241 15 seeded takes the scout cannot complete | IN PROGRESS | | | |
-| CE-1280 Brain tab: why-this-choice one line | TODO | | | |
-| CE-1281 Brain tab: Recent changes scroll / menu | TODO | | | |
-| CE-1246 Stride mode 2 host actions | TODO | | | |
+| CE-1280 Brain tab: why-this-choice one line | DONE — superseded by CE-1325 W5 (one line per decision by name, the sheet inside) | `b461d8fca` | `UtilityDecisionViewTests.CE1325_*` (existing) | n/a |
+| CE-1281 Brain tab: Recent changes scroll / menu | DONE — 8-row scrolling grid, row menu Open graph of … / Copy | `b461d8fca` | `TheBrainViewTests.CE1281_…` (red-proved); TheBrainViewTests 26/0 (xvfb) | n/a |
+| CE-1246 Stride mode 2 host actions | DONE — node `HostActions` + shared `HostActionsPumpSystem`; inspector + Details get them | (this push) | `GlobalActionDispatchSystemTests.CE1246_…` (red-proved) 4/0; `HrotStrideApp.Game` builds (restored first) | ⚠ not run on a Stride window (Windows only) |
 
 ## 3. Taken from new handoffs
 - HANDOFF_Coordinator_To_Ui_Bug_Queue.md at 2026-11-18 09:00 (merged coordinator `5c0…` into ui)

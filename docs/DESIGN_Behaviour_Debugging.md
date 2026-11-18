@@ -237,6 +237,14 @@ missing feature, each is a wire that was never connected or connects one phase t
 | remembered | per scenario, in the store's JSON (`"observeAll": true`); the threaded sync copies it (`TakeRequestsFrom`) |
 | ⛔ deviations | *Debug this unit* no longer exists (CE-1317: viewing is debugging) — the "keep it" half of the lean is moot; the "decided by its graph" line was not added |
 
+## 8b. AS-BUILT — DBG-10 Recent changes (`CE-1281`, ui, `2026-11-18`)
+
+A fixed-height grid (`EntityBrainView.BeginGrid(id, height, …)`: `ScrollY`, header frozen, `ChangesVisibleRows` = 8) and a right-click menu per row:
+*Open graph of <behaviour>* (the row's `BrainChange.Behaviour` — `BrainJournalText.BehaviourOf`: A of a task / SOP entry, B of an order / HSM state
+change) through the tab's one `OpenGraph`, and *Copy*. ⛔ Deviation: *Break on this kind* is not on the row — the tab's *Break when it changes its mind*
+arms every kind (the HTTP route takes `kinds`); a per-kind row item waits for the controller seam to take kinds. *Why* (DBG-10 first clause) was
+already one line per decision since CE-1325 W5 (`CE-1280` closed as superseded).
+
 ## 7. Slices → tracker rows *(order = the lean; each its own commit, rails red-proved)*
 
 | slice | rows | why this order |
