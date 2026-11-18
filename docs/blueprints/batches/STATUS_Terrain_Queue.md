@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-IN PROGRESS: **CE-4656** (a grey block over a baked static car) — step ①: reproduce.
+IN PROGRESS: **CE-3428** (pack the prefilled navmesh tiles) — step ①: read the row.
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt.
 
 ## 2. The queue (in order)
@@ -21,8 +21,8 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | P4 | CE-2446 an AP mine bursts under a man and hurts nobody | ✅ DONE — the mines' warheads (terrain's own `0573b3a82`) had radii and 0 blast damage; they now take the reference library's blast value | rail `MineClearerTkbTests.AnAntiTankMine_*` (red-proved) · `mf-strike-and-halt` 6/6 · DESIGN_Minefields |
 | P4 | CE-2444 an AT mine does not hurt an M1, hurts a man 35 m off | ✅ DONE (verified) — `0573b3a82` + CE-2446 | `mf-at-vs-vehicle` 6/6 |
 | P4 | CE-4655 after a strike the squad skirts the field along its edge | ✅ DONE — mines keep `max(spacing/2, 1 m)` inside the outline; ONE `MinePattern.Laid` test (pattern, trigger, clearing, behaviors' recon — cross-lane) | rail `MineTriggerTests.CE4655_*` (red-proved) · NEW scenario `mf-way-round` 4/4 (inset off: blast at 56.5 s) · DESIGN_Minefields MF-2 |
-| T2 | CE-4656 a grey block over a baked static car | TODO | |
-| T2 | CE-4401 scale-rig roads at height 0 | TODO | |
+| T2 | CE-4656 a grey block over a baked static car | ✅ DONE — a platform-typed baked obstacle (the parked car) is `DrawnByEntity`; the terrain mesh neither draws it nor cuts the ground under it | rail `StaticObstacleBakeTests.CE4656_*` (red-proved) · NOTE to ui: do the feature obstacles draw twice? |
+| T2 | CE-4401 scale-rig roads at height 0 | ✅ DONE — the surface was fixed by ui's CE-1494; the Roads debug gizmo drew at z 0 ⇒ now on the ground (cross-lane, ui's gizmo) | rail `RoadNetworkGizmoTests.CE4401_*` (red-proved) · ⚠ filed **CE-5020** (E2b_V: 9 asphalt vertices ≤ 1.13 m off on a random terrain) |
 | T2 | CE-3428 pack the prefilled navmesh tiles | TODO | |
 | T2 | CE-3426 felling a lone tree, fragments in woods | TODO | |
 | T2 | CE-3440 a breach hot-path allocation rail red 1 in 3 | TODO | |
@@ -49,4 +49,9 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | CE-2446 / CE-2444 | `scripts/scenario-regression.sh mf-strike-and-halt,mf-at-vs-vehicle` | 6 / 6 · 6 / 6 |
 | CE-4655 | `Fdp.Toolkits.Tests` Mine / Minefield / PlaceKnowledge | 58 / 58 (`CE4624_ATurnedJitteredField_*` now walks only laid cells) |
 | CE-4655 | `scenario-regression.sh mf-strike-and-halt,mf-at-vs-vehicle,mf-recon-and-mark,mf-way-round` | 6/6 · 6/6 · 6/6 · 4/4 — ⚠ `mf-no-way-round` 7/8: "nobody enters the field" red at 49.5 s, red WITH THE INSET OFF TOO ⇒ not this change; behaviors' CE-2447 |
+| CE-4656 | `Hrot.SimHost.Tests` StaticObstacleBake / CraterBake / BuildingDamageBake / LiveOverlayBake | 41 / 41 (mutation: red) |
+| CE-4656 | `Fdp.Toolkits.Tests` Terrain | 475 / 475 |
+| CE-4656 / CE-4401 | `xvfb-run -a dotnet test Hrot.Presentation.Tests --filter Map3D\|TheDynamicTerrainLooks` | 713 / 724 — 5 red: `CE4388_*`, `CE4582_*`, 2 × `MotorcycleModelRail` (pre-existing, §1 of STATUS_Terrain_User_Observations) and `E2b_V_*` (needs netconvert, ui reported it red before ⇒ CE-5020) |
+| CE-4401 | `Hrot.Presentation.Tests` RoadNetworkGizmoTests | 3 / 3 (mutation: red) |
+| post-merge | `mf-way-round,mf-strike-and-halt,mf-recon-and-mark` (after the recon edit, behaviors + ui merged) | 4/4 · 7/7 · 6/6 |
 | CE-5018 | live `--mode all`, bt-doors, a possessed TKB 112 rams House A | breach entity 1201 on all three perspectives (before: none) |
