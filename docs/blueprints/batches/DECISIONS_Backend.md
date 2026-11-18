@@ -5,7 +5,9 @@ related-designs:
 -->
 # DECISIONS — backend (newest at the top)
 
-## CE-3473 — a ramming CAR never breaks the barrels (`cp-ram-barrier`, Checkpoint RM-5) · `2026-11-18` · **OPEN**
+## CE-3473 — a ramming CAR never breaks the barrels (`cp-ram-barrier`, Checkpoint RM-5) · `2026-11-18` · ✅ **DECIDED `2026-11-18`**
+
+**DECIDED `2026-11-18` (the user):** *"follow your lean; also realistic bullet stopping power (if barrel is full of liquid, it might be a serious/resistive obstacle for both the ramming car as well as for bullets"* ⇒ option A, and a barrel's FILL (empty / liquid / …) decides BOTH its breach strength and its protection from fire — one property, read by both.
 
 **Question:** how should a car on a `RamTarget` (a ram order) break a weak barrier of barrels, given that (a) no `contact-breach.json` row takes a
 wheeled hull and (b) a barrel is modelled as a SOLID STEEL box (strength 540, above the IFV row's 150)?
