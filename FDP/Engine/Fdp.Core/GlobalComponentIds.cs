@@ -31,8 +31,8 @@ namespace Fdp.Core
     /// <para>⭐ R-10000 (2026-11-17, the `air` lane, CE-10000; docs/designs/air-attack/DESIGN_Air_Combat.md §7) — the air block is 128, 160, 277, 278, 279:
     /// measured by a full scan of every [ComponentId], every *Ids constant (int / ushort / byte) and every literal on coordinator, behaviors, backend,
     /// ui, terrain, convoy and the three exp/agg-* branches — those five were the ONLY ids nobody declares or uses. ⚠ 277–279 sit under NavFakeIds'
-    /// stale "262–279" note, but NavFakeIds declares only 262–269 and 270–276 have been the squad block's production components for months; the
-    /// space 0–511 is otherwise FULL (the next lane needs the mask widened — a performance decision, BitMask512 is one cache line).</para>
+    /// stale "262–279" note, but NavFakeIds declares only 262–269 and 270–276 have been the squad block's production components for months.
+    /// ⚠ (user, 2026-11-18) the space is NOT full — many ids are free; measure before claiming otherwise.</para>
     ///
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,

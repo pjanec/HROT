@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-**CE-5024 / CE-5025 — editing baked-in buildings, taken `2026-11-18` 20:58 UTC** (protocol §7: own approved rows, no handoff holds them; design [`DESIGN_Terrain_Base_Edits.md`](../../DESIGN_Terrain_Base_Edits.md) READY-TO-BUILD, R-5067): **BE-1** the merge removes + levels (in progress) → BE-2 doors / damage → BE-3 enterable → BE-4 tools → BE-5 save. Also open for the user: `DESIGN_Glass_Windows.md` D-1…D-9 (CE-5026). Waiting: CE-3424 (coordinator), CE-4630 (user).
+**PAUSED (user, `2026-11-18`: "pause the terrain work, lets finish the window breaking design")** — now: `DESIGN_Glass_Windows.md` (CE-5026) with the user. ⏸ CE-5024 / CE-5025 **BE-1** is PARKED in a local `git stash` ("BE-1 (CE-5025) paused …"; a copy as a patch in the session scratchpad) — written, NOT built green (one compile error to fix: `TerrainWorldMerge.cs:74`, a nullable label); ⚠ a stash lives only in this container: if the container is replaced, BE-1 is re-done from DESIGN_Terrain_Base_Edits.md. Waiting: CE-3424 (coordinator), CE-4630 (user).
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292); its message is now §1a's text VERBATIM (updated `2026-11-18` 12:05).
 
 ## 2. The queue (in order)
