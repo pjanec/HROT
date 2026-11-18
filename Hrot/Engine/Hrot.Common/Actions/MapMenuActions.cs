@@ -229,6 +229,8 @@ namespace Hrot.Common.Actions
             ["Move"] = "M", ["Attack"] = "A", ["Hold"] = "H", ["Strike"] = "S", ["ObserveFire"] = "O",
             // ⭐ agg-behaviors R-8300 — declared with the neutral DTOs; the unit menu offers them only once the routing table resolves them (OrderMenu.OfferedFor)
             ["Defend"] = "D", ["BreakContact"] = "B",
+            // ⭐ CE-9004 convoy (CE-1978, ui) — the convoy order had no letter (K2 red at the merge of 2026-11-18)
+            ["Convoy"] = "V",
         };
 
         // ── the context, and the cache (as the old per-flag unit menus) ──────────────────────────────────────────────────────────────

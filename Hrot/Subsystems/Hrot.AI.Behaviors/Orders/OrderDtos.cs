@@ -43,7 +43,9 @@ namespace Hrot.AI.Behaviors.Orders
     /// <see cref="Priority"/>) or on our own route (<c>Route</c>, the outer lane); every other vehicle drives the lead's path at <see cref="Gap"/> behind the one
     /// ahead of it. Flat JSON, e.g. <c>{"Destination":[600,40,0],"Lead":"@escort","Rank":2,"Mode":"Route"}</c>.
     /// </summary>
-    [Order(nameof(OrderKind.Convoy), Gesture = OrderGesture.GroundClick)]
+    // ⭐ CE-1133 / CE-1978 (ui, cross-lane edit — said) — NO gesture: a ground right-click is the Move order's (ONE order per gesture). Bound to GroundClick as
+    //   well, Convoy sorted first and took every RTS ground click — it needs a form (Lead, Rank), so no unit moved at all. DESIGN_Road_Convoy names no gesture.
+    [Order(nameof(OrderKind.Convoy))]
     [StructLayout(LayoutKind.Sequential)]
     public struct ConvoyOrder
     {
