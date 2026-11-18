@@ -149,6 +149,8 @@ namespace Fdp.Toolkit.Terrain
         public float LargeRadiusM { get; init; } = 3f;
         public float CoverAfterSmallSeconds { get; init; } = 30f;
         public float CoverAfterLargeSeconds { get; init; } = 60f;
+        /// <summary>⭐ CE-5019 (R-5064) — a burst that BREACHES a wall within this distance of its face makes no crater (a contact charge spends itself on the wall). 0 ⇒ never skipped.</summary>
+        public float WallContactM { get; init; } = 0.5f;
 
         private static readonly Lazy<CraterRuleTable> s_shared = new(() =>
         {
@@ -176,6 +178,7 @@ namespace Fdp.Toolkit.Terrain
                 LargeRadiusM = root.GetProperty("largeRadiusM").GetSingle(),
                 CoverAfterSmallSeconds = cover.GetProperty("small").GetSingle(),
                 CoverAfterLargeSeconds = cover.GetProperty("large").GetSingle(),
+                WallContactM = root.TryGetProperty("wallContactM", out var wc) ? wc.GetSingle() : 0.5f,
             };
         }
 

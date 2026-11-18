@@ -56,6 +56,7 @@ namespace Hrot.Editor.DebugApi
                 }
                 foreach (var f in Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.All) store.SetPin(networkId, f, (wanted & f) != 0);
             }
+            if (body?["observeAll"] is JsonValue all && all.TryGetValue<bool>(out var allOn)) store.SetObserveAll(allOn);   // ⭐ CE-1283 (DBG-2) — global
             if (body?["trace"] is JsonValue trace && trace.TryGetValue<bool>(out var traceOn))
                 Hrot.Common.Diagnostics.Gizmos.AiTraceActions.Set(_world, entity, BehaviorDebugFlags.EnableTraceBuffer, traceOn);
             if (body?["follow"] is JsonValue follow && follow.TryGetValue<bool>(out var followOn))
@@ -81,10 +82,13 @@ namespace Hrot.Editor.DebugApi
             var pins = new JsonArray();
             foreach (var f in Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.All)
                 if (store?.IsPinned(networkId, f) == true) pins.Add(Fdp.Toolkit.Diagnostics.Gizmos.GizmoFamilies.Label(f));
+            bool brain = _entityMap.TryGetEntity(networkId, out var unit) && _world.IsAlive(unit) && Hrot.Common.Diagnostics.Gizmos.AiTraceActions.HasBrain(_world, unit);
             return new JsonObject
             {
                 ["networkId"] = networkId, ["pins"] = pins, ["trace"] = store?.IsTraceSet(networkId) == true,
-                ["traceOn"] = store?.TraceOn(networkId) == true, ["follow"] = store?.Followed == networkId,
+                ["traceOn"] = store?.TraceOn(networkId) == true || store?.ObserveAll == true && brain,
+                ["follow"] = store?.Followed == networkId,
+                ["observeAll"] = store?.ObserveAll == true,   // ⭐ CE-1283 (DBG-2) — every brain unit traced
             };
         }
 

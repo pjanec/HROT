@@ -44,6 +44,12 @@ namespace Fdp.Toolkit.Terrain
         /// <see cref="TerrainBuildingExpander"/> for every piece of a building (panel prisms, the solid prism) and for a door leaf. A COLLAPSED building's pieces
         /// are skipped by the traces and its rubble prism crossed instead.</summary>
         public int Building { get; init; } = -1;
+        /// <summary>
+        /// ⭐ CE-4656 — this prism came from an ENTITY that draws its own body (a baked static obstacle of a platform type: the parked car): it is collision,
+        /// navmesh and sight only — the terrain mesh neither draws it nor cuts the ground under it. 📐 Before, the 3-D terrain drew a grey <c>car-body</c> box over
+        /// the car the entity layer already drew, once the obstacle bake committed (user observation).
+        /// </summary>
+        public bool DrawnByEntity { get; init; }
     }
 
     /// <summary>

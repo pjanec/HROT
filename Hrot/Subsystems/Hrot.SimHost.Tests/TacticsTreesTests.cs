@@ -250,7 +250,26 @@ namespace Hrot.SimHost.Tests
             Assert.True(EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite).IsNull, "the run's sensors go with it");
         }
 
-        private const string StayObjective = "{\"advance\":{\"Objective\":[200,0,0],\"Speed\":3,\"ArrivalRadius\":5,\"CooldownSeconds\":1},\"stay\":true}";
+        /// <summary>⭐ <c>CE-4652</c> — the decision's cover query looks as far as the TakeCover branch (PeekAndFire) searches, the retreat
+        /// query keeps its own: 📐 <c>uf-squad-under-fire</c> scored cover 60 m off, the branch searched 15 m, found none, waited, failed and
+        /// was chosen again — the hostiles never fired.</summary>
+        [Fact]
+        public void CE4652_ThePosturesCoverQuery_LooksAsFarAsItsTakeCoverBranch_TheRetreatQueryKeepsItsOwn()
+        {
+            var w = new World();
+            w.Arm();
+            w.Contact(armed: false);
+            w.Order("CombatPosture", Objective);
+            for (int i = 0; i < 4; i++) w.Tick();
+            var cover = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
+            var retreat = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.RetreatSite);
+            Assert.False(cover.IsNull);
+            Assert.False(retreat.IsNull);
+            Assert.Equal(PeekAndFireNodes.Defaults.SearchRadius, w.Repo.GetComponentRO<EqsSensor>(cover).SearchRadius);
+            Assert.Equal(60f, w.Repo.GetComponentRO<EqsSensor>(retreat).SearchRadius);
+        }
+
+        private const string StayObjective ="{\"advance\":{\"Objective\":[200,0,0],\"Speed\":3,\"ArrivalRadius\":5,\"CooldownSeconds\":1},\"stay\":true}";
 
         /// <summary>⭐ <c>CE-2297</c> slice 2a (R-2055) — a STAYING posture: the same advance against a weak enemy does not end on
         /// arrival — he is still on the task and still firing (the twin of the rail above, which ends there).</summary>

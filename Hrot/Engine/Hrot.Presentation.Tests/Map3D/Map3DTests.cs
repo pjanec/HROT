@@ -423,7 +423,8 @@ public sealed class Map3DTests
     public void S1_TheIconFallback_IsUnchangedByTheExtraction_ForEveryBuiltInType()
     {
         foreach (var t in BuiltIn().GetAll())
-            Assert.Equal(OldFallbackIconName(t), EntityTypeCatalog.FallbackIconName(t));
+            Assert.Equal(VisualFamilies.Of(t) == VisualFamily.MineClearer ? "_tank" : OldFallbackIconName(t),   // ⭐ CE-1955 — the mine clearer (CE-4624) is a tracked body on the picker, on purpose
+                         EntityTypeCatalog.FallbackIconName(t));
     }
 
     [Fact]
@@ -903,7 +904,9 @@ public sealed class Map3DTests
         var db = BuiltIn();
         var drone = EntityBodyLayer3D.Resolve(db.GetByType(TkbEntityTypes.Drone_Fpv));
         Assert.Equal(VisualFamily.Drone, drone.Family);
-        Assert.Equal(new Vector3(0.6f, 0.6f, 0.3f), drone.Size);
+        // ⭐ CE-1955 — AS BIG AS ITS FLIGHT BODY, read from it (CE-7026 made the quadcopters' one airframe 0.35 × 0.35 × 0.15 m with feet; the 0.6 m here was stale)
+        var body = db.GetByType(TkbEntityTypes.Drone_Fpv).GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>()!;
+        Assert.Equal(new Vector3(body.Length, body.Width, body.Height), drone.Size);
         Assert.Equal(VisualFamily.Jet, EntityBodyLayer3D.Resolve(db.GetByType(TkbEntityTypes.Jet_F16)).Family);
 
         var rotors = ShapeKits.Drone.Parts.Where(p => p.Role == PartRole.Rotor).ToArray();
@@ -2540,6 +2543,7 @@ public sealed class Map3DTests
             {
                 var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
                 var mask = new Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256();
+                mask.SetBit(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Labels);   // ⭐ CE-1955 — the card itself (CE-4582 D-6: a row with no card is inert)
                 if (layerOn) mask.SetBit(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.MindState);
                 buffer.SetActiveLayers(mask);
                 new Hrot.Common.Diagnostics.Gizmos.MindStateGizmo().Draw(world, who, buffer);

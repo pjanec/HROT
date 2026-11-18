@@ -49,6 +49,39 @@ public sealed class UnitDebugSettingsTests : IDisposable
 
     private DebugState Debug(Entity e) => _repo.HasComponent<DebugState>(e) ? _repo.GetComponentRO<DebugState>(e) : default;
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1283</c> (docs/DESIGN_Behaviour_Debugging.md DBG-2) — "Observe all brain units": ONE global switch traces every unit with a
+    /// brain (a unit without one is untouched), a unit spawned later included; off, only what a unit's own requesters ask stays on; remembered
+    /// with the scenario. 🔒 User: <i>"cant we have this settings ON/OFF per all entities as checking it every time is annoying"</i>.
+    /// ✅ Red-proof: <c>Apply</c> without the <c>all</c> term ⇒ the first assert fails.
+    /// </summary>
+    [Fact]
+    public void CE1283_ObserveAll_TracesEveryBrainUnit_ALaterOneToo_AndOffLeavesOnlyItsOwnRequests()
+    {
+        var a = Unit(1101);
+        var b = Unit(1102);
+        var crate = _repo.CreateEntity();
+        _repo.AddComponent(crate, new NetworkIdentity(1103));                                     // no brain
+        AiTraceActions.Set(_repo, b, BehaviorDebugFlags.EnableTraceBuffer, true);                 // b: the user's own switch
+        UnitDebugSettings.Of(_repo).SetObserveAll(true);
+        Frame();
+        bool On(Entity e) => (Debug(e).Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0;
+        Assert.True(On(a) && On(b));
+        Assert.False(_repo.HasComponent<DebugState>(crate));
+        var late = Unit(1104);
+        Frame();
+        Assert.True(On(late));
+
+        var saved = UnitDebugSettings.Of(_repo).ToJson();
+        UnitDebugSettings.Of(_repo).SetObserveAll(false);
+        Frame();
+        Assert.False(On(a) || On(late));
+        Assert.True(On(b));                                                                         // its own request stays
+
+        UnitDebugSettings.Of(_repo).Load(saved);                                                    // the scenario's next load
+        Assert.True(UnitDebugSettings.Of(_repo).ObserveAll);
+    }
+
     /// <summary>⭐ The ticks land in the store and the unit's copy follows it every frame — a rewind that put the copy back (a preview's
     /// Stop restores the captured DebugState) is undone on the next frame. ✅ Red-proof: <c>Apply</c> not called by the patch system ⇒ red.</summary>
     [Fact]

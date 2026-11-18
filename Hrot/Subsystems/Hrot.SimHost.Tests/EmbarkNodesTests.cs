@@ -943,6 +943,47 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(0, (int)ws.Pending);                                    // a press when ready fires
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1298</c> (docs/DESIGN_Entity_Control.md §8s) — an operator with EMPTY HANDS selected: the fire mode is SIGHT (no lock box),
+        /// and a press on a man in reach strikes him once — the fist every brain strikes (<c>Melee.Strike</c>: a <c>StrikeNotification</c> and a
+        /// Blunt hit); a second press inside the cooldown, and a press on a man out of reach, strike nothing. 🔒 User: <i>"in FPS mode when I
+        /// select the hand as the weapon … press fire, it will do some melee attack. Now, only a range box is shown … nothing happens."</i>
+        /// ✅ Red-proof: <c>OperateWeapon</c> without the <c>EmptyHanded</c> branch ⇒ the press locks (Pending 1) and no blow is struck.
+        /// </summary>
+        [Fact]
+        public void CE1298_EmptyHands_APressStrikesTheManInReach_OncePerCooldown_AndNeverLocks()
+        {
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Man", 414302L);
+            type.AddDescriptor(new WeaponSuiteDto { Mounts = { PersonHands.Mount() } });
+            db.Register(type);
+            _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            if (!_w.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>()) _w.Bus.Register<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();
+            if (!_w.Bus.IsRegistered<StrikeNotification>()) _w.Bus.Register<StrikeNotification>();
+            var op = Operator(Vector3.Zero);
+            _w.AddComponent(op, new WeaponChannel());
+            _w.AddComponent(op, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)414302L });
+            var near = Man(new Vector3(1f, 0f, 0f), 100f);
+            var far = Man(new Vector3(4f, 0f, 0f), 100f);
+            var ws = default(OperatorControlBehavior.ManualControlState);
+            Assert.Equal(OperatorFireMode.Sight, OperatorFireModes.Of(_w, op, CombatTkb.MountOf(_w, op, 0)));   // no lock box on the HUD
+
+            int Struck(Entity victim, byte seq)
+            {
+                ref var input = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
+                input.Seq++; input.Mount = 0; input.ShotSeq = seq; input.Trigger = 1; input.ShotTarget = NetIdOf(victim);
+                Tick(op, ref ws);
+                Assert.Equal(0, (int)ws.Pending);                                                      // nothing locked, nothing waits
+                _w.Bus.SwapBuffers();
+                int n = 0;
+                foreach (var s in _w.Bus.Read<StrikeNotification>()) if (s.Striker == op && s.Target == victim) n++;
+                return n;
+            }
+            Assert.Equal(1, Struck(near, 1));                                                          // the blow
+            Assert.Equal(0, Struck(near, 2));                                                          // inside the cooldown
+            Assert.Equal(0, Struck(far, 3));                                                           // out of reach
+        }
+
         /// <summary>⭐ <c>CE-4143</c> — a frame with no look ray (an older station: <c>LookDir</c> zero) keeps today's SIGHT: the crosshair's
         /// point and the on-target gate, never a point at the zero range of nothing.</summary>
         [Fact]

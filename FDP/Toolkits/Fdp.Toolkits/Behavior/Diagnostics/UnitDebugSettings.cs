@@ -39,6 +39,19 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         /// <summary>The network id of the unit the 3-D camera follows (remembered), or null.</summary>
         public int? Followed { get; private set; }
 
+        /// <summary>⭐ <c>CE-1283</c> (docs/DESIGN_Behaviour_Debugging.md DBG-2) — "Observe all brain units": while on, EVERY unit with a brain is
+        /// traced (a fourth requester, global). Remembered with the scenario (🔒 user: <i>"cant we have this settings ON/OFF per all entities as
+        /// checking it every time is annoying"</i>).</summary>
+        public bool ObserveAll { get; private set; }
+
+        /// <summary>⭐ <c>CE-1283</c> — switches <see cref="ObserveAll"/>.</summary>
+        public void SetObserveAll(bool on)
+        {
+            if (ObserveAll == on) return;
+            ObserveAll = on;
+            Version++;
+        }
+
         /// <summary>The store of <paramref name="world"/> (created on first use).</summary>
         public static UnitDebugSettings Of(EntityRepository world)
         {
@@ -104,6 +117,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         {
             _remembered.Clear();
             Followed = null;
+            ObserveAll = false;
             Version++;
         }
 
@@ -122,6 +136,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                 _remembered.Clear();
                 foreach (var kv in ui._remembered) _remembered[kv.Key] = kv.Value;
                 Followed = ui.Followed;
+                ObserveAll = ui.ObserveAll;   // ⭐ CE-1283 — Version moves with it
                 Version = ui.Version;
             }
             _viewed.Clear();
@@ -151,14 +166,16 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         public void Apply(EntityRepository world)
         {
             if (!world.IsComponentTypeRegistered<NetworkIdentity>() || !world.IsComponentTypeRegistered<DebugState>()) return;
-            if (_remembered.Count == 0 && _viewed.Count == 0 && _armed.Count == 0 && _managed.Count == 0) return;
+            if (!ObserveAll && _remembered.Count == 0 && _viewed.Count == 0 && _armed.Count == 0 && _managed.Count == 0) return;
+            bool brains = ObserveAll && world.IsComponentTypeRegistered<Components.BehaviorState>();
             foreach (var e in world.Query().With<NetworkIdentity>().Build())
             {
                 int id = world.GetComponentRO<NetworkIdentity>(e).Value;
-                bool wanted = _remembered.ContainsKey(id) || _viewed.Contains(id) || _armed.Contains(id);
+                bool all = brains && world.HasComponent<Components.BehaviorState>(e);   // ⭐ CE-1283 — observe all: every unit with a brain
+                bool wanted = all || _remembered.ContainsKey(id) || _viewed.Contains(id) || _armed.Contains(id);
                 if (!wanted && !_managed.Contains(id)) continue;
                 var pins = Get(id).Pins;
-                bool trace = TraceOn(id);
+                bool trace = all || TraceOn(id);
                 if (!world.HasComponent<DebugState>(e))
                 {
                     if (!wanted) continue;
@@ -190,7 +207,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
                     if (f != AiOverlayFlags.None && (e.Pins & f) == f && IsSingleBit(f)) pins.Add(f.ToString());
                 units[id.ToString()] = new JsonObject { ["pins"] = pins, ["trace"] = e.Trace };
             }
-            return new JsonObject { ["units"] = units, ["followed"] = Followed };
+            var json = new JsonObject { ["units"] = units, ["followed"] = Followed };
+            if (ObserveAll) json["observeAll"] = true;   // ⭐ CE-1283
+            return json;
         }
 
         /// <summary>Replaces what is remembered with <paramref name="json"/> (null or bad = nothing); the temporary requests stay.</summary>
@@ -198,8 +217,10 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         {
             _remembered.Clear();
             Followed = null;
+            ObserveAll = false;
             if (json is JsonObject o)
             {
+                ObserveAll = o["observeAll"] is JsonValue ov && ov.TryGetValue<bool>(out var all) && all;   // ⭐ CE-1283
                 if (o["units"] is JsonObject units)
                     foreach (var (key, node) in units)
                     {

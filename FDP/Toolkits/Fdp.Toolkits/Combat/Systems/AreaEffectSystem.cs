@@ -276,7 +276,8 @@ namespace Fdp.Toolkit.Combat.Systems
 
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);
             BreachWalls(repo, in evt, w, burst, terrain, doors, record);   // ⭐ CE-4391 S-1 (B-5) — the walls, by the same detonation
-            MakeCrater(repo, in evt, w, burst, terrain, record);           // ⭐ CE-4591 (P-4) — the ground, by the same detonation
+            if (!_spentOnWall) MakeCrater(repo, in evt, w, burst, terrain, record);   // ⭐ CE-4591 (P-4) — the ground, by the same detonation
+            else record.Crater = "none: spent on the wall it breached";   // ⭐ CE-5019 (R-5064) — a contact burst's energy went into the wall
             FellTrees(repo, in evt, w, burst, terrain, doors, record);     // ⭐ CE-4603 (B-6) — the lone trunks, by the same detonation
             // ⭐ CE-8005 (R-171) — the STOCHASTIC units the burst reaches are NOT applied here: a hidden UnitEntity is skipped above, and
             //   Fdp.Toolkit.Aggregate.StochasticAreaEffectSystem applies the burst on the node that owns the unit (its slot table is the Brain's)
@@ -470,9 +471,28 @@ namespace Fdp.Toolkit.Combat.Systems
         }
         private readonly List<int> _trees = new();
 
+        /// <summary>
+        /// ⭐ <c>CE-5019</c> (R-5064; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7) — set by <see cref="BreachWalls"/> when this burst breached a wall it was
+        /// TOUCHING (within <c>craters.json</c>'s <c>wallContactM</c> of the panel's face): a contact charge spends itself on the wall, so <see cref="MakeCrater"/>
+        /// makes no pit at the wall's foot. 📐 Before: an 8 kg charge on House A's wall made the passage AND a 1.6 m × 0.7 m crater in front of it, and the
+        /// breachers stood in the pit and never climbed onto the floor (bd-destruction).
+        /// </summary>
+        private bool _spentOnWall;
+
+        /// <summary>The burst's horizontal distance to the panel's nearer face (0 when it is inside the wall's thickness).</summary>
+        private static float FaceDistance(TerrainWallPanel panel, Vector3 burst)
+        {
+            var ab = panel.B - panel.A;
+            float len2 = ab.LengthSquared();
+            var p = new Vector2(burst.X, burst.Y);
+            float t = len2 > 1e-8f ? Math.Clamp(Vector2.Dot(p - panel.A, ab) / len2, 0f, 1f) : 0f;
+            return MathF.Max(0f, Vector2.Distance(p, panel.A + ab * t) - panel.Thickness * 0.5f);
+        }
+
         private void BreachWalls(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
             TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
         {
+            _spentOnWall = false;
             if (terrain == null || terrain.Panels.Count == 0 || w.ExplosiveKg <= 0f || !repo.Bus.IsRegistered<BuildingDamageEvent>()) return;
             var table = terrain.Breaches;
             if (w.ExplosiveKg < table.MinKg) return;
@@ -503,6 +523,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Building = group, Panel = pi, From = breach.From, To = breach.To, Bottom = breach.Bottom, Top = breach.Top,
                     Kind = (byte)breach.Kind, Shooter = evt.Shooter,
                 });
+                if (FaceDistance(panel, burst) <= CraterRuleTable.Shared.WallContactM) _spentOnWall = true;   // ⭐ CE-5019 — a contact burst: no crater
                 record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, group)} panel {pi} {breach.Kind} " +
                     $"{breach.From:0.##}..{breach.To:0.##} m x z {breach.Bottom:0.##}..{breach.Top:0.##}");
             }
