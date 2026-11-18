@@ -190,7 +190,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (!repo.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>()) return;
             uint frame = repo.HasSingleton<GlobalTime>() ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber : 0u;
             uint k = 0;
-            foreach (var ev in repo.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>())
+            foreach (var ev in repo.ReadEvents<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>())
             {
                 k++;
                 if (ev.TotalDamage <= 0f || ev.Effect != Fdp.Toolkit.Combat.HitEffect.Kinetic || ev.IsRemote) continue;

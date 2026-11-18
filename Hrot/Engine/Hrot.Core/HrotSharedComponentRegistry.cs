@@ -85,6 +85,10 @@ public static class HrotSharedComponentRegistry
         // ⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession's replicated state, on every host
         world.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();
         // ⭐ CE-2168 (Motion Domains MD-A) / M7 (FPV) — how a body moves, and a flyer's parameters and state; every node.
+        // ⭐ CE-3451 (CE-3268's rail) — the road column's formation pair: the shared pack carries their egress translators (CE-9007), so every node
+        //   that builds the pack registers what they target (SimHost's KinematicComponentRegistry registers them too — a repeat is a no-op)
+        world.RegisterComponent<CarKinem.Formation.FormationController>();
+        world.RegisterComponent<CarKinem.Formation.FormationFollower>();
         world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightParams>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();

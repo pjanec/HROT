@@ -85,10 +85,12 @@ public class CgfSubsystemTests : IDisposable
         "Hrot.Common.Systems.DeleteEntityRequestSystem",
         "Hrot.Common.Systems.CreateEntityRequestSystem",
         "Hrot.Common.EntityCreation.SeatPresetSystem",
+        "Hrot.Common.Macros.MacroExpansionSystem",          // ⭐ CE-3451 — macros S3a ④: the shared EntityCreation registers it after the seat presets
         "Hrot.SimHost.Systems.GenesisMaterializationSystem",
         "Hrot.SimHost.Systems.InitialBrainMaterializationSystem",
         "Hrot.SimHost.Systems.BlueprintMaterializationSystem",
         "Fdp.Toolkit.Blueprints.Systems.BlueprintEventIngressSystem",
+        "Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem",          // ⭐ CE-3451 — added since the pin: CE-1139 — CGF's stance pair (AnimationReplicationModule.RegisterStanceOn)
         "Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem",
         "Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem",
         "Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem",
@@ -121,6 +123,7 @@ public class CgfSubsystemTests : IDisposable
         "Hrot.ScenarioEditor.Systems.ToolActivationDrainSystem",
         "Hrot.ScenarioEditor.Systems.CenterOnEntitySystem",
         "Hrot.Map.Common.Services.StaticObstacleBakeSystem",
+        "Fdp.Toolkit.Aggregate.HeldChildParticipant",          // ⭐ CE-3451 — added since the pin: CE-8013 ② — the shared EntityCreationPack
         "Hrot.Diagnostics.Breakpoints.DebugSnapshotProvider",
         "Fdp.Toolkit.Behavior.Diagnostics.TraceBufferLifecycleSystem",
         "Fdp.Toolkit.Lifecycle.Systems.BlueprintApplicationSystem",
@@ -135,11 +138,14 @@ public class CgfSubsystemTests : IDisposable
         "Fdp.Network.Cyclone.Systems.CycloneEgressSystem",
         "Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem",
         "Fdp.Network.Cyclone.Systems.CycloneEgressSystem",
+        "Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem",          // ⭐ CE-3451 — added since the pin: one more translator group's cleanup on CGF (not the stance pair, which adds none) — owner unmeasured
+        "Fdp.Network.Cyclone.Systems.CycloneEgressSystem",          // ⭐ CE-3451 — added since the pin: CE-1139 — CGF's stance pair (AnimationReplicationModule.RegisterStanceOn)
         "Fdp.Network.Cyclone.Systems.CycloneEgressSystem",
         "Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem",
         "Fdp.Network.Cyclone.Systems.CycloneEgressSystem",
         "Fdp.Toolkit.Replication.Systems.SmartEgressSystem",
         "Fdp.Network.Cyclone.Systems.CycloneNetworkCleanupSystem",
+        "Fdp.Network.Cyclone.Egress.EgressPipelineLaunchSystem",          // ⭐ CE-3451 — added since the pin: CE-3427 N-1 — every networked node (NedReplicationModule)
         "Fdp.ModuleHost.Time.ResumeAndDrainSystem",
         "Fdp.ModuleHost.Scheduling.TogglableSimulationGroup",
         "Hrot.Network.Systems.DeferredTakeoverSystem",
@@ -151,6 +157,7 @@ public class CgfSubsystemTests : IDisposable
         "Fdp.Toolkit.Time.LifespanSystem",
         "Hrot.ScenarioEditor.Map.MenuOrders",
         "Hrot.ScenarioEditor.Map.MenuShortcuts",
+        "Hrot.ScenarioEditor.Map.HatArbiter",          // ⭐ CE-3451 — added since the pin: B-16 H3 — the map's hat arbiter (MapInteractionPack)
         "Hrot.Common.Systems.GlobalActionDispatchSystem"
     };
 

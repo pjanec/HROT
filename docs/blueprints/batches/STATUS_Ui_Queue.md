@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-2438 (HANDOFF_Coordinator_To_Ui_Moved_Rows, row 2) — paused-preview + run-to does not repeat on pc-defend-house. Start: reproduce the pair.
+IN PROGRESS: CE-2438 (row 2, interleaved) — paused-preview + run-to does not repeat on pc-defend-house. Measured so far: the 2 s pair is EQUAL; F-3 (stepped never abandons a module) predates the report; a 60 s pair was CONTAMINATED by a mid-run hot reload (a build rewrote the runner's Hrot.AI.Behaviors.dll) — a candidate cause; rerun with no build running.
 
 ## 2. The queue (in order)
 
@@ -37,7 +37,7 @@ IN PROGRESS: CE-2438 (HANDOFF_Coordinator_To_Ui_Moved_Rows, row 2) — paused-pr
 |---|---|---|---|---|
 | CE-3468 threaded scoring root sees no scored children | DONE | the editor's loaded AI copy never contributed its rules tree to the phase (AiAssemblyLoad hook) + the last-tick view's same-version miss | AiHotReloadCoordinatorTests.CE3468, PerEntityRuleTests.CE3468, ScenarioRulesTests.CE3468 (red-proved); bw-archery-contest 5/5 (2 new rows), sr-objectives-march, sr-triggers-march pass; 2 goldens recaptured (had pinned the bug) | DESIGN_Parallel_Simulation §18 |
 | CE-2438 paused-preview + run-to does not repeat (pc-defend-house) | TODO | | | |
-| CE-1473 + CE-3451 ClusterRunner.Tests does not build; six rails drifted | TODO | | | |
+| CE-1473 + CE-3451 ClusterRunner.Tests does not build; six rails drifted | 6 / 9 DONE, ②③④ SKIPPED → DECISIONS_Ui | it builds; 9 reds measured (6 stale ledgers / expectations / declarations + 3 world-boundary audits grown to 21 systems / 480 fields / 45 caches) | ClusterRunner.Tests 434 / 437 (the 3 = ②③④); touched suites: Toolkits mines/embarked/convoy/aggregate/air 149, SimHost mine/resolution 34, Core shared registry 4; mf-strike-and-halt, cv-blocked-road | DESIGN_Replay_Time_Axis §12l table |
 | CE-1475 SumoNetPlacementTests F5 / E1 on a Czech Windows | TODO | | | |
 | CE-1046 + CE-1038 LiveFromReplay under load; the SimHost suite's count varies | TODO | | | |
 

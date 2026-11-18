@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Aggregate
     /// </summary>
     [ComponentId(GlobalComponentIds.ResolutionPolicy)]
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct ResolutionPolicy
     {
         /// <summary>The most detail areas one policy names (SV-15).</summary>
