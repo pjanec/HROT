@@ -166,6 +166,7 @@ public static class NavDoorways
             var idx = PolygonMath.Triangulate(field.Outline);
             for (int t = 0; t + 2 < idx.Length; t += 3)
                 tris.Add(new[] { field.Outline[idx[t]], field.Outline[idx[t + 1]], field.Outline[idx[t + 2]] });
+            AddClearanceRing(field.Outline, MinePattern.RouteClearance(field.Params), tris);   // ⭐ CE-4655 — the ring outside: a route round the field keeps its clearance
             foreach (var tri in tris) list.Add(Vol(tri, lo, hi, MinefieldArea));
         }
         for (int f = 0; f < fieldTris.Length; f++)
@@ -178,7 +179,7 @@ public static class NavDoorways
             foreach (var lane in world.Minefields[f].Lanes)
             {
                 if (!(lane.Width > 0f)) continue;
-                var strip = LaneStrip(lane);
+                var strip = LaneStrip(lane, MinePattern.RouteClearance(world.Minefields[f].Params));   // ⭐ CE-4655 — on through the ring at both ends
                 foreach (var tri in fieldTris[f])
                 {
                     if (Clip(tri, strip) is not { } piece) continue;
@@ -212,12 +213,44 @@ public static class NavDoorways
     }
 
     /// <summary>The strip a lane covers: its segment grown to its width on both sides (a convex quad).</summary>
-    public static Vector2[] LaneStrip(MinefieldLane lane)
+    public static Vector2[] LaneStrip(MinefieldLane lane) => LaneStrip(lane, 0f);
+
+    /// <summary>⭐ CE-4655 — the strip run on by <paramref name="extend"/> m past both ends (through the field's clearance ring).</summary>
+    public static Vector2[] LaneStrip(MinefieldLane lane, float extend)
     {
         var d = lane.B - lane.A; float len = d.Length();
         var dir = len > 1e-4f ? d / len : Vector2.UnitX;
         var n = new Vector2(-dir.Y, dir.X) * (lane.Width * 0.5f);
-        return new[] { lane.A - n, lane.B - n, lane.B + n, lane.A + n };
+        var a = lane.A - dir * extend; var b = lane.B + dir * extend;
+        return new[] { a - n, b - n, b + n, a + n };
+    }
+
+    /// <summary>
+    /// ⭐ CE-4655 — the field's CLEARANCE RING as convex pieces (each a quad): per outline edge the band <paramref name="clearance"/> m outside it, and per vertex the
+    /// parallelogram between its two edges' outward normals (fills a convex corner; at a reflex one it lies over the field, the same area). Stamped as the field.
+    /// </summary>
+    public static void AddClearanceRing(Vector2[] outline, float clearance, List<Vector2[]> into)
+    {
+        int n = outline.Length;
+        if (n < 3 || !(clearance > 0f)) return;
+        float area2 = 0f;
+        for (int i = 0, j = n - 1; i < n; j = i++) area2 += outline[j].X * outline[i].Y - outline[i].X * outline[j].Y;
+        float side = area2 >= 0f ? 1f : -1f;   // counter-clockwise ⇒ the outward normal of a→b is (dy, −dx)
+        Vector2 Out(Vector2 a, Vector2 b)
+        {
+            var d = b - a; float len = d.Length();
+            return len < 1e-5f ? Vector2.Zero : new Vector2(d.Y, -d.X) / len * side * clearance;
+        }
+        for (int i = 0; i < n; i++)
+        {
+            var a = outline[i]; var b = outline[(i + 1) % n];
+            var o = Out(a, b);
+            if (o == Vector2.Zero) continue;
+            into.Add(new[] { a, b, b + o, a + o });
+            var prev = outline[(i - 1 + n) % n];
+            var op = Out(prev, a);
+            if (op != Vector2.Zero) into.Add(new[] { a, a + op, a + op + o, a + o });
+        }
     }
 
     /// <summary>
@@ -299,10 +332,13 @@ public static class NavDoorways
                     if (!mine) continue;
                     // a thin polygon along the outline can have its centre just outside it: take the field whose box (grown 2 m) holds the centre
                     for (int f = 0; f < fields.Count; f++)
-                        if (c.X >= fields[f].Min.X - 2f && c.X <= fields[f].Max.X + 2f && c.Y >= fields[f].Min.Y - 2f && c.Y <= fields[f].Max.Y + 2f) { fi = f; break; }
+                    {
+                        float g = MinePattern.RouteClearance(fields[f].Params) + 2f;   // ⭐ CE-4655 — a ring polygon lies up to the clearance outside the outline
+                        if (c.X >= fields[f].Min.X - g && c.X <= fields[f].Max.X + g && c.Y >= fields[f].Min.Y - g && c.Y <= fields[f].Max.Y + g) { fi = f; break; }
+                    }
                     if (fi < 0) continue;
                 }
-                int lane = fields[fi].LaneAt(c, 0.25f);
+                int lane = fields[fi].LaneAt(c, 0.25f, MinePattern.RouteClearance(fields[fi].Params));   // ⭐ CE-4655 — a lane runs on through the ring
                 if (!mine && lane < 0) continue;
                 map[baseRef | (long)p] = new MinePoly { Field = fi, Lane = lane, Cells = CellsOf(fields[fi], pts, c) };
             }

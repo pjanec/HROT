@@ -703,18 +703,19 @@ public sealed class TerrainResidency
         if (ReferenceEquals(was, now)) return;
         var before = new Dictionary<Guid, TerrainMinefield>();
         if (was != null) foreach (var f in was.Fields) before[f.Field] = f;
-        var grow = new System.Numerics.Vector2(3f);
+        // ⭐ CE-4655 — the box grows by the field's clearance ring (its navmesh area reaches that far outside the outline) + 3 m
+        static System.Numerics.Vector2 Grow(Fdp.Toolkit.Terrain.TerrainMinefield f) => new(3f + Fdp.Toolkit.Terrain.MinePattern.RouteClearance(f.Params));
         if (now != null)
             foreach (var f in now.Fields)
             {
                 if (before.Remove(f.Field, out var old))
                 {
                     if (old.Hash == f.Hash) continue;
-                    if (old.Min != f.Min || old.Max != f.Max) rects.Add((old.Min - grow, old.Max + grow));   // moved or reshaped: where it was too (the same box once)
+                    if (old.Min != f.Min || old.Max != f.Max || Grow(old) != Grow(f)) rects.Add((old.Min - Grow(old), old.Max + Grow(old)));   // moved, reshaped or re-spaced: where it was too
                 }
-                rects.Add((f.Min - grow, f.Max + grow));
+                rects.Add((f.Min - Grow(f), f.Max + Grow(f)));
             }
-        foreach (var f in before.Values) rects.Add((f.Min - grow, f.Max + grow));   // gone
+        foreach (var f in before.Values) rects.Add((f.Min - Grow(f), f.Max + Grow(f)));   // gone
     }
 
     /// <summary>⭐ <c>CE-4603</c> — the box of every trunk felled since the last committed bake, or standing again (a seek back).</summary>
