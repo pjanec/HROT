@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-IN PROGRESS: **CE-4630** (a possessed soldier pushed back from a bumped hole) — step ①: reproduce in `--mode all` now that the bump breaches there (CE-5018).
+IN PROGRESS: **CE-5019** (a demolition charge's crater blocks its own breach) — step ①: reproduce.
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt.
 
 ## 2. The queue (in order)
@@ -16,7 +16,7 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 | tier | row | state | sha · rail · scenario |
 |---|---|---|---|
 | P3 | CE-5018 bump makes no breach in a cluster | ✅ DONE — no host published the node id, so the damage entity was requested from the brain node; `HrotNodeBuilder` now publishes `LocalNodeTopology`. Live `--mode all` after: the damage entity on SimHost / Player / Scenario | rails `HrotNodeBuilderTests.CE5018_*` (red-proved: singleton dropped ⇒ 2 red), `BuildingDamageSystemTests.CE5018_*` · ⚠ no scenario row can see it: the scenario run is one editor world (no cluster run exists yet) · UTM §8.3 #8 |
-| P3 | CE-4630 a possessed soldier pushed back from a bumped hole | TODO — ⚠ not reproduced in the EDITOR (2026-11-16, rails `BuildingDamageBakeTests.CE4630_*`); next: the cluster (likely the same root as CE-5018) | |
+| P3 | CE-4630 a possessed soldier pushed back from a bumped hole | ⚠ NOT REPRODUCED — `--mode all`, bt-doors: a possessed rifleman walks through a dozer's blade hole AND a T-72's door-sized bump into House A and stays (editor and rails agree); lean: before CE-5018 the cluster made no breach at all; left open for the user's re-check | rails `BuildingDamageBakeTests.CE4630_*` (existing) |
 | P3 | CE-5019 a charge's crater blocks its own breach | TODO | |
 | P4 | CE-2446 an AP mine bursts under a man and hurts nobody | TODO | |
 | P4 | CE-2444 an AT mine does not hurt an M1, hurts a man 35 m off | TODO — ⚠ largely answered at `0573b3a82` (belly armour, per-mine warheads; rail `MineClearerTkbTests.AnAntiTankMine_*`); verify `mf-at-vs-vehicle` | |
