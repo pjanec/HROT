@@ -69,9 +69,10 @@ s = Scn("ia-area-defend", "a1040003")
 s.car("Car 1", (96, 96, 0), heading=0, nid=10480)
 s.car("Car 2", (115, 96, 0), heading=0, nid=10481)
 gq = defend_squad(s, "Guard Post", "Hostile", (105.6, 97, 0), 10470, radius=25)   # ⏭ A: the mapper makes this for a lone man
-# the guard starts INSIDE House A (a defender is in place, not caught walking in the open); MORTAL like every other demo — an immortal
+# the guard starts INSIDE House A (a defender is in place, not caught walking in the open) — ⭐ CE-3463: within SquadDefend's 6 m
+# "already there" ring of the centre (at 103.5 he stood 6.6 m off and was walked OUT into the open first, seen in the same tick); MORTAL like every other demo — an immortal
 # man absorbs hit after hit and each hit is stress (TS-4), so he breaks for good (measured 2026-10-25)
-guard = s.man("Guard", "Hostile", (104.5, 103.5, 0), 180, tkb=2002, health=100, commander=gq, designation="SquadLeader", nid=10471)
+guard = s.man("Guard", "Hostile", (104.5, 101.5, 0), 180, tkb=2002, health=100, commander=gq, designation="SquadLeader", nid=10471)
 # the attackers CLEAR the area (not an Attack order naming the guard — that tells them where he is from the first frame); each is a lone
 # man, so his ClearArea asks for his own squad first (AQ104 A-1, CE-2375)
 clear = {"Name": "ClearArea", "Params": json.dumps({"Centre": [105.6, 104, 0], "Radius": 20, "Speed": 2}), "Origin": "Superior"}

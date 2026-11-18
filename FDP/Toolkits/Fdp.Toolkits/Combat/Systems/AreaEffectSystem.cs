@@ -609,8 +609,6 @@ namespace Fdp.Toolkit.Combat.Systems
             return (AreaEffect.FragmentTarget.Person, AreaEffect.PersonArea(stance), distance);
         }
 
-        /// <summary>⭐ <c>CE-4584</c> — a person in the sense <see cref="FragmentTargetOf"/> uses: no stated presented area (equipment) and no hull,
-        /// and not a destructible obstacle.</summary>
         /// <summary>⭐ <c>CE-4654</c> D-3 — how close to an AP mine's burst (2-D, m) the man who set it off stands (the trigger tests his feet against
         /// the mine).</summary>
         internal const float TriggerManRadius = 1.5f;
@@ -629,6 +627,7 @@ namespace Fdp.Toolkit.Combat.Systems
             foreach (var e in repo.Query().With<Health>().With<SimTransform>().Build())
             {
                 if (!repo.IsAlive(e) || repo.GetComponentRO<Health>(e).Current <= 0f || !IsPerson(repo, e)) continue;
+                if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, e)) continue;   // terrain's review #2 — a body inside a hull never stood on the mine
                 var p = repo.GetComponentRO<SimTransform>(e).Position;
                 float d = Vector2.Distance(at, new Vector2(p.X, p.Y));
                 if (d < bestD || (d == bestD && !best.IsNull && e.Index < best.Index)) { best = e; bestD = d; }
@@ -656,6 +655,8 @@ namespace Fdp.Toolkit.Combat.Systems
             record.Effects.Add(new DetonationEffect(e, "maimed (the man on the mine)", 0, 0f, 1f, 0f, 1f, 0f, 0f, 1f, 1f, damage, damage, null) { At = tf.Position });
         }
 
+        /// <summary>⭐ <c>CE-4584</c> — a person in the sense <see cref="FragmentTargetOf"/> uses: no stated presented area (equipment) and no hull,
+        /// and not a destructible obstacle.</summary>
         internal static bool IsPerson(EntityRepository repo, Entity e)
             => !TerrainObstacles.IsObstacle(repo, e)
                && PhysicsColliderReaders.HullHeight(repo, e) <= 0f

@@ -2977,6 +2977,33 @@ namespace Hrot.SimHost.Tests
             Assert.True(s.Orders.Count == 0 || PostureOf(s, s.Members[0]).Post.Point.Local.Equals((Fdp.Core.WorldPoint)west), "an enemy in the area: no round");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3463</c> (📐 <c>ia-area-defend</c>) — an ALL-ROUND frame post faces OUT THROUGH ITS WINDOW (DA-79): the defended centre lies
+        /// in the open NORTH of a north-facing window, so "outward from the centre" would aim him SOUTH into his own house; his arc (where he
+        /// looks and may fire) covers the north. ✅ Red-proof: the outward arc ⇒ the north point is outside it.
+        /// </summary>
+        [Fact]
+        public void CE3463_AnAllRoundFramePost_FacesOutThroughItsWindow_NotOutwardFromTheCentre()
+        {
+            var s = new Squad(members: 1);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            s.Repo.AddComponent(s.Members[0], new CombatProficiency { Authored = ProficiencyOf.Regular, Set = CombatProficiency.AuthoredSet });
+            s.FrameSurvey = NorthFace((2f, 1f));
+            s.Teleport(s.Members[0], new Vector3(2, 30, 0));
+            s.Order("{\"Position\":[2,32,0],\"SearchRadius\":10}", BehaviorNames.SquadDefend);   // all-round: no engagement area
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 24.5f, 0));
+            s.Orders.Clear();
+            for (int i = 0; i < 4; i++) s.Tick();
+            var dto = PostureOf(s, s.Members[0]);
+            Assert.True(dto.Post.Frame, "a frame post");
+            ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(s.Members[0]);
+            Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Post.Point, arc.LeftBearing, arc.RightBearing, 0f, 0f, new Vector3(2, 60, 0)),
+                $"his arc faces out of the window, north (arc {arc.LeftBearing}..{arc.RightBearing})");
+            Assert.False(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Post.Point, arc.LeftBearing, arc.RightBearing, 0f, 0f, new Vector3(2, 0, 0)),
+                "not south, into his own house");
+        }
+
         /// <summary>⭐ <c>CE-2373</c> D-2m — the pure greedy union and the round's next post: the post seeing most first, a post adding fewer than
         /// <see cref="CoveragePosts.MinRoundGain"/> is no round post; the next round post is the one whose probes were watched longest ago.</summary>
         [Fact]

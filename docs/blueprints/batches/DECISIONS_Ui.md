@@ -8,6 +8,15 @@ current-answer: the whole file
 
 ## CE-1147 (§7) — where does the shared stance pair live, given the network pack cannot see it? *(asked 2026-11-18)*
 
+⏸ **PARKED `2026-11-18` (user: "park it") — do NOT build until a coordinator note un-parks it.** **DECIDED `2026-11-18` (user, via coordinator): B — ⛔ NOT A.** 🔒 User: *"keep in mind that network layer needs to be separated from hrot internals - even enums are duplicated"* (R-4295) ⇒ `Hrot.Network.NED` gains NO reference to the animation assemblies. The stance pair stays in `Hrot.Animation.Replication`; ONE identical pair (both egresses gated on ownership — they already are, `StanceIntentEgressTranslator.cs:68-69` — and both ingresses SKIPPING the node's own samples, `EntityPossessedByIngressTranslator.cs:58`'s pattern) is handed by every host to the node builder's existing seam (`HrotNodeBuilderWithReplication.WithTranslators`) — first measure which builder path each host (CGF, SimHost, Player/IG, Stride, editor) takes; `RegisterStanceOn`, `RegisterStanceViewerOn` and the role-split `StanceTranslators(role)` are deleted.
+🔒 User: *"can you assure the system stays operable without needing to run 40+ scenarios? changes in network code has always been fragile, are you sure the change is small, is it also safe?"* ⇒ **the SAFETY FENCE (all binding):**
+- ⛔ the WIRE does not change: same topics, ordinals 104 / 105, QoS, owner groups (`NedOwnershipGroupBinding`), IDL — if any must change, STOP and write it here;
+- ⭐ the one NEW behaviour is the ingress skip-own (a node now receives its own stance samples back) — a rail per ingress, RED-PROVED by removing the skip (an echo must overwrite the local value without it);
+- ⭐ a rail per node role (CGF, SimHost, Player/IG, + a second Brain): the BUILT node carries the pair (the forwarding-rail control, CLAUDE.md "silent default");
+- ⭐ the feature's own suites (T-1): `StanceTranslatorTests`, `StanceWireTests` (18), and the INTEGRATION suite `Hrot.Animation.Network.Integration.Tests` (`NetworkedAnimationScenarios`, 8 Brain ⇄ Muscle loopback cases) — rule 8 row;
+- ⭐ live, ONCE: `--mode all` `ua-posture` — a stance from either station reaches every node (the row's own check), + `bt-grenade-posture` (a stance under a scenario's own checks) — §6a: two scenarios, not forty; the wide set once at the end, in the background;
+- ⭐ build it on `ui-wip-ce1147` and merge into `ui` only when all of the above are green.
+
 **The question:** the accepted fix puts the stance egress + ingress pair into `SharedTranslatorPack` (every node). ⚠ Measured: that pack is in
 `Hrot.Network.NED`, which references neither `Hrot.MuscleCharacter.Animation` (where `StanceIntent` / `StanceStatus` live) nor
 `Hrot.Animation.Replication` (the stance translators) — today only SimHost and Player reference the replication assembly, and CGF reaches it through

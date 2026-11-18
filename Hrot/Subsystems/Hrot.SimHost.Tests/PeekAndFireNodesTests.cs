@@ -384,6 +384,37 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3463</c> (📐 live <c>ia-area-defend</c>) — a frame move STOPPED from outside (the branch he left stopped him as he came in: the
+        /// channel runs no MoveTo any more) is sent AGAIN, never taken for the mover failing — he got there and leans. The mover's own failure
+        /// (its MoveTo reports Failure) still leaves him where he is. 🔴 Red-proof: any non-success ⇒ Failed ⇒ no second move, no lean.
+        /// </summary>
+        [Fact]
+        public void CE3463_HoldWatch_AFrameMoveStoppedFromOutside_IsSentAgain_AMoverFailureIsNot()
+        {
+            var d = new Duel(Framed(), seen: false);
+            d.Repo.AddComponent(d.Self, new SimTransform { Position = new Vector3(-1f, 2.75f, 0f), Rotation = Quaternion.Identity });
+            var p = d.P;
+            var ws = default(FrameWatchState);
+            PostureNodes.HoldWatch(ref p, ref ws, d.Self, d.Repo);
+            Assert.Equal((byte)1, ws.Moving);
+            Hrot.AI.Behaviors.Brains.LocomotionMoveTo.Stop(d.Repo, d.Self);   // the old branch's exit stops him
+            PostureNodes.HoldWatch(ref p, ref ws, d.Self, d.Repo);
+            Assert.Equal((byte)0, ws.Failed);
+            Assert.Equal((byte)1, ws.Moving);   // sent again
+            d.Repo.GetComponentRW<SimTransform>(d.Self).Position = FrameA;
+            d.Repo.GetComponentRW<LocomotionChannel>(d.Self).Status = NodeStatus.Success;
+            PostureNodes.HoldWatch(ref p, ref ws, d.Self, d.Repo);
+            Assert.NotEqual(Fdp.Toolkit.Combat.LeanSide.LeanNone, LeanOf(d));
+
+            var ws2 = default(FrameWatchState);
+            d.Repo.GetComponentRW<SimTransform>(d.Self).Position = new Vector3(-1f, 2.75f, 0f);
+            PostureNodes.HoldWatch(ref p, ref ws2, d.Self, d.Repo);
+            d.Repo.GetComponentRW<LocomotionChannel>(d.Self).Status = NodeStatus.Failure;   // the mover itself failed
+            PostureNodes.HoldWatch(ref p, ref ws2, d.Self, d.Repo);
+            Assert.Equal((byte)1, ws2.Failed);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>P6_R1</c> — THE STANCE PEEK (A at a window): to the window, PRONE under the sill, up to the window's stance (crouched),
         /// three aimed rounds at the seen enemy, back down; the exposure counts one use and B2's heat on the window.
         /// </summary>
