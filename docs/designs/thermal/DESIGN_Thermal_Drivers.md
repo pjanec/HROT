@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-18
-build-state: DESIGN — STORED FOR LATER (user, 2026-11-16: "Looks right. Please record to the design, but do not mark as approved. Just store for later.") — TD-1…TD-14 NOT approved (TD-15 ruled); ids fixed at dispatch. ⭐ REVISED `2026-11-18` after a review against code (user: "fold it into the design"): engine and body merged into ONE `HeatSource` (motion included); the weapons' last burst folded into the EXISTING per-unit weapon status `WeaponAmmo` (no new weapon component); `LifeChange` dropped — `Health.StateSince` instead (the injury state stays derived, CE-2155). Still NOT approved
+build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved", R-4293): TD-1…TD-16 as revised by §3a–§3d; ⚠ `HeatSource`'s exact field set under a follow-up question the same day (what in it is derivable) — §4 is final once that is answered; ids fixed at dispatch
 current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §4 the components · §4b ground heat marks · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
