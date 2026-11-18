@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Glass_Windows.md — the windows the generator writes are glazed by default (`glazed`, D-1 there)
   - DESIGN_Terrain_Authoring.md — OWNS the overlay machinery this extends: TerrainFeature kinds, the live overlay (§18e), "Save terrain as" (L-3), the merge; its gap G-3 (added houses get no door entities) is closed here as a dependency
   - DESIGN_Terrain_Editor_UX.md — OWNS the Terrain toolbar and its families (TE-*, as built S-1…S-4); this adds the BUILDINGS family
   - DESIGN_Terrain_Import_UTM.md — OWNS the importer's building generator (§11, R-4186 enterable houses) this reuses, and the import that makes the solid / doorless houses
