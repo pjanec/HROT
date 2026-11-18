@@ -112,6 +112,8 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityHeatSourceIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new EntityFireStateEgressTranslator(participant);
             yield return new EntityFireStateIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityVehicleOpeningsEgressTranslator(participant);   // ⭐ CE-4670 (VA-S2) — hatches / doors / ramps
+            yield return new EntityVehicleOpeningsIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             // ⭐ CE-3136 P-7a — a static obstacle's box, creator → every node (its ghost waits for it, [PerInstanceValue]).
             yield return new EntityObstacleShapeEgressTranslator(participant);
             yield return new EntityObstacleShapeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
