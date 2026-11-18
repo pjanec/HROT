@@ -70,13 +70,15 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.Systems.ObstacleRemovalSystem _obstacles = new();
         // ⭐ CE-6005 (city battle O-2) — a heavy vehicle's death leaves ONE wreck obstacle on the hulk, asked by its Health owner.
         private readonly Fdp.Toolkit.Combat.Systems.WreckObstacleSystem _wrecks = new();
+        // ⭐ CE-4660 (thermal drivers TD-16) — a destroyed fuelled hull catches fire, and a fire burns the bodies in it, on the Health owner.
+        private readonly Fdp.Toolkit.Combat.Systems.BurnSystem _burn = new();
 
         public string Key => CapabilityKeys.HealthApplication;
 
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493); run them FIRST in its sim list.</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks, _burn };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -89,6 +91,7 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_bleedOut);
             simulation.Add(_obstacles);
             simulation.Add(_wrecks);
+            simulation.Add(_burn);
         }
     }
 
