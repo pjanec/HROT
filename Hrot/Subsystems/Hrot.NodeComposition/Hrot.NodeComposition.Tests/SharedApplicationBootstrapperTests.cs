@@ -637,6 +637,37 @@ public sealed class SharedApplicationBootstrapperTests
         finally { Fdp.ModuleHost.ThreadedKernelGate.Configure(0); }
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-3472</c> (the user, `2026-11-18`: in a DAR the timeline's seek "jumps somewhere else … even 1 minute … not consistent") — on a staged
+    /// node the UI's time facade reads the KERNEL's clock the sim side last stepped, never A's <c>GlobalTime</c>: in a replay / review the kernel stops
+    /// pushing that (<c>SuspendGlobalTimePush</c>) and A holds the recorded frame's sim time, which the timeline read as wall seconds after the session's
+    /// zero — the playhead fell back by every pause before it. Here A's GlobalTime says 45 (a recorded frame) while the kernel's clock moved on.
+    /// 🔴 Red-proof: the staged default reading A's GlobalTime again ⇒ 45.
+    /// </summary>
+    [Fact]
+    public void CE3472_OnAStagedNode_TheUisTimeFacadeReadsTheKernelsClock_NotTheRecordedFramesGlobalTime()
+    {
+        try
+        {
+            using var node = Boot(hasPresentation: true, threadedMode: 3);
+            var p = node.Presentation!;
+            p.NodeFrame = dt => node.Tick();
+            for (int i = 0; i < 5; i++) { p.Step(0.1f); p.Pull(); }
+            node.Kernel.SuspendGlobalTimePush();                      // a replay / review: the playback owns the world's clock
+            var recorded = node.World.GetSingletonUnmanaged<Fdp.Core.GlobalTime>();
+            recorded.TotalTime = 45.0;                                // the recorded frame's sim time
+            node.World.SetSingletonUnmanaged(recorded);
+            p.Step(0.1f); p.Pull();
+            Assert.Equal(45.0, p.World.GetSingletonUnmanaged<Fdp.Core.GlobalTime>().TotalTime, 6);   // A shows the recorded frame
+            double kernel = node.Kernel.CurrentTime.TotalTime;
+            Assert.NotEqual(45.0, kernel, 3);
+            Assert.Equal(kernel, p.SimClockSeconds, 9);
+            var ui = Hrot.UI.Common.RunMode.NodeRunControls.For(node, new Hrot.UI.Common.RunMode.NodeRunProfile(Hrot.UI.Common.RunMode.RunHostKind.Editor));
+            Assert.Equal(kernel, ui.ClockSeconds, 9);                 // the facade the timeline's playhead is read from
+        }
+        finally { Fdp.ModuleHost.ThreadedKernelGate.Configure(0); }
+    }
+
     private sealed class FakeMap : Fdp.Toolkit.Orchestration.IMapBuildStatus
     {
         public bool IsBuilt { get; set; }
