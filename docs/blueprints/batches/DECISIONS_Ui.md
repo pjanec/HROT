@@ -6,6 +6,23 @@ current-answer: the whole file
 
 # DECISIONS — ui
 
+## CE-1286 (taken while the queue ran dry) — how does a C# behaviour's param / working-state field get into the Watch? *(asked 2026-11-18)*
+
+**Where it stands:** the display half is DONE (CE-1315: the Brain tab and the inspector dump every running behaviour's params and variables, C#
+ones included, through `OccurrenceSlotCatalog`). Left: the row menu *Add to Watch*. ⚠ The Watch's pinned row is an asset-variable identity
+`(AssetId, Entity, Section, VariablePath)` (`AiWatchWindow`, `PinnedVariableRowSource`) — a C# behaviour has no asset id and its fields no section.
+
+| option | what it means | cost |
+|---|---|---|
+| **A (lean)** — a new row SECTION `Occurrence` addressed by `(behaviour hash, slot kind task/SOP/hosted, field path)`, read through `OccurrenceSlotCatalog` (the one reader, R-1037) and written through R-1041's one live-write path | the Watch shows and edits a C# behaviour's fields like an asset variable; the dump's row menu gains *Add to Watch* | a new `VariableRow` kind + its persistence entry (DebugSessionPersistence) + rails; touches the Watch's identity, so it should be agreed first |
+| B — *Add to Watch* only for asset-defined behaviours (the existing identity) | no new identity | the user's ask was precisely the C# ones — leaves them out |
+
+**Claim table (lean A):** the display exists — ✅ `CE-1315` (`OccurrenceSlotView.Boxed`); the Watch identity is asset-only — ✅ `AiWatchWindow.cs` header
+(`(AssetId, Entity, Section, VariablePath)`); a design rules the C# watch identity — ⛔ searched `docs/DESIGN_Entity_Brain_View.md` §12b (BV-42…45: *"edits through
+Add to Watch / the Watch window"*, no identity named) and `docs/DESIGN_Behaviour_Debugging.md` DBG-5, none found.
+
+**State:** SKIPPED — needs decision. Nothing built.
+
 ## CE-1067 — should a REMOTE terminal's panel reach another node's GLOBAL gizmo? *(asked 2026-11-18)*
 
 **The question:** `GizmoInteractionIngressTranslator` drops a remote StructUpdate / InspectorClosed whose anchor is not an entity in its world. A

@@ -9,7 +9,8 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly at :02) — created 2026-11-18 09:02, no approval asked.
 
 ## 1. Now
-IN PROGRESS: CE-1241 — 15 seeded takes the scout does not complete. Start: re-scout what remains (the coordinator fixed the take side for 4).
+IN PROGRESS: CE-1241 — 15 seeded takes the scout does not complete. Running: `scripts/director-check.py scout-all --headless` (all 55 takes, ~1 h) to see what still misses.
+WHILE IT RUNS (queue otherwise dry, protocol §5): CE-1286 — Add to Watch for a C# behaviour's fields → SKIPPED, needs decision (`DECISIONS_Ui.md`).
 
 ## 2. The queue (in order)
 
@@ -26,7 +27,7 @@ IN PROGRESS: CE-1241 — 15 seeded takes the scout does not complete. Start: re-
 | CE-1241 15 seeded takes the scout cannot complete | IN PROGRESS | | | |
 | CE-1280 Brain tab: why-this-choice one line | DONE — superseded by CE-1325 W5 (one line per decision by name, the sheet inside) | `b461d8fca` | `UtilityDecisionViewTests.CE1325_*` (existing) | n/a |
 | CE-1281 Brain tab: Recent changes scroll / menu | DONE — 8-row scrolling grid, row menu Open graph of … / Copy | `b461d8fca` | `TheBrainViewTests.CE1281_…` (red-proved); TheBrainViewTests 26/0 (xvfb) | n/a |
-| CE-1246 Stride mode 2 host actions | DONE — node `HostActions` + shared `HostActionsPumpSystem`; inspector + Details get them | (this push) | `GlobalActionDispatchSystemTests.CE1246_…` (red-proved) 4/0; `HrotStrideApp.Game` builds (restored first) | ⚠ not run on a Stride window (Windows only) |
+| CE-1246 Stride mode 2 host actions | DONE — node `HostActions` + shared `HostActionsPumpSystem`; inspector + Details get them | `8952f8c3d` | `GlobalActionDispatchSystemTests.CE1246_…` (red-proved) 4/0; `HrotStrideApp.Game` builds (restored first) | ⚠ not run on a Stride window (Windows only) |
 
 ## 3. Taken from new handoffs
 - HANDOFF_Coordinator_To_Ui_Bug_Queue.md at 2026-11-18 09:00 (merged coordinator `5c0…` into ui)
