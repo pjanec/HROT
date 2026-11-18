@@ -147,7 +147,10 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-4391 S-1 (2026-11-10) — +1: BuildingDamageSystem in DamageAssessmentModule (the breaches a burst decided, written into the building's damage entity) ⇒ 11.
             // ⭐ CE-4583 (2026-11-14) — +1: ShelledAreaSystem in DamageAssessmentModule (the shelled areas, from the same bursts) ⇒ 12.
             // ⭐ CE-4591 / CE-4603 / CE-4601 (terrain lane, 2026-11-14) — +4 in DamageAssessmentModule: GroundDamageSystem, CraterRegroundSystem, DozerCutSystem, TreeDamageSystem ⇒ 16.
-            Assert.Equal(16, pack.SimulationSystems.Count);
+            // ⭐ CE-4664 (terrain lane, 2026-11-18) — the count had gone stale at 16 while the pack grew to 22 (measured at 1d3d23356: +3 the minefield writers in
+            //   DamageAssessmentModule — MinefieldStrikesSystem, PlaceKnowledgeSystem, MinefieldLanesSystem, CE-4624, terrain's own; +3 elsewhere since); +1 GroundHeatMarkSystem ⇒ 23.
+            Assert.Equal(23, pack.SimulationSystems.Count);
+            Assert.Contains(pack.SimulationSystems, s => s is Fdp.Toolkit.Terrain.GroundHeatMarkSystem);
             Assert.Contains(pack.SimulationSystems, s => s is Fdp.Toolkit.Squad.DangerArea.ShelledAreaSystem);
 
             // ⛔ And assert the REMOVAL, so a silent re-add is caught rather than merely changing a

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved", R-4293): TD-1…TD-16 as revised by §3a–§3e; `HeatSource` trimmed to what cannot be derived (§3e, user: "yes, trim it and fold it in"); ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half as built (CE-4662) · §5 UML · §6 a late joiner · §7 slices
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -209,7 +209,7 @@ more detailed design for it?"*
 | read by | the external image generator (it solves the ground's temperature from the stand, the engine time, the soil's thermal class TD-9 and the weather) · our AI thermal sensor through `ThermalDriversOps.MarkWarmth(mark, now, weather)` (an observer may later report *"a recent vehicle position"* into the per-side place knowledge, `PlaceKnowledge`) · an instructor's thermal-marks map layer |
 | ⛔ never | drawn in the normal views; saved into a scenario |
 
-## 4c. As built — the environment half *(CE-4662, terrain, `2026-11-18`)*
+## 4c. As built — the environment half and the ground heat marks *(CE-4662, CE-4664, terrain, `2026-11-18`)*
 
 | driver | as built | where |
 |---|---|---|
@@ -219,10 +219,15 @@ more detailed design for it?"*
 | **TD-12** smoke | `WarheadDto.SmokeBlocksInfrared` (starter: the 60 / 81 / 120 mm mortar smoke bombs — phosphorus screens — true; the hand smoke grenade, a signal smoke, false); the cloud carries it as **`AreaEffectCloud.BlocksInfrared`** (byte, APPENDED, on `dtAreaEffectCloud`), set once by `AreaEffectSystem` when the burst asks for the cloud; tear gas never | `WarheadDto.cs`, `AreaEffectClouds.cs`, `EntityAreaEffectCloudTranslators.cs` |
 | **TD-8** weather | **`WeatherConditions.Since`** (SimInstant, APPENDED; `EntityWeather.Since`, seconds) — the ONE rule `Restamp(previous, now)`: a value that differs in any other field began now, an identical one keeps its start. Called by the owner's whole-value writes: `WeatherEdit.Set` and `UpdateEntityDescriptorRequestSystem` (a remote edit applied by the owner) | `WeatherConditions.cs` |
 
+| **TD-14** ground heat marks *(CE-4664)* | **`GroundHeatMarks`** (component 493, `dtGroundHeatMarks` 242, TKB 7209) — the crater record's cell (64 m) and writer: `GroundHeatMarkSystem : CellRecordSystem` in SimHost's `DamageAssessmentModule`; ≤ 16 marks / entity (≈ 700 B), another entity past it; a mark COLD at `ColdAfterSeconds(PowerClass)` (car 1 h · truck 1.5 h · tank / aircraft 2 h, starter) is dropped by the next write to its cell. ⭐ The WRITER ENTRY POINT backend's `HeatSourceSystem` calls: `GroundHeatMarkRules.LeaveStand(repo, in HeatMark)` (ignores a stand < 60 s or engine-off). `ThermalDriversOps.MarkWarmth(mark, now, weather)`: warmed by `1 − e^(−on/600 s)`, cooling to ~0.05 at the cold time, faster in wind (+10 % per m/s) and rain (× 2) | `GroundHeatMarks.cs`, `ThermalDriversOps.MarkWarmth.cs`, `EntityGroundHeatMarksTranslators.cs` · NOTE_Terrain_To_Backend_Ground_Heat_Marks.md |
+
 | ⛔ deviation from §3 / §4 — and why | |
 |---|---|
 | TD-12 said the cloud carries the flag *"by its type"* | ⛔ every cloud is the ONE bare TKB type 7202 (`AreaEffectCloudTkb`), so a type cannot tell two smokes apart ⇒ a FIELD on the cloud, copied from the munition at creation (R-5066) |
 | TD-9 named only materials | ⭐ the ground the image generator paints is mostly SURFACES (fields, forest, water), which have no material ⇒ the surface map (R-5065) |
+| §4b typed the footprint as Half | floats: the record still fits (≈ 700 B of 1024) and the wire carries floats like the craters — no Half conversion on either side |
+| `PowerClass` / `HotEnd` had no type | terrain declares `ThermalPowerClass` and `HeatMarkEnd` (the mark needs them first); backend's `ThermalSignatureDto` is asked to use them (one enum, ruling 9) |
+| `ThermalDriversOps` was one class | a `static partial class`: terrain's `MarkWarmth` and backend's `Signature` / `BarrelHeat` in separate files of the one calculator |
 | ⚠ the per-attribute weather patch (`FormAttributeInstaller`, one field at a time) does NOT restamp | its patch context has no clock; the editor and HTTP send the whole value (CE-4346), which does. A reader takes `max(0, now − Since)`; a saved scenario keeps the time it was saved with |
 
 ## 5. UML
