@@ -33,11 +33,9 @@ namespace Fdp.Toolkit.Combat.Systems
     [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class WreckObstacleSystem : IEcsModuleSystem
     {
-        private readonly Dictionary<Entity, bool> _wasAlive = new();
+        private readonly DeathCrossings _deaths = new();   // ⭐ CE-4660 — the ONE crossing rule (was this system's own map)
         private readonly Dictionary<long, long> _wreckTypeOf = new();   // vehicle TKB type → its wreck obstacle type (0 = none)
-        private EntityRepository? _for;
         private EntityQuery? _query;
-        private int _epoch;
 
         /// <summary>Wreck obstacles this node asked for (rails, diagnostics).</summary>
         public long Requested { get; private set; }
@@ -45,22 +43,18 @@ namespace Fdp.Toolkit.Combat.Systems
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Health>() || !repo.IsComponentTypeRegistered<TkbIdentity>()) return;
-            if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) { _wasAlive.Clear(); return; }
-            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch) | !ReferenceEquals(repo, _for) || _query == null)
+            if (_deaths.Begin(repo, out bool replaying) || _query == null)
             {
-                _for = repo;
                 _query = repo.Query().With<Health>().With<TkbIdentity>().With<SimTransform>().Build();
-                _wasAlive.Clear();
                 _wreckTypeOf.Clear();
             }
+            if (replaying) return;
             if (!repo.HasSingletonManaged<ITkbDatabase>() || repo.GetSingletonManaged<ITkbDatabase>() is not { } tkb) return;
             foreach (var e in _query)
             {
                 long wreckType = WreckTypeOf(tkb, repo.GetComponentRO<TkbIdentity>(e).TkbType);
                 if (wreckType == 0) continue;
-                bool alive = repo.GetComponentRO<Health>(e).Current > 0f;
-                bool crossed = !alive && _wasAlive.TryGetValue(e, out bool was) && was;
-                _wasAlive[e] = alive;
+                bool crossed = _deaths.Crossed(e, repo.GetComponentRO<Health>(e).Current > 0f);
                 if (!crossed || !HealthOwnership.AppliesHere(repo, e)) continue;
                 if (Request(repo, e, wreckType)) Requested++;
             }

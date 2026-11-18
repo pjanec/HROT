@@ -67,8 +67,12 @@ namespace Hrot.Map.Common.Replication.Egress
             Busy = a.Busy,
             LaidDown = a.LaidDown,   // ⭐ CE-3232
             Hot = a.Hot,   // ⭐ CE-1358 — ⭐ AQ107 I: the barrel heat is a 0…1 fraction on the wire (the ECS keeps its percent byte)
-            Heat0 = WireUnits.PercentToFraction(a.Heat0), Heat1 = WireUnits.PercentToFraction(a.Heat1),
-            Heat2 = WireUnits.PercentToFraction(a.Heat2), Heat3 = WireUnits.PercentToFraction(a.Heat3),
+            // ⛔ CE-4659: Heat0..3 retired (0 on the wire); the last burst, from which every reader computes the heat
+            BurstRounds0 = a.BurstRounds0, BurstRounds1 = a.BurstRounds1, BurstRounds2 = a.BurstRounds2, BurstRounds3 = a.BurstRounds3,
+            BurstStartedAt0 = a.BurstStartedAt0, BurstStartedAt1 = a.BurstStartedAt1, BurstStartedAt2 = a.BurstStartedAt2, BurstStartedAt3 = a.BurstStartedAt3,
+            LastShotAt0 = a.LastShotAt0, LastShotAt1 = a.LastShotAt1, LastShotAt2 = a.LastShotAt2, LastShotAt3 = a.LastShotAt3,
+            HeatAtLastShot0 = a.HeatAtLastShot0, HeatAtLastShot1 = a.HeatAtLastShot1, HeatAtLastShot2 = a.HeatAtLastShot2, HeatAtLastShot3 = a.HeatAtLastShot3,
+            CoolPerSecond0 = a.CoolPerSecond0, CoolPerSecond1 = a.CoolPerSecond1, CoolPerSecond2 = a.CoolPerSecond2, CoolPerSecond3 = a.CoolPerSecond3,
         };
 
         public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
@@ -134,12 +138,13 @@ namespace Hrot.Map.Common.Replication.Ingress
                 Busy = d.Busy,
                 LaidDown = d.LaidDown,   // ⭐ CE-3232
                 Hot = d.Hot,   // ⭐ CE-1358
-                Heat0 = HeatPercent(d.Heat0), Heat1 = HeatPercent(d.Heat1), Heat2 = HeatPercent(d.Heat2), Heat3 = HeatPercent(d.Heat3),
+                BurstRounds0 = d.BurstRounds0, BurstRounds1 = d.BurstRounds1, BurstRounds2 = d.BurstRounds2, BurstRounds3 = d.BurstRounds3,   // ⭐ CE-4659
+                BurstStartedAt0 = d.BurstStartedAt0, BurstStartedAt1 = d.BurstStartedAt1, BurstStartedAt2 = d.BurstStartedAt2, BurstStartedAt3 = d.BurstStartedAt3,
+                LastShotAt0 = d.LastShotAt0, LastShotAt1 = d.LastShotAt1, LastShotAt2 = d.LastShotAt2, LastShotAt3 = d.LastShotAt3,
+                HeatAtLastShot0 = d.HeatAtLastShot0, HeatAtLastShot1 = d.HeatAtLastShot1, HeatAtLastShot2 = d.HeatAtLastShot2, HeatAtLastShot3 = d.HeatAtLastShot3,
+                CoolPerSecond0 = d.CoolPerSecond0, CoolPerSecond1 = d.CoolPerSecond1, CoolPerSecond2 = d.CoolPerSecond2, CoolPerSecond3 = d.CoolPerSecond3,
             });
         }
-
-        /// <summary>⭐ AQ107 I — the wire's 0…1 heat fraction as the ECS's percent byte (0..100).</summary>
-        private static byte HeatPercent(float fraction) => (byte)Math.Clamp((int)MathF.Round(WireUnits.FractionToPercent(fraction)), 0, 100);
 
         public void ScanAndPublish(ISimulationView view) { }
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

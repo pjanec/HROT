@@ -1,0 +1,27 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4658 (thermal drivers TD-S2): one thermal observer, two tanks on flat ground \u2014 the idling one is a contact, the cold parked one never.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the observer sees the idling tank by its heat",
+      "on": "field",
+      "who": "Observer",
+      "path": "TargetMemory.Entries.0.Score",
+      "op": ">",
+      "value": 0
+    },
+    {
+      "name": "the cold parked tank never becomes a second contact",
+      "never": {
+        "on": "field",
+        "who": "Observer",
+        "path": "TargetMemory.Entries.1.Score",
+        "op": ">",
+        "value": 0
+      }
+    }
+  ]
+}

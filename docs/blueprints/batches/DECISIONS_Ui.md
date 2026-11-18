@@ -6,6 +6,24 @@ current-answer: the whole file
 
 # DECISIONS — ui
 
+## CE-3451 ②③④ — three world-boundary guard rails have drifted far past a row fix: build them, or change the rule? *(asked 2026-11-18)*
+
+**Measured** (`Hrot.ClusterRunner.Tests`, ui `ac7241d8e` + this row's fixes): the other six reds of CE-3451 are fixed (a retired row, 11 `[DataPolicy]`s, 10 bus reads, the
+formation pair's registration, two stale expectations). These three are not a row each — they are an audit across every lane's code:
+
+| rail | then (CE-3451, 11-14) | now | what fixing it means |
+|---|---|---|---|
+| ② `EverySystemForgetsTheLastWorld` | 6 systems | **21 systems, ~35 fields** (squad, staff, mines, herds, aggregate, rules, CGF, macros…) | per field: a per-frame scratch list ⇒ an exemption with its reason; a held entity ⇒ a reset on `WorldEpoch.Moved` (a real seek / load defect when missing) |
+| ③ `EverySystemStateFieldIsClassified` | 277 | **480** unclassified fields vs `DESIGN_System_State_Inventory.md` | a K / A / B row each, by hand, in one central ledger |
+| ④ `EveryProtocolField_IsReDerived` | 45 | 45 — **all egress translators' `_last` dedupe caches** in `Hrot.Network.NED` | a reset on `WorldEpoch.Moved` per translator (or once, in their shared shape) — network code |
+
+**Lean:**
+- **② build it (A)** as its own ui row (CE-1980), one system at a time, a rail-backed exemption or reset per field — it is the seek / load correctness the rail exists for, and ~35 fields is a day, not a week.
+- **③ change the rule (B)** — a central hand ledger cannot keep up (+200 rows in 4 days, every lane adding systems); move the classification to the CODE: an attribute on the field (`[FrameScratch]`, `[WorldDerived]`, `[ProtocolCache]`…) the rail reads, so a new field is classified where it is written. Until then the rail stays red and is NOT a gate — ⚠ a design change across every lane: the user's call.
+- **④ build it once, in the shared shape (A)** — the 45 caches are one pattern; ONE reset in the egress translators' common base (or helper), not 45 edits — under CE-1147's network fence (the wire unchanged; a rail red-proved by removing the reset).
+
+What would change it: if ③'s attribute route is refused, ② and ③ merge into one hand audit (~2 days).
+
 ## CE-1147 (§7) — where does the shared stance pair live, given the network pack cannot see it? *(asked 2026-11-18)*
 
 ⏸ **PARKED `2026-11-18` (user: "park it") — do NOT build until a coordinator note un-parks it.** **DECIDED `2026-11-18` (user, via coordinator): B — ⛔ NOT A.** 🔒 User: *"keep in mind that network layer needs to be separated from hrot internals - even enums are duplicated"* (R-4295) ⇒ `Hrot.Network.NED` gains NO reference to the animation assemblies. The stance pair stays in `Hrot.Animation.Replication`; ONE identical pair (both egresses gated on ownership — they already are, `StanceIntentEgressTranslator.cs:68-69` — and both ingresses SKIPPING the node's own samples, `EntityPossessedByIngressTranslator.cs:58`'s pattern) is handed by every host to the node builder's existing seam (`HrotNodeBuilderWithReplication.WithTranslators`) — first measure which builder path each host (CGF, SimHost, Player/IG, Stride, editor) takes; `RegisterStanceOn`, `RegisterStanceViewerOn` and the role-split `StanceTranslators(role)` are deleted.

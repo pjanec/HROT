@@ -26,11 +26,11 @@ namespace Fdp.Toolkit.Terrain
         {
             if (!repo.IsComponentTypeRegistered<EntityGuid>()) return;
             if (repo.Bus.IsRegistered<MineStruck>())
-                foreach (ref readonly var s in repo.Bus.Read<MineStruck>())
+                foreach (ref readonly var s in repo.ReadEvents<MineStruck>())
                     if (MinefieldIds.TryGuid(repo, s.Field, out var g)) into.Add(new StrikeItem(g, s.Row, s.Col, MineGone.Struck));
             // ⭐ CE-4624 MS-T4 (MR-15) — mines a plough / flail / line charge cleared: gone for everybody, taught to nobody
             if (repo.Bus.IsRegistered<MinesCleared>())
-                foreach (ref readonly var c in repo.Bus.Read<MinesCleared>())
+                foreach (ref readonly var c in repo.ReadEvents<MinesCleared>())
                     if (MinefieldIds.TryGuid(repo, c.Field, out var g))
                         for (int i = 0; i < c.Count && i < MinesCleared.MaxMines; i++) into.Add(new StrikeItem(g, c.Row[i], c.Col[i], MineGone.Cleared));
         }
@@ -93,11 +93,11 @@ namespace Fdp.Toolkit.Terrain
         {
             var now = (SimInstant)Fdp.Toolkit.Combat.HitModel.Now(repo);
             if (repo.Bus.IsRegistered<MineStruck>())
-                foreach (ref readonly var s in repo.Bus.Read<MineStruck>()) Strike(repo, s, now, into);
+                foreach (ref readonly var s in repo.ReadEvents<MineStruck>()) Strike(repo, s, now, into);
             if (repo.Bus.IsRegistered<MinefieldCellsSwept>())
-                foreach (ref readonly var s in repo.Bus.Read<MinefieldCellsSwept>()) Swept(repo, s, now, into);
+                foreach (ref readonly var s in repo.ReadEvents<MinefieldCellsSwept>()) Swept(repo, s, now, into);
             if (repo.Bus.IsRegistered<MinefieldMarked>())
-                foreach (ref readonly var m in repo.Bus.Read<MinefieldMarked>())
+                foreach (ref readonly var m in repo.ReadEvents<MinefieldMarked>())
                     if (m.SidePlus1 != 0 && MinefieldIds.TryGuid(repo, m.Field, out var g))
                         into.Add(new KnowledgeItem(new KnowledgeKey(g, m.SidePlus1), KnowledgeItem.MarkOnly, 0, MineCellKnowledge.Unknown, 1, KnowledgeSource.Marking, now));
         }

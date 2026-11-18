@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Fdp.Core;
 using Fdp.Interfaces;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
@@ -72,7 +73,18 @@ namespace Fdp.Toolkit.Physics.BodyParts
     public static class BodyZones
     {
         private sealed record Profile(string Name, BodyPlan Plan, int?[][] Dis, List<BodyZoneDto> Zones, string? Kit = null,
-                                      EngineEnd EngineEnd = EngineEnd.None, bool InheritArmour = false);
+                                      EngineEnd EngineEnd = EngineEnd.None, bool InheritArmour = false, List<OpeningDto>? Openings = null,
+                                      List<LightDto>? Lights = null);
+
+        /// <summary>
+        /// ⭐ <c>CE-4670</c> (VA-8; HL-12's rule) — the hatches / doors / ramps of the CLASS <paramref name="dis"/> belongs to: the matched body profile's
+        /// <c>openings</c> (MBT, APC / IFV, truck, car, helicopter, jet …), null when none. The ONE class match (ruling 9) — openings ride on the same profile as
+        /// the zones; a type overrides them with <c>Gen.Openings</c> (<c>VehicleOpeningsCatalog</c>). ⛔ No combat-platform gate: a truck with no armour has doors.
+        /// </summary>
+        public static IReadOnlyList<OpeningDto>? ClassOpeningsOf(DISEntityType dis) => Match(dis).Profile?.Openings;
+
+        /// <summary>⭐ <c>CE-4670</c> (VA-S3, VA-8) — the light groups of <paramref name="dis"/>'s class (the same profile match), null when none.</summary>
+        public static IReadOnlyList<LightDto>? ClassLightsOf(DISEntityType dis) => Match(dis).Profile?.Lights;
 
         private static readonly Lazy<Profile[]> s_profiles = new(LoadProfiles);
         private static readonly ConditionalWeakTable<TkbTemplate, ResolvedBody?[]> s_cache = new();
@@ -283,10 +295,40 @@ namespace Fdp.Toolkit.Physics.BodyParts
                         WoundedAt = z["woundedAt"] is { } w ? w.GetValue<int>() : null,
                     });
                 }
+                List<OpeningDto>? openings = null;   // ⭐ CE-4670 (VA-8) — the class's hatches, doors and ramps
+                if (n["openings"] is JsonArray oa)
+                {
+                    openings = new List<OpeningDto>();
+                    foreach (var o in oa)
+                    {
+                        var roles = new List<SeatRole>();
+                        foreach (var r in o!["roles"]?.AsArray() ?? new JsonArray()) roles.Add(Enum.Parse<SeatRole>(r!.GetValue<string>(), ignoreCase: true));
+                        openings.Add(new OpeningDto
+                        {
+                            Id = (byte)o["id"]!.GetValue<int>(),
+                            Kind = Enum.Parse<OpeningKind>(o["kind"]!.GetValue<string>(), ignoreCase: true),
+                            Roles = roles,
+                            OpenSeconds = F(o["openSeconds"]) ?? 1f,
+                            Socket = o["socket"]?.GetValue<string>(),
+                        });
+                    }
+                }
+                List<LightDto>? lights = null;   // ⭐ CE-4670 (VA-S3) — the class's light groups
+                if (n["lights"] is JsonArray la)
+                {
+                    lights = new List<LightDto>();
+                    foreach (var l in la)
+                        lights.Add(new LightDto
+                        {
+                            Id = (byte)l!["id"]!.GetValue<int>(),
+                            Kind = Enum.Parse<LightKind>(l["kind"]!.GetValue<string>(), ignoreCase: true),
+                            Socket = l["socket"]?.GetValue<string>(),
+                        });
+                }
                 list.Add(new Profile(n["name"]!.GetValue<string>(), Enum.Parse<BodyPlan>(n["plan"]!.GetValue<string>(), ignoreCase: true),
                                      patterns.ToArray(), zones, n["kit"]?.GetValue<string>(),
                                      n["engine"] is { } en ? Enum.Parse<EngineEnd>(en.GetValue<string>(), ignoreCase: true) : EngineEnd.None,
-                                     n["inheritArmour"]?.GetValue<bool>() ?? false));
+                                     n["inheritArmour"]?.GetValue<bool>() ?? false, openings, lights));
             }
             return list.ToArray();
         }

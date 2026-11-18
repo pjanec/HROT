@@ -85,6 +85,10 @@ public static class HrotSharedComponentRegistry
         // ⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession's replicated state, on every host
         world.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();
         // ⭐ CE-2168 (Motion Domains MD-A) / M7 (FPV) — how a body moves, and a flyer's parameters and state; every node.
+        // ⭐ CE-3451 (CE-3268's rail) — the road column's formation pair: the shared pack carries their egress translators (CE-9007), so every node
+        //   that builds the pack registers what they target (SimHost's KinematicComponentRegistry registers them too — a repeat is a no-op)
+        world.RegisterComponent<CarKinem.Formation.FormationController>();
+        world.RegisterComponent<CarKinem.Formation.FormationFollower>();
         world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightParams>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
@@ -93,6 +97,10 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
         world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
         world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();          // ⭐ CE-4617 (RS-10) — is a radar radiating (dtRadarEmission)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.HeatSource>();       // ⭐ CE-4657 (TD-3) — an engine's / a body's heat state (dtHeatSource)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.VehicleOpenings>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.VehicleLights>();     // ⭐ CE-4670 (VA-S3) — lights (dtVehicleLights)   // ⭐ CE-4670 (VA-S2) — hatches / doors / ramps (dtVehicleOpenings)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.FireState>();        // ⭐ CE-4657 (TD-6) — the fire spots (dtFireState)
         // ⭐ CE-8001 (CE-4616 ST-0 ③) — the stochastic unit (dtAggregateUnit / dtUnitSlotTable / dtUnitHoldings) on every host; the node-local
         //   attrition / sensor state and the run seed too, so a recording carries them wherever it is played (SV-12).
         world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();
@@ -186,6 +194,9 @@ public static class HrotSharedComponentRegistry
         // ⭐ CE-4603 (B-6) — the lone trunks one node felled in one cell (dtTreeDamage), read by every view's DoorStates.Trees; the local "a trunk was felled"
         world.RegisterComponent<Fdp.Toolkit.Terrain.TreeDamage>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.TreeFellEvent>();
+        // ⭐ CE-4664 (thermal drivers TD-14) — the warm stands one moving node's vehicles left in one cell (dtGroundHeatMarks); the local "a vehicle left a warm stand"
+        world.RegisterComponent<Fdp.Toolkit.Terrain.GroundHeatMarks>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.GroundHeatMarkEvent>();
         // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker (Brain group, dtBladeCut): written by its ClearObstacle point order, read by the Muscle's DozerCutSystem
         world.RegisterComponent<Fdp.Toolkit.Terrain.BladeCut>();   // ⭐ CE-4600 (B-3) — a vehicle broke a barrier / met one too strong
         // ⭐ CE-10000 (air lane, DESIGN_Air_Combat §4a) — air combat: the brain's order (dtAirCombatSteer), the motion node's report (dtFighterPilotState),

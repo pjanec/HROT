@@ -21,7 +21,13 @@ namespace Fdp.Toolkit.Terrain
         public static readonly Type SandbagWall = new("Sandbag wall", 3.0f, 0.6f, 1.0f, "sandbags");
         public static readonly Type ConcreteBlock = new("Concrete block", 2.0f, 1.0f, 1.0f, "concrete");
         public static readonly Type Crate = new("Crate", 1.2f, 1.0f, 1.0f, "fence-wood");
-        public static readonly Type Barrel = new("Barrel", 0.6f, 0.6f, 0.9f, "steel-plate");
+        /// <summary>⭐ CE-3473 (user, 2026-11-18) — an EMPTY steel drum (was "steel-plate": a solid 0.6 m steel box to fire and ramming alike). Its fill decides
+        /// both its protection and how hard it is to ram — one material, read by both: <see cref="BarrelWater"/>, <see cref="BarrelSand"/>.</summary>
+        public static readonly Type Barrel = new("Barrel", 0.6f, 0.6f, 0.9f, "drum-empty");
+        /// <summary>⭐ CE-3473 — a water-filled drum: stops rifle and MG rounds, holds a ramming car. An obstacle TYPE only (not in <see cref="All"/>, the generated clutter).</summary>
+        public static readonly Type BarrelWater = new("Barrel, water-filled", 0.6f, 0.6f, 0.9f, "drum-water");
+        /// <summary>⭐ CE-3473 — a sand-filled drum: stronger still. An obstacle TYPE only.</summary>
+        public static readonly Type BarrelSand = new("Barrel, sand-filled", 0.6f, 0.6f, 0.9f, "drum-sand");
         public static readonly Type JerseyBarrier = new("Jersey barrier", 3.0f, 0.6f, 0.8f, "concrete");
         /// <summary>⭐ T-3 (CE-4430) — a checkpoint's guard booth (a small wooden box).</summary>
         public static readonly Type GuardBooth = new("Guard booth", 2.4f, 2.4f, 2.6f, "fence-wood");

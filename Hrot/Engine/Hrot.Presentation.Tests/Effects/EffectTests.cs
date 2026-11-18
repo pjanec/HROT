@@ -727,9 +727,9 @@ public sealed partial class EffectTests
         var soldier = Living(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, 100f);
         var loadedWreck = Living(Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams, 0f);
         var hmg = Living(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg, 100f);   // ⭐ CE-1198 — a weapon does not burn
-        var wrecks = new WreckSpawnSystem();
+        var wrecks = new BurningWrecks(world);   // ⭐ CE-4660 — the kill lights the hull (BurnSystem), the flames read its FireState
         Tick(world, wrecks, 0.016f);
-        Assert.Empty(Effects(world));                                   // the loaded wreck is already dead: no crossing
+        Assert.Empty(Effects(world));                                   // the loaded wreck is already dead: no crossing, no fire
 
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         world.SetComponent(soldier, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
@@ -772,7 +772,7 @@ public sealed partial class EffectTests
         At(world, 0.0);
         var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(50, 0, 0));
         world.AddComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
-        var wrecks = new WreckSpawnSystem();
+        var wrecks = new BurningWrecks(world);   // ⭐ CE-4660 — the kill lights the hull (BurnSystem), the flames read its FireState
         Tick(world, wrecks, 0f);
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         Tick(world, wrecks, 0f);
@@ -825,7 +825,7 @@ public sealed partial class EffectTests
         At(world, 0.0);
         var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(50, 0, 0));
         world.AddComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
-        var wrecks = new WreckSpawnSystem();
+        var wrecks = new BurningWrecks(world);   // ⭐ CE-4660 — the kill lights the hull (BurnSystem), the flames read its FireState
         Tick(world, wrecks, 0f);
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         Tick(world, wrecks, 0f);

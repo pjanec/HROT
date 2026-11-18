@@ -373,7 +373,7 @@ All **144** production wire types carry a bare `[DdsTopic]` — the topic name o
 are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: `Hrot/`, `FDP/`, `Stride/`; excluded roots: see
 §Excluded roots. Family counts are informational; `--check` compares the full names only (and fails on an explicit topic name anywhere in HROT-owned code).
 
-### A. Entity descriptors (keyed state of an entity) — 60
+### A. Entity descriptors (keyed state of an entity) — 71
 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
@@ -381,7 +381,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityAreaEffectCloud` | descriptor | yes: entity id | S | Hrot.Network.NED | Gas or smoke cloud description (+ who threw it and who threw it first: `CreatorNetworkId`, `OriginalCreatorNetworkId`, CE-4155) |
 | `Hrot.NED.Descriptors.EntityCombatProficiency` | descriptor | yes: entity id | S | Hrot.Network.NED | Soldier's combat proficiency values |
 | `Hrot.NED.Descriptors.EntityCustody` | descriptor | yes: entity id | S | Hrot.Network.NED | Person detained, restrained or searched |
-| `Hrot.NED.Descriptors.EntityDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Current and max health of the entity |
+| `Hrot.NED.Descriptors.EntityDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Current and max health of the entity, and `StateSince` — the sim time (s) its derived injury state (ok / wounded / incapacitated / dead) last changed: a dead body's time of death (CE-4661, appended) |
 | `Hrot.NED.Descriptors.EntityBuildingDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | A damaged building's wall breaches and collapse (CE-4391, UTM §8.2 B-11): the terrain building it stands for (its key) and each breach — panel, rectangle, kind; Reliable + TransientLocal + KeepLast 1, so a late joiner gets every damaged building |
 | `Hrot.NED.Descriptors.EntityDemeanour` | descriptor | yes: entity id | S | Hrot.Network.NED | Civilian mode, fear and anger |
 | `Hrot.NED.Descriptors.EntityDescent` | descriptor | yes: entity id | S | Hrot.Network.NED | Body on a rope or under a canopy |
@@ -426,7 +426,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityFormationController` | descriptor | yes: entity id | S | Hrot.Network.NED | A formation leader's controller — a road convoy's lead is a `Column` with a spacing (`dtFormationController`, CE-9007) |
 | `Hrot.NED.Descriptors.EntityFormationFollower` | descriptor | yes: entity id | S | Hrot.Network.NED | A follower's slot under an EXPLICIT leader (a road column's rank); `LeaderId 0` = it left (`dtFormationFollower`, CE-9007). Commander-led slots are not sent |
 | `Hrot.NED.Descriptors.EntityUtterance` | descriptor | yes: entity id | S | Hrot.Network.NED | What a person says now |
-| `Hrot.NED.Descriptors.EntityWeaponAmmo` | descriptor | yes: entity id | S | Hrot.Network.NED | Ammunition, breech and heat per weapon mount |
+| `Hrot.NED.Descriptors.EntityWeaponAmmo` | descriptor | yes: entity id | S | Hrot.Network.NED | Ammunition, breech and, per mount, the LAST BURST (`BurstRounds`, `BurstStartedAt`, `LastShotAt`, `HeatAtLastShot`, `CoolPerSecond`) — a barrel's heat at any instant is computed from it (CE-4659); `Heat0…3` are retired (always 0) |
 | `Hrot.NED.Descriptors.EntityWeaponPosture` | descriptor | yes: entity id | S | Hrot.Network.NED | Weapon posture: at ease, ready, aimed |
 | `Hrot.NED.Descriptors.EntityWeaponSystemState` | descriptor | yes: entity id | S | Hrot.Network.NED | Weapon system deploy state |
 | `Hrot.NED.Descriptors.EntityWeaponTask` | descriptor | yes: parent entity id + part instance id | S | Hrot.Network.NED | Standing order to one turret (Brain to Muscle) |
@@ -442,6 +442,11 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityAirCombatSteer` | descriptor | yes: entity id | S | Hrot.Network.NED | A fighter's air-combat ORDER — the manoeuvre, the target and the arena (network ids), throttle, the GCAS floor, the g the pilot will pull, his lapse (`dtAirCombatSteer` 216, CE-10000, AC-2): the Brain group's, read every frame by the motion node's `FixedWingModel.Fight` while `NavigationIntent.Mode` = `NAV_AIR_COMBAT` (8) |
 | `Hrot.NED.Descriptors.EntityFighterPilotState` | descriptor | yes: entity id | S | Hrot.Network.NED | A fighter's REPORT from its motion node — g, throttle, GCAS (active, count, lowest height), the LIVE threat (inbound rounds, the nearest's bearing, seeker, closure, time to impact), the last-ditch time, rounds defeated, speed (`dtFighterPilotState` 217, CE-10000, AC-2 / AC-9a): the Muscle group's; sent on a change of its rounded values |
 | `Hrot.NED.Descriptors.EntityAirArena` | descriptor | yes: entity id | S | Hrot.Network.NED | The air-combat ARENA — centre, radius, floor, ceiling, the show's shot cap, the stalemate clock and the last hit (`dtAirArena` 218, CE-10000, AC-10): its creator's Brain |
+| `Hrot.NED.Descriptors.EntityHeatSource` | descriptor | yes: entity id | S | Hrot.Network.NED | An engine's or a body's heat DECISION and its times — `State` 1 Off · 2 Idle · 3 Running · 4 Dead · 5 Standing · 6 Moving, `Since`, `MotionSince` (s; −∞ = never) — the node that moves it → every node, sent on a change; heat is computed from it (`dtHeatSource` 240, CE-4657) |
+| `Hrot.NED.Descriptors.EntityFireState` | descriptor | yes: entity id | S | Hrot.Network.NED | The fire spots on a burning holder (≤ 8: position in the holder's frame, radius, `Since`, `Seconds` it burns, intensity 0…1) — its Health owner → every node; a spot is out at `Since + Seconds` (`dtFireState` 241, CE-4657 / CE-4660) |
+| `Hrot.NED.Descriptors.EntityGroundHeatMarks` | descriptor | yes: entity id | S | Hrot.Network.NED | One ground cell's warm vehicle STANDS (where an engine idled: place, heading, hull, the time it stood and left, engine seconds, power class) — the node that moves the vehicles → every node (`dtGroundHeatMarks` 242, CE-4664) |
+| `Hrot.NED.Descriptors.EntityVehicleOpenings` | descriptor | yes: entity id | S | Hrot.Network.NED | A vehicle's hatches / doors / ramps, in its type's opening order (≤ 8): `State` 0 Closed · 1 Opening · 2 Open · 3 Closing + `Since` (s) — the boarding arbiter (the passenger list's owner) → every node, on change; the animation's progress is computed from `Since` and the type's open seconds (`dtVehicleOpenings` 243, CE-4670 VA-S2) |
+| `Hrot.NED.Descriptors.EntityVehicleLights` | descriptor | yes: entity id | S | Hrot.Network.NED | A vehicle's or aircraft's lights: `OnMask` (bit i = the type's light group i), `Discipline` 0 Normal · 1 Convoy · 2 Blackout · 3 Off, `Since`, a searchlight's `SearchAz` / `SearchEl` (rad) — its Brain group (the light rule) → every node, on change; brake lights are derived, never sent (`dtVehicleLights` 244, CE-4670 VA-S3) |
 | `Hrot.NED.Descriptors.WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.NED | Local-ENU pose: position, quaternion, velocity, angular velocity, sim time (AQ107 D) |
 
 ### B. Interactions and events (fire, impact, damage, interaction) — 13
@@ -707,6 +712,11 @@ or its number differs.
 | 216 | `dtAirCombatSteer` | `Hrot.NED.Descriptors.EntityAirCombatSteer` |  |
 | 217 | `dtFighterPilotState` | `Hrot.NED.Descriptors.EntityFighterPilotState` |  |
 | 218 | `dtAirArena` | `Hrot.NED.Descriptors.EntityAirArena` |  |
+| 240 | `dtHeatSource` | `Hrot.NED.Descriptors.EntityHeatSource` |  |
+| 241 | `dtFireState` | `Hrot.NED.Descriptors.EntityFireState` |  |
+| 242 | `dtGroundHeatMarks` | `Hrot.NED.Descriptors.EntityGroundHeatMarks` |  |
+| 243 | `dtVehicleOpenings` | `Hrot.NED.Descriptors.EntityVehicleOpenings` |  |
+| 244 | `dtVehicleLights` | `Hrot.NED.Descriptors.EntityVehicleLights` |  |
 
 ## SUMO traffic — a separate protocol on the same domain
 
@@ -792,7 +802,7 @@ the `FrameCodec` / `GeometryCodec` / `TlCodec` decoders and the `DrExtrapolation
 | Linear velocity (ECEF m/s) | `WorldPos.Velocity`: m/s, **local ENU** vector; `AngularVelocity` rad/s about the ENU axes | convert: rotate by `R(origin)` |
 | Linear acceleration | **not on the wire** (dropped with AQ107 D; it was always zero) | **GAP** (never real) |
 | Dead-reckoning algorithm + parameters | none; receiver-side linear projection from sim-time stamp | **GAP**: pick DIS algorithm FPW (position + velocity) yourself |
-| Entity appearance, damage state | `EntityDamage` (current / max health, floats), `EntityPartDamage`, `EntityEffectState` | thresholds to DIS's 4 damage states are **not defined** by HROT |
+| Entity appearance, damage state | `EntityDamage` (current / max health, floats, `StateSince`), `EntityPartDamage`, `EntityEffectState`, `EntityHeatSource`, `EntityFireState` | ⭐ the thresholds and bits are **fixed** — see *Appearance and thermal mapping* below (TD-11, CE-4663) |
 | Articulated parts | `EntityTurretPose` (per turret part, azimuth/elevation) | other parts: none |
 | Fire PDU | `Hrot.NED.Messages.WeaponFire` (the fact) ← `WeaponFireRequest` (the order) | positions in **local metres**; munition = TKB id; event id = `RequestId` (32-bit), no GUID |
 | Detonation PDU | `Hrot.NED.Messages.MunitionDetonation` (+ `EntityHitDamage` for the damage result) | no result enum: hit entity 0 = ground impact; detonation location local metres |
@@ -809,6 +819,26 @@ the `FrameCodec` / `GeometryCodec` / `TlCodec` decoders and the `DrExtrapolation
 **What HROT carries that DIS does not:** per-descriptor ownership, mission and AI commands (`EntityMission`, `NavigationIntent`, `EntityBrainIntent`), sensor/EQS pipelines, TKB ids, sim-time stamps, cluster orchestration and file transfer.
 **What DIS needs that NED does not carry:** ECEF/geocentric frames, DR parameters, entity-id triple, marking length rules, appearance bits, emissions/IFF/radio, collision, DIS timestamps.
 
+### Appearance and thermal mapping (TD-11, CE-4663)
+
+⭐ Fixed by the thermal drivers design ([DESIGN_Thermal_Drivers.md](../designs/thermal/DESIGN_Thermal_Drivers.md) TD-11, approved R-4293): what a DIS / HLA gateway puts in a
+platform's or a lifeform's appearance, from topics every node already has. Nothing is precomputed on the wire (*"no precalculated percentages"*, CE-196): the
+gateway derives each value at send time from the drivers and `now` = the entity's latest sim time. ⚠ The DIS appearance bit positions are from general knowledge of
+SISO-REF-010 (the Entity Appearance record), **not checked in this repo** — confirm them against the gateway's own enumeration library.
+
+| DIS appearance (platform / lifeform) | from | rule |
+|---|---|---|
+| **Damage** (platform; 0 none · 1 slight · 2 moderate · 3 destroyed) | `EntityDamage` | `lost = 1 − Current / Max` (Max ≤ 0 ⇒ none): **< 0.25 ⇒ 0 none · < 0.50 ⇒ 1 slight · < 1.00 ⇒ 2 moderate · Current ≤ 0 ⇒ 3 destroyed** |
+| **Health** (lifeform; 0 no injury · 1 slight · 2 moderate · 3 fatal) | `EntityDamage` | the same thresholds; fatal = `Current ≤ 0`, dead since `StateSince` (an image generator cools the body from it). ⚠ HROT's own injury states (wounded / incapacitated, `Injury.StateOf`) use the TYPE's thresholds, which are not on the wire — the gateway uses the fixed ones above |
+| **Power plant on** (platform) | `EntityHeatSource.State` | 2 Idle or 3 Running ⇒ on; 1 Off, 4 Dead ⇒ off; a body's states (5, 6) and none (0) ⇒ the bit is not set |
+| **Flaming** (platform) | `EntityFireState` | any spot with `Since ≤ now < Since + Seconds` |
+| **Smoking** (platform) | `EntityFireState` | while flaming ⇒ smoking (black, the "engine and hull" value); ⏳ smoke after the fire is out is not modelled |
+| engine / body heat for an IR image generator | `EntityHeatSource` + the type's thermal data | the closed-form calculator `ThermalDriversOps.Signature` (`FDP/Toolkits/Fdp.Toolkits/Perception/Signatures/ThermalDriversOps.Signature.cs`) — the generator solves its own physics from the same drivers |
+| a barrel's heat | `EntityWeaponAmmo` (per mount, the last burst) | `BarrelHeat.At(HeatAtLastShot, LastShotAt, CoolPerSecond, now)` — linear cooling from the last shot |
+| **Hatch / ramp / door** (platform; hatch closed · popped · open, ramp up / down) | `EntityVehicleOpenings` + the type's openings (TKB / class template: kind, open seconds, socket) | progress `p = Progress(State, Since, OpenSeconds, now)` (0 closed … 1 open): a `Hatch` p = 0 ⇒ closed, 0 < p < 1 ⇒ popped, 1 ⇒ open; a `Ramp` p ≥ 0.5 ⇒ down; doors have no DIS bit (a direct reader maps the opening id → its model) — VA-11, CE-4670 |
+| **Lights** (head, tail, brake, blackout, interior, landing, nav, anti-collision, searchlight) | `EntityVehicleLights` + the type's light groups (kind per bit) | each group's kind → its DIS light bit when its `OnMask` bit is set; `Discipline` Blackout ⇒ the blackout bit; brake = derived from deceleration (not sent) — VA-11, CE-4670 |
+| warm ground where a vehicle stood | `EntityGroundHeatMarks` | ⛔ no DIS appearance field — an image generator's own input |
+
 ### SimNetGateway simplified model → real HROT types
 
 Source: `SimNetGateway.Protocol.Ned/NedMessages.cs` and DD-001 §9, Appendix A (`/home/user/pjanec/simnetgateway/docs/design/DD-001-Gateway-Engine-PoC.md`).
@@ -817,7 +847,7 @@ Source: `SimNetGateway.Protocol.Ned/NedMessages.cs` and DD-001 §9, Appendix A (
 |---|---|---|
 | `NedEntityMaster(Id, Name, TkbType, Force)` | `Hrot.NED.Descriptors.EntityMaster` (id, `TkbType`) **+** `Hrot.NED.Descriptors.EntityInfo` (name, force) | Name and Force are in **EntityInfo**; `TkbType` is `int64`; entity ids are `int32` on every topic since CE-4200 (§Concepts 4; gateway `ulong` — map, and never send an id above `int.MaxValue`; AQ107 E's `int64` is superseded); the master also holds `DisType`, flags, request id |
 | `NedGeoSpatial(Id, lat, lon, alt, heading, pitch, roll, speed)` | `Hrot.NED.Descriptors.WorldPos` | **no lat/lon, no Euler** (AQ107 B/D): local-ENU `Position` (m), quaternion `OrientationXyz`, ENU `Velocity` (m/s, a vector — speed = its length) and `AngularVelocity` (rad/s), `SimTime` (sim seconds); no acceleration; the gateway converts with the origin (the retained `GeoReference`, step 0 below); sender must re-send every ≤ 10 s |
-| `NedEntityDamage(Id, Level 0..3)` | `Hrot.NED.Descriptors.EntityDamage` (current, max health floats); event `Hrot.NED.Messages.EntityHitDamage` (HP lost) | **no discrete level**; derive from current/max — the thresholds are the gateway's decision |
+| `NedEntityDamage(Id, Level 0..3)` | `Hrot.NED.Descriptors.EntityDamage` (current, max health floats); event `Hrot.NED.Messages.EntityHitDamage` (HP lost) | **no discrete level**; derive from current/max by the thresholds in *Appearance and thermal mapping* below (CE-4663) |
 | `NedWeaponStatus(Id, SelectedMunitionTkb, Ammo, Member)` | `Hrot.NED.Descriptors.EntityWeaponAmmo` (per mount ammo + loaded round type), `EntityWeaponPosture`, `EntityWeaponSystemState` | **no "selected munition" field**; ammo is per mount (up to 4); no formation `Member` index |
 | `NedEntityDisposed(Id)` | **a dispose of the `EntityMaster` instance** (+ its other descriptors by the owner) | not a message: read `InstanceState`, check the disposer is the owner |
 | `NedWeaponFire(FireId, Shooter, Target, MunitionTkb, lat/lon/alt, Quantity, …)` | `Hrot.NED.Messages.WeaponFire` (and `WeaponFireRequest`) | position is **local metres** + velocity; `FireId` GUID ↔ `RequestId` uint32; `MunitionTkb` ↔ `AmmoGuid` (TKB id, `int64`); target 0 = none/point; formation members: none |

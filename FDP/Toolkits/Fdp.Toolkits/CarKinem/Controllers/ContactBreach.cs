@@ -49,6 +49,8 @@ namespace Fdp.Toolkit.Terrain
             public bool Trees { get; init; }
             /// <summary>⭐ CE-4623 AB-7 (Animals AR-5) — a row for a PANICKED animal only; no vehicle takes it, and an animal takes no other.</summary>
             public bool Animal { get; init; }
+            /// <summary>⭐ CE-3473 (Checkpoint RM-5) — a row taken ONLY by a hull carrying an active <c>RamOrder</c> (a wheeled car on <c>RamTarget</c>); after every other row it qualifies for.</summary>
+            public bool Ram { get; init; }
             /// <summary>⭐ CE-4629 — the row is taken only by a vehicle whose DIS type matches this pattern (<c>kind.domain.country.category.subcategory</c>, <c>*</c> any) — the
             /// bulldozer's own row (1.1.*.9.1). Null: any vehicle.</summary>
             public string? Dis { get => _dis; init { _dis = value; _disParts = ParseDis(value); } }
@@ -107,6 +109,7 @@ namespace Fdp.Toolkit.Terrain
                     r.GetProperty("smallMaxStrength").GetSingle(), r.GetProperty("building").GetBoolean(), r.GetProperty("minRamSpeedMs").GetSingle(),
                     r.GetProperty("pushSeconds").GetSingle(), r.GetProperty("speedKept").GetSingle(), r.GetProperty("costHealth").GetSingle())
                     { Trees = r.TryGetProperty("trees", out var t) && t.GetBoolean(), Animal = r.TryGetProperty("animal", out var a) && a.GetBoolean(),
+                      Ram = r.TryGetProperty("ram", out var rm) && rm.GetBoolean(),
                       Dis = r.TryGetProperty("dis", out var d) ? d.GetString() : null, Blade = r.TryGetProperty("blade", out var bl) && bl.GetBoolean() });
             return new ContactBreachTable
             {
@@ -119,11 +122,14 @@ namespace Fdp.Toolkit.Terrain
         public Row? For(bool tracked, float massKg, bool animal = false) => For(tracked, massKg, animal, default);
 
         /// <summary>⭐ CE-4629 — the first row the vehicle qualifies for, its DIS type matched against a row's <see cref="Row.Dis"/> (the bulldozer's row).</summary>
-        public Row? For(bool tracked, float massKg, bool animal, Fdp.Core.DISEntityType dis)
+        public Row? For(bool tracked, float massKg, bool animal, Fdp.Core.DISEntityType dis) => For(tracked, massKg, animal, dis, ramming: false);
+
+        /// <summary>⭐ CE-3473 — and a <see cref="Row.Ram"/> row only for a hull that is <paramref name="ramming"/> (an active RamOrder).</summary>
+        public Row? For(bool tracked, float massKg, bool animal, Fdp.Core.DISEntityType dis, bool ramming)
         {
             // ⭐ R-2084 — an INDEX loop: called every frame a possessed hull is held at a barrier; a foreach over the IReadOnlyList interface boxed an enumerator (40 B a frame, measured)
             var rows = Rows;
-            for (int i = 0; i < rows.Count; i++) { var r = rows[i]; if (r.Animal == animal && (!r.Tracked || tracked) && massKg >= r.MinMassKg && r.MatchesDis(dis)) return r; }
+            for (int i = 0; i < rows.Count; i++) { var r = rows[i]; if (r.Animal == animal && (!r.Ram || ramming) && (!r.Tracked || tracked) && massKg >= r.MinMassKg && r.MatchesDis(dis)) return r; }
             return null;
         }
     }
@@ -198,7 +204,8 @@ namespace CarKinem.Controllers
             tracked = Fdp.Toolkit.Motion.Locomotions.Of(repo, vehicle) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked;
             bool animal = Fdp.Toolkit.Animals.AnimalFear.PanicBreaks(repo, vehicle);   // ⭐ CE-4623 AB-7 — the panic breach: the animal row only
             var dis = repo.GetDisType(vehicle);   // ⭐ CE-4629 — the bulldozer's row is matched by its DIS type
-            var row = table.For(tracked, massKg, animal, dis);
+            bool ramming = CarKinem.Core.RamOrder.On(repo, vehicle, out _);   // ⭐ CE-3473 (RM-5) — a car on RamTarget takes the ram row
+            var row = table.For(tracked, massKg, animal, dis, ramming);
             bool building = panel >= 0 && world.Panels[panel].Building >= 0;
             float into = MathF.Max(0f, -Vector2.Dot(velocity, hit.Normal));   // ⭐ B-D2 — only the speed INTO it
 

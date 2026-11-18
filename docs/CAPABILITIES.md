@@ -99,6 +99,9 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 - **Weather and time of day:** a scenario start time; global weather plus weather regions that blend into each other; wind, four cloud
   layers, fog, rain; a real sun position from the map's geographic origin. The 3-D map draws the sky, the sun, the clouds and the fog.
   ▶ `ua-weather-regions` (no live check)
+- **Thermal sight sees engines and bodies by their heat** ✅ (CE-4658): every person, animal, vehicle and aircraft has a heat signature; an idling, crewed tank is seen at night, a parked cold one is not — `th-idling-tank`; carried by the thermal observer (TKB 215). 📄 [DESIGN_Thermal_Drivers.md §4e](designs/thermal/DESIGN_Thermal_Drivers.md)
+- **A destroyed vehicle burns, and its fire burns the men beside it** ✅ (CE-4660): fire is simulation state decided once on the Health owner (`FireState`), the same on every node and for a late joiner; a man inside the fire loses health each second and dies, one 40 m away is untouched; the 3-D flames read it — `th-burning-wreck`. ⏳ incendiary weapons, burning buildings and ground. 📄 [DESIGN_Thermal_Drivers.md §4g](designs/thermal/DESIGN_Thermal_Drivers.md)
+- **Vehicles show their hatches, doors, ramps and lights to every renderer** ✅ (CE-4670 VA-S2 / VA-S3): a carrier's ramp opens as its squad dismounts and closes after (`uc-convoy-hit`); a crew's light discipline at night — head and tail lights when dark, the convoy marker, or blacked out (`va-lights-night`); an aircraft's beacon while its engine runs; each type's openings and light groups come from its class, overridable per type; replicated to every node and a late joiner. ⏳ partial damage and the kill kind (VA-S1, waits for ui's look library), lights by SOP / order. 📄 [DESIGN_Vehicle_Appearance_State.md §6a–§6b](designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md)
 - **Weather changes what units sense:** night and fog shorten sight, thermal ignores night but not fog, wind and rain cover sound,
   parachutes drift on the wind. ⚠ No demo shows this yet.
 - **Background traffic (SUMO):** a traffic node drives hundreds of cars and pedestrians, mirrored to every node. A shot, a blast or a hit
@@ -449,9 +452,9 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 
 | | what |
 |---|---|
-| **built, no demo** | weather and night in perception · a thermal sensor (no unit type carries one) · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · the Stride host (Windows only) |
+| **built, no demo** | weather and night in perception · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · the Stride host (Windows only) |
 | **being built** | 🚧 minefields, §9b · 🚧 road convoys (§9, 5 of 6 scenarios) · 🚧 air combat — the 2v2 gun hits and the cluster run (§10) · 🧪 the stochastic unit, §15 (experimental, merged) · 🚧 the items in §16 |
-| **designed, not built** | 📐 knowledge of other places per side (a destroyed bridge, a cleared building — the minefield built the shared machinery) · 📐 the fire / flamethrower / napalm, weapon stoppages, physical devices in the loop, thermal drivers (records only, CE-4635…CE-4646) |
+| **designed, not built** | 📐 knowledge of other places per side (a destroyed bridge, a cleared building — the minefield built the shared machinery) · 📐 the fire / flamethrower / napalm, weapon stoppages, physical devices in the loop, thermal drivers beyond the engine / body state, the last burst and the wreck fire (death time) |
 | **not built** | bridge damage (walls and whole-building collapse are built, §2a) · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · smoke · counter-battery fire · rappel · wind drift on rounds |
 | **known wrong** | see [OVERVIEW_Rules_And_Demos.md §11](OVERVIEW_Rules_And_Demos.md#11-not-built-open-or-known-wrong) and [PLAN_Feature_Films.md §4](PLAN_Feature_Films.md) |
 

@@ -32,7 +32,10 @@ namespace Fdp.Core
     /// measured by a full scan of every [ComponentId], every *Ids constant (int / ushort / byte) and every literal on coordinator, behaviors, backend,
     /// ui, terrain, convoy and the three exp/agg-* branches — those five were the ONLY ids nobody declares or uses. ⚠ 277–279 sit under NavFakeIds'
     /// stale "262–279" note, but NavFakeIds declares only 262–269 and 270–276 have been the squad block's production components for months; the
-    /// space 0–511 is otherwise FULL (the next lane needs the mask widened — a performance decision, BitMask512 is one cache line).</para>
+    /// space 0–511 is otherwise FULL (the next lane needs the mask widened — a performance decision, BitMask512 is one cache line). ⚠ CE-4670 (`2026-11-18`): that "FULL" was an OVERCOUNT — the vehicle-appearance
+    /// design's re-measure (docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §3) found ≈ 112 production-free ids; 290 / 291 came from them. A test-only
+    /// struct may sit on a production-free id only while its suite never registers the production type (the registry is process-wide — RegistryAuditTests
+    /// moved 290 / 291 → 506 / 507).</para>
     ///
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
@@ -1326,6 +1329,18 @@ namespace Fdp.Core
         /// <c>ClearObstacle</c> point order, read by the Muscle's <c>DozerCutSystem</c>. Brain group, replicated (<c>dtBladeCut</c>, 186). ⚠ 491 (terrain lane, top-down).</summary>
         public const int BladeCut = 491;
 
+        /// <summary><c>GroundHeatMarks</c> — ⭐ CE-4664 (thermal drivers TD-14, docs/designs/thermal/DESIGN_Thermal_Drivers.md §4b): the warm stands ONE moving node's vehicles left
+        /// in ONE ground cell (the crater record's shape), on a runtime entity that node owns; recorded, replicated (<c>dtGroundHeatMarks</c>, 242). NoScenario (a mark cools within
+        /// hours; never saved). ⚠ 493, fixed at dispatch (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md): free in production on every lane; the toolkit test struct
+        /// <c>KeyframeTestPos</c> moved 493 → 502 (Fdp.Core.Tests' <c>TwClock</c> keeps 493: that suite never registers this type).</summary>
+        public const int GroundHeatMarks = 493;
+
+        /// <summary>⭐ <c>CE-4657</c> (TD-3 / TD-6; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4) — <c>HeatSource</c> (an engine's or a body's state and its times; muscle group,
+        /// <c>dtHeatSource</c> 240) and <c>FireState</c> (up to 8 fire spots; brain group — the Health owner, <c>dtFireState</c> 241). ⚠ 487 / 488 fixed at dispatch
+        /// (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md): free in PRODUCTION on every lane; Fdp.Core.Tests (<c>Tiny2</c> / <c>Tiny3</c>) and Fdp.ModuleHost.Tests
+        /// (<c>RPos</c> / <c>RVel</c>) keep private test structs on them — those suites never register these types (the 489–491 precedent).</summary>
+        public const int HeatSource = 487, FireState = 488;
+
         /// <summary><c>TerrainBlock</c> — ⭐ O-4 (CE-4415, docs/DESIGN_Terrain_Authoring.md §18c): a placed block of terrain features (recipe, seed, heading, fit flags), one saved entity per block;
         /// the <c>OverlayCompiler</c> expands it at save. Unmanaged, authored, recorded and saved. ⚠ 494–495: the backend block (434–449) is full, so these are taken from the TOP of the coordinator / new-lane block (476–495), which allocates upward (highest in use 485, every lane, 2026-11-11) — NOTE_Backend_To_Coordinator_Component_Ids_494_495.md.</summary>
         public const int TerrainBlock = 494;
@@ -1400,6 +1415,12 @@ namespace Fdp.Core
         /// <summary><c>AggregateChild</c> — a soldier / vehicle created by a stochastic unit's split: its unit, its slot, whether it is still HELD
         /// until the handover (SV-6). Node-local, recorded, NoScenario (a split's children are transient, SV-4) — ST-5, CE-8012.</summary>
         public const int AggregateChild = 288;
+        /// <summary>⭐ <c>CE-4670</c> (VA-S2, VA-4; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §4) — <c>VehicleOpenings</c>: per hatch / door / ramp of
+        /// the type (≤ 8) its state and <c>Since</c>, written by the boarding arbiter (the passenger list's owner, brain group), replicated (<c>dtVehicleOpenings</c> 243),
+        /// recorded, NoScenario. ⚠ Fixed at dispatch (HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md).</summary>
+        public const int VehicleOpenings = 290;
+        /// <summary>⭐ <c>CE-4670</c> (VA-S3, VA-3) — <c>VehicleLights</c> (reserved at dispatch; <c>dtVehicleLights</c> 244). ⏳ not built yet.</summary>
+        public const int VehicleLights = 291;
         // ⭐ CE-8300 (exp/agg-behaviors' own block 119, 138, 139 — §23.1; moved 2026-11-16) — measured free 2026-11-16.
         /// <summary><c>ResolutionPolicy</c> — the resolution manager's bands, timings and detail areas (§16b), an unmanaged World Environment
         /// component set by <c>SetResolutionPolicy</c>; saved with the scenario, recorded. ⭐ ST-5, R-8326.</summary>

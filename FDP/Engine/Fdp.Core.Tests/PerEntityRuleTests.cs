@@ -311,6 +311,37 @@ public sealed class PerEntityRuleTests
         finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); ParallelReadCheck.ClearDeclarations(); }
     }
 
+    /// <summary>⭐⭐ CE-3468 — a chunk a SERIAL system stamped this version before the view was taken, and the phase then wrote again in the same
+    /// version, is copied at the NEXT tick's capture: the next phase reads the phase's write, not the pre-phase rows. 📐 Measured live: a Points
+    /// root read its children's statuses frozen at their first tick (root 0) while each child read 42 — the view's copy skips a chunk whose stamp
+    /// equals the one it stored, and both writes carried one stamp. 🔴 Red-proof: drop the <c>InvalidateChunksStampedSince</c> line from
+    /// <c>CaptureLastTick</c> ⇒ tick 2 reads the pre-phase 1, not 1000 + (i − 1).</summary>
+    [Fact]
+    public void CE3468_APhaseWriteInTheVersionOfAPrePhaseWrite_IsSeenByTheNextTicksView()
+    {
+        try
+        {
+            FdpWorkerPool.Resize(1);
+            ParallelReadCheck.ClearDeclarations();
+            using var w = World(64, out var list);
+            for (int i = 0; i < list.Length; i++) w.AddComponent(list[i], new Tag { From = 0 });
+            ParallelReadCheck.DeclareUnmanaged<Val>();
+            ParallelReadCheck.DeclareUnmanaged<Tag>();
+
+            w.Tick();
+            for (int i = 0; i < list.Length; i++) w.GetComponentRW<Tag>(list[i]).From = 1;   // a serial system ahead of the phase — this version
+            w.CaptureLastTick();                                                            // the kernel's capture
+            ParallelEntities.Run(w, list, list.Length, new LeftTagJob { Repo = w, List = list });   // writes Tag = 1000 + i — the same version
+            for (int i = 1; i < list.Length; i++) Assert.Equal(1, w.GetComponentRO<Val>(list[i]).V);
+
+            w.Tick();
+            w.CaptureLastTick();
+            ParallelEntities.Run(w, list, list.Length, new LeftTagJob { Repo = w, List = list });
+            for (int i = 1; i < list.Length; i++) Assert.Equal(1000 + i - 1, w.GetComponentRO<Val>(list[i]).V);   // last tick's phase write
+        }
+        finally { FdpWorkerPool.Resize(FdpWorkerPool.Budget()); ParallelReadCheck.ClearDeclarations(); }
+    }
+
     private struct LeftTagJob : IEntityBatchJob
     {
         public EntityRepository Repo; public Entity[] List;

@@ -9,7 +9,9 @@ using Fdp.Toolkit.Replication.Components;
 namespace Fdp.Toolkit.Perception.Signatures
 {
     /// <summary>
-    /// ⭐ <c>CE-3061</c> — heat builds while an entity runs or fires and cools when it stops (🔒 user, 2026-10-05: "Hot when
+    /// ⛔ <c>CE-4659</c>: TRIMMED again — to a STATION weapon's barrel only (a unit's own mounts are computed from <c>WeaponAmmo</c>'s last burst).
+    /// ⛔ <c>CE-4658</c>: TRIMMED to the barrel (the body / engine heat is <see cref="HeatSourceSystem"/>'s decision + <see cref="ThermalDriversOps"/>); RETIRES with CE-4659.
+    /// WAS: ⭐ <c>CE-3061</c> — heat builds while an entity runs or fires and cools when it stops (🔒 user, 2026-10-05: "Hot when
     /// running or firing - pls implement some simple heat accumulation and cooldown"). docs/DESIGN_Thermal_And_Acoustic_Sensing.md §5.2.
     /// <code>
     /// heat += RunningHeatPerSecond × min(1, speed / ReferenceSpeed) × dt + FiringHeatPerShot × shots
@@ -21,60 +23,21 @@ namespace Fdp.Toolkit.Perception.Signatures
     [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class ThermalHeatSystem : IEcsModuleSystem
     {
-        /// <summary>The unit a weapon's barrel warms: a mount child's parent, an embarked weapon's vehicle, else itself.</summary>
-        private static Entity OwnerOf(EntityRepository repo, Entity weapon)
-        {
-            if (repo.IsComponentTypeRegistered<WeaponMountInfo>() && repo.HasComponent<WeaponMountInfo>(weapon)
-                && repo.IsComponentTypeRegistered<PartMetadata>() && repo.HasComponent<PartMetadata>(weapon))
-                return repo.GetComponentRO<PartMetadata>(weapon).ParentEntity;
-            if (repo.IsComponentTypeRegistered<IsEmbarkedTag>() && repo.HasComponent<IsEmbarkedTag>(weapon))
-                return repo.GetComponentRO<IsEmbarkedTag>(weapon).VehicleEntity;
-            return weapon;
-        }
-
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<ThermalState>()) return;
 
-            // Shots fired this frame (FireProcessingSystem's notification, one per round).
-            if (repo.Bus.IsRegistered<WeaponFireNotification>())
-                foreach (ref readonly var shot in view.ReadEvents<WeaponFireNotification>())
-                    if (shot.Fired && repo.IsAlive(shot.Shooter) && repo.HasComponent<ThermalState>(shot.Shooter)   // ⭐ Q94 A-2 (R-3018)
-                        && !Fdp.Toolkit.Combat.Munitions.IsExpendable(repo, shot.AmmoGuid)   // ⭐ CE-2188 (§5.4b F5) — a dispenser heats no barrel
-                        && !Fdp.Toolkit.Combat.PersonHands.Threw(repo, in shot)              // ⭐ CE-3248 (TC-6) — nor does a hand
-                        && !Fdp.Toolkit.Combat.Munitions.IsSilent(repo, shot.AmmoGuid))   // ⭐ CE-4649 — nor an arrow's string
-                    {
-                        ref var t = ref repo.GetComponentRW<ThermalState>(shot.Shooter);
-                        t.Heat = MathF.Min(1f, t.Heat + t.FiringHeatPerShot);
-                    }
-
-            foreach (var e in repo.Query().With<ThermalState>().With<SimTransform>().Build())
-            {
-                ref var t = ref repo.GetComponentRW<ThermalState>(e);
-                var p = repo.GetComponentRO<SimTransform>(e).Position;
-                float speed = 0f;
-                if (t.HasLast && deltaTime > 0f)
-                {
-                    float dx = p.X - t.LastX, dy = p.Y - t.LastY, dz = p.Z - t.LastZ;
-                    speed = MathF.Sqrt(dx * dx + dy * dy + dz * dz) / deltaTime;
-                }
-                t.LastX = p.X; t.LastY = p.Y; t.LastZ = p.Z; t.HasLast = true;
-
-                float reference = t.ReferenceSpeed > 0f ? t.ReferenceSpeed : 5f;
-                float heat = t.Heat + t.RunningHeatPerSecond * MathF.Min(1f, speed / reference) * deltaTime;
-                heat -= heat * t.CooldownPerSecond * deltaTime;
-                t.Heat = Math.Clamp(heat, 0f, 1f);
-                t.BarrelHeat = repo.IsComponentTypeRegistered<WeaponState>() && repo.HasComponent<WeaponState>(e)
-                    ? repo.GetComponentRO<WeaponState>(e).Heat : 0f;   // ⭐ CE-1358 — its own mount 0
-            }
-
-            // ⭐ CE-1358 (DESIGN_Weapon_Layers §5k) — a mount child's barrel, and a station weapon's (a door gun on its helicopter), warm their unit
-            if (!repo.IsComponentTypeRegistered<WeaponState>()) return;
-            foreach (var w in repo.Query().With<WeaponState>().Build())
+            // ⭐ CE-4659 — a unit's OWN barrels (mount 0, its mount children) are computed by every reader from WeaponAmmo's last burst. What is left
+            //   here is a STATION weapon carried in a vehicle (a door gun on its helicopter: CE-1358), which has no WeaponAmmo of its own.
+            bool weapons = repo.IsComponentTypeRegistered<WeaponState>() && repo.IsComponentTypeRegistered<IsEmbarkedTag>();
+            foreach (var e in repo.Query().With<ThermalState>().Build())
+                if (repo.GetComponentRO<ThermalState>(e).BarrelHeat != 0f) repo.GetComponentRW<ThermalState>(e).BarrelHeat = 0f;
+            if (!weapons) return;
+            foreach (var w in repo.Query().With<WeaponState>().With<IsEmbarkedTag>().Build())
             {
                 float barrel = repo.GetComponentRO<WeaponState>(w).Heat;
                 if (barrel <= 0f) continue;
-                var owner = OwnerOf(repo, w);
+                var owner = repo.GetComponentRO<IsEmbarkedTag>(w).VehicleEntity;
                 if (owner.IsNull || owner == w || !repo.IsAlive(owner) || !repo.HasComponent<ThermalState>(owner)) continue;
                 ref var t = ref repo.GetComponentRW<ThermalState>(owner);
                 if (barrel > t.BarrelHeat) t.BarrelHeat = barrel;

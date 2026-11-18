@@ -170,7 +170,13 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>Ensures the run's danger-area sensor watching unit → <see cref="DangerSensorParams.RouteTo"/>; Success once it
-        /// exists (it lives until the run ends). Failure when it cannot be created.</summary>
+        /// exists (it lives until the run ends). ⭐ CE-3469 — Success also when its creation is DEFERRED: inside the per-entity brain phase the
+        /// child is created through the batch's buffer (CE-4509 E-3) and lands at the merge, dressed. The readers find it by modality
+        /// (<c>UnitSensors</c>, never <c>ws.Sensor</c>) and treat "no answer yet" as a clear route — exactly the serial first tick — and the
+        /// run's end releases it by its owner stamp (<c>BehaviorOwnedParts.Release</c>).
+        /// ⛔ Was: Failure ⇒ the run ended on its first tick under <c>HROT_PARALLEL_SIM=1</c>. ⛔ And NOT Running: a Running node joins the
+        /// running path, so when it succeeds next tick the tree's exit sweep runs <see cref="Deactivate_EnsureSensor"/> and destroys the
+        /// sensor it has just made (measured: <c>CE3079_DangerCrossing_*</c>, the child created at tick 1's merge, destroyed at tick 2's).</summary>
         [SharedAiAction]
         public static NodeStatus EnsureSensor(ref DangerSensorParams p, ref DangerSensorState ws, Entity self, EntityRepository world)
         {
@@ -180,7 +186,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.RefreshSeconds > 0f) settings.RefreshSeconds = p.RefreshSeconds;
             if (p.MaxAreas > 0) settings.MaxAreas = p.MaxAreas;
             var child = DangerAreaChildSensor.Ensure(world, self, SensorSite, in settings);
-            if (child.IsNull) return NodeStatus.Failure;
+            if (child.IsNull) return NodeStatus.Success;   // deferred in the phase: it lands at the merge (see the summary)
             ws.Sensor = new EqsSensorHandle(child);
             return NodeStatus.Success;
         }

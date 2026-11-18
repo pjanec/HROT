@@ -155,6 +155,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
     private Fdp.Toolkit.Diagnostics.Gizmos.Systems.StatelessGizmoSystem? _statelessGizmoSystem;
     // ⭐ CE-1042 E2 — the realism effects, driven here like the other map systems (this host runs them from Update).
     private Hrot.UI.Common.Effects.EffectSpawnSystem? _effectSpawn;
+    private Hrot.UI.Common.Effects.HudFeedSystem? _hudFeed;   // ⭐ CE-4671 LK-S1 — the HUD feeds, moved out of the spawner
 
     private Hrot.UI.Common.Facades.CanvasMapPickAdapter? _replayPickAdapter;   // ⭐ CE-4206 R2
     private MapCanvas? _replayPickAdapterCanvas;
@@ -355,6 +356,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         _dataDrivenGizmoSystem = mapInteraction.DataDrivenSystem;
         _statelessGizmoSystem  = mapInteraction.StatelessSystem;
         _effectSpawn           = mapInteraction.EffectSpawn;
+        _hudFeed               = mapInteraction.HudFeed;
         _lifespan              = mapInteraction.Lifespan;
         _wreckSpawn            = mapInteraction.WreckSpawn;
         var gizmoRegistry      = mapInteraction.GizmoRegistry;
@@ -364,7 +366,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         // scheduling the group, so it declares exactly those three. §3.2e.
         foreach (string problem in mapInteraction.Unserviceable(
                      new object[] { _globalGizmoManager, _dataDrivenGizmoSystem, _statelessGizmoSystem, mapInteraction.ActionDispatch,
-                                    _effectSpawn, _wreckSpawn, _lifespan }))
+                                    _hudFeed, _effectSpawn, _wreckSpawn, _lifespan }))
             Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info("[Map] {0}", problem);
 
         // ⭐⭐⭐ UXI-11 — ALL FOUR COME FROM THE PACK NOW. 📐 This host used to construct the gesture
@@ -542,6 +544,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
                 //   them at the recording's own sim time and a jump lands on the right ones. ⛔ The hand-spawning from the replayed
                 //   fire / hit events is gone (it lost every long effect on a jump). Both systems are still ticked so this host's
                 //   run-set is the map's whole set; ReplayState (PrepareRepo) keeps them standing down.
+                RunSystem(_hudFeed, deltaTime);   // ⭐ CE-4671 LK-S1 — before the spawner, as the feeds always ran
                 RunSystem(_effectSpawn, deltaTime);
                 RunSystem(_wreckSpawn, deltaTime);
                 RunSystem(_lifespan, deltaTime);

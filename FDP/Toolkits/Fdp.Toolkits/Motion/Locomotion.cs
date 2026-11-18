@@ -96,6 +96,29 @@ namespace Fdp.Toolkit.Motion
             return Has<VehicleState>(view, e);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4658</c> — <b>the ONE "how fast is it moving, on THIS node"</b> (m/s), lifted from <c>VehicleCover.IsStanding</c> (which now reads it) so the
+        /// thermal sensor's load uses the same rule: on a node that does not own its motion, the velocity replicated to it (<see cref="Fdp.Toolkit.Replication.ReplicatedMotion"/> —
+        /// CE-2313: a brain node's <see cref="VehicleState"/> is the creation copy, Speed 0); else its <see cref="VehicleState"/>.Speed; else the motion as this node knows it;
+        /// else its <c>SimVelocity</c>; else 0. ⚠ A person on the node that moves him may read 0 (no velocity is kept there) — a caller that needs it measures the move.
+        /// </summary>
+        public static float SpeedOf(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e)
+        {
+            var repo = view as EntityRepository;
+            if (repo != null && !repo.HasAuthority<SimTransform>(e)
+                && repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkVelocity>()
+                && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkVelocity>(e)
+                && Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, e, out _, out var replicated))
+                return replicated.Length();
+            if ((repo == null || repo.IsComponentTypeRegistered<VehicleState>()) && view.HasComponent<VehicleState>(e))
+                return System.MathF.Abs(view.GetComponentRO<VehicleState>(e).Speed);
+            if (repo != null && Fdp.Toolkit.Replication.ReplicatedMotion.Of(repo, e, out _, out var velocity))
+                return velocity.Length();
+            if (repo == null && view.HasComponent<SimVelocity>(e))
+                return view.GetComponentRO<SimVelocity>(e).Linear.Length();
+            return 0f;
+        }
+
         // a component read through the view: an unregistered type is "absent" (the repository answers by registration; any other view by its own HasComponent)
         private static bool Has<T>(Fdp.ModuleHost.Abstractions.ISimulationView view, Entity e) where T : unmanaged
             => (view is not EntityRepository repo || repo.IsComponentTypeRegistered<T>()) && view.HasComponent<T>(e);

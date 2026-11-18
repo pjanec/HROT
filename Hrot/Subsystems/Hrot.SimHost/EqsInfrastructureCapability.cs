@@ -76,7 +76,8 @@ public static class EqsSolverStartup
     public static void PopulateSystems(List<IEcsModuleSystem> simulation)
     {
         if (simulation is null) throw new ArgumentNullException(nameof(simulation));
-        simulation.Add(new Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem());
+        simulation.Add(new Fdp.Toolkit.Perception.Signatures.HeatSourceSystem());    // ⭐ CE-4658 — the engine / body decision (dtHeatSource), on the node that moves it
+        simulation.Add(new Fdp.Toolkit.Perception.Signatures.ThermalHeatSystem());   // the barrel only, until CE-4659
         simulation.Add(new Fdp.Toolkit.Perception.Signatures.SoundEmissionSystem());   // CE-3062
     }
 
@@ -92,6 +93,11 @@ public static class EqsSolverStartup
         //   only a muscle subset, so it would otherwise be missing there). Idempotent.
         if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.ThermalState>())
             context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.ThermalState>();
+        // ⭐ CE-4658 — the drivers the thermal template computes the heat from. Idempotent.
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.HeatSource>())
+            context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.HeatSource>();
+        if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>())
+            context.World.RegisterComponent<Fdp.Toolkit.Perception.Signatures.FireState>();
         // ⭐ CE-4617 (RS-2, RS-10) — what the radar template reads: its targets' cross-section and its carrier's emission. Idempotent.
         if (!context.World.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Radar.RadarSignature>())
             context.World.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarSignature>();

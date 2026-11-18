@@ -122,7 +122,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// as mount 0. DIS type the rifleman's (3.1.country.1) — the role rides <c>TacticalDesignation</c>, never the type. ⭐ <c>CE-3254</c>:
         /// the sniper and the marksmen are the same man with a scoped rifle.</summary>
         private static void MachineGunner(NedTkbBuilder builder, long type, string name, WeaponMount lmg, ushort country, byte faction,
-                                          WeaponMount? second = null)
+                                          WeaponMount? second = null, float thermalRange = 0f, float thermalMin = 0f)
         {
             builder
                 .DefineVehicle(type, name)
@@ -132,7 +132,8 @@ namespace Hrot.Map.Definitions.Tkb
                     p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
                     p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry; p.AvoidanceRadius = Fdp.Toolkit.Tkb.Domain.VehicleParametersDto.CloseOrderAvoidanceRadius;   // ⭐ R-2065
                 })
-                .WithCombat(type, c => { c.ArmorFront = 5; c.Weapons.Add(lmg); if (second is { } w2) c.Weapons.Add(w2); c.SensorRange = 500; })
+                .WithCombat(type, c => { c.ArmorFront = 5; c.Weapons.Add(lmg); if (second is { } w2) c.Weapons.Add(w2); c.SensorRange = 500;
+                                         c.ThermalRange = thermalRange; c.ThermalMinSignature = thermalMin; })   // ⭐ CE-4658 — a hand-held thermal sight (0 = none)
                 .WithFaction(type, faction)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
@@ -1146,6 +1147,8 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐⭐ CE-4649 part D (AN-21g) — the HUNTER: the 12-gauge ONLY (the weapon choice prefers a rifle when both are carried, 📌 measured in part C) and a STANDING hunting rule: animals of the listed species, never people
             //   (Gen.HuntingRules — read through Animals.MayEngage by the weapon brain's target choice; a dog is never listed).
             MachineGunner(builder, TkbEntityTypes.Infantry_Hunter, "Hunter (12-gauge)", AntiDroneShotgun(), UnitedStates, faction: 1);
+            // ⭐ CE-4658 (thermal drivers TD-S2) — the thermal observer: a rifleman with a hand-held thermal sight (th-idling-tank's observer)
+            MachineGunner(builder, TkbEntityTypes.Infantry_ThermalObserver, "Observer (thermal sight)", M4Carbine(), UnitedStates, faction: 1, thermalRange: 1500f, thermalMin: 0.3f);
             {   // his standing orders are the hunter's own SOP (the soldier's reaction takes cover in the open and never fires at game)
                 var hunter = tkbDb.GetByType(TkbEntityTypes.Infantry_Hunter)!;
                 hunter.AddDescriptor(hunter.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BehaviorProfileDto>()! with { DefaultSop = Hrot.Map.Definitions.Behavior.BehaviorNames.HunterSop });
@@ -1582,6 +1585,9 @@ namespace Hrot.Map.Definitions.Tkb
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Barrel,        TkbEntityTypes.Obstacle_Barrel,        feature, maxHealth: 50f);
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.JerseyBarrier, TkbEntityTypes.Obstacle_JerseyBarrier, feature, maxHealth: 400f);
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.GuardBooth,    TkbEntityTypes.Obstacle_GuardBooth,    feature, maxHealth: 120f);
+            // ⭐ CE-3473 — the FILLED drums (the empty one is 8820): ~200 kg of water / ~350 kg of sand absorb a blast better than an empty shell. ⚠ Starter values.
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.BarrelWater,   TkbEntityTypes.Obstacle_BarrelWater,   feature, maxHealth: 150f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.BarrelSand,    TkbEntityTypes.Obstacle_BarrelSand,    feature, maxHealth: 250f);
             // ⭐ CE-6005 (city battle O-2, Peek and Fire §9.10) — the WRECK of a heavy vehicle: a box of car-body (sight 0) sized per instance from
             //   the hulk, as tough as a concrete block (the 8 kg charge or a blade clears it); and the heavy types that leave one (tanks, the IFV —
             //   a light car stays as it is). A host whose smaller catalogue lacks a type skips it.

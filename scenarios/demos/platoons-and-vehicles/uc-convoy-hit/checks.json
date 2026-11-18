@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — Urban Battle L2: an IED under the convoy APC. Judge (1) the APC drives north (FollowRoute), (2) the charge goes off only with the APC within 15 m, (3)+(4) the carrier halts and its squad is out and fires. ONLY the HALT branch is encoded (the live check's own note: the MilitaryApc loses CanMove on any hit, CE-3092, so its branch is the halt; a push branch is the Bradley variant, uc-convoy-hit-ifv) — if a run pushes through instead, flip to that file's rows. The charge's shooter is the Trigger man (as in the live check). DEMO-with-a-fight (12 units, insurgents): no golden.",
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 Urban Battle L2: an IED under the convoy APC. Judge (1) the APC drives north (FollowRoute), (2) the charge goes off only with the APC within 15 m, (3)+(4) the carrier halts and its squad is out and fires. ONLY the HALT branch is encoded (the live check's own note: the MilitaryApc loses CanMove on any hit, CE-3092, so its branch is the halt; a push branch is the Bradley variant, uc-convoy-hit-ifv) \u2014 if a run pushes through instead, flip to that file's rows. The charge's shooter is the Trigger man (as in the live check). DEMO-with-a-fight (12 units, insurgents): no golden; CE-4670 (vehicle appearance VA-S2): the carrier's rear ramp opens as the squad dismounts and closes after; its crew hatches stay shut.",
   "runFor": 60,
   "golden": false,
   "expect": [
@@ -51,6 +51,42 @@
       "on": "shot",
       "by": "*Convoy Rifleman",
       "after": "the charge goes off"
+    },
+    {
+      "name": "the carrier's rear ramp opens as the squad dismounts (VehicleOpenings, CE-4670)",
+      "on": "field",
+      "who": "Convoy APC",
+      "path": "VehicleOpenings.Slots.0.State",
+      "op": "in",
+      "value": [
+        "Opening",
+        1
+      ]
+    },
+    {
+      "name": "... and is closing again by the end",
+      "on": "field",
+      "who": "Convoy APC",
+      "path": "VehicleOpenings.Slots.0.State",
+      "op": "in",
+      "value": [
+        "Closing",
+        3
+      ],
+      "atEnd": true
+    },
+    {
+      "name": "the driver's hatch never opens (nobody used that seat)",
+      "never": {
+        "on": "field",
+        "who": "Convoy APC",
+        "path": "VehicleOpenings.Slots.1.State",
+        "op": "in",
+        "value": [
+          "Opening",
+          1
+        ]
+      }
     }
   ]
 }

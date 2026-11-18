@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- ⭐⭐ CE-4671 LK-S1 (docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §7, LK-1) — THE SHARED LOOK LIBRARY: the rules that decide
+       how the simulation LOOKS (effects now; people LK-S2; vehicles VA-S1), pure functions over components, events and the TKB, so HROT's map
+       and an external renderer's gateway derive the same picture. ⛔ No Raylib, Stride, ImGui, Hrot.UI or Hrot.Presentation reference — ever
+       (a rail, LookHasNoPresentationTests, checks the referenced assemblies). -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Hrot.Core brings CycloneDDS.NET transitively; this assembly declares no topics -->
+    <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
+    <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
+  </ItemGroup>
+</Project>

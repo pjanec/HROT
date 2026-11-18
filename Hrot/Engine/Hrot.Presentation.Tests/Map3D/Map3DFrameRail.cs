@@ -607,7 +607,7 @@ public sealed class Map3DFrameRail
 
         // the kills happen at sim 0, through the production spawner (a crossing makes flames and smoke)
         At(0.0);
-        var wrecks = new Hrot.UI.Common.Effects.WreckSpawnSystem();
+        var wrecks = new Hrot.Presentation.Tests.BurningWrecks(world);   // ⭐ CE-4660 — the kill lights the hull, the flames read its FireState
         void Tick()
         {
             wrecks.Execute(world, 0f);

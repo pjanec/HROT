@@ -96,7 +96,7 @@ namespace Fdp.Toolkit.Terrain
         protected override void ReadItems(EntityRepository repo, List<LaneItem> into)
         {
             if (!repo.Bus.IsRegistered<LaneCleared>()) return;
-            foreach (ref readonly var l in repo.Bus.Read<LaneCleared>())
+            foreach (ref readonly var l in repo.ReadEvents<LaneCleared>())
                 if (l.Width > 0f && MinefieldIds.TryGuid(repo, l.Field, out var g))
                     into.Add(new LaneItem(g, new Vector2(l.Ax, l.Ay), new Vector2(l.Bx, l.By), l.Width, l.SidePlus1));
         }

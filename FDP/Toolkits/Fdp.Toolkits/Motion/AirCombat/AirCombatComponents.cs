@@ -59,6 +59,7 @@ namespace Fdp.Toolkit.Motion
     [ComponentId(GlobalComponentIds.AirCombatSteer)]
     // ⭐ R-10004 — SAVED with a scenario (not NoScenario): an authored steer is the motion node's feature-test seam (S1's GCAS scenarios
     //   fly a dive before the behaviour exists); the behaviour overwrites it on its first decision
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct AirCombatSteer
     {
         public Manoeuvre Manoeuvre;
@@ -131,6 +132,7 @@ namespace Fdp.Toolkit.Motion
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AirCombatState)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct AirCombatState
     {
         public Entity Target;
@@ -192,6 +194,7 @@ namespace Fdp.Toolkit.Motion
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AirArena)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct AirArena
     {
         /// <summary>The centre (terrain-local metres; Z unused — the floor and ceiling are above the ground there).</summary>

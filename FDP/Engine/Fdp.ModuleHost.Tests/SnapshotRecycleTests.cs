@@ -14,8 +14,10 @@ namespace Fdp.ModuleHost.Tests
     /// </summary>
     public class SnapshotRecycleTests
     {
-        [ComponentId(487)] struct RPos { public int X; }
-        [ComponentId(488)] struct RVel { public int X; }
+        // ⭐ CE-4657 — was 487 / 488, now HeatSource / FireState in production (this project references the toolkit); 500 / 501 are R-44's
+        //   test-only range, unused in this project.
+        [ComponentId(500)] struct RPos { public int X; }
+        [ComponentId(501)] struct RVel { public int X; }
 
         private static (EntityRepository live, Entity e, BitMask512 mask) World()
         {

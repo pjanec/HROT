@@ -184,6 +184,10 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         public float ThermalRange { get; init; }
 
+        /// <summary>⭐ <c>CE-4658</c> — the weakest heat signature (0..1) that thermal sight resolves (<c>ThermalSensorDto.MinSignature</c>; 0 = any): a cold hull's base
+        /// below it stays hidden, an idling engine above it is seen.</summary>
+        public float ThermalMinSignature { get; init; }
+
         /// <summary>
         /// ⭐ <c>CE-4617</c> (docs/designs/air-attack/DESIGN_Radar_SAM.md RS-2) — the range (m) of an air-search RADAR the vehicle carries, stated
         /// against a 10 m² target; 0 = none. Like a thermal sight it makes the type LIST its sensors (one list: eyes, ears, thermal if any, radar).
@@ -219,6 +223,7 @@ namespace Hrot.Map.Definitions.Tkb
         public List<WeaponMount> Weapons { get; } = new();
         public float SensorRange { get; set; }
         public float ThermalRange { get; set; }
+        public float ThermalMinSignature { get; set; }
         public float RadarRange { get; set; }
         public bool AutonomousEngagement { get; set; } = false;
 
@@ -242,6 +247,7 @@ namespace Hrot.Map.Definitions.Tkb
                 Weapons = Weapons.ToArray(),
                 SensorRange = SensorRange,
                 ThermalRange = ThermalRange,
+                ThermalMinSignature = ThermalMinSignature,
                 RadarRange = RadarRange,
                 AutonomousEngagement = AutonomousEngagement,
         };

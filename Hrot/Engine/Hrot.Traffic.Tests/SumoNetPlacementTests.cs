@@ -77,13 +77,37 @@ public sealed class SumoNetPlacementTests
         Assert.Equal((150.0, -50.0), place.ToLocal(2350.0, 2150.0));
     }
 
+    /// <summary>⭐ CE-1475 (R-4221) — a UTM net's location element, its numbers written culture-NEUTRAL: on a Czech Windows a plain interpolation wrote
+    /// <c>-391779,259</c> and the parser read four numbers for two. ⛔ The fix is the output — the parser stays strict.</summary>
+    private static string UtmNetXml(double e, double n, int zone)
+        => FormattableString.Invariant($"<net><location netOffset=\"{-e:R},{-n:R}\" convBoundary=\"0,0,1,1\" origBoundary=\"\" projParameter=\"+proj=utm +zone={zone} +ellps=WGS84\"/></net>");
+
+    /// <summary>⭐ CE-1475 — the E1 placement under <c>cs-CZ</c> (the user's machine). 🔴 Red-proof: <see cref="UtmNetXml"/> as a plain <c>$"…"</c> ⇒ a decimal
+    /// comma ⇒ the net's offset is misread ⇒ red.</summary>
+    [Fact]
+    public void CE1475_AUtmNet_IsPlacedTheSame_UnderACzechCulture()
+    {
+        var was = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("cs-CZ");
+            var (e, n) = Utm.FromGeodetic(52.52, 13.405, 33, false);
+            var place = SumoNetPlacement.For(NetworkParser.ParseXml(UtmNetXml(e, n, 33)), new TerrainSumoNet("x.net.xml", 0, 0), TerrainGeoFrame.Of(new TerrainGeoOrigin(52.52, 13.405, 0)));
+            Assert.True(place.IsGeoreferenced);
+            var (x0, y0) = place.ToLocal(0, 0);
+            Assert.Equal(0.0, x0, 2);
+            Assert.Equal(0.0, y0, 2);
+        }
+        finally { System.Globalization.CultureInfo.CurrentCulture = was; }
+    }
+
     [Fact]
     public void E1_AUtmNet_IsPlacedThroughTheTerrainOrigin()
     {
         // A net whose (0, 0) is the UTM point of the terrain origin must place (0, 0) at local (0, 0), and 100 m of UTM
         // easting at ~100 m east (UTM scale and grid convergence make it not exactly 100).
         var (e, n) = Utm.FromGeodetic(52.52, 13.405, 33, false);
-        string xml = $"<net><location netOffset=\"{-e:R},{-n:R}\" convBoundary=\"0,0,1,1\" origBoundary=\"\" projParameter=\"+proj=utm +zone=33 +ellps=WGS84\"/></net>";
+        string xml = UtmNetXml(e, n, 33);
         var net = NetworkParser.ParseXml(xml);
         var place = SumoNetPlacement.For(net, new TerrainSumoNet("x.net.xml", 0, 0), TerrainGeoFrame.Of(new TerrainGeoOrigin(52.52, 13.405, 0)));
 
@@ -104,7 +128,7 @@ public sealed class SumoNetPlacementTests
         var anchored = SumoNetPlacement.For(NetworkParser.Parse(DemoCityNet()), new TerrainSumoNet("demo-city.net.xml", 2200, 2200), null);
         var (e, n) = Utm.FromGeodetic(52.52, 13.405, 33, false);
         var utm = SumoNetPlacement.For(NetworkParser.ParseXml(
-                $"<net><location netOffset=\"{-e:R},{-n:R}\" convBoundary=\"0,0,1,1\" origBoundary=\"\" projParameter=\"+proj=utm +zone=33 +ellps=WGS84\"/></net>"),
+                UtmNetXml(e, n, 33)),
             new TerrainSumoNet("x.net.xml", 0, 0), TerrainGeoFrame.Of(new TerrainGeoOrigin(52.52, 13.405, 0)));
 
         foreach (var place in new[] { anchored, utm })
@@ -134,7 +158,7 @@ public sealed class SumoNetPlacementTests
 
         var (e32, n32) = Utm.FromGeodetic(52.52, 13.405, 32, false);
         var other = SumoNetPlacement.For(NetworkParser.ParseXml(
-            $"<net><location netOffset=\"{-e32:R},{-n32:R}\" convBoundary=\"0,0,1,1\" origBoundary=\"\" projParameter=\"+proj=utm +zone=32 +ellps=WGS84\"/></net>"),
+            UtmNetXml(e32, n32, 32)),
             new TerrainSumoNet("x", 0, 0), node);
         var (x0, y0) = other.ToLocal(0, 0);
         Assert.True(Math.Abs(x0) < 0.01 && Math.Abs(y0) < 0.01, $"the net's origin is the terrain's origin: ({x0}, {y0})");

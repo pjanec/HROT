@@ -38,6 +38,57 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal((29, 9), (a.Ammo0, a.Mag0));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4659</c> (thermal drivers TD-5, §3d) — the mirror keeps each mount's LAST BURST: shots under a second apart are one burst (its rounds, when it
+        /// began, its last shot, the heat just after it); while the barrel cools the record does NOT change (no sample — the retired percent sent one per
+        /// step); the heat computed from it later equals the firing node's <see cref="WeaponState.Heat"/>; a shot after a pause opens a new burst.
+        /// 🔴 Red-proofs: no burst gap (every shot a new burst) ⇒ rounds 1 ⇒ red; the record updated while cooling ⇒ the "unchanged" assert ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4659_TheMirrorKeepsEachMountsLastBurst_AndTheComputedHeatMatchesTheBarrel()
+        {
+            using var w = new EntityRepository();
+            w.RegisterComponent<WeaponState>();
+            w.RegisterComponent<BehaviorState>();
+            var unit = w.CreateEntity();
+            w.AddComponent(unit, new BehaviorState());
+            w.SetAuthority<BehaviorState>(unit, true);
+            w.AddComponent(unit, new WeaponState { Ammo = 100, MaxAmmo = 100, HeatPerRound = 0.1f, HeatCoolPerSecond = 0.05f });
+            var mirror = new WeaponAmmoMirrorSystem();
+            double t = 10.0;
+            void Frame(bool shoot, float dt = 0.1f)
+            {
+                t += dt;
+                w.SetSingletonUnmanaged(new GlobalTime { TotalTime = t });
+                ref var ws = ref w.GetComponentRW<WeaponState>(unit);
+                BarrelHeat.Tick(ref ws, dt);
+                if (shoot) Magazine.Spend(ref ws);
+                mirror.Execute(w, dt);
+            }
+
+            Frame(false);
+            Assert.True(double.IsNegativeInfinity(w.GetComponentRO<WeaponAmmo>(unit).LastShotAt0));   // never fired
+            Frame(true); double first = t;
+            Frame(true); Frame(true); Frame(true);                                                   // 4 rounds, 0.1 s apart: one burst
+            var a = w.GetComponentRO<WeaponAmmo>(unit);
+            Assert.Equal(4, a.BurstRounds0);
+            Assert.Equal(first, a.BurstStartedAt0, 6);
+            Assert.Equal(t, a.LastShotAt0, 6);
+            Assert.Equal(w.GetComponentRO<WeaponState>(unit).Heat, a.HeatAtLastShot0, 5);
+
+            for (int i = 0; i < 30; i++)                                                              // 3 s of cooling
+            {
+                var before = w.GetComponentRO<WeaponAmmo>(unit);
+                Frame(false);
+                Assert.True(before.Equals(w.GetComponentRO<WeaponAmmo>(unit)), "no sample while the barrel cools");
+            }
+            Assert.Equal(w.GetComponentRO<WeaponState>(unit).Heat, w.GetComponentRO<WeaponAmmo>(unit).HeatAt(0, t), 3);   // computed = the barrel
+
+            Frame(true);                                                                              // after a 3 s pause: a new burst
+            a = w.GetComponentRO<WeaponAmmo>(unit);
+            Assert.Equal((1, t), (a.BurstRounds0, a.BurstStartedAt0));
+        }
+
         /// <summary>⭐ CE-1079 (docs/DESIGN_Entity_Control.md §8e) — the HUD's breech: the loaded round, how many of it are left, and the
         /// LOADING bit while a reload or a round switch runs; a mount with no loadout says so (0, −1).</summary>
         [Fact]

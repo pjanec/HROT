@@ -1052,7 +1052,6 @@ listed file no longer calls `ReplayState.IsActive`.
 | `DamageCalculationSystem` | `FDP/Toolkits/Fdp.Toolkits/Combat/Systems/DamageCalculationSystem.cs` |
 | `DeadReckoningSyncSystem` | `Hrot/Engine/Hrot.Core/Systems/Common/DeadReckoningSyncSystem.cs` |
 | `DeleteEntityRequestSystem` | `Hrot/Engine/Hrot.Common/Systems/DeleteEntityRequestSystem.cs` |
-| `EditorPerceptionSetupSystem` | `Hrot/Subsystems/Hrot.Editor/Systems/EditorPerceptionSetupSystem.cs` |
 | `EditorZoneAuthoringSystem` | `Hrot/Subsystems/Hrot.Editor/Systems/EditorZoneAuthoringSystem.cs` |
 | `EffectSpawnSystem` | `Hrot/Engine/Hrot.Presentation/Effects/EffectSystems.cs` |
 | `EngineBackedPathResponseSystem` | `FDP/Toolkits/Fdp.Toolkits/Navigation/EngineBacked/EngineBackedPathResponseSystem.cs` |
@@ -1087,6 +1086,7 @@ listed file no longer calls `ReplayState.IsActive`.
 | `RouteState` | `Stride/Hrot.Stride.Core/VehicleNavigationIntentSystem.cs` |
 | `RouteTrajectorySyncSystem` | `Hrot/Subsystems/Hrot.SimHost/Systems/Routing/RouteTrajectorySyncSystem.cs` |
 | `SeatPresetSystem` | `Hrot/Engine/Hrot.Common/EntityCreation/SeatPresets.cs` |
+| `SeedTargetSystem` | `FDP/Toolkits/Fdp.Toolkits/Perception/Systems/SeedTargetSystem.cs` |
 | `SpawnLevelSystem` | `FDP/Toolkits/Fdp.Toolkits/NetworkSpawning/Systems/SpawnLevelSystem.cs` |
 | `StanceTransitionSystem` | `Hrot/Subsystems/Hrot.MuscleCharacter.Animation/Systems/StanceTransitionSystem.cs` |
 | `StridePhysicsBracket` | `Stride/Hrot.Stride.Core/StridePhysicsBracket.cs` |

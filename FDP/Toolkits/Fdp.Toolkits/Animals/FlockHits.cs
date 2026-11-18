@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Animals
                     InitialComponents = new List<object>
                     {
                         new SimTransform { Position = strike, Rotation = Quaternion.Identity },
-                        new Health { Current = 0f, Max = maxHealth },   // dead from the first frame: it falls and lies
+                        new Health { Current = 0f, Max = maxHealth, StateSince = repo.HasSingletonUnmanaged<GlobalTime>() ? repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0.0 },   // dead from the first frame: it falls and lies — ⭐ CE-4661: killed NOW (first sight stamps nothing)
                         new EntityInfo { Name = "Dead " + loneName, ForceId = ForceId.Neutral },   // named, so a scenario can address the bird a hit left
                     },
                 });

@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Terrain
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.Minefield)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public unsafe struct Minefield
     {
         /// <summary>How many lanes a field holds.</summary>

@@ -15,6 +15,8 @@ namespace Fdp.Toolkit.Perception.Signatures
         public IEnumerable<Type> GetConsumedDescriptors()
         {
             yield return typeof(SignaturesDto);
+            yield return typeof(LocomotionDto);   // ⭐ CE-4658 — a type with no thermal data gets its body's default (ThermalDefaults)
+            yield return typeof(VehicleParametersDto);   // ⭐ CE-4660 — … read from its vehicle class when it states no locomotion
         }
 
         public IEnumerable<Type> GetProducedComponents()
@@ -27,7 +29,8 @@ namespace Fdp.Toolkit.Perception.Signatures
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             var dto = template.GetDescriptor<SignaturesDto>();
-            if (dto?.Thermal is { } th && repo.IsComponentTypeRegistered<ThermalState>() && !repo.HasComponent<ThermalState>(entity))
+            var th0 = ThermalDefaults.Of(template);   // ⭐ CE-4658 / CE-4660 — its own, else its body's default (LocomotionDto, else the vehicle class)
+            if (th0 is { } th && repo.IsComponentTypeRegistered<ThermalState>() && !repo.HasComponent<ThermalState>(entity))
                 repo.AddComponent(entity, new ThermalState
                 {
                     BaseSignature        = th.BaseSignature,
@@ -35,6 +38,11 @@ namespace Fdp.Toolkit.Perception.Signatures
                     FiringHeatPerShot    = th.FiringHeatPerShot,
                     CooldownPerSecond    = th.CooldownPerSecond,
                     ReferenceSpeed       = th.ReferenceSpeed,
+                    IdleHeat             = th.IdleHeat,        // ⭐ CE-4657 — the calculator's type data (TD-3)
+                    RunningHeat          = th.RunningHeat,
+                    HasPowerPlant        = th.HasPowerPlant,
+                    PowerClass           = (byte)th.PowerClass,   // ⭐ CE-4658 — what a stand's ground heat mark carries
+                    HotEnd               = (byte)th.HotEnd,
                 });
             if (dto?.Acoustic is { } ac && repo.IsComponentTypeRegistered<AcousticEmitter>() && !repo.HasComponent<AcousticEmitter>(entity))
                 repo.AddComponent(entity, new AcousticEmitter

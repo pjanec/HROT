@@ -542,7 +542,7 @@ and ⛔ **not** play-then-pause (it runs a few seconds on the wall clock first).
 every task change, every report time to the microsecond and the report counts. ⭐ Wired as `utility-demo-check.py --launch --host editor`.
 ⚠ Speed (4 cores, ~75 men): step 1/60 ≈ 0.18× real time, 1/6 ≈ 0.6× — and 1/6 changed the battle's outcome there (deadlier fire), so a coarse
 step is for replaying, not for judging.
-⛔ **Not every scenario repeats:** `pc-defend-house` (eight parked cars) parted between two identical runs by 30–40 s (CE-2438) — run the pair before trusting a replay.
+⚠ **`pc-defend-house` parted between two identical runs by 30–40 s (CE-2438, `2026-11-15`) — NOT reproduced `2026-11-18`:** `stepped-hash.py --threads 4,4 --chunk 600` (60 s, 374 entities) ⇒ STATE EQUAL. ⛔⛔ **The one measured way to break a pair: a BUILD during the run** — any build that writes the runner's `bin` (e.g. `Hrot.ClusterRunner.Tests`, which references the runner) rewrites `Hrot.AI.Behaviors.dll` there, and the running editor HOT-RELOADS it mid-run (the log shows a second `[HotReload] AI Behaviors hot-swapped`). ⭐ Before trusting a repeat, `grep -c hot-swapped` each run's log: 1 = clean.
 
 ### 9.1 ⭐⭐⭐ THE LOCKSTEP DIFF — **step BOTH hosts and diff ONE entity per step**
 

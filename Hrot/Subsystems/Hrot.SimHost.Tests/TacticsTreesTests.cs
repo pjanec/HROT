@@ -65,7 +65,11 @@ namespace Hrot.SimHost.Tests
                 _time += 0.016;
                 Repo.SetSingleton(new GlobalTime { TotalTime = _time, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = ++_frame });
                 Repo.SetSimulationTime((float)_time);
+                // ⭐ CE-3469 — the kernel's order (as CivilianHsmTests / ScenarioRulesTests, CE-7035): version, swap, and the last-tick view before the brains;
+                //   without it a declared cross-entity read under HROT_READ_CHECK=1 has no tick-start copy (it threw) or a stale one (a target's Health never fell)
+                if (Fdp.Core.ParallelReadCheck.HasDeclarations) Repo.Tick();
                 Repo.Bus.SwapBuffers();
+                if (Fdp.Core.ParallelReadCheck.HasDeclarations) Repo.CaptureLastTick();
                 _ingress.Execute(Repo, 0.016f);
                 _brain.Execute(Repo, 0.016f);
                 Repo.FlushCommandBuffers();
@@ -2153,7 +2157,7 @@ namespace Hrot.SimHost.Tests
             var front = w.Contact(armed: true);                                             // a threat he sees
             w.Hear(0f, -40f, 5f);                                                           // a shot behind him
             ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
-            for (int i = 0; i < mem.Count; i++) if (TargetMemory.IsAnonymous(in mem, i)) mem.LastSeenTick[i] = w.Repo.SimulationTick;
+            for (int i = 0; i < mem.Count; i++) if (TargetMemory.IsAnonymous(in mem, i)) mem.LastSeenTick[i] = Fdp.Toolkit.Perception.PerceptionClock.Now(w.Repo);   // ⭐ CE-3469 — LastSeenTick's OWN clock (CE-3292: the sim step, FrameNumber); SimulationTick only matched it while the fixture never ticked the repository
             var p = new LookParams();
             var ws = new LookNodeState();
             Assert.Equal(LookChoice.Threat, LookAt.Want(w.Repo, w.Unit, in p, ref ws, 0.0));    // not shot at: the threat in sight
