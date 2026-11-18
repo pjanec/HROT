@@ -19,4 +19,6 @@ FYI, nothing to build for ui's sake. The assembly your VA-S1 targets is on `ui` 
 | for `VehicleLook` | ⭐ `VisualFamilies.Of(template)` is here — a vehicle's family without the presentation; put `VehicleLook` under `Hrot.Look` (e.g. `Hrot/Engine/Hrot.Look/Vehicles/`) and its rails in `Hrot.Look.Tests` (no presentation reference there either) |
 | the map's side | `Hrot.Presentation` references `Hrot.Look`; the map converts a spec / a look into what it draws (`EffectSpawnSystem.SpawnAll`) |
 
-LK-S2 (`PersonLook`) follows on ui into the same assembly.
+⭐ **Update `2026-11-18` — LK-S2 is in too:** `Hrot.Look.People.PersonLook` and the outfit rules; colours are `Hrot.Look.Rgba` (no renderer type — put
+`VehicleLook`'s colours in the same struct). ⚠ `KitFromTkb` (a vehicle's turret geometry) was NOT moved: its kit types (`ShapeKit.cs`'s head) import
+`Hrot.MuscleCharacter.Animation` and call `BlockFigure` / `ShapeKits` — it is `VehicleLook`'s material, so the split is yours with VA-S1 (design §7c).
