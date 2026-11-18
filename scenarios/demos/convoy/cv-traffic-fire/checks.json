@@ -1,0 +1,19 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md section 3 - feature scenario for CE-1959 (combat beyond the terrain's bounds, on the SUMO net: TerrainWorld.AttachBeyond, SpatialGridFit.Covered). LEFT OUT: the SUMO car given up / its driver abandoning (no cue by kind) - rail PedestriansPanicIntoCiviliansTests.CE1959_*. NO golden (section 5): SUMO steps on its own thread, so the traffic's positions are not expected to repeat run to run. Red without the fix (measured: the hit row FAILS with SpatialGridFit.Covered's beyond footprint dropped).",
+  "runFor": 40,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "Gunner fires",
+      "on": "shot",
+      "by": "Gunner"
+    },
+    {
+      "name": "Gunner's rounds hit Target Car beyond the terrain's bounds",
+      "on": "shot",
+      "by": "Gunner",
+      "hit": "Target Car"
+    }
+  ]
+}
