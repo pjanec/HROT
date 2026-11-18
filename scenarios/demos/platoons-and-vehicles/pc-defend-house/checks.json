@@ -50,6 +50,17 @@
         "by": "*Red",
         "hit": "*Red"
       }
+    },
+    {
+      "name": "Red Squad 1 Rifleman 1 reaches his post inside the house (CE-2450: a give-way into the wall no longer holds him there)",
+      "on": "near",
+      "who": "Red Squad 1 Rifleman 1",
+      "point": [
+        115.9,
+        157.4,
+        0
+      ],
+      "within": 1.5
     }
   ]
 }
