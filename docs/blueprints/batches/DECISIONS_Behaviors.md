@@ -62,7 +62,7 @@ not added to the request.
 
 ## D-1 · `ts-fire-discipline` (CE-3461 follow-up): the REGULARS break under the scenario's 40 over-head rounds — re-tune what? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator): ③ — keep the stress model (R-2076); change `ts-fire-discipline`'s fire to what the Judge means (e.g. 25 rounds or one every 2 s) and edit its description + checks. The militia must still break.**
+**✅ DONE `2026-11-18` (behaviors): 22 rounds at 1.3 s; `ts-fire-discipline` 7 / 7.** **DECIDED `2026-11-18` (user, via coordinator): ③ — keep the stress model (R-2076); change `ts-fire-discipline`'s fire to what the Judge means (e.g. 25 rounds or one every 2 s) and edit its description + checks. The militia must still break.**
 
 **The question:** the scenario (and `DESIGN_Temperament_And_Stress.md` §6) says *no regular breaks* under 40 rounds passing over a team every 1.3 s from
 120 m. Measured now, the two CENTRE regulars break at ~29–33 s. Which number moves: the near-miss stimulus, the calming, or the scenario's fire?

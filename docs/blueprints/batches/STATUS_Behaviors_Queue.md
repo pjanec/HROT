@@ -12,7 +12,7 @@ Started at the merge of `origin/coordinator` (2026-11-18 09:00).
 
 ## 1. Now
 
-CE-4652 done (row 4 → D-4). Next: CE-2447 (`mf-no-way-round`).
+CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. Next: D-3 (the mine maims), then D-2, CE-9023.
 
 ## 2. The queue (in order)
 
@@ -20,10 +20,13 @@ CE-4652 done (row 4 → D-4). Next: CE-2447 (`mf-no-way-round`).
 |---|---|---|---|---|
 | CE-4652 a near-missed mover does not drop | ✅ DONE — five causes: ① InertSop shooters broke (fixed), ② near misses double-counted (fixed), ③ the TakeCover branch's fresh sensor read first (OfTemplate: answered first), ④ a re-asked cover sensor scored 0 (holds its last answer), ⑤ the decision scored cover within 60 m, the branch searched 15 m ⇒ waited, failed, re-chosen for ever (the score now looks as far as the branch). Row (2) passes; row (4) now needs ~300 s ⇒ **D-4** | aa5a0d16c, ccd1d05cf, 7c0397f2b, (this commit) | `StandardInputReaderTests.CE4652_*` (2), `TacticsTreesTests.CE4652_*`, `StressSystemTests.CE4652_*`, `BallisticsSystemTests.CE4652_*` | ✅ row (2) · ⚠ row (4) → D-4 |
 | CE-4653 a 10 HP man never asks to lie down | ✅ DONE — a stale check: 10 HP is under the incapacitated line (out of the fight, lies by LogicalStance); check restated, red-proved | (this commit) | — (scenario row) | ✅ `ua-fire-distribution` 5 / 5 |
-| CE-3461 the militia never break | ✅ militia rows PASS (same causes as CE-4652); the REGULARS now break at ~30 s ⇒ **D-1 SKIPPED — needs decision** (`DECISIONS_Behaviors.md`) | aa5a0d16c | as CE-4652 | ⚠ rows (1), (3) red → D-1 |
+| CE-3461 the militia never break | ✅ DONE — militia rows (CE-4652's causes) + the regulars' row (D-1) | aa5a0d16c | as CE-4652 | ⚠ rows (1), (3) red → D-1 |
 | CE-4654 a man on a mine loses neither health nor mobility | ✅ DONE — answered by terrain's CE-2446 (merged): the AP burst now kills him (Health 0, no move / fire); pinned by a new scenario row; maim-instead-of-kill ⇒ **D-3** | (this commit) | — (scenario row (2b), red before CE-2446) | ✅ `mf-strike-and-halt` 7 / 7 |
-| CE-2447 `mf-no-way-round`: a man enters before the squad reacts | TODO | | | `mf-no-way-round` |
+| CE-2447 `mf-no-way-round`: a man enters before the squad reacts | ⛔ **BLOCKED on terrain CE-4655** — measured: the route does not cross the field, it hugs its north edge with zero clearance (leader y 110.1, the squad's position inside the edge); the reaction fires only when the squad clips the corner. Note sent | | — | ⚠ 1 row red |
 | CE-9023 the immobilised APC's play never ends | TODO | | | `uc-urban-battle` |
+| D-1 `ts-fire-discipline` re-tune (CE-3461 regulars) | ✅ DONE — 22 rounds at 1.3 s (the measured window between the slowest militia break, ~25 s, and a centre regular's, ~33 s) | (this commit) | — (scenario) | ✅ `ts-fire-discipline` 7 / 7 |
+| D-3 the mine's trigger man maimed (CE-4654 follow-up) | TODO | | | `mf-strike-and-halt` |
+| D-2 `SupportAsset.Engineers` (CE-2442) | TODO | | | a new `mf-*` demo |
 | CE-3462 the waverer never breaks | TODO | | | `ts-house-defenders` |
 | CE-3463 the guard does not fire first | TODO | | | `ia-area-defend` |
 | CE-3464 a pinned man never fires, walks to the house | TODO | | | `rf-pinned-in-open` |
@@ -34,11 +37,26 @@ CE-4652 done (row 4 → D-4). Next: CE-2447 (`mf-no-way-round`).
 
 ## 3. Taken from new handoffs
 
+- `2026-11-18` decisions DECIDED (user via coordinator): **D-1** ③ re-tune `ts-fire-discipline`'s fire · **D-2** ① build `SupportAsset.Engineers` + demo · **D-3** ① the trigger man maimed (Leg zone), not killed — each back in the queue.
+- `NOTE_Ui_To_Behaviors_Scenario_Reds.md`: `bt-window-duel` (the Window Rifleman never fires, the Street Rifleman never bounds) and `ua-danger-crossing` (the DangerCrossing never runs) fail their own rows — queued after the P rows.
+- `NOTE_Terrain_To_Behaviors_Mine_Edge_Inset.md` (FYI): mines keep `max(spacing/2, 1 m)` inside the outline (CE-4655); a cross-lane edit in `ReconMinefieldBehavior.Mined`; `mf-no-way-round`'s red unchanged by it.
+- self-wake-up: KEPT when the queue empties (R-4292).
+
 `HANDOFF_Coordinator_To_Behaviors_Bug_Queue.md` — 2026-11-18 09:00.
 
 ## 4. Notes sent / received
 
+- sent: `NOTE_Behaviors_To_Terrain_NoWayRound_EdgeClearance.md` — CE-2447 is their CE-4655 (routes hug a known field's edge).
 - sent: `NOTE_Behaviors_To_Backend_NearMiss_And_LyingCap.md` — the cross-lane near-miss fix; their `CE4649` allocation rail is order-sensitive under the strict guards.
+
+## 4a. Baselines measured after CE-4652 (`aa633308c`)
+
+| scenario | red rows |
+|---|---|
+| `ts-house-defenders` (CE-3462) | Coward breaks · Waverer breaks · Waverer surrenders |
+| `ia-area-defend` (CE-3463) | Blue South fires before the guard · guard never fires at Blue East · Blue East within 30 m first |
+| `rf-pinned-in-open` (CE-3464) | Pinned returns fire · Pinned crawls to the wreck |
+| `rf-wall-hugger` (CE-3465) | a grenade at the Hugger |
 
 ## 5. Gates (rule 8)
 
