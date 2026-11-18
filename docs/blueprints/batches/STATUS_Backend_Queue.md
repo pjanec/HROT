@@ -24,28 +24,30 @@ IN PROGRESS: **CE-3452** (a bike from a standstill reports FailedBlocked while i
 | CE-4659 TH TD-S3 burst barrel heat on WeaponAmmo | TODO | | | |
 | CE-4660 TH TD-S4 fire: ignition, BurnSystem, wreck reads FireState | TODO | | | `th-burning-wreck` |
 | CE-4661 TH TD-S5 Health.StateSince | TODO | | | |
-| CE-4664 TH TD-S8 ground heat marks | TODO | | | `th-vehicle-left-warm-spot` |
+| CE-4664 TH TD-S8 ground heat marks | ➡ MOVED to terrain (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | `th-vehicle-left-warm-spot` |
 | CE-4663 TH TD-S7 DIS mapping table (doc) | TODO | | | |
-| CE-3468 T2 Points / Best blind under the parallel phase | TODO | | | |
+| CE-3468 T2 Points / Best blind under the parallel phase | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-3469 T2 six SimHost rails red under the parallel env | TODO | | | |
 | CE-2440 T2 cc-battalion not thread-count independent | TODO | | | |
 | CE-3445 T2 rare mode-3 stepped divergence | TODO | | | |
-| CE-2438 T2 paused-preview + run-to does not repeat | TODO | | | |
+| CE-2438 T2 paused-preview + run-to does not repeat | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-2448 T2 cp-vbied golden does not repeat | TODO | | | |
 | CE-3449 T2 five goldens differ from t = 0 | TODO | | | |
-| CE-3424 T2 scale-1: 1 of 12 movers moved | TODO | | | |
+| CE-3424 T2 scale-1: 1 of 12 movers moved | ➡ MOVED to terrain (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-3425 T2 scale-1 frame cost | TODO | | | |
 | CE-4395 T2 the brain's cost at 1 000 men | TODO | | | |
 | CE-3460 T2 the root objective never aggregates | TODO | | | |
-| CE-3471 T2 a pig walked through its pen wall | TODO | | | |
-| CE-1038 T2 SimHost run counts differ | TODO | | | |
-| CE-1046 T2 AfterBranch_SimGroupsReEnabled under load | TODO | | | |
-| CE-1473 T2 ClusterRunner.Tests does not build | TODO | | | |
-| CE-3451 T2 six ClusterRunner.Tests rails drifted | TODO | | | |
-| CE-1475 T2 SumoNetPlacementTests on a Czech Windows | TODO | | | |
+| CE-3471 T2 a pig walked through its pen wall | ➡ MOVED to terrain (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
+| CE-1038 T2 SimHost run counts differ | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
+| CE-1046 T2 AfterBranch_SimGroupsReEnabled under load | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
+| CE-1473 T2 ClusterRunner.Tests does not build | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
+| CE-3451 T2 six ClusterRunner.Tests rails drifted | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
+| CE-1475 T2 SumoNetPlacementTests on a Czech Windows | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-167 T2 re-check, close if stale | TODO | | | |
 
 ## 3. Taken from new handoffs
+- ✅ `STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios.md` (`2026-11-18`) — ten rows moved (terrain: CE-3424, CE-3471, CE-4664; ui: CE-3468, CE-2438, CE-1473, CE-3451, CE-1475, CE-1038, CE-1046); from now §6a: per row its own scenarios + the touched feature's set, the wide family once per several rows. The 41-scenario run going for CE-3452 + CE-3473 counts as this batch's wide run.
+- ✅ `NOTE_Terrain_To_Backend_Thermal_Field_Names.md` — FYI for CE-4657 (smoke `AreaEffectCloud.BlocksInfrared`, weather `WeatherConditions.Since`, `TerrainMaterial.ThermalClass`, `SurfaceThermalClass`); names accepted, nothing to answer.
 - ✅ `HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md` (coordinator merged `2026-11-18`) — CE-4657…CE-4661, CE-4663, CE-4664 queued in §2 after the P1/P5 rows, before T2 (the handoff's priority).
 
 ## 4. Notes sent / received
