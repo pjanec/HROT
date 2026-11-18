@@ -282,7 +282,9 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     {
         demand = default;
         if (!world.IsComponentTypeRegistered<TrafficDemand>()) return false;
-        foreach (var e in world.Query().With<TrafficDemand>().Build()) { demand = world.GetComponentRO<TrafficDemand>(e); return demand.TargetPedestrians > 0; }
+        // ⭐ CE-1959 — ANY traffic: a hit car (K7 / §8.7 G4) and a driver who hears the fight (CE-7011) need no pedestrians. ⛔ Was "pedestrians > 0" (slice 5a's
+        //   gate, when this system only frightened walkers): in car-only traffic (the convoy scenarios) every hit on a SUMO car was ignored
+        foreach (var e in world.Query().With<TrafficDemand>().Build()) { demand = world.GetComponentRO<TrafficDemand>(e); return demand.TargetPedestrians > 0 || demand.TargetCars > 0; }
         return false;
     }
 }

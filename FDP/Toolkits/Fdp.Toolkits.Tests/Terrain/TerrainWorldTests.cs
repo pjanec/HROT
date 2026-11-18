@@ -191,6 +191,30 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-1959</c> (the user, `2026-11-17`: "SUMO cars ignore hits from a possessed armoured vehicle") — both grids cover the ground ATTACHED beyond
+        /// the terrain (the SUMO net's footprint, <c>TerrainWorld.AttachBeyond</c>): a body on the net past the terrain's bounds is in the collider grid, so a
+        /// round can meet it. 📐 Live (cv-red-lights on demo-city — bounds 800 m, the net to y ≈ 4 400): the collider grid stopped at 850 and every round
+        /// at a SUMO car passed through it (IFV and rifleman, 90 of 90). 🔴 Red-proof: drop the beyond footprint in <c>SpatialGridFit.Covered</c> ⇒ the
+        /// grid ends at 850 and the problem line comes back.
+        /// </summary>
+        [Fact]
+        public void CE1959_TheGrids_CoverTheSumoNetAttachedBeyondTheTerrain()
+        {
+            var world = TerrainWorldParser.Parse("""{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,800,800]},"features":[]}""");
+            var alone = TerrainGridCoverage.ColliderGrid(world);
+            Assert.True(alone.OriginY + 300 * alone.CellSize < 1000f, "the terrain alone: the collider grid ends near 850 (the live run's)");
+            world.AttachBeyond(new BeyondGround((_, _) => 0f, new[] { new Vector2(-1500f, -1500f), new Vector2(3000f, -1500f), new Vector2(3000f, 4400f), new Vector2(-1500f, 4400f) }));
+            foreach (var (g, cells) in new[] { (TerrainGridCoverage.ColliderGrid(world), SpatialHashConstantsWidth()), (TerrainGridCoverage.PerceptionGrid(world), 200) })
+            {
+                Assert.True(g.OriginX <= -1500f && g.OriginY <= -1500f, $"origin ({g.OriginX}, {g.OriginY})");
+                Assert.True(g.OriginY + cells * g.CellSize >= 4400f, $"the grid ends at y {g.OriginY + cells * g.CellSize:F0}, short of the net's 4400");
+            }
+            Assert.Empty(TerrainGridCoverage.Problems(world));
+        }
+
+        private static int SpatialHashConstantsWidth() => global::CarKinem.Spatial.SpatialHashConstants.GridHeight;
+
+        /// <summary>
         /// W9 / CE-3018 — the grids are FITTED to the world. ⛔ The expectation changed deliberately: this rail used to
         /// assert that a world leaving the fixed grids is reported per grid (slice 1, check only). Now both grids rebase,
         /// so a big world is covered and a world that already fits leaves the placement exactly at the default.

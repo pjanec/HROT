@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-6): mode 1, the priority escort and its column cross a red; the user's rule 'the convoy ignores traffic lights'. No golden yet (first run). The never-splits rows read POSITIONS (far, CE-9009), so they judge the same in both tiers (the trail lives only on the kinematic owner). A split is a pair more than 60 m apart = one gap + the three gaps of lag at which the lead's cap stops it (C-6): past that the cap failed to hold the column. 📌 Measured in the cluster tier (real time, longer frames): a follower falls ~40 m behind its predecessor for a few seconds at the 12 m junction kink at x 300 (CE-9011) and recovers by x 400 — the cap at work, not a split.",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-9005 (docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md §5 S-6): mode 1, the priority escort and its column cross a red; the user's rule 'the convoy ignores traffic lights'. No golden yet (first run). The never-splits rows read POSITIONS (far, CE-9009), so they judge the same in both tiers (the trail lives only on the kinematic owner). A split is a pair more than 60 m apart = one gap + the three gaps of lag at which the lead's cap stops it (C-6): past that the cap failed to hold the column. 📌 Measured in the cluster tier (real time, longer frames): a follower falls ~40 m behind its predecessor for a few seconds at the 12 m junction kink at x 300 (CE-9011) and recovers by x 400 — the cap at work, not a split. CE-1972 (terrain, 2026-11-18): the two 'never swerves' rows - the lead drives straight south along x 145, so its east-west speed is its sideways speed; the weave the user saw was the escort's SUMO shadow swerving at SumoSharp's evasion speed (2 m/s) away from the convoy's gap squares, which carried the follower's velocity (fixed: the squares at rest, R-5063).",
   "runFor": 95,
   "golden": false,
   "expect": [
@@ -80,6 +80,26 @@
         735
       ],
       "within": 20
+    },
+    {
+      "name": "the lead never swerves east (CE-1972: no lateral swerve at SumoSharp's 2 m/s evasion speed)",
+      "never": {
+        "on": "field",
+        "who": "Escort 1",
+        "path": "SimVelocity.Linear.0",
+        "op": ">",
+        "value": 1.9
+      }
+    },
+    {
+      "name": "the lead never swerves west (CE-1972)",
+      "never": {
+        "on": "field",
+        "who": "Escort 1",
+        "path": "SimVelocity.Linear.0",
+        "op": "<",
+        "value": -1.9
+      }
     }
   ]
 }

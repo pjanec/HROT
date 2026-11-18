@@ -148,6 +148,71 @@ public sealed class AVehicleHandedToSumoArrivesTests
         Assert.Empty(session.Shadows);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1972</c> (the user, `2026-11-17`: "the convoy leader swings from one lane to the other and back, and the two followers copy it") — through SumoSharp on
+    /// demo-city: the escort's priority shadow, slowed on and off by the C-6 cap, with its column fed BEHIND it as the editor feeds it (three trucks and the gap squares
+    /// AT REST, as <c>TrafficBodies.AddConvoyGaps</c> tells them — R-5063), holds its lane: no step drifts sideways faster than 0.5 m/s. 📐 With the squares carrying the
+    /// follower's 12 m/s the same run swerves on 146 of 180 samples at ±2 m/s (B6 evasion: SumoSharp projects a moving obstacle forward into a slower vehicle) — live,
+    /// the lead's x swung ±1 m every ~9 s (cv-red-lights). Red-proof is the feed's own rail: <c>TrafficBodyFeedTests.CE9002_*</c> asserts the squares at rest.
+    /// </summary>
+    [Fact]
+    public void CE1972_ACappedEscortsShadow_WithItsColumnFedBehindIt_HoldsItsLane()
+    {
+        const bool gaps = true, capped = true, still = true;
+        var cache = Load(out var world);
+        using var _ = world;
+        using var session = Session(cache);
+        var (start, heading, dest) = ARouteACarDrove(session, cache);
+        var h0 = Handover(cache, start, heading, dest, intent: 1) with { Priority = true };
+        session.SetHandovers(new[] { h0 });
+        var log = new System.Text.StringBuilder();
+        TrafficCarPose? prev = null; float maxLat = 0f; int wob = 0, n = 0;
+        double t0 = session.Time, end = session.Time + 60.0;
+        for (double t = session.Time + 0.5; t < end; t += 0.5)
+        {
+            if (capped) session.SetHandovers(new[] { ((int)((t - t0) / 4.5) % 2 == 1) ? h0 with { MaxSpeed = 4.0 } : h0 });
+            // the column behind the lead, as the editor feeds it: the lead entity is where the shadow was resolved (one step behind)
+            var lead = Resolve(session, cache, session.Time - 0.5).FirstOrDefault(x => x.Id == TrafficShadowFollowSystem.ShadowIdOf(Body));
+            var bodies = new List<TrafficBody>();
+            if (lead.Id is not null)
+            {
+                var fwd = new Vector2(MathF.Cos(lead.YawRad), MathF.Sin(lead.YawRad));
+                var lp = new Vector2(lead.X, lead.Y);
+                var vel = still ? Vector2.Zero : fwd * 12f;
+                for (int m = 1; m <= 3; m++)
+                {
+                    var fp = lp - fwd * (22f * m);   // 15 m gaps, 7 m vehicles
+                    var (bx, by) = cache.Placement.ToNet(fp.X, fp.Y);
+                    bodies.Add(new TrafficBody(9100 + m, TrafficBodyKind.Vehicle, bx, by, vel.X, vel.Y, 7f, 3.5f));
+                    if (gaps)
+                    {
+                        var a = fp + fwd * 3.5f; var b = lp - fwd * (22f * (m - 1)) - fwd * 3.5f;
+                        for (int k = 0; k < 5; k++) { var c = Vector2.Lerp(a, b, (k + 0.5f) / 5f); var (cx, cy) = cache.Placement.ToNet(c.X, c.Y); bodies.Add(new TrafficBody(-(m * 64 + k + 1), TrafficBodyKind.Vehicle, cx, cy, vel.X, vel.Y, 3f, 3.5f)); }
+                    }
+                }
+            }
+            session.SetBodies(bodies.ToArray());
+            session.StepTo(t);
+            foreach (double sub in new[] { -0.75, -0.5 })
+            {
+                var c = Resolve(session, cache, session.Time + sub).FirstOrDefault(x => x.Id == TrafficShadowFollowSystem.ShadowIdOf(Body));
+                if (c.Id is null) { prev = null; continue; }
+                if (prev is { } p0)
+                {
+                    var d = new Vector2(c.X - p0.X, c.Y - p0.Y) / 0.25f;
+                    var nrm = new Vector2(-MathF.Sin(c.YawRad), MathF.Cos(c.YawRad));
+                    float lat = Vector2.Dot(d, nrm); n++;
+                    if (MathF.Abs(lat) > 0.5f) wob++;
+                    maxLat = MathF.Max(maxLat, MathF.Abs(lat));
+                    if (log.Length < 900 && d.Length() > 2f) log.Append($"{lat:0.0} ");
+                }
+                prev = c;
+            }
+        }
+        Assert.True(n > 100, $"only {n} samples of the shadow");
+        Assert.True(wob == 0, $"the shadow drifted sideways on {wob} of {n} samples (max {maxLat:0.00} m/s): {log}");
+    }
+
     private static (Vector2 Start, float Heading, Vector2 Dest) ARouteACarDrove(TrafficSession s, TrafficNetCache cache)
     {
         s.StepTo(20.0); s.StepTo(40.0);
