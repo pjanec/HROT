@@ -108,6 +108,33 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(0f, d.HitX, 3); Assert.Equal(0f, d.HitY, 3);
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-4655 — a laid field keeps its mines off its marked edge (<see cref="MinePattern.EdgeInset"/>: half a spacing, ≥ 1 m): a man walking ALL FOUR edges just
+        /// inside the outline (0.2 m — where a route that skirts a known field runs) sets nothing off, every mine the pattern derives lies ≥ the inset inside, and a man
+        /// crossing the middle still strikes. 📐 Before: a 3 m field laid a column 0.5 m inside its east edge and the skirting squad walked onto it (user, `2026-11-18`).
+        /// 🔴 Red-proof: drop the edge term from <c>MinePattern.Laid</c> ⇒ strikes on the east edge, and a mine 0.5 m inside.
+        /// </summary>
+        [Fact]
+        public void CE4655_AManWalkingTheFieldsEdge_SetsNothingOff_EveryMineKeepsTheInset_TheMiddleStillStrikes()
+        {
+            var field = Field(MineType.AntiPersonnel, spacing: 3f);
+            var corners = new[] { new Vector2(-19.8f, -19.8f), new Vector2(19.8f, -19.8f), new Vector2(19.8f, 19.8f), new Vector2(-19.8f, 19.8f) };
+            var man = Body(LocomotionClass.Pedestrian, corners[0]);
+            Frame();
+            for (int e = 0; e < 4; e++)
+                for (int i = 1; i <= 200; i++) { var p = Vector2.Lerp(corners[e], corners[(e + 1) % 4], i / 200f); MoveTo(man, p.X, p.Y); Frame(); }
+            Assert.Empty(_struck);
+
+            var outline = new[] { new Vector2(-20, -20), new Vector2(20, -20), new Vector2(20, 20), new Vector2(-20, 20) };
+            var mines = new List<Mine>();
+            Assert.True(MinePattern.MinesIn(_w.GetComponentRO<Minefield>(field), Vector2.Zero, outline, mines) > 50);
+            foreach (var m in mines) Assert.True(MinePattern.EdgeDistanceSquared(outline, m.At) >= 1.5f * 1.5f - 1e-3f, $"a mine {MathF.Sqrt(MinePattern.EdgeDistanceSquared(outline, m.At)):0.00} m inside the edge");
+
+            MoveTo(man, -3f, 0.1f); Frame();
+            for (int i = 1; i <= 60; i++) { MoveTo(man, -3f + i * 0.1f, 0.1f); Frame(); }   // across row 0, mines at x = −3, 0, 3
+            Assert.NotEmpty(_struck);
+        }
+
         /// <summary>A man walks over an anti-tank mine: nothing — across the whole field, mine by mine. 🔴 Red-proof: drop the "a man walks over it" test ⇒ he fires them ⇒ red.</summary>
         [Fact]
         public void CE4624_AManWalksOverAntiTankMines_Nothing()
