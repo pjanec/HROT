@@ -1,6 +1,6 @@
 {
   "$doc": "docs/DESIGN_Scenario_Regression.md §5 — a DEMO (two platoons, 40 men): conditions only, no golden. The chain it must show, from its header's Judge (1)-(3); (4) the assault comes ~290 s in and is left to the long run",
-  "runFor": 120,
+  "runFor": 180,
   "golden": false,
   "expect": [
     {
