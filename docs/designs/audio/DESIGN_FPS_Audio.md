@@ -266,7 +266,7 @@ Measured: the device opens (miniaudio | ALSA), every clip loads, the loop stream
 | ⭐ the **2-D ear** (D-14) | `AudioLayer.Ear2D`: at the 2-D view's centre (`MapViewSwitch.CurrentPose`, the overhead pose that shows the same), as high as half the visible width, looking north (the map is north-up) — the same spatializer, so a wide view hears only the loud things. ⛔ SUPERSEDES §8.1's "3-D view only" for the camera's ear |
 | ⭐ the switch | `AudioDirector.CameraSound` = a film take's `sound` if it set one, else Settings ▸ Sound (`AudioPreferences.CameraSound`); `GET/POST /audio` reads and sets the menu's switch, master and mute. ⭐ **FPS always sounds** — the switch is the camera's (rail `AudioTests.CE4038_ATakesSoundSwitch_RulesTheCamera_NeverFirstPerson_AndACaptureRecordsWithNoDevice`, red-proven) |
 | ⭐ the film's track | while `AudioDirector.Recorder` is set, the layer's output is a `RecordingAudioOutput` (over a `NullAudioOutput` when there is no device): every clip's samples and every started sound go into a `SoundTrack`, rendered offline to a WAV on the film's own timeline and muxed by ffmpeg |
-| ⛔ known gap | a clip loaded from an `.ogg` file is not decoded for the track (`WavReader` reads PCM WAV) — it plays live but is missing from a film |
+| ✅ OGG in the track (`CE-1239`, `2026-11-18`) | `OggReader` decodes an `.ogg` clip for the track (raylib's `LoadWave` — stb_vorbis, no window or device — downmixed to mono 16-bit at the file's rate). ⛔ SUPERSEDED: *"a clip loaded from an `.ogg` file is not decoded for the track"*. Rail `AudioTests.CE1239_…` |
 
 ## 9. AS BUILT — the VOICES: a line per utterance, a voice per side (`CE-2372`, AQ105 F, R-2080, ui, `2026-10-25`)
 

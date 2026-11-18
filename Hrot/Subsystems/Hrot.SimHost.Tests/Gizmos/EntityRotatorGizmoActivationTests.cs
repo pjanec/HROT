@@ -80,6 +80,24 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.Equal(entity, handlerTarget);
         }
 
+        /// <summary>⭐ <c>CE-1246</c> (canvas-context-menu-design §12 HA-4) — a host with NO map (Stride mode 2) runs its actions through
+        /// <see cref="HostActionsPumpSystem"/>: a request made between ticks (the Details panel's Properties…, the inspector's menu) runs on the next
+        /// tick, once. ✅ Red-proof: the pump without its <c>SwapBuffers</c> ⇒ the request is never read and the handler never runs.</summary>
+        [Fact]
+        public void CE1246_AMaplessHost_RunsItsActions_ThroughThePump_OnceEach()
+        {
+            var host = new HostActions();
+            int runs = 0; Entity seen = Entity.Null;
+            host.Actions.Register(GlobalActionIds.Rotate, (view, target) => { runs++; seen = target; });
+            var pump = new HostActionsPumpSystem(host);
+            var entity = _repo.CreateEntity();
+            host.Request(GlobalActionIds.Rotate, entity);
+            pump.Execute(_repo, 0f);
+            Assert.Equal((1, entity), (runs, seen));
+            pump.Execute(_repo, 0f);
+            Assert.Equal(1, runs);                                    // never twice
+        }
+
         // SC_ER004: An unregistered action ID in the event produces no exception.
         [Fact]
         public void SC_ER004_UnregisteredActionId_DoesNotThrow()

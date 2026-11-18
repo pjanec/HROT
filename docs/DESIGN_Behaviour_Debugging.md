@@ -228,6 +228,23 @@ missing feature, each is a wire that was never connected or connects one phase t
 | **DBG-10** | Brain tab text | ⭐ *Why*: one line per decision, option names, winner first (CE-1280) · *Recent changes*: a fixed-height child region, row menu *Open that behaviour* / *Break on this kind* (CE-1281) · *Squad*: one line per member with its current order, the name a link that selects the member (CE-1282) | — |
 | **DBG-11** | the HTTP side | ⭐ every view above gets its route in the Agent Shared View design, over the same readers (R-1029) | — |
 
+## 8a. AS-BUILT — DBG-2 "Observe all brain units" (`CE-1283`, ui, `2026-11-18`)
+
+| | as built |
+|---|---|
+| the switch | `UnitDebugSettings.ObserveAll` — a FOURTH requester in the one store (CE-1329), global; `Apply` sets the trace bit on every unit with a `BehaviorState` while it is on (a unit spawned later too); off ⇒ only each unit's own requesters (user / viewed / armed) remain |
+| where | the Brain tab's Debug section checkbox · `POST /entities/{id}/debug-settings {observeAll}` (GET answers it) · ⚠ no Debug-menu item yet (the lean said menu + tab; the tab is the hub, DBG-1) |
+| remembered | per scenario, in the store's JSON (`"observeAll": true`); the threaded sync copies it (`TakeRequestsFrom`) |
+| ⛔ deviations | *Debug this unit* no longer exists (CE-1317: viewing is debugging) — the "keep it" half of the lean is moot; the "decided by its graph" line was not added |
+
+## 8b. AS-BUILT — DBG-10 Recent changes (`CE-1281`, ui, `2026-11-18`)
+
+A fixed-height grid (`EntityBrainView.BeginGrid(id, height, …)`: `ScrollY`, header frozen, `ChangesVisibleRows` = 8) and a right-click menu per row:
+*Open graph of <behaviour>* (the row's `BrainChange.Behaviour` — `BrainJournalText.BehaviourOf`: A of a task / SOP entry, B of an order / HSM state
+change) through the tab's one `OpenGraph`, and *Copy*. ⛔ Deviation: *Break on this kind* is not on the row — the tab's *Break when it changes its mind*
+arms every kind (the HTTP route takes `kinds`); a per-kind row item waits for the controller seam to take kinds. *Why* (DBG-10 first clause) was
+already one line per decision since CE-1325 W5 (`CE-1280` closed as superseded).
+
 ## 7. Slices → tracker rows *(order = the lean; each its own commit, rails red-proved)*
 
 | slice | rows | why this order |

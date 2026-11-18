@@ -1111,6 +1111,10 @@ public sealed partial class EffectTests
                                             MunitionTkbCatalog.Tkb23mmHei,           // ⭐ CE-2190 — the ZU-23-2's HE-I (a new type on a new mount)
                                             MunitionTkbCatalog.TkbBatonRound, MunitionTkbCatalog.TkbStunGrenade,     // ⭐ CE-3223
                                             MunitionTkbCatalog.TkbTearGasGrenade,
+                                            MunitionTkbCatalog.TkbM61Hei, MunitionTkbCatalog.TkbGsh30Hei,   // ⭐ CE-1955 — the air-combat guns' HE-I (CE-4647 S3, new types on new mounts; this list was left short)
+                                            MunitionTkbCatalog.TkbAim9x, MunitionTkbCatalog.TkbAim120, MunitionTkbCatalog.TkbR73, MunitionTkbCatalog.TkbR77,   // ⭐ CE-1955 — the air-to-air missiles' warheads
+                                            MunitionTkbCatalog.TkbThrowingHatchet,   // ⭐ CE-1955 — the warrior (CE-4650) is the first MOUNT to load the existing hatchet (its kinetic warhead since CE-3247; no number moved)
+                                            MunitionTkbCatalog.TkbArrow, MunitionTkbCatalog.TkbCrossbowBolt,   // ⭐ CE-1955 — the bows' rounds (CE-4649): their warhead carries the Sticks flag
                                             MunitionTkbCatalog.TkbRadarSamMissile,   // ⭐ CE-4617 — the radar SAM's proximity-fused library warhead (a new type on a new mount; backend's B-2 left this list one short)
                                             MunitionTkbCatalog.TkbExplosiveCharge };   // ⭐ CE-3233 B-11b — the charge 618's 8 kg round (a new type on a new mount)   // ⭐ CE-3219 part 3 — the launcher man's gas grenades (a new type on a new mount); ⭐ CE-3223 — the security forces' non-lethal rounds (new types on new mounts)
         int mounts = 0, tracerMixed = 0;

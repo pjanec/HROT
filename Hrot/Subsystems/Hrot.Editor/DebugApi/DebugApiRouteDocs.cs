@@ -2863,7 +2863,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_debug_settings",
             Group:   "K — AI behavior traces",
             Summary: "A unit's debug settings (CE-1329) — the ONE store the Brain tab's Show on map ticks and the map's right-click Pin gizmos / AI trace items use: the gizmo families pinned on it (they draw for it, selected or not; selection draws none), its trace (the user's switch; traceOn also counts a Brain tab showing it and an observe / breakpoint arming), and whether the 3-D camera follows it. Remembered per scenario.",
-            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow }",
+            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow, observeAll }",
             Hint:    "Req: networkId (number). Editor only. Example: get_debug_settings({networkId:1000})",
             Params: new RouteParam[] { new("networkId", "number", true, "Network entity ID (long)") },
             ExampleArgsJson: "{\"networkId\":1000}",
@@ -2873,8 +2873,8 @@ namespace Hrot.Editor.DebugApi
             Tool:    "set_debug_settings",
             Group:   "K — AI behavior traces",
             Summary: "Sets a unit's debug settings (CE-1329) — exactly what the Brain tab's ticks and the right-click menu set, and the operator sees it: pins (REPLACES the pinned gizmo families), trace (records the unit's BTree / HSM rings and utility trace), follow (the 3-D camera follows it), reset (forgets what is remembered for it first). Only what is given changes. Remembered per scenario (restored on its next load). ⛔ Replaces debug_unit.",
-            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow }",
-            Hint:    "Req: networkId (number); optional pins (string[] of: Perception, Contacts, EQS, Utility, Squad, Actions, Command picture, My units' contacts, Path), trace (bool), follow (bool), reset (bool). Editor only. Example: set_debug_settings({networkId:1000, pins:[\"Perception\",\"Contacts\"], trace:true})",
+            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow, observeAll }",
+            Hint:    "Req: networkId (number); optional observeAll (bool — GLOBAL: trace every brain unit, CE-1283), pins (string[] of: Perception, Contacts, EQS, Utility, Squad, Actions, Command picture, My units' contacts, Path), trace (bool), follow (bool), reset (bool). Editor only. Example: set_debug_settings({networkId:1000, pins:[\"Perception\",\"Contacts\"], trace:true})",
             Params: new RouteParam[]
             {
                 new("networkId", "number", true, "Network entity ID (long)"),
@@ -2882,6 +2882,7 @@ namespace Hrot.Editor.DebugApi
                 new("trace", "boolean", false, "Record the unit's behaviour trace (remembered)"),
                 new("follow", "boolean", false, "The 3-D camera follows the unit (remembered); false lets go"),
                 new("reset", "boolean", false, "Forget everything remembered for this unit first"),
+                new("observeAll", "boolean", false, "CE-1283 — GLOBAL: trace every unit with a brain (remembered per scenario)"),
             },
             Notes: new[]
             {

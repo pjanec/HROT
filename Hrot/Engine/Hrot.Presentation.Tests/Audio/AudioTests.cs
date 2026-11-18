@@ -59,6 +59,23 @@ public sealed class AudioTests
 
     // ── the spatial rules (AU-2, §4) ──────────────────────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>⭐ <c>CE-1239</c> (FPS Audio §8.2, Film Director §8.4) — a clip defined from an <c>.ogg</c> file is KEPT for the film's sound track
+    /// (decoded to mono 16-bit at its own rate), as a WAV clip always was. ✅ Red-proof: <c>DefineFile</c> without the <c>OggReader</c> term ⇒ the
+    /// track has no clip and the first assert fails.</summary>
+    [Fact]
+    public void CE1239_AnOggClip_IsKeptForTheFilmsSoundTrack()
+    {
+        var track = new SoundTrack(() => 0d);
+        var output = new RecordingAudioOutput(new NullAudioOutput(), track);
+        string ogg = System.IO.Path.Combine(AppContext.BaseDirectory, "Audio", "Fixtures", "tone-440.ogg");
+        output.DefineFile(9001, ogg);
+        Assert.True(track.HasClip(9001), "the .ogg clip is in the track");
+        Assert.True(OggReader.TryRead(ogg, out var samples, out var rate));
+        Assert.Equal(22050, rate);
+        Assert.InRange(samples.Length, 5000, 6000);                         // 0.25 s at 22.05 kHz
+        Assert.True(samples.Max(x => Math.Abs((int)x)) > 3000, "a tone, not silence");
+    }
+
     [Fact]
     public void CE1120_GainFallsToSilenceAtTheRange_PanBySide_DopplerBySense_DelayBySpeedOfSound()
     {
