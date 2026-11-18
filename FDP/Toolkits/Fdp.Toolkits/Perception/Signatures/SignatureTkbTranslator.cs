@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         {
             yield return typeof(SignaturesDto);
             yield return typeof(LocomotionDto);   // ⭐ CE-4658 — a type with no thermal data gets its body's default (ThermalDefaults)
+            yield return typeof(VehicleParametersDto);   // ⭐ CE-4660 — … read from its vehicle class when it states no locomotion
         }
 
         public IEnumerable<Type> GetProducedComponents()
@@ -28,7 +29,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             var dto = template.GetDescriptor<SignaturesDto>();
-            var th0 = dto?.Thermal ?? ThermalDefaults.For(template.GetDescriptor<LocomotionDto>()?.Class ?? LocomotionClass.Unknown);   // ⭐ CE-4658
+            var th0 = ThermalDefaults.Of(template);   // ⭐ CE-4658 / CE-4660 — its own, else its body's default (LocomotionDto, else the vehicle class)
             if (th0 is { } th && repo.IsComponentTypeRegistered<ThermalState>() && !repo.HasComponent<ThermalState>(entity))
                 repo.AddComponent(entity, new ThermalState
                 {

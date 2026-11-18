@@ -437,9 +437,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 /// <see cref="Lifespan"/>, so <see cref="LifespanSystem"/> removes them. On every map host, like <see cref="EffectSpawnSystem"/>:
 /// Health reaches every node, so each host makes its own.
 /// <list type="bullet">
-///   <item>Only a CROSSING burns: an entity first seen already destroyed (a scenario saved with a wreck, a late-joining host) does
-///   not (VE-P: "a wreck loaded already dead does not burn").</item>
-///   <item>Soldiers do not burn — only a type whose drawn body is a vehicle family (<see cref="EntityBodyLayer3D.Resolve"/>).</item>
+///   <item>⭐ CE-4660: flames when the hull's replicated <c>FireState</c> starts burning — or is first SEEN burning (a late-joining host shows the
+///   fire it joined). Whether a hull burns is the simulation's (its TKB <c>FireSeconds</c>, lit once at its death crossing by <c>BurnSystem</c>):
+///   a wreck loaded already dead has no fire and shows none (VE-P holds), a soldier never burns.</item>
 ///   <item>⛔ OFF during a replay (the world's <see cref="Fdp.Toolkit.Replay.ReplayState"/>, VE-R): the recording holds the flames; and its memory is dropped, so
 ///   coming back live cannot mistake the replayed wrecks for fresh kills.</item>
 /// </list>
@@ -451,7 +451,6 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
     private readonly Dictionary<Entity, bool> _wasDestroyed = new();
     private readonly HashSet<Entity> _seen = new();
     private readonly List<Entity> _gone = new();
-    private readonly Dictionary<long, bool> _burns = new();
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
     private int _epoch;   // ⭐ CE-3294 — the world _wasDestroyed describes
@@ -471,17 +470,21 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
             _queryWorld = world;
             _query = world.Query().With<Fdp.Toolkit.Combat.Components.Health>().With<TkbIdentity>().With<SimTransform>().Build();
             _wasDestroyed.Clear();
-            _burns.Clear();
         }
         var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
         var cmd = view.GetCommandBuffer();
         double now = SimClock.Of(world).TotalTime;
+        bool fires = world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>();   // ⭐ CE-4660
         _seen.Clear();
         foreach (var e in _query!)
         {
             _seen.Add(e);
-            bool destroyed = world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Current <= 0f;   // CombatLife.IsDestroyed, alive by the query
-            if (destroyed && _wasDestroyed.TryGetValue(e, out bool was) && !was && Burns(tkb, world.GetComponentRO<TkbIdentity>(e).TkbType))
+            // ⭐ CE-4660 (backend, a cross-lane edit — NOTE_Backend_To_Ui_Wreck_Reads_Fire.md; thermal drivers TD-6 / TD-16): the burn is SIMULATION state now —
+            //   the hull's replicated FireState, lit by its Health owner (BurnSystem). Flames when it STARTS burning — or is first seen burning (a late joiner
+            //   sees the fire too, which the Health crossing could never show). ⛔ Was: this node seeing Health cross 0, for a vehicle family.
+            bool destroyed = fires && world.HasComponent<Fdp.Toolkit.Perception.Signatures.FireState>(e)
+                             && world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.FireState>(e).IsBurning(now);
+            if (destroyed && !(_wasDestroyed.TryGetValue(e, out bool was) && was))
             {
                 var at = world.GetComponentRO<SimTransform>(e).Position;
                 Spawn(cmd, tkb, EffectTkbCatalog.Fire, e, at, now);
@@ -497,15 +500,7 @@ public sealed class WreckSpawnSystem : IEcsModuleSystem
         }
     }
 
-    /// <summary>A vehicle burns; a person, a unit with no body, a type the TKB does not know — ⭐ CE-1198 or a WEAPON SYSTEM (it goes dark,
-    /// it does not burn; 🔒 user, 2026-10-19: "weapons are usually non-flammable") — does not.</summary>
-    private bool Burns(ITkbDatabase? tkb, long type)
-    {
-        if (_burns.TryGetValue(type, out bool burns)) return burns;
-        var family = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(tkb != null && tkb.TryGetByType(type, out var t) ? t : null).Family;
-        return _burns[type] = !Hrot.UI.Common.Map3D.VisualFamilies.IsAnimal(family) && family is not (Hrot.UI.Common.Map3D.VisualFamily.Person or Hrot.UI.Common.Map3D.VisualFamily.Unit
-                                             or Hrot.UI.Common.Map3D.VisualFamily.Unknown or Hrot.UI.Common.Map3D.VisualFamily.WeaponSystem);
-    }
+    // ⛔ CE-4660: `Burns(type)` (a vehicle family burns) retired — whether a hull burns is the simulation's (TKB FireSeconds, BurnSystem).
 
     private void Spawn(IEntityCommandBuffer cmd, ITkbDatabase? tkb, long type, Entity wreck, Vector3 at, double now)
     {

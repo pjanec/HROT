@@ -429,7 +429,7 @@ classDiagram
   class EffectSpawnSystem { <<exists, W1>> stamps Lifespan.Starting(now, Duration); IsReplayActive ⇒ stands down; Housekeep: orphaned anchor, decal cap 256 }
   class MapInteractionContext { <<exists, W1>> + IsReplayActive — SimHost: the ELM's gate · CGF: rrController · replay browser: always · editor, IG: null }
   class WreckState { <<BUILT W2 as CombatLife.IsDestroyed — exists, has Health, Current ≤ 0 (later D1's destroyed state)>> }
-  class WreckSpawnSystem { <<BUILT W3, Hrot.Presentation Effects>> a vehicle's Health crossing to 0 ⇒ Fire + Smoke anchored to its body; IsReplayActive ⇒ off, forgets }
+  class WreckSpawnSystem { <<BUILT W3, CE-4660 reads FireState>> the hull's FireState starts or is first seen burning ⇒ Fire + Smoke anchored to its body; IsReplayActive ⇒ off, forgets }
   class EffectAnchor { <<exists, W3>> + Kind: Muzzle or Body (the body's top centre, every frame) }
   class EffectKind { <<exists TKB, W3>> + Fire = 4; + Smoke = 5 }
   class EffectTkbCatalog { <<exists, W3>> + Fire 7141 (60 s, fades 15 s), Smoke 7151 (180 s, fades 60 s); sized for a tank, scaled by the wreck }

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved", R-4293): TD-1…TD-16 as revised by §3a–§3e; `HeatSource` trimmed to what cannot be derived (§3e, user: "yes, trim it and fold it in"); ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §4d the components, wire and calculator as built (CE-4657) · §4e the writer, defaults and sensor as built (CE-4658) · §4f the weapons' last burst as built (CE-4659) · §5 UML · §6 a late joiner · §7 slices
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a the 2026-11-18 review · §3b fire and damage · §3c fire spots and bursts · §3d the burst in WeaponAmmo · §3e HeatSource trimmed · §4 the components · §4b ground heat marks · §4c the environment half + ground heat marks as built (CE-4662, CE-4664) · §4d the components, wire and calculator as built (CE-4657) · §4e the writer, defaults and sensor as built (CE-4658) · §4f the weapons' last burst as built (CE-4659) · §4g fire as built (CE-4660) · §5 UML · §6 a late joiner · §7 slices
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -304,6 +304,40 @@ by construction; and the speed the sensor's load reads is the same rule cover us
 |---|---|
 | *"a burst sends ONE sample"* | the record changes on every SHOT (the HUD shows the heat climbing while firing) — but a shot was already a sample (its round count), so the burst adds none; what is saved is the per-percent samples while a barrel cools |
 | *"retire Heat0..3"* | retired in the ECS; the wire keeps the fields as 0 (append-only) |
+
+## 4g. As built — fire *(CE-4660, TD-S4, backend, `2026-11-18`)*
+
+```mermaid
+sequenceDiagram
+  participant D as DamageAssessment (Health owner)
+  participant B as BurnSystem (Health owner)
+  participant F as FireState (dtFireState 241)
+  participant W as WreckSpawnSystem (every map host)
+  D->>D: the killing hit: Health 0
+  B->>B: DeathCrossings: seen alive, now dead?
+  B->>F: ADD one spot (hull half-length + 1.5 m, FireSeconds, intensity 1)
+  F-->>W: replicated (a late joiner included)
+  W->>W: burning (or first seen burning) ⇒ flames + smoke
+  loop every whole second
+    B->>B: a body inside a burning spot (Health owned here) −10 % of max
+  end
+```
+*What the picture shows that prose hid:* the fire is decided ONCE, on one node, and every host only READS it — the flames are no longer each host's
+own guess from a Health crossing it may never have seen.
+
+| piece | as built |
+|---|---|
+| **`BurnSystem`** (`HealthApplication` capability, after the wreck obstacle) | ① ignites at the DEATH CROSSING (`DeathCrossings` — the rule `WreckObstacleSystem` used, now shared): a type with `FireSeconds` > 0 gets ONE spot (0, 0, 1 m, radius = hull half-length + `ReachM` 1.5, its `FireSeconds`, intensity 1), ADDED with its final value. A wreck loaded dead is never lit. ② every whole `StepSeconds` (1 s) of sim time a BODY (Pedestrian / Quadruped) inside a burning spot — and a holder still alive — loses `BurnPerSecond` (10 %) × intensity of its max, only where its Health is owned (one sample per step); 0 ⇒ `CombatLife.ApplyHitCapabilities` |
+| **`ThermalDefaults.Of(template)`** — ONE rule for the stamp and the fire | its own `SignaturesDto.Thermal`, else the body's default from `LocomotionDto`, else from `VehicleParametersDto.VehicleClass`, else — a hull that MOVES (`MaxSpeedFwd` > 0) and states no class — `PersonalCar`, the kinematics' own default (`VehicleKinematicsTkbTranslator`); a zero-speed prop stays cold. 📐 Measured: the urban catalogue's hand-built types (the civilian car, the APC) carry no `LocomotionDto` — CE-4658's stamp had left them cold, and the wreck rail caught the car never burning |
+| the W3 flames (ui's file — NOTE_Backend_To_Ui_Wreck_Reads_Fire.md) | `WreckSpawnSystem` READS `FireState`: flames when it starts burning or is first seen burning; `Burns(type)` retired |
+| rails | `BurnSystemTests` (once at the crossing, never a loaded wreck; whole 10 % steps inside, nothing outside, nothing for a body owned elsewhere) · `WreckObstacleTests` (through `DeathCrossings`) · ui's W3 rails through `BurningWrecks` |
+| scenario | `scenarios/demos/weapons-and-fires/th-burning-wreck` |
+
+| ⛔ deviation from §7 TD-S4 — and why | |
+|---|---|
+| *"an incendiary hit"* ignites | ⏳ no incendiary weapon exists yet (flamethrower CE-4635, napalm CE-4637) — they call the same ignition |
+| *"a late-joining node sees the wreck burning"* | proved by the CE-4657 replication rail (`FireState` byte for byte to a late joiner) and the W3 rule above; the editor's verify runs one node |
+| the three holders | the vehicle is built; a building's damage record / a terrain cell record hold `FireState` the same way when their igniters exist |
 
 ## 5. UML
 

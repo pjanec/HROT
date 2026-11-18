@@ -42,6 +42,23 @@ namespace Fdp.Toolkit.Perception.Signatures
             ReferenceSpeed = 60f, FireSeconds = 900f,
         };
 
+        /// <summary>
+        /// ⭐ <c>CE-4660</c> — the thermal data <paramref name="t"/> has: its own (<c>SignaturesDto.Thermal</c>), else its body's default — the body read from its
+        /// <see cref="LocomotionDto"/>, else its <c>VehicleParametersDto.VehicleClass</c> (📐 the urban catalogue's hand-built types — the civilian car, the
+        /// APC — carry no <c>LocomotionDto</c>, so CE-4658's stamp left them cold and a destroyed car never burned). ONE rule for the stamp and the fire.
+        /// </summary>
+        public static ThermalSignatureDto? Of(Fdp.Interfaces.TkbTemplate? t)
+        {
+            if (t == null) return null;
+            if (t.GetDescriptor<SignaturesDto>()?.Thermal is { } own) return own;
+            var cls = t.GetDescriptor<LocomotionDto>()?.Class ?? LocomotionClass.Unknown;
+            // a stated vehicle class; else the kinematics' own default (VehicleKinematicsTkbTranslator: null ⇒ PersonalCar) for a hull that MOVES —
+            // 📐 the civilian and SUMO traffic cars state none; a zero-speed prop (the archery target) is no vehicle and stays cold
+            if (cls == LocomotionClass.Unknown && t.GetDescriptor<VehicleParametersDto>() is { } vp && (vp.VehicleClass != null || vp.MaxSpeedFwd > 0f))
+                cls = Fdp.Toolkit.Motion.Locomotions.FromVehicleClass(vp.VehicleClass ?? global::CarKinem.Core.VehicleClass.PersonalCar);
+            return For(cls);
+        }
+
         /// <summary>The default thermal data of a body of class <paramref name="c"/>; null for <see cref="LocomotionClass.Unknown"/> (an area, a marker, an obstacle).
         /// ⭐ The same instance per class — never mutate it (a record: every field is init-only).</summary>
         public static ThermalSignatureDto? For(LocomotionClass c) => c switch
