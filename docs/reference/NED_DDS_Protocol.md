@@ -381,7 +381,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityAreaEffectCloud` | descriptor | yes: entity id | S | Hrot.Network.NED | Gas or smoke cloud description (+ who threw it and who threw it first: `CreatorNetworkId`, `OriginalCreatorNetworkId`, CE-4155) |
 | `Hrot.NED.Descriptors.EntityCombatProficiency` | descriptor | yes: entity id | S | Hrot.Network.NED | Soldier's combat proficiency values |
 | `Hrot.NED.Descriptors.EntityCustody` | descriptor | yes: entity id | S | Hrot.Network.NED | Person detained, restrained or searched |
-| `Hrot.NED.Descriptors.EntityDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Current and max health of the entity, and `StateSince` — the sim time (s) its derived injury state (ok / wounded / incapacitated / dead) last changed: a dead body's time of death (CE-4661, appended) |
+| `Hrot.NED.Descriptors.EntityDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | Current and max health of the entity, and `StateSince` — the sim time (s) its derived injury state (ok / wounded / incapacitated / dead) last changed: a dead body's time of death (CE-4661, appended); and `Destruction` — how a vehicle was destroyed, a byte: 0 none · 1 knocked out · 2 burnt out · 3 catastrophic (the turret thrown) (CE-4670 VA-S1, appended) |
 | `Hrot.NED.Descriptors.EntityBuildingDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | A damaged building's wall breaches and collapse (CE-4391, UTM §8.2 B-11): the terrain building it stands for (its key) and each breach — panel, rectangle, kind; Reliable + TransientLocal + KeepLast 1, so a late joiner gets every damaged building |
 | `Hrot.NED.Descriptors.EntityDemeanour` | descriptor | yes: entity id | S | Hrot.Network.NED | Civilian mode, fear and anger |
 | `Hrot.NED.Descriptors.EntityDescent` | descriptor | yes: entity id | S | Hrot.Network.NED | Body on a rope or under a canopy |
@@ -802,7 +802,7 @@ the `FrameCodec` / `GeometryCodec` / `TlCodec` decoders and the `DrExtrapolation
 | Linear velocity (ECEF m/s) | `WorldPos.Velocity`: m/s, **local ENU** vector; `AngularVelocity` rad/s about the ENU axes | convert: rotate by `R(origin)` |
 | Linear acceleration | **not on the wire** (dropped with AQ107 D; it was always zero) | **GAP** (never real) |
 | Dead-reckoning algorithm + parameters | none; receiver-side linear projection from sim-time stamp | **GAP**: pick DIS algorithm FPW (position + velocity) yourself |
-| Entity appearance, damage state | `EntityDamage` (current / max health, floats, `StateSince`), `EntityPartDamage`, `EntityEffectState`, `EntityHeatSource`, `EntityFireState` | ⭐ the thresholds and bits are **fixed** — see *Appearance and thermal mapping* below (TD-11, CE-4663) |
+| Entity appearance, damage state | `EntityDamage` (current / max health, floats, `StateSince`, `Destruction`), `EntityPartDamage`, `EntityEffectState`, `EntityHeatSource`, `EntityFireState` | ⭐ the thresholds and bits are **fixed** — see *Appearance and thermal mapping* below (TD-11, CE-4663) |
 | Articulated parts | `EntityTurretPose` (per turret part, azimuth/elevation) | other parts: none |
 | Fire PDU | `Hrot.NED.Messages.WeaponFire` (the fact) ← `WeaponFireRequest` (the order) | positions in **local metres**; munition = TKB id; event id = `RequestId` (32-bit), no GUID |
 | Detonation PDU | `Hrot.NED.Messages.MunitionDetonation` (+ `EntityHitDamage` for the damage result) | no result enum: hit entity 0 = ground impact; detonation location local metres |

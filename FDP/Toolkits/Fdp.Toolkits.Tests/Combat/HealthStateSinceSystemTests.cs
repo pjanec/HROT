@@ -72,6 +72,19 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>⭐ A man whose Health another node owns is never stamped here (his owner's time arrives in <c>EntityDamage</c>); and the steady frame allocates nothing.</summary>
+        /// <summary>⭐ <c>CE-4670</c> (VA-S1) — the kill kind lasts while it is dead and is cleared the frame it lives again (an edit, a repair).
+        /// 🔴 Red-proof: without the clear a repaired tank still reads Catastrophic.</summary>
+        [Fact]
+        public void CE4670_ABodyThatLivesAgain_LosesItsKillKind()
+        {
+            var wreck = Man(0f);
+            _w.GetComponentRW<Health>(wreck).Destruction = DestructionKind.Catastrophic;
+            Step(); Step();
+            Assert.Equal(DestructionKind.Catastrophic, _w.GetComponentRO<Health>(wreck).Destruction);   // dead: kept
+            _w.GetComponentRW<Health>(wreck).Current = 80f; Step();
+            Assert.Equal(DestructionKind.None, _w.GetComponentRO<Health>(wreck).Destruction);
+        }
+
         [Fact]
         public void CE4661_OnlyTheHealthOwnerStamps_AndTheSteadyFrameAllocatesNothing()
         {

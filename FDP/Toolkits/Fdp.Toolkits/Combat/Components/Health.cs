@@ -28,5 +28,26 @@ namespace Fdp.Toolkit.Combat.Components
         /// late joiner read the same. ⛔ The state itself is never stored (CE-2155) — only its time. 0 = since the start (a body a scenario starts dead with).
         /// </summary>
         public double StateSince;
+
+        /// <summary>
+        /// ⭐ <c>CE-4670</c> (vehicle appearance VA-7, VA-S1; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §3a) — HOW a vehicle was destroyed:
+        /// decided ONCE by the Health owner on the hit that kills it (<c>DestructionKinds.Decide</c>, from the killing hit's part and the type's stowage), cleared
+        /// when it lives again. The one fact a renderer cannot derive (a thrown turret, a burnt-out hull). <see cref="DestructionKind.None"/> for a person and
+        /// for a body that died without a hit. APPENDED (R-169), replicated in <c>EntityDamage</c>.
+        /// </summary>
+        public DestructionKind Destruction;
+    }
+
+    /// <summary>⭐ <c>CE-4670</c> (VA-7) — how a vehicle was destroyed.</summary>
+    public enum DestructionKind : byte
+    {
+        /// <summary>Not destroyed, a person, or no kind decided (it died without a hit).</summary>
+        None = 0,
+        /// <summary>The crew or the vehicle is out, the hull intact.</summary>
+        KnockedOut = 1,
+        /// <summary>A fuel fire burnt it out.</summary>
+        BurntOut = 2,
+        /// <summary>The ammunition went up — the turret thrown.</summary>
+        Catastrophic = 3,
     }
 }

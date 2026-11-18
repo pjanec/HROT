@@ -1,0 +1,67 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4670 (vehicle appearance VA-S1): the kill kind (Health.Destruction) decided once by the Health owner on the killing hit; a part destroyed before the run stays destroyed and is not a kill.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the T-72 is destroyed",
+      "on": "field",
+      "who": "Enemy Tank",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 40
+    },
+    {
+      "name": "its ammunition goes up: a Catastrophic kill (the T-72's hull carousel, Health.Destruction decided on the killing hit)",
+      "on": "field",
+      "who": "Enemy Tank",
+      "path": "Health.Destruction",
+      "op": "==",
+      "value": "Catastrophic"
+    },
+    {
+      "name": "the Tracked Tank's left track stays destroyed",
+      "on": "field",
+      "who": "Tracked Tank",
+      "path": "PartDamage.Levels.3",
+      "op": ">=",
+      "value": 255,
+      "atEnd": true
+    },
+    {
+      "name": "the Tracked Tank lives",
+      "on": "field",
+      "who": "Tracked Tank",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the Tracked Tank never gets a kill kind",
+      "never": {
+        "on": "field",
+        "who": "Tracked Tank",
+        "path": "Health.Destruction",
+        "op": "in",
+        "value": [
+          "KnockedOut",
+          "BurntOut",
+          "Catastrophic"
+        ]
+      }
+    },
+    {
+      "name": "the M1 survives",
+      "on": "field",
+      "who": "Tank",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

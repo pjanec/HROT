@@ -1,0 +1,127 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: how a vehicle was destroyed and which of its parts are destroyed are simulation state every renderer reads the same way (CE-4670 vehicle appearance VA-S1; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §3a, §6c). On basic-desert a friendly M1 ('Tank', BasicVehicleSop) kills an idle enemy T-72 ('Enemy Tank', 240 m north) with its gun; a neutral T-72 ('Tracked Tank', 400 m east of it) starts with its LEFT track destroyed (PartDamage RunningGearL 255) and full health. Judge: the Enemy Tank's Health owner decides its kill kind on the killing hit (Health.Destruction, from the part hit and the type's stowage — the T-72 keeps its ammunition in the hull carousel under the turret, so the M1's hull hit is a Catastrophic kill, the turret thrown), the same on every node; the Tracked Tank keeps its destroyed track (the mobility kill, drawn dark on our 3D map), lives and has no kill kind. Fail: the wreck carries no kill kind, or the Tracked Tank loses its track damage or is killed."
+  },
+  "entities": {
+    "a2200d00-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          280,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 100
+      },
+      "EntityInfo": {
+        "Name": "Tank",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 3000,
+        "Max": 3000
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "BasicVehicleSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a2200d00-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          300,
+          520,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Enemy Tank",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    },
+    "c4670000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          700,
+          520,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Tracked Tank",
+        "ForceId": "Neutral"
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "PartDamage": {
+        "Plan": "TrackedVehicle",
+        "Levels": [
+          0,
+          0,
+          0,
+          255,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  }
+}

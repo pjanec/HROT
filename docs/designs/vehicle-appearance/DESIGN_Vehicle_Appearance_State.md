@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved, fold both into the design", R-4296): VA-1…VA-12, LK-1…LK-7, with §3a (partial damage, how expressed) and LK-7 (effect categories + the DIS munition type); ids fixed at dispatch — `2026-11-18`: components 290 `VehicleOpenings` · 291 `VehicleLights`; descriptors 243 · 244 (`HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md`)
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules)
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -276,6 +276,64 @@ order setting it) is the open half.
 | rails | `VehicleLightsTests` (the rule over discipline × darkness × engine; owner-only, on change, an authored Blackout holds, 0 B) · `EntityVehicleLightsTranslatorTests`-in-`EntityVehicleOpeningsTranslatorTests` (byte for byte to a late joiner) |
 | scenario | `scenarios/demos/platoons-and-vehicles/va-lights-night` — two crewed T-72s idling at 00:30: the Normal one lit (head + tail, `OnMask` 3), the authored Blackout one never |
 | ⏳ not built | the discipline from an SOP / ROE / an order (behaviors) · a possessed vehicle's switches (a command to the owner) · the searchlight's aim · interior lights · landing lights near the ground · brake lights (a reader derives them from deceleration — ui's `VehicleLook`) |
+
+## 6c. As built — partial damage and the kill kind *(VA-S1, CE-4670, backend, `2026-11-18`)*
+
+```mermaid
+classDiagram
+  class HealthApplicationSystem {
+    <<existing, the Health owner>>
+    on the hit that kills: Destruction = DestructionKinds.Decide
+  }
+  class DestructionKinds {
+    <<new, the ONE rule, pure>>
+    Decide(body, hasPart, part)
+  }
+  class ResolvedBody {
+    <<existing, gains>>
+    AmmoStowageMask FuelStowageMask SmoulderSeconds
+  }
+  class Health {
+    <<existing, gains Destruction byte>>
+  }
+  class HealthStateSinceSystem {
+    <<existing>>
+    clears Destruction when it lives again
+  }
+  class VehicleLook {
+    <<new, Hrot.Look, 0 B>>
+    PartState(part) PartState(part, centre, now)
+    Destruction() TurretThrown() Burning(now) Smoking(now)
+  }
+  class VehicleDamageDraw {
+    <<new, our 3D map - ui file, cross-lane>>
+    DestroyedMask BitOf ThrownTransform
+  }
+  class EntityDamage {
+    <<wire, gains Destruction byte>>
+  }
+  HealthApplicationSystem --> DestructionKinds
+  DestructionKinds ..> ResolvedBody : bodies.json class + platform override
+  HealthApplicationSystem --> Health
+  HealthStateSinceSystem --> Health
+  Health --> EntityDamage : egress, ingress
+  VehicleLook ..> Health
+  VehicleLook ..> ResolvedBody : zone thresholds, smoulder
+  VehicleDamageDraw ..> VehicleLook
+```
+*What it shows that prose hid: ONE decision site (the Health owner, on the killing hit) and ONE reader; the map and a gateway call the same reader.*
+
+| as built | why / deviation |
+|---|---|
+| ⭐ the kill kind: killing hit's part in the type's **ammunition** stowage ⇒ Catastrophic · **fuel** ⇒ BurntOut · any other part, or a blast with no part ⇒ KnockedOut · a person ⇒ None; decided once (a hit on the wreck never changes it); cleared by `HealthStateSinceSystem` when it lives again | ⭐ the stowage rides on the `bodies.json` class profiles (`ammoStowage`, `fuelStowage`, `smoulderSeconds` — Tank: ammunition turret, fuel engine, 1800 s; AFV: turret / hull + engine; wheeled: engine; aircraft: stores / wing), overridden per type on `Combat.PlatformDef` (`AmmoStowage`, `FuelStowage`, `SmoulderSeconds`; the NED catalogue's `SimCombatDefBuilder` passes them through) — HL-12's rule, the same profile match as the zones. 📌 First override: the **T-72** keeps its ammunition in the hull carousel under the turret (hull + turret) — 📐 measured in `va-tank-kill-kinds`: the M1's round lands on the T-72's HULL, which under the class rule was only a KnockedOut |
+| ⭐ `PartState` = Intact · Damaged · Destroyed by the part's ZONE threshold (the same number that makes the mobility / firepower kill); the hull (no effect) is Destroyed only at 255 | — |
+| ⚠ **deviation — Burning per part needs the renderer's part centre** (`PartState(part, centre, now)`, the vehicle's frame): the simulation keeps no part geometry it could send. `Burning(now)` answers for the whole vehicle | §3a said "a FireState spot covers the part" — true only where the part's position is known, which is the renderer |
+| ⭐ `Smoking(now)`: dead, no burning spot, within the type's smoulder seconds after its last spot went out (never lit: after its time of death) | VA-10 |
+| ⭐ the wire: `EntityDamage.Destruction` APPENDED (R-169), the wire's own byte (R-4295), copied by egress / ingress; an unknown value decodes to None | VA-12 |
+| ⚠ our map (`EntityBodyLayer3D`, ui's file — cross-lane, NOTE to ui): a kit part maps to a simulation part by ROLE (turret, gun), a running-gear part (track, wheels — Hull role) by being low on one side; a destroyed part draws wreck-dark; a Catastrophic wreck draws its turret and gun thrown beside the hull | kit parts carry no simulation part id; the thrown pose is a starter for ui to tune |
+
+Rails: `BodyPartDamageTests.CE4670_*` (2), `HealthStateSinceSystemTests.CE4670_*`, `VehicleLookTests` (4, 0 B), `EntityDamageEgressTranslatorTests.CE4670_*` (late joiner),
+`EntityDamageTranslatorTests.CE4670_*`, `VehicleDamageDrawTests` (3). Scenario: `scenarios/demos/platoons-and-vehicles/va-tank-kill-kinds`.
 
 ## 7. The shared LOOK library — every renderer derives the same picture *(CE-4671, `2026-11-18`)*
 
