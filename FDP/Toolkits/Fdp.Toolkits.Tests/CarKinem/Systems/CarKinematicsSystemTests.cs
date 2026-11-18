@@ -3357,6 +3357,53 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(12f, CarKinem.Controllers.PathProgress.OnPathAhead(in traj, 1f, near, 15f, new Vector2(-1f, 0f)), 1);         // along it
         }
 
+        /// <summary>A calm animal body standing at <paramref name="at"/> (a cow: a Quadruped, in the collider hash, carrying <c>AnimalState</c>).</summary>
+        private static Entity Cow(EntityRepository repo, Vector3 at)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>()) repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>()) repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
+            var n = repo.CreateEntity();
+            repo.AddComponent(n, new VehicleState());
+            repo.AddComponent(n, new SimTransform { Position = at, Rotation = SimMath.FacingEast });
+            repo.AddComponent(n, new SimVelocity());
+            repo.AddComponent(n, new NavState { Mode = KinematicsMode.None });
+            repo.AddComponent(n, VehiclePresets.GetPreset(VehicleClass.Quadruped));
+            repo.AddComponent(n, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.6f, CollisionLayer = 1 });
+            repo.AddComponent(n, new Fdp.Toolkit.Animals.AnimalState());
+            return n;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3457</c> (P5, the bug queue; Animals AR-17) — a car driving its path at 8 m/s YIELDS to a cow standing in its lane: it slows and stands
+        /// short of it (never touches it), and drives on once the cow has moved off; a cow BESIDE the lane does not slow it. 📌 Before, a vehicle drove at
+        /// full speed into a herd (ua-animal-herd-road: only the herd's own fear cleared the lane). 🔴 Red-proof: drop the yield cap ⇒ the car runs into the cow.
+        /// </summary>
+        [Fact]
+        public void CE3457_ACar_YieldsToACowInItsLane_DrivesOnWhenItHasGone_NeverSlowsForOneBeside()
+        {
+            var car = VehiclePresets.GetPreset(VehicleClass.PersonalCar);
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 8f, startSpeed: 8f, vehicle: car);
+            var cow = Cow(repo, new Vector3(40f, 0f, 0f));
+            var beside = Cow(repo, new Vector3(20f, car.Width * 0.5f + 3f, 0f));   // off the lane: passed at speed
+            var spatial = new SpatialHashSystem(); var kin = new CarKinematicsSystem(pool);
+            float closest = float.MaxValue, speedPastBeside = 0f; string closestInfo = "";
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f);
+                var at = repo.GetComponent<SimTransform>(e).Position;
+                float dNow = Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(40f, 0f));
+                if (dNow < closest) { closest = dNow; closestInfo = $"at ({at.X:F2},{at.Y:F2}) speed {repo.GetComponent<VehicleState>(e).Speed:F2} t {i / 60f:F2}"; }
+                if (MathF.Abs(at.X - 20f) < 0.5f) speedPastBeside = repo.GetComponent<VehicleState>(e).Speed;
+            }
+            Assert.True(speedPastBeside > 6f, $"the cow beside the lane slowed it: {speedPastBeside:F2} m/s");
+            Assert.True(closest > car.Length * 0.5f + 1.5f, $"it came {closest:F2} m from the cow (its half-length {car.Length * 0.5f:F2}) {closestInfo}");
+            Assert.True(MathF.Abs(repo.GetComponent<VehicleState>(e).Speed) < 0.3f, "it stands for the cow");
+            var moved = repo.GetComponent<SimTransform>(cow); moved.Position = new Vector3(40f, 15f, 0f); repo.SetComponent(cow, moved);   // the cow wanders off
+            for (int i = 0; i < 8 * 60; i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); }
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.X > 55f, $"it drove on: x={repo.GetComponent<SimTransform>(e).Position.X:F1}");
+            repo.Dispose();
+        }
+
         private static bool CarKem_MayBreak(EntityRepository repo, Entity e)
             => CarKinem.Controllers.HullBreakGate.MayBreak(repo, e, repo.GetComponent<NavState>(e));
     }

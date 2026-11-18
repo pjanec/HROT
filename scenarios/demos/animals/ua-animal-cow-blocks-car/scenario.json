@@ -1,0 +1,98 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "farm",
+  "description": "What: a calm cow on the farm lane stops a car (CE-3457; docs/designs/animals/DESIGN_Animals.md AR-17; Navigation v2 the CE-2059 rule's as-built). On the farm terrain a 'Cow' area (4 x 4 m on the lane at (100, 10), one head of cattle) holds a grazing cow. A civilian car ('Car') drives east along the lane (y = 10) at 6 m/s toward (250, 10). The car is quiet (no armour, a small engine) so the cow stays calm and keeps grazing on the lane. The car YIELDS: it slows and stands short of the cow and never touches it (a driving vehicle slows so it can stop 3 m short of an animal in its lane; the no-progress watchdog does not fail a vehicle standing for an animal). Judge: (1) the cow is on the lane (2) the car gets under way (3) then the car stands (4) the car stays short of the cow's spot (5) the cow is never hurt. Check: scripts/scenario-regression.sh ua-animal-cow-blocks-car"
+ },
+ "entities": {
+  "34570000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     100,
+     10,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 712
+   },
+   "EntityInfo": {
+    "Name": "Cow",
+    "ForceId": "Neutral"
+   },
+   "EditablePolyline": {
+    "Points": [
+     {
+      "X": -2,
+      "Y": -2
+     },
+     {
+      "X": 2,
+      "Y": -2
+     },
+     {
+      "X": 2,
+      "Y": 2
+     },
+     {
+      "X": -2,
+      "Y": 2
+     }
+    ],
+    "Version": 0
+   },
+   "AnimalArea": {
+    "Species": "Cattle",
+    "Enclosed": 0,
+    "Count": 1,
+    "Seed": 3457
+   }
+  },
+  "34570000-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     20,
+     10,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 1002
+   },
+   "EntityInfo": {
+    "Name": "Car",
+    "ForceId": "Neutral"
+   },
+   "Behavior": {
+    "Name": "MoveToLocation",
+    "Params": {
+     "target": [
+      250,
+      10,
+      0
+     ],
+     "speed": 6,
+     "arrivalRadius": 3
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

@@ -79,6 +79,7 @@ namespace CarKinem.Systems
             // ⭐ CE-3287 — a wreck (Health ≤ 0) is not driven; a world without Health has none
             _health = repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>();
             _convoy = repo.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyTrail>();   // ⭐ CE-9001 (C-6)
+            _animals = repo.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>();   // ⭐ CE-3457 — a world without animals never looks
 
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!repo.HasSingleton<SpatialGridData>()) return;
@@ -194,6 +195,7 @@ namespace CarKinem.Systems
         private bool _recovery;
         private bool _health;
         private bool _convoy;
+        private bool _animals;
 
         /// <summary>⭐ R-249 — whether the movement model puts <paramref name="entity"/> on the surface: its ground-clamping flag, else yes.</summary>
         private bool Clamped(EntityRepository repo, Entity entity) => IsClamped(repo, entity, _clampFlags);
@@ -548,6 +550,19 @@ namespace CarKinem.Systems
             }
 
             // Calculate desired velocity
+            // ⭐⭐ CE-3457 (P5, the bug queue; Animals AR-17) — a DRIVING vehicle YIELDS to an animal in its way: it slows so it can stop short of the
+            //   first animal body ahead in its hull's lane (a cow on the road, a dog in the street), and stands until it moves off. Never a walker, an
+            //   animal, a possessed hull (the player decides) or a rammer (RM-2). 📌 Before, a convoy drove at 6 m/s into a herd and only the herd's own
+            //   fear cleared the lane (ua-animal-herd-road).
+            if (_animals && targetSpeed > 0f && !down && @params.Class != VehicleClass.Pedestrian && @params.Class != VehicleClass.Quadruped
+                && nav.Mode != KinematicsMode.Manual && !RamOrder.On(repo, entity, out _))
+            {
+                float yieldSpeed = AnimalYieldSpeed(repo, entity, pos2D, state.Speed < 0f ? -fwd2D : fwd2D, targetSpeed, spatialGrid, in @params);
+                byte yielding = yieldSpeed < targetSpeed ? (byte)1 : (byte)0;
+                targetSpeed = MathF.Min(targetSpeed, yieldSpeed);
+                if (_recovery && repo.HasComponent<FrustrationTicks>(entity) && repo.GetComponentRO<FrustrationTicks>(entity).YieldingToAnimal != yielding)
+                    repo.GetComponentRW<FrustrationTicks>(entity).YieldingToAnimal = yielding;   // the watchdog's exemption (its own entity)
+            }
             Vector2 desiredVelocity = targetHeading * targetSpeed;
             
             // Apply collision avoidance
@@ -1188,6 +1203,40 @@ namespace CarKinem.Systems
             if (along < -p.Length * 0.5f) return false;   // behind the hull
             float side = MathF.Abs(to.X * dir.Y - to.Y * dir.X);
             return side <= p.Width * 0.5f + ManDownHullMarginM;
+        }
+
+        /// <summary>⭐ <c>CE-3457</c> — the gap (m) a yielding vehicle keeps between its nose and an animal in its way.</summary>
+        public const float AnimalYieldGapM = 3f;
+        /// <summary>⭐ <c>CE-3457</c> — an animal counts as IN the hull's way within its half-width plus this (m): a cow's half-width and a driver's margin.</summary>
+        public const float AnimalYieldSideM = 1.2f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3457</c> — the speed at which this vehicle can still stop <see cref="AnimalYieldGapM"/> short of the nearest ANIMAL ahead in its lane
+        /// (<paramref name="travel"/>, unit): √(2 · its braking · the gap) — <paramref name="cap"/> when no animal is in its way. Looks as far as it needs to
+        /// stop from <paramref name="cap"/> (≤ 40 m). The neighbours come from the spatial grid (tick-start positions); an animal is a body carrying
+        /// <c>AnimalState</c> (a presence read). 0 B: a stack span.
+        /// </summary>
+        internal static float AnimalYieldSpeed(EntityRepository repo, Entity self, Vector2 pos, Vector2 travel, float cap, SpatialHashGrid grid, in VehicleParams p)
+        {
+            // half the hull's braking: the speed controller follows the cap with a lag, and a planned stop at full braking overran the gap
+            //   (📌 the rail: a car planned at 4 m/s² stood with its nose ON the cow)
+            float decel = 0.5f * (p.MaxDecel > 0.1f ? p.MaxDecel : 4f);
+            float reach = MathF.Min(40f, p.Length * 0.5f + AnimalYieldGapM + cap * cap / (2f * decel) + 2f);
+            Span<(Entity, Vector2)> near = stackalloc (Entity, Vector2)[32];
+            int n = grid.QueryNeighbors(pos, reach, near);
+            float best = cap;
+            for (int i = 0; i < n; i++)
+            {
+                var (other, at) = near[i];
+                if (other.IsNull || other == self || !Fdp.Toolkit.Animals.Animals.IsAnimal(repo, other)) continue;
+                var to = at - pos;
+                float along = Vector2.Dot(to, travel);
+                if (along <= 0f) continue;                                                       // behind the nose's line
+                if (MathF.Abs(to.X * travel.Y - to.Y * travel.X) > p.Width * 0.5f + AnimalYieldSideM) continue;   // beside the lane
+                float gap = along - p.Length * 0.5f - AnimalYieldGapM;
+                best = MathF.Min(best, gap < 0.5f ? 0f : MathF.Sqrt(2f * decel * gap));   // inside the gap: stand
+            }
+            return best;
         }
 
         /// <summary>⭐ <c>CE-4622</c> K-3 (KV-2) — a coasting hull's deceleration (m/s²): rolling resistance, no brakes.</summary>

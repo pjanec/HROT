@@ -47,7 +47,9 @@ namespace CarKinem.Core
         public byte BlockedEventFired;
 
         // 2 bytes explicit padding to keep the float field naturally aligned.
-        private byte _pad0;
+        /// <summary>⭐ <c>CE-3457</c> — 1 while the vehicle slows or stands for an ANIMAL in its way (written by <c>CarKinematicsSystem</c>, the hull's own entity):
+        /// a deliberate hold, so the watchdog neither counts it nor fails the move (was the first padding byte — the layout is unchanged).</summary>
+        public byte YieldingToAnimal;
         private byte _pad1;
 
         /// <summary>
