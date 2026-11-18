@@ -1332,6 +1332,12 @@ namespace Fdp.Core
         /// <c>KeyframeTestPos</c> moved 493 → 502 (Fdp.Core.Tests' <c>TwClock</c> keeps 493: that suite never registers this type).</summary>
         public const int GroundHeatMarks = 493;
 
+        /// <summary>⭐ <c>CE-4657</c> (TD-3 / TD-6; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4) — <c>HeatSource</c> (an engine's or a body's state and its times; muscle group,
+        /// <c>dtHeatSource</c> 240) and <c>FireState</c> (up to 8 fire spots; brain group — the Health owner, <c>dtFireState</c> 241). ⚠ 487 / 488 fixed at dispatch
+        /// (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md): free in PRODUCTION on every lane; Fdp.Core.Tests (<c>Tiny2</c> / <c>Tiny3</c>) and Fdp.ModuleHost.Tests
+        /// (<c>RPos</c> / <c>RVel</c>) keep private test structs on them — those suites never register these types (the 489–491 precedent).</summary>
+        public const int HeatSource = 487, FireState = 488;
+
         /// <summary><c>TerrainBlock</c> — ⭐ O-4 (CE-4415, docs/DESIGN_Terrain_Authoring.md §18c): a placed block of terrain features (recipe, seed, heading, fit flags), one saved entity per block;
         /// the <c>OverlayCompiler</c> expands it at save. Unmanaged, authored, recorded and saved. ⚠ 494–495: the backend block (434–449) is full, so these are taken from the TOP of the coordinator / new-lane block (476–495), which allocates upward (highest in use 485, every lane, 2026-11-11) — NOTE_Backend_To_Coordinator_Component_Ids_494_495.md.</summary>
         public const int TerrainBlock = 494;

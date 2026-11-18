@@ -93,6 +93,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
         world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
         world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();          // ⭐ CE-4617 (RS-10) — is a radar radiating (dtRadarEmission)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.HeatSource>();       // ⭐ CE-4657 (TD-3) — an engine's / a body's heat state (dtHeatSource)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.FireState>();        // ⭐ CE-4657 (TD-6) — the fire spots (dtFireState)
         // ⭐ CE-8001 (CE-4616 ST-0 ③) — the stochastic unit (dtAggregateUnit / dtUnitSlotTable / dtUnitHoldings) on every host; the node-local
         //   attrition / sensor state and the run seed too, so a recording carries them wherever it is played (SV-12).
         world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();

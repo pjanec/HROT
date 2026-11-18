@@ -29,6 +29,12 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// <summary>⭐ <c>CE-1358</c> (DESIGN_Weapon_Layers §5k) — the hottest BARREL of this unit, 0..1 (<c>WeaponState.Heat</c> of its own
         /// mounts and the station weapons it carries), written by <see cref="ThermalHeatSystem"/>. Appended.</summary>
         public float BarrelHeat;
+        /// <summary>⭐ <c>CE-4657</c> (TD-3, the type data of <c>ThermalSignatureDto</c>) — the warmed-through heat IDLING / standing, and RUNNING at
+        /// <see cref="ReferenceSpeed"/>; read by <see cref="ThermalDriversOps.Signature"/>. Appended.</summary>
+        public float IdleHeat;
+        public float RunningHeat;
+        /// <summary>⭐ <c>CE-4657</c> — an engine (Off · Idle · Running · Dead) rather than a body (Standing · Moving).</summary>
+        [MarshalAs(UnmanagedType.I1)] public bool HasPowerPlant;
 
         /// <summary>What a thermal sensor sees: <c>Base + max(Heat, BarrelHeat) × (1 − Base)</c>, 0..1 — the body and the gun are two
         /// sources, the sensor sees the hotter.</summary>

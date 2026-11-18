@@ -331,7 +331,9 @@ namespace Fdp.Tests
 
         // Helper
         // ⭐ CE-3243 — one-byte components: a table chunk holds 65 536 slots, the worst case for a per-slot dirty check.
-        //   Ids 486–491: free in every *Ids*.cs and every literal under FDP/ and Hrot/ (census 2026-10-17).
+        //   Ids 486–491: free in every *Ids*.cs and every literal under FDP/ and Hrot/ (census 2026-10-17). ⚠ Since then 487 / 488 (HeatSource /
+        //   FireState, CE-4657) and 489–491 (TreeDamage, GroundDamage, BladeCut) are production ids: kept here because this suite never registers
+        //   those toolkit types and the test-only range 500–511 is full in this project (the TwClock-on-493 precedent).
         [ComponentId(486)] private struct Tiny1 { public byte B; }
         [ComponentId(487)] private struct Tiny2 { public byte B; }
         [ComponentId(488)] private struct Tiny3 { public byte B; }

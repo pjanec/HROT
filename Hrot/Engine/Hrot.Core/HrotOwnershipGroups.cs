@@ -83,6 +83,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.Gesture);
         // ⭐ CE-4617 (RS-10) — a radar's emission, switched by the carrier's behaviour (dtRadarEmission).
         brain.SetBit(GlobalComponentIds.RadarEmission);
+        // ⭐ CE-4657 (thermal drivers TD-6, TD-16) — the fire on an entity, written by the Health owner when damage ignites it (dtFireState).
+        brain.SetBit(GlobalComponentIds.FireState);
         // ⭐ CE-3238 (civilians B-16, AW-22) — a man's hostile act, committed by his behaviour (dtHostileAct).
         brain.SetBit(GlobalComponentIds.HostileAct);
         brain.SetBit(GlobalComponentIds.Custody);   // ⭐ CE-3256 (BR-4) — a man in custody (dtCustody)
@@ -160,6 +162,7 @@ public static class HrotOwnershipGroups
         // ⭐ CE-1223 (Entity Control §8k S-2, R-1010) — when a man was last under fire: stamped on the Muscle (near miss / hit), read by every node's
         //   hit model (a remote station's spread ring) — dtUnderFire.
         muscle.SetBit(GlobalComponentIds.UnderFire);
+        muscle.SetBit(GlobalComponentIds.HeatSource);   // ⭐ CE-4657 (TD-3) — the engine / body state, written by the node that moves the entity (dtHeatSource)
 
         // ── Perception (§1.2b, R-171) — perception EXECUTION ─────────────────────────────────────────
         var perception = default(BitMask512);

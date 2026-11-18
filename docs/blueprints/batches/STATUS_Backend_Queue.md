@@ -10,7 +10,7 @@ Handoff: [`HANDOFF_Coordinator_To_Backend_Bug_Queue.md`](HANDOFF_Coordinator_To_
 Self-wake-up: ✅ the scheduled task `backend self-wake-up` (hourly, :58), created `2026-11-18 08:58 UTC`; its message is the §1a text verbatim (updated 12:04). ⛔ NEVER deleted (R-4292): on an empty queue it takes new HANDOFF/STEER/NOTE files addressed to backend and DECIDED answers in `DECISIONS_Backend.md` (a DECIDED answer is new work), else writes "idle — waiting for a handoff".
 
 ## 1. Now
-NEXT: **CE-4657** (TD-S1, thermal drivers: `HeatSource`, `FireState`, `ThermalDriversOps`, `ThermalPerception` re-based).
+NEXT: **CE-4658** (TD-S2, `HeatSourceSystem` writes `HeatSource`; the sensor re-based and `ThermalHeatSystem` retired move here from CE-4657 — design §4d).
 
 ## 2. The queue (in order)
 | row | state | sha | rail | scenario |
@@ -20,7 +20,7 @@ NEXT: **CE-4657** (TD-S1, thermal drivers: `HeatSource`, `FireState`, `ThermalDr
 | CE-3473 the ramming car never breaks the barrels (DECIDED: lean A + the barrel's fill) | ✅ DONE | (this commit) | `CarKinematicsSystemTests.CE3473_*` 4 (red-proved: no ram row ⇒ 1 red; no nose trace ⇒ 3 red), `CE4594_WhatAHullBreaks_*` drum rows; Presentation obstacle snapshots 74 / 0 | `cp-ram-barrier` PASS (in the wide run) |
 | CE-9023 P1 disabled vehicle runs its route forever (the locomotion half) | ✅ DONE (locomotion half) | (this commit) | `MoveToLocationRoadUseTests.CE9023_AnImmobilisedVehicle_StopsRunningItsRoute` — the REAL dispatcher: CanMove lost (the IED) ⇒ the channel Failure (CE-3091) ⇒ the FollowRoute node Failure every tick, never re-issued (CE-3458); red-proved (no OwnRouteFailed ⇒ red); the class 8/8 | `uc-urban-battle` stays red AT THE BASE TOO — the play half (back to CMove in `runFor` 200) is behaviors' (NOTE_Convoy_To_Behaviors_UrbanBattle_MovesOn) |
 | CE-3457 P5 vehicles never yield to animals | ✅ DONE | (this commit) | `CarKinematicsSystemTests.CE3457_*` (red-proved: no cap ⇒ the car runs into the cow); kinematics + NavigationExecution + Animal suites 194 / 0 | own: NEW `ua-animal-horse-blocks-car` 5 / 5 + the animal set (`ua-animal-herd-road`, `farm-under-fire`, `-guard-dog`, `-village-fight`, `-flock-flush`) 5 / 5, all under the parallel checks |
-| CE-4657 TH TD-S1 thermal drivers: components, ops, perception re-based ([handoff](HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md)) | TODO | | | |
+| CE-4657 TH TD-S1 thermal drivers: components, ops, perception re-based ([handoff](HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md)) | ✅ DONE (the sensor re-base + `ThermalHeatSystem` retirement MOVED to CE-4658 — a re-based sensor before its writer reads everything cold; design §4d) | (this commit) | `EntityThermalDriverTranslatorTests` 4 (ids; both drivers byte-for-byte to a late joiner; slot reuse) · `ThermalDriversOpsTests` 6 (idle/off/running/body/hottest/barrel/0 B); SimHost filter 83 / 0, Toolkits thermal 16 / 0; ModuleHost `RPos`/`RVel` 487/488 → 500/501 | no own scenario (TD-S1: no behaviour changes); the sensing set (`ld-sentry-surprise`, `-360`, `ua-night-sensing`, `ua-weather-regions`, `ua-weather-sensing`) 5 / 5 PASS under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1` |
 | CE-4658 TH TD-S2 HeatSourceSystem (hysteresis, possessed ignition) | TODO | | | `th-idling-tank` |
 | CE-4659 TH TD-S3 burst barrel heat on WeaponAmmo | TODO | | | |
 | CE-4660 TH TD-S4 fire: ignition, BurnSystem, wreck reads FireState | TODO | | | `th-burning-wreck` |
