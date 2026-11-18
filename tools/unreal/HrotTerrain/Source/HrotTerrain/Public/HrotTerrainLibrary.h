@@ -56,6 +56,14 @@ public:
 	 * @param AssetPath  e.g. /Game/Hrot/Buildings/SM_Stechovice_3_7 (created or replaced)
 	 * @param Materials  one per slot (e.g. 0 = wall, 1 = roof)
 	 */
+	/**
+	 * Makes a Blueprint (an actor prefab) of a placed actor, with every component it carries (a crowd person: body + outfit parts on
+	 * a leader pose) — so it can be spawned any number of times in another level. The actor stays as it is (not replaced).
+	 * @return the Blueprint's generated class, or null
+	 */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
+	static UClass* BlueprintFromActor(AActor* Actor, const FString& AssetPath);
+
 	UFUNCTION(BlueprintCallable, Category = "HROT|Terrain")
 	static AActor* BuildMesh(const FString& BinPath, const FString& AssetPath, const TArray<UMaterialInterface*>& Materials,
 		FVector LocationCm, const FString& Label);
