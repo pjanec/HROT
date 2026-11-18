@@ -306,12 +306,18 @@ namespace Fdp.Toolkit.Terrain.Tests
             var mf = _w.GetComponent<Minefield>(field);
             var man = Body(LocomotionClass.Pedestrian, new Vector2(30f, 30f));
             Frame();
-            foreach (var (r, c) in new[] { (2, 1), (-3, 2), (0, -1) })
+            // ⭐ CE-4655 — only cells the pattern LAYS (a cell within the edge inset holds no mine); at least two of these are
+            var outline = new[] { new Vector2(-20, -20), new Vector2(20, -20), new Vector2(20, 20), new Vector2(-20, 20) };
+            int walked = 0;
+            foreach (var (r, c) in new[] { (2, 1), (-3, 2), (0, -1), (1, 1), (-1, 0) })
             {
                 var p = MinePattern.At(mf, Vector2.Zero, r, c);
+                if (!MinePattern.Laid(mf, outline, p)) continue;
                 MoveTo(man, p.X + 0.2f, p.Y); Frame();
                 Assert.Contains(_struck, x => x.Row == r && x.Col == c);
+                walked++;
             }
+            Assert.True(walked >= 2, $"only {walked} laid cells walked");
         }
 
         /// <summary>
