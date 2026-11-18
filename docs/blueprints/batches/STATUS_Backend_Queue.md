@@ -48,6 +48,7 @@ NEXT: **CE-4657** (TD-S1, thermal drivers: `HeatSource`, `FireState`, `ThermalDr
 
 ## 3. Taken from new handoffs
 - ✅ `STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios.md` (`2026-11-18`) — ten rows moved (terrain: CE-3424, CE-3471, CE-4664; ui: CE-3468, CE-2438, CE-1473, CE-3451, CE-1475, CE-1038, CE-1046); from now §6a: per row its own scenarios + the touched feature's set, the wide family once per several rows. The 41-scenario run going for CE-3452 + CE-3473 counts as this batch's wide run.
+- ✅ `NOTE_Terrain_To_Backend_Ground_Heat_Marks.md` (origin/terrain merged `2026-11-18`) — CE-4664 built by terrain: `GroundHeatMarkRules.LeaveStand` is CE-4658's call when a stand ends; CE-4657 uses terrain's `ThermalPowerClass` / `HeatMarkEnd` for `ThermalSignatureDto` (one enum each, ruling 9) and adds `Signature` / `BarrelHeat` in its OWN file of the `ThermalDriversOps` partial class. Agreed.
 - ✅ `NOTE_Terrain_To_Backend_Thermal_Field_Names.md` — FYI for CE-4657 (smoke `AreaEffectCloud.BlocksInfrared`, weather `WeatherConditions.Since`, `TerrainMaterial.ThermalClass`, `SurfaceThermalClass`); names accepted, nothing to answer.
 - ✅ `HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md` (coordinator merged `2026-11-18`) — CE-4657…CE-4661, CE-4663, CE-4664 queued in §2 after the P1/P5 rows, before T2 (the handoff's priority).
 
