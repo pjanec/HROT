@@ -133,6 +133,24 @@ public sealed class GroundEffectTests
         Assert.Equal(2 * raise.CellMin.Length, draw.Colours.Count(c => c.R == amber.R && c.G == amber.G && c.B == amber.B));   // the tint (the gizmo adds its own fill)
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1964</c> (the user, `2026-11-17`: "the raise / lower tool does nothing … gives no hint") — on a FLAT terrain (no height grid, only <c>GroundZ</c>) a Raise and a Lower
+    /// still have their effect: a tint of changed cells and the change the panel's hint states; a ditch line its dip. 📐 Was <see cref="GroundEffect.None"/> there (no grid ⇒ no tint, no hint),
+    /// beside the merge dropping the shape itself (CE-1963). 🔴 Red-proof: restore the "no height grid ⇒ None" guard ⇒ no cells, change 0.
+    /// </summary>
+    [Fact]
+    public void CE1964_OnAFlatTerrainWithNoGrid_ARaiseALowerAndADitchShowTheirEffect()
+    {
+        var world = new TerrainWorld { Name = "flat-no-grid", BoundsMin = new Vector2(-100f), BoundsMax = new Vector2(100f), GroundZ = 34f };
+        var raise = GroundEffect.Of(world, null, new TerrainAssets(), "raise", 2f, Square(0f, 0f, 10f));
+        Assert.NotEmpty(raise.CellMin);
+        Assert.Equal(2f, raise.Change, 2);
+        var lower = GroundEffect.Of(world, null, new TerrainAssets(), "lower", 1f, Square(0f, 0f, 10f));
+        Assert.Equal(-1f, lower.Change, 2);
+        var ditch = GroundEffect.Of(world, null, new TerrainAssets(), "ditch", 0f, new[] { new Vector2(-20f, 0f), new Vector2(20f, 0f) });
+        Assert.True(ditch.Change <= -0.9f, $"the ditch's dip: {ditch.Change:F2}");
+    }
+
     /// <summary>⭐ G-37 — on a 2 m grid a ditch says it will not form (amber), on a 1 m grid it does not; a ground area never says it. 🔴 Red-proof: drop the <c>WillNotForm</c> line in <c>Hints</c> ⇒ "no road crossed".</summary>
     [Fact]
     public void OnACoarseGrid_ADitchSaysItWillNotForm()

@@ -2158,6 +2158,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             || Hrot.Core.Tkb.AreaEffectCloudTkb.Is(tkbType)   // ⭐ CE-1165 — nor a gas / smoke CLOUD: EffectLayer draws it
             || Hrot.Core.Tkb.BuildingDamageTkb.Is(tkbType)
             || Hrot.Core.Tkb.GroundDamageTkb.Is(tkbType)
+            || tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainFeature || tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainBlock   // ⭐ CE-1966 — nor a placed terrain FEATURE / BLOCK: the terrain mesh draws what it makes, the feature gizmo its handle (it drew the unknown pink box at its anchor); terrain lane, cross-lane
             || tkbType == Hrot.Map.Common.TkbEntityTypes.AirArena   // ⭐ CE-4647 — nor an AIR ARENA: AirArenaProjector draws it (a map graphic, no body)
             || tkbType == Fdp.Toolkit.Terrain.Minefields.TkbType || tkbType == Hrot.Core.Tkb.MinefieldRecordTkb.StrikesType || tkbType == Hrot.Core.Tkb.MinefieldRecordTkb.KnowledgeType   // ⭐ CE-4624 — nor a MINEFIELD or its records: MinefieldGizmo draws the field (it drew an unknown purple box at its anchor)
             || Hrot.Core.Tkb.TreeDamageTkb.Is(tkbType))   // ⭐ CE-4603 (B-6) — nor a cell's felled trunks (the trees vanish from the terrain); terrain lane, cross-lane   // ⭐ CE-4591 (P-4) — nor a ground cell's craters (drawn into the ground); terrain lane, cross-lane one-line edit   // ⭐ CE-4391 S-1 — nor a building's DAMAGE entity (breaches): drawn into the walls in S-4 (ui, R-4195); a cross-lane one-line edit
