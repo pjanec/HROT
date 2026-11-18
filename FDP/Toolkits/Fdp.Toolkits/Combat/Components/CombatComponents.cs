@@ -151,6 +151,8 @@ namespace Fdp.Toolkit.Combat.Components
         public uint StoppedTick;
 
         /// <summary>⭐ R-217 — bit 0: <see cref="Muzzle"/> and the front values are set (a round built without them — older tests,
+        /// examples — starts its front at its first segment). ⭐ CE-5033 — bit 1: the panes between the shooter and the muzzle were checked (a man firing OUT).
+        /// (bit 0, continued:
         /// examples — starts its front at its first segment and is carried from that segment's start).</summary>
         public byte TerrainFlags;
 

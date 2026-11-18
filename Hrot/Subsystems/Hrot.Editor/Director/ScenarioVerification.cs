@@ -188,6 +188,8 @@ namespace Hrot.Editor.Director
                 }
                 case "knowledge":
                     return _w.World is { } kw && KnowledgeHolds(kw, c) ? _rel : null;
+                case "window":
+                    return _w.World is { } ww && WindowHolds(ww, c) ? _rel : null;
                 case "far":
                 case "close":
                     return DistanceHolds(c) ? _rel : null;
@@ -236,6 +238,57 @@ namespace Hrot.Editor.Director
                 if (Compare(JsonValue.Create(n), c.Op, c.Value)) return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-5033</c> (glass windows, docs/DESIGN_Glass_Windows.md §7) — a <c>window</c> cue: some glazed window of <see cref="CheckCue.Building"/> (or, with a
+        /// <c>point</c>, the one whose pane is nearest to it horizontally, within <c>within</c> m — default 3) is in the state <c>is</c> names, as the world's own
+        /// readers see it (<c>DoorStates.Windows</c>, the union of every node's records): <c>intact</c> = never hit, <c>cracked</c> = at least <c>n</c> hits (default 1)
+        /// and not broken, <c>broken</c>.
+        /// </summary>
+        private bool WindowHolds(EntityRepository world, CheckCue c)
+        {
+            if (c.Building is not { } key || !world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()) return false;
+            var terrain = world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>();
+            if (terrain == null) return false;
+            int building = Fdp.Toolkit.Terrain.BuildingDamages.IndexOfKey(terrain, key);
+            if (building < 0) return false;
+            var windows = WindowsNow(world);
+            string state = c.Spec.Is is JsonValue sv ? sv.ToString() : "";
+            int hits = c.Spec.N;
+            float within = c.Spec.Within;
+            var panes = terrain.PaneLeaves;
+            int best = -1; float bestD = float.MaxValue;
+            for (int i = 0; i < panes.Count; i++)
+            {
+                if (panes[i].Building != building) continue;
+                var (panel, opening) = terrain.Panes[i];
+                if (c.Spec.Point is { } p)
+                {
+                    float d = System.Numerics.Vector2.Distance((panes[i].Min + panes[i].Max) * 0.5f, new System.Numerics.Vector2(p.X, p.Y));
+                    if (d <= within && d < bestD) { bestD = d; best = i; }
+                    continue;
+                }
+                if (WindowIs(windows, panel, opening, state, hits)) return true;
+            }
+            return best >= 0 && WindowIs(windows, terrain.Panes[best].Panel, terrain.Panes[best].Opening, state, hits);
+        }
+
+        // the windows read from the components THIS sample (a judge, never per frame of the sim — the cached view table is the sim's)
+        private static Fdp.Toolkit.Terrain.WindowTable? WindowsNow(EntityRepository world)
+            => world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.WindowDamage>() ? Fdp.Toolkit.Terrain.WindowTable.Fresh(world) : null;
+
+        private static bool WindowIs(Fdp.Toolkit.Terrain.WindowTable? windows, int panel, int opening, string state, int hits)
+        {
+            Fdp.Toolkit.Terrain.WindowEntry e = default;
+            bool known = windows != null && windows.TryGet(panel, opening, out e);
+            return state switch
+            {
+                "intact" => !known,
+                "cracked" => known && !e.Broken && e.Hits >= hits,
+                "broken" => known && e.Broken,
+                _ => false,
+            };
         }
 
         /// <summary>

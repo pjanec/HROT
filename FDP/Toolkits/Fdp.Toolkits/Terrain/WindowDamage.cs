@@ -307,6 +307,15 @@ namespace Fdp.Toolkit.Terrain
             return t_last = new WindowTable(list.ToArray());
         }
 
+        /// <summary>The table built from <paramref name="view"/>'s components now, bypassing the per-thread cache (a judge or a diagnostic; ⛔ never per frame).</summary>
+        public static WindowTable? Fresh(ISimulationView view)
+        {
+            var q = view.Query().With<WindowDamage>().WithLifecycle(EntityLifecycle.All).Build();
+            var scratch = new List<WindowEntry>();
+            foreach (var e in q) Collect(view.GetComponentRO<WindowDamage>(e), scratch);
+            return Make(scratch);
+        }
+
         private static readonly Comparison<WindowEntry> Order = static (a, b) =>
         {
             int c = a.Panel.CompareTo(b.Panel); if (c != 0) return c;

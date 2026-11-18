@@ -254,6 +254,12 @@ namespace Fdp.Toolkit.Combat.Systems
                         proj.Muzzle = proj.PreviousPosition; proj.FrontDamage = proj.Damage; proj.FrontPenetration = proj.Penetration;
                         proj.TerrainFlags |= 1;
                     }
+                    // ⭐ CE-5033 — firing OUT: once per round, on its first segment (bit 2 — a round FireProcessingSystem spawns already has its muzzle, bit 1)
+                    if ((proj.TerrainFlags & 2) == 0)
+                    {
+                        proj.TerrainFlags |= 2;
+                        if (paneWorld != null) ShatterPanesAtTheMuzzle(repo, cmd, paneWorld, (Fdp.Toolkit.Terrain.TerrainWorldQuery)terrain, in proj);
+                    }
                     impacts?.Clear();
                     panes?.Clear();
                     bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref proj.FrontDamage, ref proj.FrontPenetration, out float stopT, null, impacts, panes);
@@ -359,6 +365,40 @@ namespace Fdp.Toolkit.Combat.Systems
         public const float FireOutShatterMetres = 1.5f;
 
         [ThreadStatic] private static List<PaneHit>? t_panes;
+        [ThreadStatic] private static List<Fdp.Toolkit.Terrain.TerrainWorld.FireCrossing>? t_muzzlePanes;
+
+        /// <summary>The height (m) above a shooter's feet his chest — where the gun is held — is taken at.</summary>
+        public const float ShooterChestM = 1.4f;
+
+        /// <summary>
+        /// ⭐ CE-5033 (glass windows D-4, "a man firing out") — a man at a window pushes his BARREL through the opening: 📐 measured on <c>gw-fire-out</c>, the
+        /// muzzle stood 0.28 m OUTSIDE the wall, so his rounds never crossed the pane. ⇒ on a round's first segment, every pane between the shooter's chest and
+        /// the muzzle (and within <see cref="FireOutShatterMetres"/> of the muzzle) shatters. ⛔ No allocation in the steady state (a thread's list).
+        /// </summary>
+        private static void ShatterPanesAtTheMuzzle(EntityRepository repo, Fdp.Interfaces.IEntityCommandBuffer cmd, Fdp.Toolkit.Terrain.TerrainWorld world,
+                                                    Fdp.Toolkit.Terrain.TerrainWorldQuery query, in BallisticProjectile proj)
+        {
+            if (!repo.IsAlive(proj.Shooter) || !repo.HasComponent<SimTransform>(proj.Shooter)) return;
+            var feet = repo.GetComponentRO<SimTransform>(proj.Shooter).Position;
+            var chest = new System.Numerics.Vector3(feet.X, feet.Y, feet.Z + ShooterChestM);
+            var muzzle = (System.Numerics.Vector3)proj.Muzzle;
+            if (System.Numerics.Vector3.DistanceSquared(chest, muzzle) > FireOutShatterMetres * FireOutShatterMetres * 4f) return;   // not a man holding this gun
+            var list = t_muzzlePanes ??= new List<Fdp.Toolkit.Terrain.TerrainWorld.FireCrossing>();
+            world.QueryFire(chest, muzzle, list, query.Doors);
+            for (int i = 0; i < list.Count; i++)
+            {
+                var c = list[i];
+                if (c.Kind != Fdp.Toolkit.Terrain.TerrainWorld.PaneKind || c.Piece < 0) continue;
+                var at = System.Numerics.Vector3.Lerp(chest, muzzle, c.T);
+                if (System.Numerics.Vector3.Distance(at, muzzle) > FireOutShatterMetres) continue;
+                var (panel, opening) = world.PaneOf(c.Piece - world.Prisms.Count);
+                if (panel < 0 || world.Panels[panel].Building < 0) continue;
+                cmd.PublishEvent(new Fdp.Toolkit.Terrain.WindowHitEvent
+                {
+                    Building = world.Panels[panel].Building, Panel = panel, Opening = opening, Shatter = 1, Source = proj.Shooter,
+                });
+            }
+        }
 
         /// <summary>⭐ CE-5033 (D-4) — one <see cref="Fdp.Toolkit.Terrain.WindowHitEvent"/> per pane the segment passed: a hit with its crack, or a shatter when the muzzle is at the pane.</summary>
         private static void PublishPaneHits(Fdp.Interfaces.IEntityCommandBuffer cmd, Fdp.Toolkit.Terrain.TerrainWorld world, in BallisticProjectile proj, List<PaneHit> panes)
