@@ -53,17 +53,36 @@ public sealed class EditorToolStripsTests : IDisposable
     // ── Scenario tools ──────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>The strip has ONE family, Add Entity (Friendly · Hostile · Neutral · Map graphic), and Measure; each member runs ITS existing handler (203…206, 200) from the host registry with the editor's world and no target. 🔴 Red-proof: map Hostile to 203 ⇒ red.</summary>
-    /// <summary>⭐ CE-1965 — a dropdown tile is a SPLIT button: its bottom-right ▾ zone opens the members, the rest of the tile (the icon) runs the member
-    /// chosen last (<c>Pick(Selected)</c>). 🔒 User, 2026-11-17: "when I click the arrow part of the split icon it will open the menu … when I click the
-    /// icon not on the down arrow but on the icon image, I would basically be activating the feature that I last time selected". ✅ Red-proof: OnArrow
-    /// always true ⇒ the centre assert red.</summary>
+    /// <summary>⭐ CE-1977 — with the host's disarm, a strip's SELECT tile (first) is lit while no tool is armed and its click disarms; a click on a LIT tool's
+    /// icon turns the tool off instead of running it again; an unlit icon runs its tool. 🔒 User, 2026-11-18: "The new arrow icon on the very left of the
+    /// toolbar is a great idea. Clicking the tool icon again to deactivate it is also approved." ✅ Red-proof: FaceClicked ignoring <c>lit</c> ⇒ red.</summary>
     [Fact]
-    public void CE1965_ADropdownTile_IsASplitButton_TheArrowCornerOpens_TheFaceRunsTheLastChoice()
+    public void CE1977_TheSelectTile_AndAClickOnTheLitTool_DisarmIt()
     {
-        var size = new Vector2(40f, 40f);
-        Assert.False(ToolStripWindow.OnArrow(new Vector2(20f, 20f), size));   // the icon: runs the last choice
-        Assert.False(ToolStripWindow.OnArrow(new Vector2(36f, 6f), size));    // the top-right: still the face
-        Assert.True(ToolStripWindow.OnArrow(new Vector2(36f, 36f), size));    // the ▾ corner: the menu
+        var w = Scenario();
+        int disarmed = 0;
+        bool armed = false;
+        w.DisarmTool = () => { disarmed++; armed = false; };
+        w.AnyToolArmed = () => armed;
+        Assert.True(w.SelectEntry.IsLit!());                                  // nothing armed: Select is lit
+        armed = true;
+        Assert.False(w.SelectEntry.IsLit!());
+        ToolStripWindow.FaceClicked(w.SelectEntry, false, null);              // the Select tile's own click
+        Assert.Equal(1, disarmed);
+        var measure = w.StripEntries[1];
+        _ran.Clear();
+        ToolStripWindow.FaceClicked(measure, lit: true, w.DisarmTool);        // Measure is the lit one: off
+        Assert.Equal(2, disarmed);
+        Assert.Empty(_ran);
+        ToolStripWindow.FaceClicked(measure, lit: false, w.DisarmTool);       // not lit: it arms
+        Assert.Equal(new[] { 200 }, _ran.Select(r => r.Action).ToArray());
+    }
+
+    /// <summary>⭐ CE-1965 — a dropdown entry IS the shared split button (the main toolbar's): picking from its menu makes that member the face, and the
+    /// face's click (<c>Pick(Selected)</c>) runs it again. 🔒 User, 2026-11-17: "whatever I click in the menu it will be remembered for the next click of the icon".</summary>
+    [Fact]
+    public void CE1965_TheFaceRunsTheMemberChosenLast()
+    {
         var w = Scenario();
         var add = w.StripEntries[0];
         add.Pick(2);                                                          // chosen from the menu
@@ -198,6 +217,7 @@ public sealed class EditorToolStripsTests : IDisposable
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var scenario = Scenario(); var (terrain, _) = Terrain(); terrain.IsOpen = true;
+        foreach (var strip in new ToolStripWindow[] { scenario, terrain }) { strip.DisarmTool = () => { }; strip.AnyToolArmed = () => _armed != null; }   // ⭐ CE-1977 — the Select tile first
         terrain.StripEntries.Single(e => e.Id == "##ts_t_walls").Pick(0); _armed = ScenarioToolIds.Spawn;   // Walls lit, as in panel A
         using var frame = UiFrameHarness.Begin();
         frame.StepN(3, () =>
@@ -209,6 +229,27 @@ public sealed class EditorToolStripsTests : IDisposable
         });
         Assert.Equal(ToolStripOrientation.Row, scenario.LastOrientation);
         Assert.Equal(ToolStripOrientation.Column, terrain.LastOrientation);
+        // ⭐ CE-1965 — every dropdown is the SHARED split button: a square face and a narrow ▾ bar to its right — two hit zones, never overlapping, the bar
+        //   as tall as the face and as wide as SplitArrow.BarWidth — in the row strip and the column strip alike; and the next icon never sits on the bar.
+        //   🔒 User, 2026-11-18: "Will the icon and the vertical bar on the right be separated hit zones?" 🔴 Red-proof: the old corner ▾ (no bar) ⇒ red.
+        int splits = 0;
+        foreach (var entries in new[] { scenario.StripEntries, terrain.StripEntries })
+        {
+            for (int i = 0; i < entries.Count; i++)
+            {
+                var e = entries[i];
+                if (e.Family is not { Count: > 0 }) continue;
+                splits++;
+                var (fMin, fMax) = e.LastFace; var (bMin, bMax) = e.LastBar;
+                Assert.True(fMax.X <= bMin.X, $"{e.Id}: the bar is right of the face, not on it ({fMax.X} > {bMin.X})");
+                Assert.InRange(bMin.X - fMax.X, 0f, 2f);                                          // side by side
+                Assert.Equal(fMax.Y - fMin.Y, bMax.Y - bMin.Y, 1);                                // one height
+                Assert.Equal(fMin.Y, bMin.Y, 1);
+                Assert.InRange(bMax.X - bMin.X, Fdp.Presentation.Icons.SplitArrow.BarWidth * 0.8f, Fdp.Presentation.Icons.SplitArrow.BarWidth * 1.2f);   // the shared bar, scaled with the font
+                Assert.InRange(fMax.X - fMin.X, (fMax.Y - fMin.Y) * 0.9f, (fMax.Y - fMin.Y) * 1.3f);   // the face is (about) square
+            }
+        }
+        Assert.True(splits >= 2, "both strips have a dropdown");
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "tool-strips.png"));
     }
 }

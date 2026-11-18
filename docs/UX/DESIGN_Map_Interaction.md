@@ -275,6 +275,13 @@ toolkit undo stack, which nothing calls and which this design does not revive.
 | **the gizmo look** | every gizmo is reviewed for a 2-D look and a 3-D look (§2.6) | user |
 | **every station** | a tool that cannot run here is greyed with the reason (R-4119) — never missing, never silently empty (e.g. box select on CGF today) | R-4119 |
 
+⭐ **`2026-11-18` (ui, CE-1977) — leaving an armed tool by MOUSE, and naming it at the cursor** (🔒 user: *"what if I don't want the tool anymore? … there should be some mouse-driven way"* · *"before I start clicking, I'd like to have an indicator"*):
+
+| | as built |
+|---|---|
+| the way back | a **Select** (arrow) tile first in every tool strip, lit while no tool is armed; a click on a **lit** tool's icon turns it off; the drawing menu's **Stop drawing** (alone while no point is placed) — all through `IToolController.DisarmAll`, the one disarm (the hat change uses it too). Esc twice (TE-2) is unchanged |
+| the cursor label | TWO lines under the cursor: the armed tool's **name** (`ToolController.ActiveTitle` — a terrain pick says *Ditch*, not *Draw Area*) over the hint; style `GizmoTextStyle.Cursor`, which the 3-D map never hides behind the ground (⛔ it did: drawn below the cursor but depth-tested at the cursor's own point, CE-4582) |
+
 ### 2.6 The gizmo look — a review list, decided per gizmo in the lane
 
 | gizmo | today | target |

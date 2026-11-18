@@ -166,6 +166,11 @@ namespace Fdp.Toolkit.Vis3D
             return s.X < -1e5f ? null : s;
         }
 
+        /// <summary>⭐ <c>CE-1977</c> — may the ground hide <paramref name="label"/>? Every place label (CE-4582 D-8) — but never the CURSOR's (the armed tool's name
+        /// and hint, <see cref="GizmoTextStyle.Cursor"/>): its text sits below the cursor, over ground nearer the eye than the cursor's own point, so the
+        /// depth test hid it in every tilted view. 🔒 User, 2026-11-18: "I do not see any label … saying that I am creating ditches".</summary>
+        public static bool Occludable(in GizmoLabel3D label) => label.Primitive.TextStyle != GizmoTextStyle.Cursor;
+
         /// <summary>Draws <paramref name="labels"/> (outside the 3-D camera pass). ⭐ <c>CE-4582</c> (§6am D-8) — with an open
         /// <paramref name="occlusion"/> scope each is drawn at its anchor's depth, hidden behind what stands in front of it.</summary>
         public static int Draw(IReadOnlyList<GizmoLabel3D> labels, MapCamera3D camera, System.Func<long, float?>? liftOf, CardOcclusion? occlusion = null)
@@ -176,7 +181,8 @@ namespace Fdp.Toolkit.Vis3D
             {
                 var label = labels[i];
                 if (ScreenOf(in label, camera, liftOf) is not { } s) continue;
-                if (tested)
+                bool testThis = tested && Occludable(in label);   // ⭐ CE-1977 — the cursor's label is never hidden
+                if (testThis)
                 {
                     var world = label.World;
                     if (label.AnchorId != 0) world.Z += liftOf?.Invoke(label.AnchorId) ?? DefaultLift;
@@ -199,7 +205,7 @@ namespace Fdp.Toolkit.Vis3D
                         Raylib.DrawCircleV(s, 4f, Color.Yellow);   // the 2-D renderer's Icon fallback
                         break;
                 }
-                if (tested) occlusion!.Pop();
+                if (testThis) occlusion!.Pop();
                 drawn++;
             }
             return drawn;

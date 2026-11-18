@@ -120,12 +120,46 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
 
         Assert.Empty(Drawn());   // nothing armed
         mi.Tools.Activate(ScenarioToolIds.Measure);
-        var hint = Assert.Single(Drawn());
-        Assert.Equal(new Text(120, -40, mi.Tools.ActiveHint, ToolHintGizmo.BelowCursorPx), hint);
+        // ⭐ CE-1977 — two lines: the armed tool's NAME, then what the next click does
+        Assert.Equal(new[] { new Text(120, -40, "Measure", ToolHintGizmo.BelowCursorPx), new Text(120, -40, mi.Tools.ActiveHint, ToolHintGizmo.BelowCursorPx + ToolHintGizmo.LinePx) }, Drawn());
         mi.Tools.ClaimCursorHint();
         Assert.Empty(Drawn());   // the gizmo draws its own line there
         mi.Tools.Activate(ScenarioToolIds.Select);
         Assert.Empty(Drawn());   // plain Select says nothing
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1977</c> — the cursor label NAMES the armed tool before the first click: a terrain pick arms the one area tool, and its name (Ditch) — not the
+    /// generic "Draw Area" — heads the label; both lines are the <c>Cursor</c> style, which the 3-D map never hides behind the ground (it did: the text sits
+    /// below the cursor, over ground nearer the eye than the cursor's point, so the CE-4582 depth test hid it in a tilted view). The name is forgotten when the
+    /// tool changes. And <c>DisarmAll</c> (the Select tile, a re-click, a hat change) leaves no tool armed. 🔒 User, 2026-11-18: "I do not see any label …
+    /// saying that I am creating ditches". ✅ Red-proofs: <c>Occludable</c> true for every label ⇒ red; no <c>SetTitle</c> ⇒ "Draw Area".
+    /// </summary>
+    [Fact]
+    public void CE1977_TheCursorLabel_NamesTheArmedTool_AndTheGroundNeverHidesIt()
+    {
+        var mi = MapInteractionPack.Build(new MapInteractionContext { World = _world });
+        var canvas = new MapCanvas(new NoInput()) { Camera = new MapCamera { Zoom = 1f, Target = Vector2.Zero, Offset = Vector2.Zero } };
+        var readout = new MapCursorReadout();
+        canvas.AddResource(readout);
+        MapUiStates.Set(_world, canvas);
+        readout.Set(new MapCursorSample(new Vector3(10, 20, 3), false, 0, 0, 0));
+        mi.Tools.Activate(ScenarioToolIds.Measure);
+        mi.Tools.SetTitle("Ditch");
+        var buffer = new DebugPrimitiveBuffer(capacity: 16);
+        new ToolHintGizmo().Draw(_world, buffer);
+        var texts = buffer.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Text).ToArray();
+        Assert.Equal(2, texts.Length);
+        Assert.Equal("Ditch", texts[0].StringHash != 0 ? buffer.InternMap.TryResolve(texts[0].StringHash) : texts[0].TextContent.ToString());
+        Assert.All(texts, t => Assert.Equal(GizmoTextStyle.Cursor, t.TextStyle));
+        Assert.All(texts, t => Assert.False(Fdp.Toolkit.Vis3D.LabelOverlay3D.Occludable(new Fdp.Toolkit.Vis3D.GizmoLabel3D(t, new Vector3(10, 20, 3), 0))));
+        var place = texts[0]; place.TextStyle = GizmoTextStyle.Backdrop;
+        Assert.True(Fdp.Toolkit.Vis3D.LabelOverlay3D.Occludable(new Fdp.Toolkit.Vis3D.GizmoLabel3D(place, new Vector3(10, 20, 3), 0)));   // a place label still is (CE-4582)
+        mi.Tools.Activate(ScenarioToolIds.Select);
+        Assert.NotEqual("Ditch", mi.Tools.ActiveTitle);                                // forgotten with the tool
+        mi.Tools.Activate(ScenarioToolIds.Measure);
+        ((IToolController)mi.Tools).DisarmAll();
+        Assert.True(mi.Tools.ActiveModal is null || mi.Tools.ActiveModal.Id == ScenarioToolIds.Select);
     }
 
     /// <summary>
@@ -146,12 +180,12 @@ public sealed class TheArmedToolIsVisibleTests : IDisposable
 
         var buffer = new DebugPrimitiveBuffer(capacity: 16);
         new ToolHintGizmo().Draw(_world, buffer);
-        var p = buffer.GetFrame().ToArray().Single(q => q.Shape == DebugPrimitiveShape.Text);
+        var p = buffer.GetFrame().ToArray().Last(q => q.Shape == DebugPrimitiveShape.Text);   // ⭐ CE-1977 — the hint is the line under the tool's name
         string onMap = buffer.InternMap.TryResolve(p.StringHash)!;
         Assert.DoesNotContain("✓", onMap);   // ⭐ B-17 P7 ⑥ — Roboto has no ✓: the hint says "Done", the same word as the on-map button
         Assert.Contains("Enter / Done: finish (3+)", onMap);
         Assert.Contains("Enter / Done: finish (3+)", mi.Tools.ActiveHint);   // one wording on the map and on the status line
-        Assert.Equal(GizmoTextStyle.Backdrop, p.TextStyle);                   // ⭐ B-17 P7 ⑥ — and it is drawn on a backdrop
+        Assert.Equal(GizmoTextStyle.Cursor, p.TextStyle);                     // ⭐ B-17 P7 ⑥ — and it is drawn on a backdrop (⭐ CE-1977: the Cursor style — the backdrop, never hidden in 3-D)
     }
 
     /// <summary>

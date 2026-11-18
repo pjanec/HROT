@@ -7,7 +7,7 @@ using Fdp.Toolkit.Input;
 namespace Fdp.Toolkit.Vis2D.Gizmos;
 
 /// <summary>What a drawing command does — the three rows of the drawing menu, and the keys behind them.</summary>
-public enum ShapeCommand { Finish, RemoveLast, Cancel }
+public enum ShapeCommand { Finish, RemoveLast, Cancel, /** ⭐ CE-1977 — leave the TOOL: the shape in progress is dropped and the session ends Cancelled (a repeating tool disarms too). */ Stop }
 
 /// <summary>How a <see cref="ShapeEditSession"/> command ended.</summary>
 public enum ShapeOutcome
@@ -23,7 +23,11 @@ public enum ShapeOutcome
 }
 
 /// <summary>The drawing menu a host attaches to a session: the menu JSON (composed from the action catalogue) and what its ids mean.</summary>
-public sealed record ShapeMenu(string Json, Func<int, ShapeCommand?> Map);
+public sealed record ShapeMenu(string Json, Func<int, ShapeCommand?> Map)
+{
+    /// <summary>⭐ CE-1977 — the menu while NO point is placed yet (only the way out: <i>Stop drawing</i>); null ⇒ no menu then.</summary>
+    public string? EmptyJson { get; init; }
+}
 
 /// <summary>
 /// ⭐⭐ B-17 P2 (📄 docs/UX/DESIGN_Map_Interaction.md §2.1, §2.2, §2.5 — D11) — THE ONE drawing core: a list of points and the finish / cancel convention.
@@ -328,6 +332,17 @@ public sealed class ShapeEditSession
         return Outcome;
     }
 
+    /// <summary>⭐ <c>CE-1977</c> — <i>Stop drawing</i>: the TOOL ends now — the shape in progress is dropped (not the two-stage Esc of TE-2) and the session
+    /// ends <see cref="ShapeOutcome.Cancelled"/>, which disarms the tool. 🔒 User, 2026-11-18: "what if I don't want the tool anymore? … the right click menu
+    /// should show something like cancel, exit".</summary>
+    public ShapeOutcome Stop()
+    {
+        if (Ended) return Outcome;
+        _points.Clear(); _heights.Clear(); Selected = -1; Reason = null;
+        Outcome = ShapeOutcome.Cancelled;
+        return Outcome;
+    }
+
     /// <summary>Runs a menu command.</summary>
     public ShapeOutcome Apply(ShapeCommand command)
     {
@@ -335,6 +350,7 @@ public sealed class ShapeEditSession
         {
             case ShapeCommand.Finish: return Finish();
             case ShapeCommand.Cancel: return Cancel();
+            case ShapeCommand.Stop: return Stop();
             default: RemoveLast(); return ShapeOutcome.None;
         }
     }

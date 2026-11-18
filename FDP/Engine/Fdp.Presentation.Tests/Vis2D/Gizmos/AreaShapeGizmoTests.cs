@@ -191,10 +191,24 @@ public class AreaShapeGizmoTests
     public void CE1969_A_drawing_tool_offers_Finish_only_once_a_point_is_placed()
     {
         var g = new PointSequenceGizmo(_ => { }, () => { }, minPoints: 2, noun: "a ditch");
-        g.Session.Menu = new ShapeMenu("[{\"id\":2410}]", _ => null);
-        Assert.Null(g.ToolMenuJson);                                  // nothing to finish
+        g.Session.Menu = new ShapeMenu("[{\"id\":2410}]", _ => null) { EmptyJson = "[{\"id\":2424}]" };
+        Assert.Equal("[{\"id\":2424}]", g.ToolMenuJson);            // nothing to finish: only the way out (⭐ CE-1977 Stop drawing)
         g.Session.Add(new Vector2(10f, 10f));
         Assert.Equal("[{\"id\":2410}]", g.ToolMenuJson);            // a point: the menu
+    }
+
+    /// <summary>⭐ CE-1977 — <i>Stop drawing</i> leaves the TOOL at once: the points are dropped and the session ends Cancelled — not TE-2's two-stage Esc,
+    /// whose first press only drops the shape. 🔒 User, 2026-11-18: "what if I don't want the tool anymore?" ✅ Red-proof: Stop → Cancel ⇒ the first assert red.</summary>
+    [Fact]
+    public void CE1977_StopDrawing_EndsTheToolAtOnce_EvenMidShape()
+    {
+        var s = new ShapeEditSession(minPoints: 2, closed: false, noun: "a ditch") { EscDropsShapeFirst = true };
+        s.Add(new Vector2(1f, 1f)); s.Add(new Vector2(5f, 1f));
+        Assert.Equal(ShapeOutcome.Cancelled, s.Apply(ShapeCommand.Stop));
+        Assert.Empty(s.Points);
+        var esc = new ShapeEditSession(minPoints: 2, closed: false, noun: "a ditch") { EscDropsShapeFirst = true };
+        esc.Add(new Vector2(1f, 1f));
+        Assert.Equal(ShapeOutcome.None, esc.Cancel());                // Esc: the shape first, the tool stays
     }
 
     [Fact]
