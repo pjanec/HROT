@@ -68,7 +68,10 @@ namespace Fdp.Toolkit.Terrain
     {
         private readonly byte[] _states;
 
-        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null, FelledTrees? trees = null, PlaceKnowledgeTable? knowledge = null) { _states = states; Damage = damage; Craters = craters; Trees = trees; Knowledge = knowledge ?? PlaceKnowledgeTable.Empty; }
+        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null, FelledTrees? trees = null, PlaceKnowledgeTable? knowledge = null, WindowTable? windows = null) { _states = states; Damage = damage; Craters = craters; Trees = trees; Knowledge = knowledge ?? PlaceKnowledgeTable.Empty; Windows = windows; }
+
+        /// <summary>⭐ <c>CE-5033</c> GW-2 (D-7) — the damaged windows of this view (null = none hit): a BROKEN pane is skipped at query time, as a felled trunk.</summary>
+        public WindowTable? Windows { get; }
 
         /// <summary>⭐ <c>CE-4624</c> MS-T2 (KR-8) — what every side knows of every minefield, as this view sees it (<see cref="PlaceKnowledgeTable"/>): rides here like the craters, so
         /// every route / sight caller has it with no new parameter; the same instance while nothing changed.</summary>
@@ -124,8 +127,9 @@ namespace Fdp.Toolkit.Terrain
             var craters = CraterTable.Of(view);   // ⭐ CE-4591 (D-1) — the craters, the same way: their own stamp, the same instance while unchanged
             var trees = FelledTrees.Of(view);   // ⭐ CE-4603 (B-6) — the felled trunks, the same way
             var knowledge = PlaceKnowledgeTable.Of(view);   // ⭐ CE-4624 (KR-8) — the sides' minefield knowledge, the same way
-            if (!ReferenceEquals(r.Damage, damage) || !ReferenceEquals(r.Craters, craters) || !ReferenceEquals(r.Trees, trees) || !ReferenceEquals(r.Knowledge, knowledge))
-                r = t_last = new DoorStates(r._states, damage, craters, trees, knowledge);   // a new instance over the SAME door array
+            var windows = WindowTable.Of(view);   // ⭐ CE-5033 (GW-2) — the damaged window panes, the same way
+            if (!ReferenceEquals(r.Damage, damage) || !ReferenceEquals(r.Craters, craters) || !ReferenceEquals(r.Trees, trees) || !ReferenceEquals(r.Knowledge, knowledge) || !ReferenceEquals(r.Windows, windows))
+                r = t_last = new DoorStates(r._states, damage, craters, trees, knowledge, windows);   // a new instance over the SAME door array
             Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
             return r;
         }

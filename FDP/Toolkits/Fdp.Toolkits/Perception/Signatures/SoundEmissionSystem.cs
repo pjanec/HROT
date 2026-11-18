@@ -116,6 +116,7 @@ namespace Fdp.Toolkit.Perception.Signatures
 
             HearDoors(repo, ring);
             HearBreaks(repo, ring);   // ⭐ CE-4600 (B-3b, V-17) — a vehicle breaking a barrier is heard
+            HearGlass(repo, ring);    // ⭐ CE-5033 (glass windows D-8) — a pane shattering is heard
 
             // ⭐ CE-3315/CE-3316 — the world's count of this timeline's sounds and the newest of them, kept beside the ring (a checkpoint
             //   carries them; the ring it cannot)
@@ -181,6 +182,24 @@ namespace Fdp.Toolkit.Perception.Signatures
                 byte cls = Fdp.Toolkit.Motion.Locomotions.Of(repo, b.Vehicle) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked
                     ? (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine : (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.WheeledEngine;
                 ring.Append(Emission(repo, b.Vehicle, SoundKind.Movement, cls, new System.Numerics.Vector3(b.X, b.Y, b.Z), BreakAudibleMetres, ring.Now, TypeOf(repo, b.Vehicle), 0));
+            }
+        }
+
+        /// <summary>⭐ CE-5033 (glass windows D-8) — how far a pane shattering is heard (m): a crash of glass.</summary>
+        public const float GlassAudibleMetres = 150f;
+
+        /// <summary>⭐ CE-5033 (D-8) — a pane SHATTERED (<see cref="Fdp.Toolkit.Terrain.WindowBrokenEvent"/>, on the deciding node) is a sound at the window, heard by AI ears like any
+        /// other: a Movement sound of no known source class, carried <see cref="GlassAudibleMetres"/>.</summary>
+        private static void HearGlass(EntityRepository repo, SoundEmissionRing ring)
+        {
+            if (!repo.Bus.IsRegistered<Fdp.Toolkit.Terrain.WindowBrokenEvent>()) return;
+            foreach (ref readonly var g in repo.ReadEvents<Fdp.Toolkit.Terrain.WindowBrokenEvent>())
+            {
+                var at = new System.Numerics.Vector3(g.X, g.Y, g.Z);
+                const byte cls = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Unknown;
+                ring.Append(repo.IsAlive(g.Source)
+                    ? Emission(repo, g.Source, SoundKind.Movement, cls, at, GlassAudibleMetres, ring.Now, 0L, 0)
+                    : new SoundEmission { Kind = (byte)SoundKind.Movement, Class = cls, At = at, Carry = GlassAudibleMetres, Time = (SimInstant)ring.Now });   // no known source: no force
             }
         }
 

@@ -39,8 +39,9 @@ namespace Fdp.Toolkit.Combat
         /// <param name="impacts">⭐ <c>CE-1128</c> (docs/DESIGN_Visual_Effects.md §10 IM-2) — when given, the surfaces the round marks: an
         /// <see cref="ImpactKind.Entry"/> and an <see cref="ImpactKind.Exit"/> for each crossing it passes, a <see cref="ImpactKind.Stop"/>
         /// where it stops — each with the face's normal (zero = unknown).</param>
+        /// <param name="panes">⭐ <c>CE-5033</c> GW-2 — when given, each window PANE the round passes: its query piece and where it crossed (the window's hit).</param>
         public static bool Carry(Fdp.Toolkit.World.IWorldQuery world, Vector3 from, Vector3 to, ref float damage, ref float penetration, out float stopT,
-            List<ShotCrossing>? log = null, List<RoundImpact>? impacts = null)
+            List<ShotCrossing>? log = null, List<RoundImpact>? impacts = null, List<PaneHit>? panes = null)
         {
             stopT = 1f;
             var crossings = t_crossings ??= new List<Fdp.Toolkit.World.TraceCrossing>();
@@ -60,6 +61,7 @@ namespace Fdp.Toolkit.Combat
                     impacts?.Add(new RoundImpact(entry, c.EntryNormal, ImpactKind.Stop));
                     return true;
                 }
+                if (panes != null && c.Kind == Fdp.Toolkit.Terrain.TerrainWorld.PaneKind && c.Piece >= 0) panes.Add(new PaneHit(c.Piece, entry));   // ⭐ CE-5033
                 // a piece the round was already inside at the segment's start was marked by the segment that entered it (its exit too:
                 // the far face lies on the same straight line, past that segment's end)
                 if (impacts != null && c.T > 1e-5f && c.Stop <= 0f && c.Kind != Fdp.Toolkit.Terrain.TerrainWorld.PaneKind)   // ⭐ CE-5032 — no decal on glass: its cracks are its window's state (GW-2/3)   // ⭐ CE-4369 — a wood is no surface: no entry / exit mark
@@ -101,4 +103,7 @@ namespace Fdp.Toolkit.Combat
 
     /// <summary>⭐ <c>CE-1128</c> — one surface a round marked: where, the face's outward normal (zero = unknown), and what it did.</summary>
     public readonly record struct RoundImpact(Vector3 At, Vector3 Normal, ImpactKind Kind);
+
+    /// <summary>⭐ <c>CE-5033</c> GW-2 — a window pane a round passed: the terrain query piece (<see cref="Fdp.Toolkit.Terrain.TerrainWorld.PaneOf"/> after the prisms) and where.</summary>
+    public readonly record struct PaneHit(int Piece, Vector3 At);
 }

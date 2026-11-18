@@ -82,6 +82,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4391 S-1 — a building's wall breaches, the node that decided them → every node (each node's DoorStates.Damage unions every such entity).
             yield return new EntityBuildingDamageEgressTranslator(participant);
             yield return new EntityBuildingDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-5033 (glass windows GW-2) — the same entity's damaged window panes, the deciding node → every node (DoorStates.Windows).
+            yield return new EntityWindowDamageEgressTranslator(participant);
+            yield return new EntityWindowDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             // ⭐ CE-4591 (P-4) — a ground cell's craters, the node that decided them → every node (each node's DoorStates.Craters unions every such entity).
             yield return new EntityGroundDamageEgressTranslator(participant);
             yield return new EntityGroundDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);

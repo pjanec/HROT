@@ -346,10 +346,20 @@ namespace Fdp.Toolkit.Terrain
         private bool IsPaneLeaf(int leaf) => leaf >= (Doors.Count > 0 ? DoorLeaves.Count : 0);
 
         /// <summary>
-        /// A query leaf the query passes: a door leaf whose door is not closed (R-219: the caller's <paramref name="doors"/>), or — GW-2 — a pane whose window is broken.
+        /// A query leaf the query passes: a door leaf whose door is not closed (R-219: the caller's <paramref name="doors"/>), or — ⭐ CE-5033 GW-2 (D-7) — a pane
+        /// whose window is broken in the caller's view (<see cref="DoorStates.Windows"/>). ⛔ No allocation.
         /// </summary>
         private bool LeafOpen(int leaf, DoorStates? doors)
-            => IsPaneLeaf(leaf) ? false : !DoorBlocks(leaf, doors);
+        {
+            if (!IsPaneLeaf(leaf)) return !DoorBlocks(leaf, doors);
+            if (doors?.Windows is not { } windows) return false;
+            var (panel, opening) = _panes![leaf - (Doors.Count > 0 ? DoorLeaves.Count : 0)];
+            return windows.PaneBroken(panel, opening);
+        }
+
+        /// <summary>⭐ CE-5033 — the window (panel, opening) of a query leaf that is a pane, else (−1, −1).</summary>
+        public (int Panel, int Opening) PaneOf(int leaf)
+            => leaf >= 0 && leaf < QueryLeaves.Count && IsPaneLeaf(leaf) ? Panes[leaf - (Doors.Count > 0 ? DoorLeaves.Count : 0)] : (-1, -1);
 
         /// <summary>⭐ R-220 — the most vertices any prism or door leaf has: sizes the queries' stack scratch, computed once.</summary>
         private int MaxFootprintVertices => _maxFootprintVertices >= 0 ? _maxFootprintVertices : (_maxFootprintVertices = ComputeMaxFootprintVertices());

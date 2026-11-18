@@ -28,16 +28,32 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>Adds <paramref name="b"/> unless an equal breach is already there (the union of two slices holding the same one).</summary>
         public void AddDistinct(in WallBreach b) { if (!Breaches.Contains(b)) Breaches.Add(b); }
 
-        /// <summary>The union of <paramref name="other"/> into this: breaches distinct, collapsed OR-ed.</summary>
+        /// <summary>⭐ <c>CE-5033</c> (glass windows GW-2) — the damaged windows, <see cref="WindowEntry.Panel"/> = the index within the building, sorted by (panel, opening).</summary>
+        public List<WindowEntry> Windows { get; } = new();
+
+        /// <summary>Adds <paramref name="w"/>; a window already there keeps the entry with more hits (two slices that hit one window — the view's rule).</summary>
+        public void AddWindow(in WindowEntry w)
+        {
+            for (int i = 0; i < Windows.Count; i++)
+                if (Windows[i].Panel == w.Panel && Windows[i].Opening == w.Opening) { if (w.Hits > Windows[i].Hits) Windows[i] = w; return; }
+            Windows.Add(w);
+        }
+
+        /// <summary>The union of <paramref name="other"/> into this: breaches distinct, collapsed OR-ed, windows by the most hits.</summary>
         public void UnionWith(SavedBuildingDamage other)
         {
             foreach (var b in other.Breaches) AddDistinct(b);
             Collapsed |= other.Collapsed;
+            foreach (var w in other.Windows) AddWindow(w);
         }
 
-        public void Sort() => Breaches.Sort(static (a, b) => Order(a, b));
+        public void Sort()
+        {
+            Breaches.Sort(static (a, b) => Order(a, b));
+            Windows.Sort(static (a, b) => a.Panel != b.Panel ? a.Panel.CompareTo(b.Panel) : a.Opening.CompareTo(b.Opening));
+        }
 
-        public bool IsEmpty => Breaches.Count == 0 && !Collapsed;
+        public bool IsEmpty => Breaches.Count == 0 && !Collapsed && Windows.Count == 0;
     }
 
     /// <summary>⭐ <c>CE-4391</c> S-4 — a panel's index WITHIN its WALL GROUP (rank among the group's panels, in <see cref="TerrainWorld.Panels"/> order) ⇄ its global index. Written once, used by the save, the load,
@@ -220,8 +236,10 @@ namespace Fdp.Toolkit.Terrain
     {
         public const string BreachesProperty = "breaches";
         public const string CollapsedProperty = "collapsed";
+        /// <summary>⭐ CE-5033 — the damaged windows: <c>[panel, opening, hits, u0, v0, u1, v1]</c> each (panel within the building; hits 3 = broken; u, v 0..255).</summary>
+        public const string WindowsProperty = "windows";
 
-        public static bool IsEntry(JsonObject entry) => entry.ContainsKey(BreachesProperty) || entry.ContainsKey(CollapsedProperty);
+        public static bool IsEntry(JsonObject entry) => entry.ContainsKey(BreachesProperty) || entry.ContainsKey(CollapsedProperty) || entry.ContainsKey(WindowsProperty);
 
         public static JsonObject Write(SavedBuildingDamage d)
         {
@@ -236,6 +254,14 @@ namespace Fdp.Toolkit.Terrain
                 o[BreachesProperty] = rows;
             }
             if (d.Collapsed) o[CollapsedProperty] = true;
+            if (d.Windows.Count > 0)
+            {
+                var rows = new JsonArray();
+                foreach (var w in d.Windows)
+                    rows.Add(new JsonArray(JsonValue.Create(w.Panel), JsonValue.Create((int)w.Opening), JsonValue.Create((int)w.Hits),
+                        JsonValue.Create((int)w.U0), JsonValue.Create((int)w.V0), JsonValue.Create((int)w.U1), JsonValue.Create((int)w.V1)));
+                o[WindowsProperty] = rows;
+            }
             return o;
         }
 
@@ -277,6 +303,22 @@ namespace Fdp.Toolkit.Terrain
             {
                 if (cn is not JsonValue cv || !cv.TryGetValue(out bool c)) throw new InvalidOperationException($"{at}.collapsed is not true or false.");
                 d.Collapsed = c;
+            }
+            if (entry[WindowsProperty] is { } wn)
+            {
+                if (wn is not JsonArray rows) throw new InvalidOperationException($"{at}.windows is not an array.");
+                int n = 0;
+                foreach (var row in rows)
+                {
+                    string r = $"{at}.windows[{n++}]";
+                    if (row is not JsonArray a || a.Count != 7) throw new InvalidOperationException($"{r} is not [panel, opening, hits, u0, v0, u1, v1].");
+                    var v = new int[7];
+                    for (int k = 0; k < 7; k++)
+                        if (!Num(a[k], out double x) || x != Math.Floor(x) || x < 0 || x > (k == 0 ? int.MaxValue : 255)) throw new InvalidOperationException($"{r}[{k}] '{a[k]}' is not a whole number in range.");
+                        else v[k] = (int)x;
+                    if (v[2] < 1 || v[2] > WindowDamages.BrokenHits) throw new InvalidOperationException($"{r}: hits {v[2]} is not 1..{WindowDamages.BrokenHits}.");
+                    d.AddWindow(new WindowEntry(v[0], (byte)v[1], (byte)v[2], (byte)v[3], (byte)v[4], (byte)v[5], (byte)v[6]));
+                }
             }
             d.Sort();
             return d;
@@ -326,10 +368,30 @@ namespace Fdp.Toolkit.Terrain
                     d.Count++;
                     any = true;
                 }
+                any |= s.Windows.Count > 0;   // ⭐ CE-5033 — a building with only damaged windows still gets its entity
                 if (any) entities.Add(d);
                 if (entities.Count > 0) result.Add((key, building, entities));
             }
             return result;
+        }
+
+        /// <summary>⭐ <c>CE-5033</c> — the saved windows of <paramref name="building"/> as this world numbers them (a window it does not have — no panel, no opening, no glass — is warned and dropped).</summary>
+        public static WindowDamage WindowsOf(TerrainWorld world, int building, SavedBuildingDamage saved, Action<string>? warn = null)
+        {
+            var w = new WindowDamage { Building = building };
+            foreach (var e in saved.Windows)
+            {
+                int global = BuildingPanelIndex.ToGlobal(world, building, e.Panel);
+                if (global < 0 || e.Opening >= world.Panels[global].Openings.Count || !world.Panels[global].Openings[e.Opening].Glazed)
+                {
+                    warn?.Invoke($"the scenario saves a damaged window {e.Panel}/{e.Opening} of building {building}, which this terrain has no glass for — ignored.");
+                    continue;
+                }
+                if (w.Count == WindowDamage.Capacity) break;
+                w.Set(w.Count, e with { Panel = global });
+                w.Count++;
+            }
+            return w;
         }
     }
 }

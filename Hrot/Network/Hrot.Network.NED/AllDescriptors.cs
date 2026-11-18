@@ -243,6 +243,9 @@ namespace Hrot.NED.Descriptors
         //   vehicles (no group: the entity's creator keeps it) → every node. 242 fixed at dispatch (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md; 240 / 241 backend's).
         //   ⚠ the toolkit states it too (GroundHeatMarkSystem.DescriptorOrdinal; a rail pins it).
         dtGroundHeatMarks             = 242,
+        // ⭐ CE-5033 (glass windows GW-2; docs/DESIGN_Glass_Windows.md D-3) — a building's damaged window panes, on its damage entity, the deciding node (no group) → every node.
+        //   245 measured free on backend, ui, behaviors, coordinator 2026-11-18 (243 / 244 are backend's). ⚠ the toolkit states it too (BuildingDamageSystem.WindowDescriptorOrdinal; a rail pins it).
+        dtWindowDamage                = 245,
         // etc., all known descriptor types here
     }
 
