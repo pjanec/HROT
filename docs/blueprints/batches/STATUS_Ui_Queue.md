@@ -9,7 +9,8 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: §7 — the next open ui row (named here before it starts).
+NEXT (§7, an open ui RW-M row with an accepted design, no handoff holds it): CE-1147 — body stance travels like every "one owner → every node" datum, not by host-wired role halves (accepted by the user 2026-10-16). Start: R-129 sweep for the stance replication design + `AnimationReplicationModule`; graph + grep inventory of StanceIntent / StanceStatus writers and readers.
+Assessed and NOT taken: CE-1045 (its open half is the EQS inside test — owner behaviors), CE-1018 / CE-1024 / CE-1028 ("design needed"), CE-1160 (verify on the user's machine), CE-1030 (deferred by the user).
 
 ## 2. The queue (in order)
 
