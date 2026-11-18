@@ -7,6 +7,7 @@ stale-below: ## ⛔ HISTORY (the first version's §3 / §5 / §6 / §7 — super
 known-rot: none in the live sections; §8's findings are answered in §5 (each row names its R-n)
 known-conflict: none — TE-6's snap ON for terrain LINE tools deviates from Map Interaction §2.5's "off by default" (written for units) BY RULING (R-5033)
 related-designs:
+  - DESIGN_Terrain_Base_Edits.md — OWNS the Terrain toolbar's BUILDINGS family (remove / make enterable / add door a baked-in building) and its terrain pick
   - DESIGN_Ground_Patches_And_Road_Blockage.md — §4d BINDS this design (G-30 one feature family, G-31 one patch type, G-32 the stack, G-33 expand on the patched ground); OWNS the Earthworks tools (P-5, P-6) this design only re-homes on the toolbar
   - DESIGN_Terrain_Authoring.md — OWNS the feature machinery this design gives a UX to: the picks and the draw panel (§15a U-1, U-2, U-7, §15a-2 C), the live bake (§18e), the scatter (§18g T-2), blocks (§11, §18h)
   - UX/DESIGN_Map_Interaction.md — OWNS drawing / shape editing (§2.5 D11: finish / cancel, insert, centre-drag, delete), snapping (the row TE-6 is the FIRST build of — unbuilt there), always-multi placement (D5) and multi-select
