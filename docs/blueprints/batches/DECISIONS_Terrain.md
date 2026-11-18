@@ -5,6 +5,12 @@ current-answer: the whole file
 -->
 # DECISIONS — terrain
 
+## R-5068 · CE-5026 — glass windows: D-1…D-10
+**DECIDED `2026-11-18` (user: "approved"; D-10 the user's own: "building break which removes the wall should of course remove the window glass").** Glazed
+windows get a pane piece; hits / cracks / broken in a separate `WindowDamage` on the building's damage entity (SimHost decides, every map draws it), no navmesh
+rebake; broken by the 3rd hit, a man firing out, a blast's pressure (∛kg) or nearby fragments; sound through the AQ106 portal graph (an intact pane = a closed
+window portal); a breach or collapse that removes the wall removes the glass. 📄 DESIGN_Glass_Windows.md §3.
+
 ## R-5067 · CE-5024 / CE-5025 — editing baked-in buildings: D-1…D-8
 **DECIDED `2026-11-18` (user: "approved").** An edit is a `TerrainFeature` kind `Edit` keyed by the building's label; `Merge(base, overlay, removed)` compacts
 the base; a removed footprint is levelled (bare flat ground); its doors and damage go in the same commit (G-3 closed); *Make enterable* / *Add door* reuse the

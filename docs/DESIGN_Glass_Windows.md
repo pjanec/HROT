@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-18
-build-state: DESIGN — leans on D-1…D-9 for the user (revised `2026-11-18`: D-3 a SEPARATE `WindowDamage`, no navmesh rebake; D-4 shattered by a bigger blast's pressure or a nearby fragmentation burst; D-5 sound through the portal graph); mockup docs/UX/glass-windows.svg
+build-state: READY-TO-BUILD — ✅ D-1…D-10 APPROVED by the user `2026-11-18` ("approved", R-5068; D-10 the user's own rule); mockup docs/UX/glass-windows.svg
 current-answer: §0 the user's rulings · §1 inventory · §2 the proven solution · §3 decisions · §4 UML · §5 the look · §6 slices · §7 acceptance
 stale-below: nothing
 known-rot: none
@@ -28,6 +28,7 @@ related-designs:
 - *"terrain on other nodes is just for 3d map rendering shoudl not be queried in any simulation way. replication just updates the terrain copy (on all map enabled
   nodes) so that 3d map renders same stuff"* (= [Node Roles §3.0a](DESIGN_Node_Roles_And_Policies.md), `2026-10-25`)
 - *"if we replicate the hits per window, we could store also crack location and render cracks out of it"*
+- *"approved. building break which removes the wall should of course remove the window glass"*
 - *"windows shall be shattered from nearby bigger explosion (pressure) or nearby little fragmentation explosion (grenade). separate component for window destruction. not causing navmesh rebakes. sound attenuation yes but this is tricky - any broken window would let sound into a building"*
 
 ## 1. INVENTORY *(measured `2026-11-18`; graph: `search_graph name_pattern=".*(Window|Opening|Glass|Pane|Glaz).*" label=Class` ⇒ 437 (window-manager / UI noise; the terrain ones below), `search_graph name_pattern=".*(BuildingDamage|Breach|DoorStates|FelledTrees).*" label=Class` ⇒ 39, `search_graph name_pattern=".*(Decal|Impact|BulletHole|Scorch|Mark).*" label=Class` ⇒ no wall-mark class (marks are effect entities); grep for `glass`, `decal`, `Openings`, `TerrainPenetration.Carry`; ⚠ index coverage cannot be checked through the CLI)*
@@ -54,7 +55,7 @@ related-designs:
 | crack decals | client-side decals at the hit point (lost on a late join) **or** a few hit positions in the replicated state | ⭐ the latter (🔒 user): ≤ 2 positions per pane, so a late joiner and a replay see every crack |
 | how many hits a pane takes | a fixed count per glass type | ⭐ 3 (🔒 user: "more than 2 hits"); a man firing out breaks it at once |
 
-## 3. Decisions — leans for the user
+## 3. Decisions — ✅ APPROVED `2026-11-18` (🔒 user: *"approved"*, R-5068)
 
 | # | question | ⭐ lean | why |
 |---|---|---|---|
@@ -67,6 +68,8 @@ related-designs:
 | **D-7** | broken | the pane piece is SKIPPED at query time by the view's damage (`BuildingDamageTable.PaneBroken(panel, opening)`, a set, 0 B) exactly as a felled trunk; the window is an open hole again — today's behaviour; ⭐ **no navmesh rebake** (🔒 user): a window is no passage (its sill), and `WindowDamage` is not in the navmesh's damage hash (`TerrainResidency.DamageHashes` mixes only passage breaches and collapse, `:767-784`) — a test pins it | the felled-tree precedent |
 | **D-8** | the shatter itself | on SimHost a LOUD sound event at the pane (AI hearing, the one sound path); on EVERY map node a shard-burst EFFECT played locally when its view sees the window turn broken (a state change, so a late joiner plays none) | VFX / audio local, state replicated (§2) |
 | **D-9** | full record | 64 damaged windows per building; a 65th evicts the OLDEST cracked-not-broken entry (its cracks vanish); a broken entry is never evicted; all 64 broken ⇒ the new hit is not recorded (logged) | ⚠ measure on full-1 before raising — a building with > 64 shot windows is a rare, long fight |
+
+| **D-10** 🔒 *user, `2026-11-18`* | a building break that removes the wall | ⭐ **the glass goes with the wall** (🔒 *"building break which removes the wall should of course remove the window glass"*): the pane is a piece OF ITS PANEL, so wherever the wall is gone it is gone BY CONSTRUCTION — ① a breach whose passage overlaps the window: the panel is re-expanded through the ONE gap merge (`StaticObstacles.WithGaps`, `:219`, shared with the drawing `DamagedBuildings`) and a window swallowed by a gap gets no pane; ② a breach the shot crosses: the pane piece carries its `Panel`, so `CrossingBreached` (`TerrainWorld.cs:723`) skips it like the wall around it; ③ a COLLAPSED building: every piece of it, its panes included, is skipped (`dmg.Collapsed`). ⭐ And the STATE agrees: `BuildingDamageSystem`, writing a breach that overlaps a window, marks that window BROKEN in `WindowDamage` (its cracks dropped; no shard burst — the breach's own debris is the effect), so the sound portal opens and every reader sees one truth | ⛔ no second "glass removed by breach" rule: one gap merge decides wall and pane alike |
 
 ## 4. UML
 
@@ -198,7 +201,7 @@ window state is not authored; the building damage's existing views list it).
 | slice | lane | builds | rails |
 |---|---|---|---|
 | **GW-1** the pane | terrain | `TerrainOpening.Glazed` (template + generators, default true); `TerrainPrismKind.Pane` from `ExpandPanelPieces` | a glazed window's trace crosses a 1 cm `glass` pane; sight transmittance unchanged; sound −20 dB; a `Gap` has none |
-| **GW-2** the state + rules | terrain | `WindowDamage` (component + `dtWindowDamage` translators + the `"windows"` save field) on the damage entity; `glass.json` (pressure and fragment radii); the window portal's closed / open by its pane in `SoundPaths.ThroughOpenings`; `WindowHitEvent` from `BallisticsSystem` / `AreaEffectSystem`; `BuildingDamageSystem` rules D-4, D-9; `PaneBroken` skip | 2 rounds ⇒ 2 cracks at their (u, v), the 3rd ⇒ broken and skipped; a muzzle at 1 m ⇒ broken on the first; a bomb breaks panes within its pressure radius, a grenade within its fragment radius only with a clear line; a broken window lets a shot outside be heard inside louder (an open portal); a window change triggers NO navmesh rebake; a replica receives the same entries byte for byte; save → load keeps them |
+| **GW-2** the state + rules | terrain | `WindowDamage` (component + `dtWindowDamage` translators + the `"windows"` save field) on the damage entity; `glass.json` (pressure and fragment radii); the window portal's closed / open by its pane in `SoundPaths.ThroughOpenings`; `WindowHitEvent` from `BallisticsSystem` / `AreaEffectSystem`; `BuildingDamageSystem` rules D-4, D-9; `PaneBroken` skip | 2 rounds ⇒ 2 cracks at their (u, v), the 3rd ⇒ broken and skipped; a muzzle at 1 m ⇒ broken on the first; a bomb breaks panes within its pressure radius, a grenade within its fragment radius only with a clear line; a broken window lets a shot outside be heard inside louder (an open portal); a window change triggers NO navmesh rebake; a breach over a window removes its pane and marks it broken (D-10); a collapse removes every pane; a replica receives the same entries byte for byte; save → load keeps them |
 | **GW-3** the look | ui | panes and cracks in the chunk build from the table; the shatter burst + the glass sound's playback | frame rails against the mockup (R-4146) |
 
 ## 7. Acceptance *(R-4277)*
