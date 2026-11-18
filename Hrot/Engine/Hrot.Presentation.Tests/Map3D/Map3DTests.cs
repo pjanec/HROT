@@ -1457,11 +1457,11 @@ public sealed class Map3DTests
 
     /// <summary>How the 3-D map dresses a man of <paramref name="look"/>'s type (the one call the layer makes).</summary>
     private static Outfit DressedLike(in EntityBodyLayer3D.TypeLook look, long seed, long type, Fdp.Core.ForceId side, Raylib_cs.Color? own)
-        => Outfits.For(seed, type, look.Soldier, look.Child, own, side, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
+        => Outfits.For(seed, type, look.Soldier, look.Child, own.ToRgba(), side, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
 
     private static void Fold(ref uint h, string text) { foreach (char c in text) h = (h ^ c) * 16777619u; }
 
-    private static string ColourText(Raylib_cs.Color c) => $"{c.R},{c.G},{c.B},{c.A}";
+    private static string ColourText(Hrot.Look.Rgba c) => $"{c.R},{c.G},{c.B},{c.A}";
 
     /// <summary>One man's whole dressing as text: every part colour, his face and the details drawn on his parts — what a frame is made of.</summary>
     private static string DressingText(in Outfit o, System.Collections.Generic.List<PartDetail> details)
@@ -1799,7 +1799,7 @@ public sealed class Map3DTests
         Assert.True(men.Select(o => (o.Skin.R, o.Skin.G, o.Skin.B)).Distinct().Count() >= 3, "their skin varies");
         Assert.Equal(Outfits.For(17, 1001, false, false, null, Fdp.Core.ForceId.Neutral), Outfits.For(17, 1001, false, false, null, Fdp.Core.ForceId.Neutral));
 
-        var red = new Raylib_cs.Color(200, 50, 50, 255);
+        var red = new Hrot.Look.Rgba(200, 50, 50, 255);
         var reds = Enumerable.Range(1, 40).Select(s => Outfits.For(s, 1001, false, false, red, Fdp.Core.ForceId.Neutral)).Where(o => !o.Suit).ToArray();
         Assert.All(reds, o => Assert.True(o.Top.R > 2 * o.Top.G && o.Top.R > 2 * o.Top.B, $"a red type's man wears red ({o.Top.R},{o.Top.G},{o.Top.B})"));
         Assert.True(reds.Select(o => o.Top.R).Distinct().Count() >= 5, "lighter or darker, man by man");
@@ -1841,7 +1841,7 @@ public sealed class Map3DTests
     [Fact]
     public void CE1099_ASoldiersSide_GivesHisUniformItsCamouflage()
     {
-        var olive = new Raylib_cs.Color(85, 107, 47, 255);
+        var olive = new Hrot.Look.Rgba(85, 107, 47, 255);
         var friend = Outfits.For(9, 200, soldier: true, child: false, olive, Fdp.Core.ForceId.Friend);
         var hostile = Outfits.For(9, 200, true, false, olive, Fdp.Core.ForceId.Hostile);
         var neutral = Outfits.For(9, 200, true, false, olive, Fdp.Core.ForceId.Neutral);
@@ -1856,7 +1856,7 @@ public sealed class Map3DTests
         Assert.Empty(d);
         Outfits.Details(hostile, 9, d);
         Assert.Empty(d);
-        static float Light((Raylib_cs.Color, Raylib_cs.Color, Raylib_cs.Color) t) => (t.Item1.R + t.Item1.G + t.Item2.R + t.Item2.G + t.Item3.R + t.Item3.G) / 6f;
+        static float Light((Hrot.Look.Rgba, Hrot.Look.Rgba, Hrot.Look.Rgba) t) => (t.Item1.R + t.Item1.G + t.Item2.R + t.Item2.G + t.Item3.R + t.Item3.G) / 6f;
         Assert.True(Light(Outfits.CamoTones(CamoPattern.Desert)) > Light(Outfits.CamoTones(CamoPattern.Woodland)) + 20f, "a hostile's desert reads paler");
         Assert.NotEqual(Outfits.CamoSeed(9), Outfits.CamoSeed(10));   // no two men wear the same cut
         Assert.Equal(Outfits.CamoSeed(9), Outfits.CamoSeed(9));
@@ -1874,12 +1874,12 @@ public sealed class Map3DTests
         var neutral = Outfits.For(9, 2002, true, false, null, Fdp.Core.ForceId.Neutral);
         Assert.Equal((Outfits.WoodlandCloth, Outfits.DesertCloth, Outfits.WoodlandCloth), (friend.Top, hostile.Top, neutral.Top));
         Assert.Equal((CamoPattern.Woodland, CamoPattern.Desert, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));
-        static float Gap(Raylib_cs.Color a, Raylib_cs.Color b) => MathF.Sqrt((a.R - b.R) * (a.R - b.R) + (a.G - b.G) * (a.G - b.G) + (a.B - b.B) * (a.B - b.B));
+        static float Gap(Hrot.Look.Rgba a, Hrot.Look.Rgba b) => MathF.Sqrt((a.R - b.R) * (a.R - b.R) + (a.G - b.G) * (a.G - b.G) + (a.B - b.B) * (a.B - b.B));
         Assert.True(Gap(friend.Top, hostile.Top) > 90f, $"the two sides' cloth reads apart ({Gap(friend.Top, hostile.Top):F0})");
         Assert.True(Gap(friend.Bottom, hostile.Bottom) > 70f, "and so do their trousers");
         Assert.True(hostile.Top.R > hostile.Top.B + 40 && hostile.Top.R + hostile.Top.G > friend.Top.R + friend.Top.G + 100, "desert is khaki: warm and pale");
 
-        var own = new Raylib_cs.Color(40, 60, 90, 255);
+        var own = new Hrot.Look.Rgba(40, 60, 90, 255);
         Assert.Equal(own, Outfits.For(9, 2002, true, false, own, Fdp.Core.ForceId.Hostile).Top);   // an authored / type colour still wins
         Assert.Equal(Outfits.PoliceUniform, Outfits.For(9, 2002, true, false, null, Fdp.Core.ForceId.Hostile, PersonKit.Security).Top);
         Assert.Equal((int)SurfaceKind.Desert, 4);
@@ -2083,7 +2083,7 @@ public sealed class Map3DTests
         int neutral = cars.Count(c => Math.Max(c.R, Math.Max(c.G, c.B)) - Math.Min(c.R, Math.Min(c.G, c.B)) < 12);
         Assert.InRange(neutral, 40, 80);   // white, black, silver and grey are most of the street
         Assert.Equal(Outfits.CarColour(33, 1002, null), Outfits.CarColour(33, 1002, null));
-        var red = new Raylib_cs.Color(180, 30, 30, 255);
+        var red = new Hrot.Look.Rgba(180, 30, 30, 255);
         Assert.All(Enumerable.Range(1, 20).Select(s => Outfits.CarColour(s, 1002, red)), c => Assert.True(c.R > 3 * c.G, "a red car stays red"));
         Assert.Equal(VisualFamily.WheeledCar, EntityBodyLayer3D.Resolve(BuiltIn().GetByType(UrbanCombatTkbCatalog.TkbCivilianCar)).Family);
     }
@@ -2446,9 +2446,9 @@ public sealed class Map3DTests
         BlockFigure.MarkingDetail(HeldMarking.None, into);
         Assert.Equal(2, into.Count);
         Assert.All(into, d => Assert.Equal(BlockFigure.WeaponIndex, d.Part));
-        Assert.Equal(BlockFigure.ToyOrange, into[0].Colour);
+        Assert.Equal(BlockFigure.ToyOrange.ToRgba(), into[0].Colour);
         Assert.True(into[0].Extent.X > 1f, "the toy covered whole");
-        Assert.Equal(BlockFigure.LessLethalYellow, into[1].Colour);
+        Assert.Equal(BlockFigure.LessLethalYellow.ToRgba(), into[1].Colour);
         Assert.True(into[1].Extent.X < 0.3f, "a band, not a cover");
 
         Assert.True(db.TryGetByType(TkbEntityTypes.WeaponSystem_PickUpRifle, out var pickUp));
@@ -2470,7 +2470,7 @@ public sealed class Map3DTests
         Assert.Contains(BlockFigure.PoliceHead(riot: false), p => p.Shade == FaceShade.Peak);
         Assert.Contains(BlockFigure.PoliceHead(riot: false), p => p.Shade == FaceShade.CapBand);
         Assert.Contains(BlockFigure.PoliceHead(riot: true), p => p.Shade == FaceShade.Visor);
-        Assert.Equal(Outfits.CapBand, EntityBodyLayer3D.FaceColour(FaceShade.CapBand, Outfits.PoliceUniform));
+        Assert.Equal(Outfits.CapBand.ToColor(), EntityBodyLayer3D.FaceColour(FaceShade.CapBand, Outfits.PoliceUniform.ToColor()));
 
         var baton = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, soldier: false, child: false, own: null, ForceId.Friend, PersonKit.Security);
         var shield = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, soldier: false, child: false, own: null, ForceId.Friend, PersonKit.Security);

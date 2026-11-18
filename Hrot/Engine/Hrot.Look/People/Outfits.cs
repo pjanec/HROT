@@ -2,7 +2,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
-using Raylib_cs;
+using Color = Hrot.Look.Rgba;   // ⭐ CE-4671 LK-S2 — plain bytes, no renderer colour (the map converts when it draws)
 
 namespace Hrot.UI.Common.Map3D;
 
@@ -38,7 +38,7 @@ public enum BeardKind : byte { None, Moustache, Beard, Paint }
 public readonly record struct FaceLook(float EyeSpacing, float MouthHalfWidth, float BrowHalfHeight, BeardKind Beard, Color EyeColour, Color Lips);
 
 /// <summary>⭐ CE-1099 (§6q) — a box drawn on figure part <paramref name="Part"/> (the shared part order), in that part's unit frame;
-/// <paramref name="Turned"/> details (a tie, a skirt, long hair) are first turned onto the side the man faces (<see cref="BlockFigure.FaceFrame"/>,
+/// <paramref name="Turned"/> details (a tie, a skirt, long hair) are first turned onto the side the man faces (<c>BlockFigure.FaceFrame</c> (the map),
 /// by his head's <see cref="FaceOn"/>), so they lie right when he lies on his back.</summary>
 public readonly record struct PartDetail(int Part, Vector3 Centre, Vector3 Extent, Color Colour, bool Turned = false);
 
@@ -259,11 +259,11 @@ public static class Outfits
     {
         0 or 2 => o.Legwear is Legwear.Skirt or Legwear.Breechcloth ? o.Skin : o.Bottom,   // thighs
         1 or 3 => o.Shin,                                             // shins
-        BlockFigure.TorsoIndex => o.Top,
-        BlockFigure.HeadIndex => o.Skin,
+        PersonParts.TorsoIndex => o.Top,
+        PersonParts.HeadIndex => o.Skin,
         6 or 8 => o.Top,                                              // upper arms
         7 or 9 => o.Sleeve,                                           // forearms
-        _ => null,
+        _ => (Color?)null,
     };
 
     /// <summary>
@@ -275,20 +275,20 @@ public static class Outfits
         into.Clear();
         if (o.Suit)
         {
-            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.51f, 0f, 0.30f), new(0.03f, 0.26f, 0.36f), OutfitPalettes.Shirt, Turned: true));
-            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.53f, 0f, 0.10f), new(0.03f, 0.08f, 0.62f), o.Tie, Turned: true));
+            into.Add(new PartDetail(PersonParts.TorsoIndex, new(0.51f, 0f, 0.30f), new(0.03f, 0.26f, 0.36f), OutfitPalettes.Shirt, Turned: true));
+            into.Add(new PartDetail(PersonParts.TorsoIndex, new(0.53f, 0f, 0.10f), new(0.03f, 0.08f, 0.62f), o.Tie, Turned: true));
         }
         if (o.Legwear == Legwear.Skirt)   // from the waist to the knee, a little wider than the hips
-            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, -0.86f), new(1.25f, 1.08f, 0.76f), o.Bottom, Turned: true));
+            into.Add(new PartDetail(PersonParts.TorsoIndex, new(0f, 0f, -0.86f), new(1.25f, 1.08f, 0.76f), o.Bottom, Turned: true));
         if (o.Police)   // ⭐ CE-1172 (U11) — the vest over his chest and back, two pouches on its front, the belt round his waist
         {
-            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, 0.14f), new(1.08f, 1.06f, 0.62f), PoliceVest, Turned: true));
-            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.56f, 0.22f, -0.02f), new(0.10f, 0.20f, 0.18f), PolicePouch, Turned: true));
-            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0.56f, -0.22f, -0.02f), new(0.10f, 0.20f, 0.18f), PolicePouch, Turned: true));
-            into.Add(new PartDetail(BlockFigure.TorsoIndex, new(0f, 0f, -0.42f), new(1.10f, 1.08f, 0.10f), PoliceBelt, Turned: true));
+            into.Add(new PartDetail(PersonParts.TorsoIndex, new(0f, 0f, 0.14f), new(1.08f, 1.06f, 0.62f), PoliceVest, Turned: true));
+            into.Add(new PartDetail(PersonParts.TorsoIndex, new(0.56f, 0.22f, -0.02f), new(0.10f, 0.20f, 0.18f), PolicePouch, Turned: true));
+            into.Add(new PartDetail(PersonParts.TorsoIndex, new(0.56f, -0.22f, -0.02f), new(0.10f, 0.20f, 0.18f), PolicePouch, Turned: true));
+            into.Add(new PartDetail(PersonParts.TorsoIndex, new(0f, 0f, -0.42f), new(1.10f, 1.08f, 0.10f), PoliceBelt, Turned: true));
         }
         if (o.HairStyle is HairStyle.Long or HairStyle.Braids && !o.Police)   // ⭐ CE-4650 NA-2 — Braids is drawn as the long-hair box (stand-in)   // down the back of the head to the shoulders
-            into.Add(new PartDetail(BlockFigure.HeadIndex, new(-0.44f, 0f, -0.10f), new(0.22f, 1.08f, 1.0f), o.Hair, Turned: true));
+            into.Add(new PartDetail(PersonParts.HeadIndex, new(-0.44f, 0f, -0.10f), new(0.22f, 1.08f, 1.0f), o.Hair, Turned: true));
         // ⭐ CE-1101 (§6r) — a soldier's camouflage is painted by the shader (BodySurface), not laid as boxes
 
         // ── ⭐ CE-4648 S2 (OF-4, OF-5; mockups docs/designs/person-looks/person-outfits-*.svg) — the new garment kinds, REAL boxes ─────
@@ -303,7 +303,7 @@ public static class Outfits
     /// <summary>A box in world metres on the torso or the head (centre x, y, z; size dx, dy, dz) → the part's unit frame.</summary>
     private static void W(List<PartDetail> into, int part, float x, float y, float z, float dx, float dy, float dz, Color c)
     {
-        var (cc, s) = part == BlockFigure.HeadIndex ? (HeadC, HeadS) : (TorsoC, TorsoS);
+        var (cc, s) = part == PersonParts.HeadIndex ? (HeadC, HeadS) : (TorsoC, TorsoS);
         into.Add(new PartDetail(part, new((x - cc.X) / s.X, (y - cc.Y) / s.Y, (z - cc.Z) / s.Z), new(dx / s.X, dy / s.Y, dz / s.Z), c, Turned: true));
     }
 
@@ -316,7 +316,7 @@ public static class Outfits
 
     private static void Garments(in Outfit o, long seed, List<PartDetail> into)
     {
-        const int T = BlockFigure.TorsoIndex, H = BlockFigure.HeadIndex;
+        const int T = PersonParts.TorsoIndex, H = PersonParts.HeadIndex;
         // ── the body garments ──
         if (o.Legwear == Legwear.LongSkirt)   // (a stand-in kept: not in this slice)
             into.Add(new PartDetail(T, new(0f, 0f, -1.22f), new(1.25f, 1.08f, 1.48f), o.Bottom, Turned: true));
@@ -408,12 +408,12 @@ public static class Outfits
 
     private static void BeadRow(List<PartDetail> into, float x, float z, int n, float y0, float step, int offset)
     {
-        for (int i = 0; i < n; i++) W(into, BlockFigure.TorsoIndex, x, y0 + i * step, z, 0.012f, 0.03f, 0.03f, Bead(i + offset));
+        for (int i = 0; i < n; i++) W(into, PersonParts.TorsoIndex, x, y0 + i * step, z, 0.012f, 0.03f, 0.03f, Bead(i + offset));
     }
 
     private static void Ornaments(in Outfit o, List<PartDetail> into)
     {
-        const int T = BlockFigure.TorsoIndex;
+        const int T = PersonParts.TorsoIndex;
         if (o.OverKind is OutfitOver.BeadedYoke or OutfitOver.YokeHairPipe)   // a band of small coloured squares across the chest and over the shoulders
         {
             BeadRow(into, 0.134f, 1.405f, 9, -0.16f, 0.04f, 1); BeadRow(into, 0.134f, 1.365f, 9, -0.16f, 0.04f, 0); BeadRow(into, -0.134f, 1.405f, 9, -0.16f, 0.04f, 1);
@@ -445,7 +445,7 @@ public static class Outfits
 
     private static void Afghan(in Outfit o, List<PartDetail> into)
     {
-        const int T = BlockFigure.TorsoIndex, H = BlockFigure.HeadIndex;
+        const int T = PersonParts.TorsoIndex, H = PersonParts.HeadIndex;
         if (o.TopKind == OutfitTop.Perahan)   // a knee-length tunic: the sides LEFT OPEN (slits) between a front and a back panel
         {
             var top = o.Top;

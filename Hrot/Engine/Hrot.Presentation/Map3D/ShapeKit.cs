@@ -885,7 +885,7 @@ public static class ShapeKits
     /// <summary>A family's size (length, width or span, height in metres) when the TKB gives none.</summary>
     public static Vector3 DefaultSize(VisualFamily family) => family switch
     {
-        VisualFamily.Person => new Vector3(0.35f, 0.55f, 1.8f),
+        VisualFamily.Person => Hrot.Look.People.PersonLook.DefaultSize,   // ⭐ CE-4671 LK-S2 — one owner
         VisualFamily.Tank => new Vector3(7.9f, 3.7f, 2.4f),
         VisualFamily.Afv => new Vector3(6.5f, 3.3f, 2.6f),
         VisualFamily.WheeledCar => new Vector3(4.5f, 1.8f, 1.5f),
@@ -925,7 +925,7 @@ public static partial class BlockFigure
 
     /// <summary>⭐ CE-1073 — the head's place in every figure's parts (the shared order above: four leg parts, the torso, the head).
     /// The first-person camera reads the eyes from it; a rail holds the order for every stance, posture and fall.</summary>
-    public const int HeadIndex = 5;
+    public const int HeadIndex = PersonParts.HeadIndex;   // ⭐ CE-4671 LK-S2 — the part order lives with the outfit rules (Hrot.Look)
 
     // Metres for a 1.8 m figure, converted to fractions of (0.35, 0.55, 1.8) below.
     private static KitPart P(float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c, PartRole role = PartRole.Hull,
@@ -1309,7 +1309,7 @@ public static partial class BlockFigure
          [.. AthleticBody, .. SoldierArms(WeaponPostureKind.Aimed, Drop)]];   // ⭐ WL-6c — aimed: the athletic fighting stance
 
     /// <summary>The index of the first part after the four leg parts (torso).</summary>
-    public const int TorsoIndex = 4;
+    public const int TorsoIndex = PersonParts.TorsoIndex;   // ⭐ CE-4671 LK-S2
 
     /// <summary>
     /// ⭐ WL-6c — the COMBAT GLIDE: a standing figure's legs part-way (<paramref name="weight"/> 0..1 — aimed × moving) from the pose's

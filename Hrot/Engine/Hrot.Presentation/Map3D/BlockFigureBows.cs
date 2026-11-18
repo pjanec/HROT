@@ -110,7 +110,7 @@ public static partial class BlockFigure
     public static void QuiverDetails(HeldLook look, List<PartDetail> into)
     {
         const float tx = 0.24f, ty = 0.40f, tz = 0.56f, zc = 1.18f;
-        PartDetail D(float x, float y, float z, float dx, float dy, float dz, Color c) => new(TorsoIndex, new(x / tx, y / ty, (z - zc) / tz), new(dx / tx, dy / ty, dz / tz), c);
+        PartDetail D(float x, float y, float z, float dx, float dy, float dz, Color c) => new(TorsoIndex, new(x / tx, y / ty, (z - zc) / tz), new(dx / tx, dy / ty, dz / tz), c.ToRgba());
         if (look == HeldLook.Bow)
         {
             into.Add(D(-0.17f, -0.11f, 1.02f, 0.08f, 0.10f, 0.30f, QuiverLeather));

@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-4671 LK-S2 (HANDOFF_Coordinator_To_Ui_Look_Library, row 2) — PersonLook out of Outfits / Wardrobe / KitFromTkb into Hrot.Look (RGBA, no Raylib). LK-S1 done.
+idle — waiting for a handoff (2026-11-18). Last: HANDOFF_Coordinator_To_Ui_Look_Library — LK-S1 + LK-S2 done; a map-heavy scenario (ua-posture) runs once at the end.
 
 ## 2. The queue (in order)
 
@@ -41,7 +41,7 @@ IN PROGRESS: CE-4671 LK-S2 (HANDOFF_Coordinator_To_Ui_Look_Library, row 2) — P
 | CE-1475 SumoNetPlacementTests F5/E1 on a Czech Windows | DONE | the fixture wrote culture commas; one invariant helper | Traffic SumoNetPlacementTests 19/19 + a cs-CZ rail (red-proved) | — (test only) |
 | CE-1046 + CE-1038 LiveFromReplay under load; SimHost test count varies | CE-1046 PARTLY (frame waits; still 1/11 red under load, stays FlakyFact) · CE-1038 DONE — not reproduced | 2 full --blame runs: 3064/3064 reported, same failures; 9+1 pre-existing reds → CE-1980 (red at 1bc1cc911^) | LiveFromReplayTests 10/11 under full load | — |
 | CE-4671 LK-S1 — Hrot.Look + EffectRules out of EffectSpawnSystem; HUD feeds out | DONE | a pure refactor: same types, places, order | Hrot.Look.Tests 3/3 (red-proved); Presentation effects + self-check 66/66; frame rails 240/246 (the 6 reds identical on the pre-change binary); CGF / editor pinned orders; full solution | design §7b |
-| CE-4671 LK-S2 — PersonLook into Hrot.Look | IN PROGRESS | | | |
+| CE-4671 LK-S2 — PersonLook into Hrot.Look | DONE (KitFromTkb deferred to LK-S3, reason in §7c) | outfit rules + the seed / side / colour reads + Resolve's person half; Rgba; 20 map draw sites convert | PersonOutfitsRail parity (every person type × 4) + Look.Tests 4/4 (red-proved); outfit/kit rails 318/319 (MotorcycleModelRail: TKB seat count 3 vs 2, content not touched here); frame rails 262/267 (the pre-existing 5); full solution | design §7c |
 
 ## 3. Taken from new handoffs
 - HANDOFF_Coordinator_To_Ui_Moved_Rows.md at 2026-11-18 15:20 (merged coordinator `fa5748b18`): CE-3468 · CE-2438 · CE-1473+CE-3451 · CE-1475 · CE-1046+CE-1038, in that order; §6a scenarios per row proportionate.

@@ -521,4 +521,44 @@ public sealed class PersonOutfitsRail
         for (int y = r.Y0; y < r.Y1; y++) for (int x = r.X0; x < r.X1; x++) m = Math.Max(m, Lum(p.Colours[y * p.W + x]));
         return m;
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-4671 LK-S2 (DESIGN_Vehicle_Appearance_State.md §7c) — the look library's <c>PersonLook.Of</c> (what a gateway calls) dresses EVERY person type exactly as the map
+    /// does: for each person type in the TKB, four men — plain, with a network id, on a side, with an authored colour — the library's outfit equals the map's
+    /// (<c>EntityBodyLayer3D.Resolve</c> + its own-colour and side reads + <c>Outfits.For</c>). 🔒 Red-proved: <c>PersonLook.Of</c> passing Neutral for the side ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4671_LKS2_ThePersonLook_IsWhatTheMapDresses_ForEveryPersonType()
+    {
+        var tkb = HrotEnvironment.CreateTkb();
+        using var world = new EntityRepository();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<EntityAppearance>();
+        int people = 0, checkedMen = 0;
+        foreach (var t in tkb.GetAll())
+        {
+            if (Hrot.Look.People.PersonLook.FactsOf(t) is null) continue;
+            people++;
+            long type = (long)t.TkbType;
+            var look = EntityBodyLayer3D.Resolve(t);
+            for (int v = 0; v < 4; v++)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new TkbIdentity { TkbType = t.TkbType });
+                if (v >= 1) world.AddComponent(e, new NetworkIdentity(5000 + people * 4 + v));
+                if (v >= 2) world.AddComponent(e, new EntityInfo { ForceId = v == 2 ? ForceId.Hostile : ForceId.Friend });
+                if (v == 3) world.AddComponent(e, new EntityAppearance { ColorRgba = 0x28503CFFu });
+                long seed = world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : e.Index;
+                var side = world.HasComponent<EntityInfo>(e) ? world.GetComponentRO<EntityInfo>(e).ForceId : ForceId.Neutral;
+                var map = Outfits.For(seed, type, look.Soldier, look.Child, EntityBodyLayer3D.OwnColourOf(world, e, look).ToRgba(), side, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
+                var lib = Hrot.Look.People.PersonLook.Of(world, e, tkb);
+                Assert.True(lib is { } l && l.Outfit == map, $"type {type} variant {v}: the look library dresses him differently from the map");
+                checkedMen++;
+            }
+        }
+        Assert.True(people >= 10, $"only {people} person types found");
+        Assert.Equal(people * 4, checkedMen);
+    }
 }
