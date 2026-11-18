@@ -12,7 +12,7 @@ Started at the merge of `origin/coordinator` (2026-11-18 09:00).
 
 ## 1. Now
 
-CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. Next: D-3 (the mine maims), then D-2, CE-9023.
+CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. Next: D-2 (`SupportAsset.Engineers` — design first), then CE-9023.
 
 ## 2. The queue (in order)
 
@@ -25,7 +25,7 @@ CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. Next: D-3 (the
 | CE-2447 `mf-no-way-round`: a man enters before the squad reacts | ⛔ **BLOCKED on terrain CE-4655** — measured: the route does not cross the field, it hugs its north edge with zero clearance (leader y 110.1, the squad's position inside the edge); the reaction fires only when the squad clips the corner. Note sent | | — | ⚠ 1 row red |
 | CE-9023 the immobilised APC's play never ends | TODO | | | `uc-urban-battle` |
 | D-1 `ts-fire-discipline` re-tune (CE-3461 regulars) | ✅ DONE — 22 rounds at 1.3 s (the measured window between the slowest militia break, ~25 s, and a centre regular's, ~33 s) | (this commit) | — (scenario) | ✅ `ts-fire-discipline` 7 / 7 |
-| D-3 the mine's trigger man maimed (CE-4654 follow-up) | TODO | | | `mf-strike-and-halt` |
+| D-3 the mine's trigger man maimed (CE-4654 follow-up) | ✅ DONE — `AreaEffectSystem.Maim` (cross-lane): shins, 0.75 of the incapacitation line, alive | (this commit) | `AreaEffectSystemTests.CE4654_*` (red-proved; suite 34 / 0) | ✅ `mf-strike-and-halt` 8 / 8 · `mf-at-vs-vehicle` · `mf-recon-and-mark` · `mf-way-round` |
 | D-2 `SupportAsset.Engineers` (CE-2442) | TODO | | | a new `mf-*` demo |
 | CE-3462 the waverer never breaks | TODO | | | `ts-house-defenders` |
 | CE-3463 the guard does not fire first | TODO | | | `ia-area-defend` |
