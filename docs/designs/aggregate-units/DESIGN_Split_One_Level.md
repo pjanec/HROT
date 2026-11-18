@@ -329,6 +329,14 @@ Hrot.Core (`StochasticUnitFill`, `ResolutionRouting`, `EntityClassTable`, `Order
 (`CgfLogicPackTests` ×3 — fixed by the coordinator merge `b872e1565`, `CE4621_TheConductTable`; parallel-only `BasicInfantrySopTests` ×4) · F13: `MenuOrdersTests` 38 / 1
 (`K2_OrderLettersAreDeclaredAndDistinct` — "order 'Convoy' declares no map letter", RED at base), `OrderVocabularyTests` + `ScenarioChecksTests` 26 / 0.
 
+**Parallel safety** (`HROT_PARALLEL_SIM=1 python3 scripts/stepped-hash.py --threads 1,4,8`, the Debug runner): `agg-platoon-merges-back` `--chunk 60`
+(6 s: the platoon's split at 2.25 s, its squads' splits into men; 135 entities) — STATE EQUAL · `agg-platoon-splits-into-squads` `--chunk 760` (76 s: the
+platoon's handover at 69.25 s and squads 1 and 2 into their men; 210 entities) — STATE EQUAL.
+
+**Sync** (R-4286): `origin/coordinator` (it already held these commits) fast-forwarded to `66712852f`; agg-backend / agg-ui had nothing new. After it, the test
+projects restored and rebuilt: Aggregate 72 / 0, Hrot.Core 30 / 0, SimHost 553 / 1 plain, 549 / 5 parallel (the same pre-existing reds; the coordinator fixed the CGF
+pack counts), and the two new scenarios pass with golden SAME.
+
 ### 11a. The scenario sweep *(R-4277; each in its own fresh process, `scripts/scenario-regression.sh <one name>`)*
 
 | scenario | stochastic 305 / 306 | expected change | result |

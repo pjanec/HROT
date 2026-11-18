@@ -36,6 +36,38 @@ namespace CarKinem.Controllers
         /// <summary>Does this vehicle have a hull to trace (a length and a width; a person has none)?</summary>
         public static bool HasHull(in VehicleParams p) => p.Class != VehicleClass.Pedestrian && p.Class != VehicleClass.Quadruped && p.Length > 0f && p.Width > 0f;   // ⭐ CE-4623: an animal backs out of nothing
 
+        /// <summary>
+        /// ⭐ <c>CE-1958</c> — does this mover have a BODY to trace against walls — a length and a width: a vehicle's hull AND an animal's body
+        /// (a <see cref="VehicleClass.Quadruped"/>); a person has none. ⚠ Not <see cref="HasHull"/>: an animal is traced by its body but never backs
+        /// out (it has no reverse — it turns on the spot instead, <see cref="TurnInPlace"/>). 📌 The user: a pig stood half through its pen's wall
+        /// — the centre-only trace stopped its centre on the wall line, half the body each side.
+        /// </summary>
+        public static bool HasBody(in VehicleParams p) => p.Class != VehicleClass.Pedestrian && p.Length > 0f && p.Width > 0f;
+
+        /// <summary>An animal held at a wall turns on the spot only when its aim is further off its heading than this (rad).</summary>
+        public const float PivotMinRad = 0.17f;
+
+        /// <summary>
+        /// ⭐ <c>CE-1958</c> — an ANIMAL held at a wall TURNS ON THE SPOT toward <paramref name="aimDir"/> (by at most <paramref name="maxTurn"/>): its
+        /// forequarters swing round while it shuffles back by what the swinging corner would push forward (half its width × sin of the turn), so no
+        /// corner enters the wall. The pose is traced like any step (<see cref="StepBlocked"/>); false = no turn (aim ahead, or the turn is blocked).
+        /// 📌 Without it an animal (no reverse, turning only while it walks) facing a fence with its way on behind it stood there for good.
+        /// </summary>
+        public static bool TurnInPlace(IWorldQuery world, Vector2 pos, Vector2 fwd, float z, Vector2 aimDir, float length, float width, float maxTurn,
+                                       out Vector2 newPos, out Vector2 newFwd)
+        {
+            newPos = pos; newFwd = fwd;
+            float ang = MathF.Atan2(fwd.X * aimDir.Y - fwd.Y * aimDir.X, Vector2.Dot(fwd, aimDir));
+            if (MathF.Abs(ang) < PivotMinRad || maxTurn <= 0f) return false;
+            float turn = Math.Clamp(ang, -maxTurn, maxTurn);
+            float c = MathF.Cos(turn), s = MathF.Sin(turn);
+            var f = new Vector2(fwd.X * c - fwd.Y * s, fwd.X * s + fwd.Y * c);
+            var p = pos - fwd * (width * 0.5f * MathF.Abs(s) + 0.005f);
+            if (StepBlocked(world, pos, fwd, z, p, f, z, length, width)) return false;
+            newPos = p; newFwd = f;
+            return true;
+        }
+
         /// <summary>The smallest turning radius (m) — the bicycle model's, at full lock.</summary>
         public static float TurnRadius(in VehicleParams p)
             => p.WheelBase > 0f && p.MaxSteerAngle > 0f ? p.WheelBase / MathF.Sin(MathF.Min(p.MaxSteerAngle, 1.5f)) : 0f;

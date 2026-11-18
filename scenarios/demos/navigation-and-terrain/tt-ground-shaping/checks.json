@@ -1,0 +1,78 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md section 3 - feature scenario for CE-1963 / CE-1964 (ground shaping on a terrain with NO height grid; DESIGN_Ground_Patches_And_Road_Blockage G-14, G-26). The ground's height has no cue, and the ditch's 'no vehicle crosses' area is read from the shape itself, so it held even when the ground was NOT carved - the Ditch Rifle row is what sees the carve: a man STANDING on the shape carries it (SimTransform.Position.2, his surface z). LEFT OUT: the draw panel's tint and hint (rail GroundEffectTests.CE1964_*), the drawn trees of a wood (rail TerrainChunkTreesTests.CE1968_*), the 3-D body of a feature (rail Map3DTests.CE1966_*).",
+  "runFor": 45,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {},
+  "expect": [
+    {
+      "name": "Hill Rifle stands on the raised ground",
+      "on": "field",
+      "who": "Hill Rifle",
+      "path": "SimTransform.Position.2",
+      "op": ">",
+      "value": 1.5,
+      "atEnd": true
+    },
+    {
+      "name": "Hill Rifle got onto the hill",
+      "on": "near",
+      "who": "Hill Rifle",
+      "point": [
+        35,
+        25
+      ],
+      "within": 2
+    },
+    {
+      "name": "Hollow Rifle stands in the lowered ground",
+      "on": "field",
+      "who": "Hollow Rifle",
+      "path": "SimTransform.Position.2",
+      "op": "<",
+      "value": -0.7,
+      "atEnd": true
+    },
+    {
+      "name": "Hollow Rifle got into the hollow",
+      "on": "near",
+      "who": "Hollow Rifle",
+      "point": [
+        95,
+        25
+      ],
+      "within": 2
+    },
+    {
+      "name": "Ditch Rifle stands in the ditch",
+      "on": "field",
+      "who": "Ditch Rifle",
+      "path": "SimTransform.Position.2",
+      "op": "<",
+      "value": -0.5,
+      "atEnd": true
+    },
+    {
+      "name": "the car never crosses the ditch",
+      "never": {
+        "on": "near",
+        "who": "Ditch Car",
+        "point": [
+          180,
+          75
+        ],
+        "within": 4
+      }
+    },
+    {
+      "name": "the car ends south of the ditch",
+      "on": "field",
+      "who": "Ditch Car",
+      "path": "SimTransform.Position.1",
+      "op": "<",
+      "value": 60,
+      "atEnd": true
+    }
+  ]
+}

@@ -17,8 +17,8 @@ namespace Fdp.Toolkit.Motion
     /// ⭐⭐ <c>CE-4622</c> K-1 (docs/designs/vehicle-tactics/DESIGN_Checkpoint_And_Ramming.md RM-1, KV-4) — a VEHICLE HURTS A PERSON BY IMPACT: the ground
     /// twin of <see cref="DroneImpactSystem"/>. Each frame every moving ground vehicle's hull (its footprint, turned by its heading) is swept forward by the
     /// distance it travelled (<see cref="Intersection2D.SweptFrontMeetsCircle"/>, beside the flyer's <see cref="Intersection2D.SegmentInCircle"/>); a person or
-    /// an animal whose body the FRONT reaches is struck: a <see cref="HitEffect.Blunt"/> <see cref="DamageAssessedEvent"/> (the <c>Melee.Strike</c>
-    /// precedent; Source = the vehicle) of a Health FRACTION in bands of the CLOSING speed × the vehicle's mass, with a seeded spread (<see cref="HarmFraction"/>).
+    /// an animal whose body the FRONT reaches is struck: a <see cref="HitEffect.Impact"/> <see cref="DamageAssessedEvent"/> (knocked down AND lethal —
+    /// ⛔ was <c>Blunt</c>, the <c>Melee.Strike</c> precedent, whose non-lethal floor capped every vehicle hit at the incapacitated line, CE-1967; Source = the vehicle) of a Health FRACTION in bands of the CLOSING speed × the vehicle's mass, with a seeded spread (<see cref="HarmFraction"/>).
     /// Riders (embarked) never; a closing speed under <see cref="HarmlessBelowMps"/> never (a man boarding a stopped vehicle, a nudge); a pair once per
     /// <see cref="RepeatSeconds"/>. For every vehicle, AI or a player's. Serial, after <c>CarKinematicsSystem</c>, on the node that moves the vehicles;
     /// the damage reaches the victim's Health owner through the existing chain. ⛔ It moves nobody (no knock-back) — the damage chain's knock-down does.
@@ -39,6 +39,17 @@ namespace Fdp.Toolkit.Motion
         public const float LevelBandM = 2.5f;
         /// <summary>A person's body radius when it has no collider (m).</summary>
         public const float PersonRadiusM = 0.3f;
+        /// <summary>
+        /// ⭐⭐ <c>CE-1967</c> (R-2138) — RUN OVER: a hull this heavy (kg) or heavier that passes OVER a body (its centre inside the hull's footprint) crushes
+        /// it — killed (<see cref="CrushFraction"/>), at any speed it moves. 📐 Below it (a car 1.5–2.4 t, a pickup 2.1 t) nothing more than the strike: with
+        /// no knock-back a car "passes over" every man it strikes, and that would rewrite every ramming result. Every armoured or engineering hull in the
+        /// catalogue is 17.5 t or more.
+        /// </summary>
+        public const float CrushMassKg = 3500f;
+        /// <summary>The Health fraction a crushed body loses — killed (the top strike band's 120 %).</summary>
+        public const float CrushFraction = 1.2f;
+        /// <summary>A heavy hull moving at least this fast (m/s) crushes what it drives over — a creeping dozer's tracks too.</summary>
+        public const float CrushBelowMps = 0.3f;
 
         private struct Body { public Entity E; public Vector2 P; public float Z; public float R; public Vector2 V; }
         private Body[] _bodies = new Body[64];
@@ -102,7 +113,7 @@ namespace Fdp.Toolkit.Motion
             foreach (var v in repo.Query().With<global::CarKinem.Core.VehicleState>().With<SimTransform>().Build())
             {
                 float speed = repo.GetComponentRO<global::CarKinem.Core.VehicleState>(v).Speed;
-                if (MathF.Abs(speed) < HarmlessBelowMps) continue;
+                if (MathF.Abs(speed) < CrushBelowMps) continue;   // ⭐ CE-1967: a slow heavy hull still crushes; the strike keeps its own 2 m/s floor below
                 var cls = Locomotions.Of(repo, v);
                 if (cls is not (LocomotionClass.Wheeled or LocomotionClass.Tracked or LocomotionClass.Amphibious)) continue;
                 if (embarked && repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(v)) continue;   // carried: its carrier is the body
@@ -121,7 +132,28 @@ namespace Fdp.Toolkit.Motion
                 {
                     ref var b = ref _bodies[i];
                     if (MathF.Abs(b.P.X - c.X) > reach || MathF.Abs(b.P.Y - c.Y) > reach || MathF.Abs(b.Z - t.Position.Z) > LevelBandM) continue;
-                    if (!Intersection2D.SweptFrontMeetsCircle(c, fwd, halfL, halfW, sp * deltaTime, b.P, b.R, out _)) continue;
+                    if (!Intersection2D.SweptFrontMeetsCircle(c, fwd, halfL, halfW, sp * deltaTime, b.P, b.R, out _))
+                    {
+                        // ⭐⭐ CE-1967 (R-2138) — RUN OVER: the front did not reach it this frame, but its centre is UNDER a heavy hull ⇒ crushed, once
+                        var d = b.P - c;
+                        if (MathF.Abs(Vector2.Dot(d, fwd)) <= halfL && MathF.Abs(d.X * fwd.Y - d.Y * fwd.X) <= halfW)
+                        {
+                            if (mass < 0f) mass = MassOf(repo, v);
+                            long crushKey = (((long)v.Index << 32) | (uint)b.E.Index) | long.MinValue;
+                            if (mass >= CrushMassKg && !(_lastHit.TryGetValue(crushKey, out double crushedAt) && now - crushedAt < RepeatSeconds))
+                            {
+                                _lastHit[crushKey] = now;
+                                float max0 = MathF.Max(1f, repo.GetComponentRO<Health>(b.E).Max);
+                                repo.Bus.Publish(new DamageAssessedEvent
+                                {
+                                    HitEntity = b.E, TotalDamage = CrushFraction * max0, Effect = HitEffect.Impact, EffectSeconds = (SimDuration)KnockdownSeconds, Source = v,
+                                });
+                                Strikes++;
+                            }
+                        }
+                        continue;
+                    }
+                    if (sp < HarmlessBelowMps) continue;   // the strike's floor (a nudge, a man boarding) — the crush above has none
                     float closing = sp - Vector2.Dot(b.V, fwd);
                     if (closing < HarmlessBelowMps) continue;
                     long key = ((long)v.Index << 32) | (uint)b.E.Index;
@@ -133,7 +165,7 @@ namespace Fdp.Toolkit.Motion
                     float max = MathF.Max(1f, repo.GetComponentRO<Health>(b.E).Max);
                     repo.Bus.Publish(new DamageAssessedEvent
                     {
-                        HitEntity = b.E, TotalDamage = frac * max, Effect = HitEffect.Blunt, EffectSeconds = (SimDuration)KnockdownSeconds, Source = v,
+                        HitEntity = b.E, TotalDamage = frac * max, Effect = HitEffect.Impact, EffectSeconds = (SimDuration)KnockdownSeconds, Source = v,
                     });
                     Strikes++;
                 }

@@ -55,7 +55,7 @@ namespace Hrot.Core.Animals
                 ? ((ISimulationView)repo).GetManagedComponentRO<EditablePolyline>(area).Points : Array.Empty<Vector2>();
             Outline(outline, out var centroid, out float radius, out var min, out var max);
             var centre = new Vector3(anchor.X + centroid.X, anchor.Y + centroid.Y, anchor.Z);
-            var home = new AnimalHome { Centre = centre, Radius = MathF.Max(radius, 5f), Enclosed = a.Enclosed };
+            var home = new AnimalHome { Centre = centre, Radius = HomeRadius(outline, centroid, radius, a.Enclosed != 0), Enclosed = a.Enclosed };   // ⭐ CE-1958 — a pen: the circle INSIDE its outline
             int species = (int)a.Species;
             long type = TkbEntityTypes.Animal_Cattle + species;
             var row = species >= 0 && species < AnimalTkbCatalog.Species.Length ? AnimalTkbCatalog.Species[species] : null;
@@ -111,6 +111,30 @@ namespace Hrot.Core.Animals
             for (int i = 0; i < pts.Count; i++) { centroid += pts[i]; min = Vector2.Min(min, pts[i]); max = Vector2.Max(max, pts[i]); }
             centroid /= pts.Count;
             for (int i = 0; i < pts.Count; i++) radius = MathF.Max(radius, Vector2.Distance(pts[i], centroid));
+        }
+
+        /// <summary>⭐ CE-1958 — the room a body needs between its home circle's edge and the outline: half the longest common body (a cow, 2.2 m) and a step.</summary>
+        public const float BodyClearanceM = 1.5f;
+
+        /// <summary>
+        /// ⭐ <c>CE-1958</c> — the radius of the HOME circle every choice keeps to (the herd's grazing spot, a member's spot, a pen's flight). An ENCLOSED area
+        /// (a pen — its outline is its wall, nothing leaves it, AN-18) gets the largest circle round the outline's centre that stays INSIDE it, less
+        /// <see cref="BodyClearanceM"/>. 📌 It was the distance to the farthest VERTEX: for farm-under-fire's 12 m square pen 8.5 m, so a grazing spot in a
+        /// corner past the wall sent a pig into it for good. ⭐ An OPEN area keeps that reach — its home is also the animal's GROUND (a guard dog barks at a
+        /// man inside it + 15 m and bites one close inside it; 📐 the inner circle shrank ua-animal-guard-dog's 12 × 8 m yard from 7.2 m to 2.5 m and the dog
+        /// never bit). An outline of fewer than 3 points, or a concave one whose centre lies outside it, keeps the reach too (at least 5 m).
+        /// </summary>
+        public static float HomeRadius(IReadOnlyList<Vector2> outline, Vector2 centroid, float farthest, bool enclosed)
+        {
+            if (!enclosed || outline.Count < 3 || !PolygonMath.Contains(outline, centroid)) return MathF.Max(farthest, 5f);
+            float nearest = float.MaxValue;
+            for (int i = 0; i < outline.Count; i++)
+            {
+                Vector2 a = outline[i], b = outline[(i + 1) % outline.Count], ab = b - a;
+                float t = ab.LengthSquared() > 1e-8f ? Math.Clamp(Vector2.Dot(centroid - a, ab) / ab.LengthSquared(), 0f, 1f) : 0f;
+                nearest = MathF.Min(nearest, Vector2.Distance(centroid, a + ab * t));
+            }
+            return MathF.Max(nearest - BodyClearanceM, 1f);
         }
 
         /// <summary>A seeded point inside the outline (rejection in its box; a degenerate outline: round its centre).</summary>

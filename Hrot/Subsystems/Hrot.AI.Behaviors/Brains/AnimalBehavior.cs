@@ -722,7 +722,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (HerdOf(world, self, out var herd) && herd.NextGrazing != Vector3.Zero)
             {
                 float spread = TightSpreadMetres + LooseSpreadMetres * (1f - Math.Clamp(p.Cohesion, 0f, 1f));
-                return herd.NextGrazing + new Vector3(MathF.Cos(ang), MathF.Sin(ang), 0f) * (u * spread);
+                // ⭐ CE-1958 — a member's spot round the herd's is kept in its HOME: the spread (up to 11 m for a pig) reached past a pen's wall, and the
+                //   pig walked into the wall for good
+                return KeepHome(world, self, herd.NextGrazing + new Vector3(MathF.Cos(ang), MathF.Sin(ang), 0f) * (u * spread));
             }
             Vector3 centre = ws.Origin;
             float radius = LoneGrazeMetres;

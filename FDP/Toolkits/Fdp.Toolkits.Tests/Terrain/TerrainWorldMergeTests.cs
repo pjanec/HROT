@@ -421,6 +421,28 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(5f, both.GroundHeightAt(-8f, 0f), 3);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1963</c> / <c>CE-1964</c> (the user, `2026-11-17`: "the ditch tool draws a line but no ditch appears" · "the raise / lower tool does nothing") — on a FLAT
+        /// terrain (no height grid, only <c>GroundZ</c>: bt-range, the test ranges) a ditch is carved and a raise raises, exactly as on a terrain with heights; outside the
+        /// shapes the ground stays <c>GroundZ</c>. 📐 Reproduced live (the editor, bt-range): a ditch and a 2 m raise drawn ⇒ <c>/terrain/levels</c> read z 0 at both. Every
+        /// rail above uses a base WITH a grid (<c>FlatBase</c> is a zero grid), which is why none saw it. 🔴 Red-proof: drop the flat grid in the merge ⇒ both read 0.
+        /// </summary>
+        [Theory]
+        [InlineData(0f)]
+        [InlineData(34f)]
+        public void CE1963_OnATerrainWithNoHeightGrid_ADitchIsCarved_AndARaiseRaises(float groundZ)
+        {
+            var bare = new TerrainWorld { Name = "flat-no-grid", BoundsMin = new Vector2(-100f), BoundsMax = new Vector2(100f), GroundZ = groundZ };
+            Assert.Null(bare.Height);
+            var merged = TerrainWorldMerge.Merge(bare, ShapeOverlay(
+                Ditch("d", "ditch", 0f, 1, Vector2.Zero, 0f, new Vector2(-20f, 0f), new Vector2(20f, 0f)),
+                Ground("r", "raise", 2f, 2, Square(0f, 50f, 10f))));
+            Assert.True(merged.GroundHeightAt(0f, 0f) <= groundZ - 0.9f, $"no ditch: z {merged.GroundHeightAt(0f, 0f):F2}");
+            Assert.Equal(groundZ + 2f, merged.GroundHeightAt(0f, 50f), 2);
+            Assert.Equal(groundZ, merged.GroundHeightAt(-80f, -80f), 3);   // untouched ground
+            Assert.Equal(groundZ, merged.GroundHeightAt(99f, -99f), 3);     // the grid's edge stays the flat ground (beyond the bounds, CE-4122's hills as before)
+        }
+
         /// <summary>⭐ V-28 / G-18 — a house inside a raised area keeps its ground (an island with a metre's margin); an unknown mode fails at the compile.</summary>
         [Fact]
         public void CE4592_AHouseInsideAShape_IsAnIsland_AndAnUnknownModeFails()

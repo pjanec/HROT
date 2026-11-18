@@ -3659,6 +3659,13 @@ the hedge's) and wood pattern (244).
 
 ![the trees by distance](UX/terrain-trees-3d.svg)
 
+⭐ **CE-1968 as built (`terrain` lane, `2026-11-17`; user: *"the trees land ~10 m off the polygon, partly outside it"*):** the NEAR trees are planted from the forest POLYGONS
+(`TerrainWorldMesh.AddPolygonTrees`) on the woods' world-aligned 25 m cells with the same per-cell hash and density — a candidate is kept only inside its polygon (the last
+listed wins where woods overlap). ⛔ Was: a whole 25 m cell planted wherever its CENTRE fell inside the wood ⇒ trees up to ~12.5 m past the edge and bare strips inside it.
+The simulation's woods (sight, fire, the navmesh — R-4190 T-2) and the FAR canopy sheet stay per cell. Rail `TerrainChunkTreesTests.CE1968_*`.
+⭐ **CE-1966 (`terrain` lane, `2026-11-17`):** a placed terrain FEATURE / BLOCK (TKB 8818 / 8817) has no body — `EntityBodyLayer3D.LookOf`'s no-body list (it drew the
+UNKNOWN box at the feature's anchor, the user's "pink cube"). Rail `Map3DTests.CE1966_*`.
+
 ```mermaid
 classDiagram
   class ITerrainChunkedGeometry { <<existing, §6ah>> BuildChunk(cx, cy, level, part) }
