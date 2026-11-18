@@ -382,16 +382,19 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ <c>AQ107 I</c> — a barrel's heat is a 0…1 FRACTION on the wire (the ECS <c>WeaponAmmo</c> keeps a percent byte): 50 % is 0.5,
-        /// 100 % is 1, 7 % is 0.07 and the ingress gives the same percent back (and clamps a hostile sample into 0..100).
-        /// ✅ Red-proof: the egress copying the percent byte ⇒ 50 on the wire ⇒ red.
+        /// ⭐ <c>CE-4659</c> (thermal drivers TD-5, §3d) — a mount's LAST BURST crosses the wire field for field (rounds, start, last shot, heat at it, cooling),
+        /// so another node computes the same barrel heat at any later time; the retired sampled heat goes as 0. (Was ⭐ AQ107 I: the sampled heat as a 0…1
+        /// fraction — retired with the sample.) 🔴 Red-proof: drop the <c>LastShotAt2</c> copy in the ingress ⇒ mount 2 reads cold ⇒ red.
         /// </summary>
         [Fact]
-        public void AQ107I_BarrelHeat_IsAFractionOnTheWire_AndAPercentInTheEcs()
+        public void CE4659_ALastBurst_CrossesTheWire_AndTheHeatIsTheSameEverywhere()
         {
-            var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 4, Heat0 = 50, Heat1 = 100, Heat2 = 7, Heat3 = 0, Hot = 0b10 };
+            var ammo = Fdp.Toolkit.Combat.Components.WeaponAmmo.Empty();
+            ammo.Count = 4; ammo.Hot = 0b10;
+            ammo.SetBurst(0, 12, 100.0, 101.5, 0.6f, 0.05f);
+            ammo.SetBurst(2, 3, 90.0, 90.4, 0.9f, 0.1f);
             var sample = EntityWeaponAmmoEgressTranslator.ToSample(62, ammo);
-            Assert.Equal((0.5f, 1f, 0.07f, 0f), (sample.Heat0, sample.Heat1, sample.Heat2, sample.Heat3));
+            Assert.Equal((0f, 0f, 0f, 0f), (sample.Heat0, sample.Heat1, sample.Heat2, sample.Heat3));   // the retired sample
             Assert.Equal((byte)0b10, sample.Hot);
 
             var (node, unit, map) = Node(62);
@@ -403,13 +406,11 @@ namespace Hrot.SimHost.Tests
                 ingress.Apply(in sample, cmd, node);
                 cmd.Playback(node);
                 var got = node.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(unit);
-                Assert.Equal((ammo.Heat0, ammo.Heat1, ammo.Heat2, ammo.Heat3, ammo.Hot), (got.Heat0, got.Heat1, got.Heat2, got.Heat3, got.Hot));
-
-                var hostile = sample with { Heat0 = 7.5f, Heat1 = -2f };
-                ingress.Apply(in hostile, cmd, node);
-                cmd.Playback(node);
-                got = node.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(unit);
-                Assert.Equal(((byte)100, (byte)0), (got.Heat0, got.Heat1));
+                Assert.True(got.Equals(ammo));
+                foreach (double now in new[] { 91.0, 101.5, 105.0, 120.0 })
+                    for (int m = 0; m < 4; m++) Assert.Equal(ammo.HeatAt(m, now), got.HeatAt(m, now));
+                Assert.Equal(0.6f - 0.05f * 3.5f, got.HeatAt(0, 105.0), 4);
+                Assert.True(double.IsNegativeInfinity(got.LastShotAtOf(1)));   // never fired
             }
         }
 

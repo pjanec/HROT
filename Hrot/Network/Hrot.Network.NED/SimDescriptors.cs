@@ -854,10 +854,33 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-1358 (appended; DESIGN_Weapon_Layers §5k) — bit i: mount i's barrel is too hot; each barrel's heat as a 0…1 FRACTION of "too hot"
         //   (⭐ AQ107 I — was a byte percent 0..100; the ECS WeaponAmmo keeps the percent byte, the translator converts)
         public byte Hot;
+        // ⛔ CE-4659: RETIRED — sent as 0 (kept for the layout, R-169); a reader computes the heat from the last burst below
         public float Heat0;
         public float Heat1;
         public float Heat2;
         public float Heat3;
+        // ⭐ CE-4659 (appended; thermal drivers TD-5, DESIGN_Thermal_Drivers.md §3d / §4f) — each mount's LAST BURST: rounds, when it began, the last shot
+        //   (seconds of sim time; −∞ = never), the heat (0…1 of too hot) just after it, and the barrel's cooling per second. Changes on a shot only.
+        public int BurstRounds0;
+        public int BurstRounds1;
+        public int BurstRounds2;
+        public int BurstRounds3;
+        public double BurstStartedAt0;
+        public double BurstStartedAt1;
+        public double BurstStartedAt2;
+        public double BurstStartedAt3;
+        public double LastShotAt0;
+        public double LastShotAt1;
+        public double LastShotAt2;
+        public double LastShotAt3;
+        public float HeatAtLastShot0;
+        public float HeatAtLastShot1;
+        public float HeatAtLastShot2;
+        public float HeatAtLastShot3;
+        public float CoolPerSecond0;
+        public float CoolPerSecond1;
+        public float CoolPerSecond2;
+        public float CoolPerSecond3;
     }
 
     // ⭐ CE-1153 (docs/DESIGN_Entity_Control.md §8h.6) — the brain's verdict on the operator's last use press, Brain → every node, keyed by

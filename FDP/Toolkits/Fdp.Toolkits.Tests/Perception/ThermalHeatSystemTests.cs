@@ -191,34 +191,24 @@ namespace Fdp.Toolkit.Perception.Tests
         }
 
         /// <summary>
-        /// ⭐ <c>CE-1358</c> (DESIGN_Weapon_Layers §5k) — a hot BARREL warms its unit for the thermal sensor: its own mount, a mount child, a
-        /// station weapon embarked in it (a door gun on its helicopter) — the hottest one; the signature is the hotter of body and barrel.
-        /// 🔴 Red-proof: drop the barrel pass ⇒ the child's and the door gun's heat are never seen.
+        /// ⭐ <c>CE-1358</c> (DESIGN_Weapon_Layers §5k) — a hot STATION weapon carried in a vehicle (a door gun on its helicopter) warms the vehicle for the thermal
+        /// sensor; the hottest one counts and it goes once the gun cools. ⭐ CE-4659: a unit's OWN mounts are computed from WeaponAmmo's last burst
+        /// (<c>WeaponAmmoMirrorSystemTests.CE4659_*</c>), not here. 🔴 Red-proof: drop the station pass ⇒ the door gun's heat is never seen.
         /// </summary>
         [Fact]
-        public void CE1358_AHotBarrel_WarmsItsUnit_OwnMountChildOrStationWeapon()
+        public void CE1358_AHotStationWeapon_WarmsItsVehicle()
         {
             var (w, e) = World();
             w.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponState>();
-            w.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();
-            w.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             var sys = new ThermalHeatSystem();
-
-            w.AddComponent(e, new Fdp.Toolkit.Combat.Components.WeaponState { Heat = 0.2f });
-            Step(w, sys, 0f);
-            Assert.Equal(0.2f, w.GetComponentRO<ThermalState>(e).BarrelHeat, 3);
-
-            var child = w.CreateEntity();
-            w.AddComponent(child, new Fdp.Toolkit.Combat.Components.WeaponState { Heat = 0.5f });
-            w.AddComponent(child, new Fdp.Toolkit.Combat.Components.WeaponMountInfo { MountIndex = 1 });
-            w.AddComponent(child, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = e });
-            Step(w, sys, 0f);
-            Assert.Equal(0.5f, w.GetComponentRO<ThermalState>(e).BarrelHeat, 3);
 
             var doorGun = w.CreateEntity();
             w.AddComponent(doorGun, new Fdp.Toolkit.Combat.Components.WeaponState { Heat = 0.9f });
             w.AddComponent(doorGun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = e });
+            var other = w.CreateEntity();
+            w.AddComponent(other, new Fdp.Toolkit.Combat.Components.WeaponState { Heat = 0.5f });
+            w.AddComponent(other, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = e });
             Step(w, sys, 0f);
             var t = w.GetComponentRO<ThermalState>(e);
             Assert.Equal(0.9f, t.BarrelHeat, 3);

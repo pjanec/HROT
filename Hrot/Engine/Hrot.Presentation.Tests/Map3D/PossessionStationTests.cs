@@ -379,15 +379,25 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            var ammo = new WeaponAmmo { Count = 3 };
-            ammo.Set(0, new WeaponState { Ammo = 30, MaxAmmo = 30, Heat = 0.1f });                  // cold enough: nothing said
-            ammo.Set(1, new WeaponState { Ammo = 20, MaxAmmo = 30, Heat = 0.72f });                 // warm
-            ammo.Set(2, new WeaponState { Ammo = 10, MaxAmmo = 30, Heat = 0.9f, Overheated = 1 });   // held, cooling
+            // ⭐ CE-4659 (backend, a cross-lane edit — NOTE_Backend_To_Ui_Barrel_Heat_Computed.md) — the heat is COMPUTED from each mount's last shot
+            //   (at t = 100 s, cooling 5 %/s), so the HUD reads the same number on every node and it falls with no sample
+            var ammo = WeaponAmmo.Empty();
+            ammo.Count = 3;
+            ammo.Set(0, new WeaponState { Ammo = 30, MaxAmmo = 30 });
+            ammo.Set(1, new WeaponState { Ammo = 20, MaxAmmo = 30 });
+            ammo.Set(2, new WeaponState { Ammo = 10, MaxAmmo = 30, Overheated = 1 });   // held, cooling
+            ammo.SetBurst(0, 1, 100.0, 100.0, 0.1f, 0.05f);                              // cold enough: nothing said
+            ammo.SetBurst(1, 5, 99.0, 100.0, 0.72f, 0.05f);                              // warm
+            ammo.SetBurst(2, 20, 95.0, 100.0, 0.9f, 0.05f);
             w.AddComponent(unit, ammo);
+            w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 100.0 });
             var lines = PossessionStation.Hud.Lines(w, unit, mount: 0, vehicle: false, hullLocked: false);
             Assert.Equal("> 1 WEAPON  30/30", lines[1]);
             Assert.Equal("  2 WEAPON  20/30  HEAT 72%", lines[2]);
             Assert.Equal("  3 WEAPON  10/30  OVERHEATED 90%", lines[3]);
+            w.SetSingletonUnmanaged(new GlobalTime { TotalTime = 104.0 });               // 4 s later: 20 % cooler, nothing re-sent
+            lines = PossessionStation.Hud.Lines(w, unit, mount: 0, vehicle: false, hullLocked: false);
+            Assert.Equal("  2 WEAPON  20/30  HEAT 52%", lines[2]);
         }
     }
 
