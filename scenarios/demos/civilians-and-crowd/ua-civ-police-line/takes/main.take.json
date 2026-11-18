@@ -13,7 +13,7 @@
     },
     "m2": {
       "on": "hit",
-      "target": "Protester 2"
+      "target": "*Protester"
     }
   },
   "keys": [
