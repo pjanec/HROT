@@ -35,6 +35,9 @@ namespace Fdp.Toolkit.Perception.Signatures
         public float RunningHeat;
         /// <summary>⭐ <c>CE-4657</c> — an engine (Off · Idle · Running · Dead) rather than a body (Standing · Moving).</summary>
         [MarshalAs(UnmanagedType.I1)] public bool HasPowerPlant;
+        /// <summary>⭐ <c>CE-4658</c> — the power class and hot end a stand's ground heat mark carries (terrain's enums as bytes). Appended.</summary>
+        public byte PowerClass;
+        public byte HotEnd;
 
         /// <summary>What a thermal sensor sees: <c>Base + max(Heat, BarrelHeat) × (1 − Base)</c>, 0..1 — the body and the gun are two
         /// sources, the sensor sees the hotter.</summary>

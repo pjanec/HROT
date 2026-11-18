@@ -71,6 +71,10 @@ namespace Fdp.Toolkit.Perception.Sensors
             //   term (an engine, a weapon fired, a body) is unchanged. Sampled once, at the observer's unit; 1 without a clock.
             var unit = EqsContext.Self(view, observer, sensor);
             float contrast = PerceptionWeather.TrySample(view, unit, out var weather) ? PerceptionWeather.BaseContrast(in weather) : 1f;
+            // ⭐ CE-4658 (thermal drivers TD-10) — the heat is COMPUTED from the replicated drivers at this instant (ThermalDriversOps), never integrated here
+            double now = view is EntityRepository clockRepo && clockRepo.HasSingletonUnmanaged<GlobalTime>() ? clockRepo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0.0;
+            bool sources = view is not EntityRepository sr || sr.IsComponentTypeRegistered<HeatSource>();
+            bool fires = view is not EntityRepository fr || fr.IsComponentTypeRegistered<FireState>();
             for (int i = 0; i < candidates.Length; i++)
             {
                 ref var c = ref candidates[i];
@@ -80,11 +84,33 @@ namespace Fdp.Toolkit.Perception.Sensors
                 if (view.IsAlive(target) && view.HasComponent<ThermalState>(target))
                 {
                     ref readonly var ts = ref view.GetComponentRO<ThermalState>(target);
-                    float signature = ts.BaseSignature * contrast + ts.Heat * (1f - ts.BaseSignature);
+                    float signature = ts.BaseSignature * contrast + HeatOf(view, target, in ts, now, sources, fires) * (1f - ts.BaseSignature);
                     hot = signature >= min && signature > 0f;
                 }
                 if (!hot) c.EntityId = -1;
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4658</c> — the hottest of the target's sources at <paramref name="now"/>, 0..1: its engine or body (<see cref="ThermalDriversOps.SourceHeat"/> from the
+        /// replicated <see cref="HeatSource"/> and the speed this node knows, <see cref="Fdp.Toolkit.Motion.Locomotions.SpeedOf"/>), its hottest barrel
+        /// (<see cref="ThermalState.BarrelHeat"/> until CE-4659 computes it from the last burst) and a fire on it (<see cref="FireState"/>).
+        /// ⚠ A target whose state says it moves but whose speed this node cannot read (a person on the node that moves him) counts at full load.
+        /// </summary>
+        internal static float HeatOf(ISimulationView view, Entity target, in ThermalState ts, double now, bool sources, bool fires)
+        {
+            float heat = ts.BarrelHeat;
+            if (sources && view.HasComponent<HeatSource>(target))
+            {
+                ref readonly var hs = ref view.GetComponentRO<HeatSource>(target);
+                float speed = Fdp.Toolkit.Motion.Locomotions.SpeedOf(view, target);
+                if (speed < HeatSourceSystem.MoveOffSpeed && hs.State is HeatSourceState.Running or HeatSourceState.Moving)
+                    speed = ts.ReferenceSpeed > 0f ? ts.ReferenceSpeed : 5f;
+                heat = MathF.Max(heat, ThermalDriversOps.SourceHeat(in ts, in hs, speed, now));
+            }
+            if (fires && view.HasComponent<FireState>(target))
+                heat = MathF.Max(heat, view.GetComponentRO<FireState>(target).Intensity01(now));
+            return Math.Clamp(heat, 0f, 1f);
         }
     }
 }

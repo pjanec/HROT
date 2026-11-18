@@ -68,6 +68,9 @@ namespace Fdp.Toolkit.Perception.Signatures
 
         /// <summary>Burning at <paramref name="now"/>: lit and not yet gone out.</summary>
         public bool IsBurning(double now) => Seconds > 0f && now >= Since.Seconds && now < Since.Seconds + Seconds;
+
+        /// <summary>Gone out by <paramref name="now"/> (or never burned) — its slot may take a new spot.</summary>
+        public bool IsOut(double now) => Seconds <= 0f || now >= Since.Seconds + Seconds;
     }
 
     /// <summary>
@@ -110,11 +113,12 @@ namespace Fdp.Toolkit.Perception.Signatures
             X[i] = s.X; Y[i] = s.Y; Z[i] = s.Z; Radius[i] = s.Radius; Since[i] = s.Since.Seconds; Seconds[i] = s.Seconds; Intensity[i] = s.Intensity;
         }
 
-        /// <summary>Adds <paramref name="spot"/>, reusing a slot whose spot has gone out by <paramref name="now"/>; false when every slot burns (open a second holder).</summary>
+        /// <summary>Adds <paramref name="spot"/>, reusing a slot whose spot has GONE OUT by <paramref name="now"/>; false when every slot is taken (open a second holder).
+        /// ⭐ CE-4658 fix: a spot not lit yet (its start after <paramref name="now"/>) is not "gone out" — it kept being reused.</summary>
         public bool TryAdd(in FireSpot spot, double now)
         {
             for (int i = 0; i < Count; i++)
-                if (!Get(i).IsBurning(now)) { Set(i, in spot); return true; }
+                if (Get(i).IsOut(now)) { Set(i, in spot); return true; }
             if (Count >= Capacity) return false;
             Set(Count, in spot);
             Count++;

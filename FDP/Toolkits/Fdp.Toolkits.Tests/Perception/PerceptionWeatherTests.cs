@@ -116,7 +116,11 @@ namespace Fdp.Toolkit.Tests.Perception
                 var hull = Man(w, new Vector3(50, 0, 0), ForceId.Hostile);
                 w.AddComponent(hull, new ThermalState { BaseSignature = 0.5f, Heat = 0f });     // a parked vehicle: passive only
                 var engine = Man(w, new Vector3(60, 0, 0), ForceId.Hostile);
-                w.AddComponent(engine, new ThermalState { BaseSignature = 0.5f, Heat = 0.8f }); // its engine running
+                // ⭐ CE-4658 — its engine running: a replicated DECISION (idling, warmed through) the sensor computes 0.8 from, not a written Heat
+                if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.HeatSource>()) w.RegisterComponent<Fdp.Toolkit.Perception.Signatures.HeatSource>();
+                w.AddComponent(engine, new ThermalState { BaseSignature = 0.5f, IdleHeat = 0.8f, RunningHeat = 0.8f, HasPowerPlant = true });
+                w.AddComponent(engine, Fdp.Toolkit.Perception.Signatures.HeatSource.Of(Fdp.Toolkit.Perception.Signatures.HeatSourceState.Idle,
+                    (SimInstant)double.NegativeInfinity, (SimInstant)double.NegativeInfinity));
                 var sensor = new EqsSensor { ContextSlot0 = unit };
                 Span<EqsResult> c = stackalloc EqsResult[2];
                 c[0] = new EqsResult { EntityId = (long)hull.PackedValue };

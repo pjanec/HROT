@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         public IEnumerable<Type> GetConsumedDescriptors()
         {
             yield return typeof(SignaturesDto);
+            yield return typeof(LocomotionDto);   // ⭐ CE-4658 — a type with no thermal data gets its body's default (ThermalDefaults)
         }
 
         public IEnumerable<Type> GetProducedComponents()
@@ -27,7 +28,8 @@ namespace Fdp.Toolkit.Perception.Signatures
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
         {
             var dto = template.GetDescriptor<SignaturesDto>();
-            if (dto?.Thermal is { } th && repo.IsComponentTypeRegistered<ThermalState>() && !repo.HasComponent<ThermalState>(entity))
+            var th0 = dto?.Thermal ?? ThermalDefaults.For(template.GetDescriptor<LocomotionDto>()?.Class ?? LocomotionClass.Unknown);   // ⭐ CE-4658
+            if (th0 is { } th && repo.IsComponentTypeRegistered<ThermalState>() && !repo.HasComponent<ThermalState>(entity))
                 repo.AddComponent(entity, new ThermalState
                 {
                     BaseSignature        = th.BaseSignature,
@@ -38,6 +40,8 @@ namespace Fdp.Toolkit.Perception.Signatures
                     IdleHeat             = th.IdleHeat,        // ⭐ CE-4657 — the calculator's type data (TD-3)
                     RunningHeat          = th.RunningHeat,
                     HasPowerPlant        = th.HasPowerPlant,
+                    PowerClass           = (byte)th.PowerClass,   // ⭐ CE-4658 — what a stand's ground heat mark carries
+                    HotEnd               = (byte)th.HotEnd,
                 });
             if (dto?.Acoustic is { } ac && repo.IsComponentTypeRegistered<AcousticEmitter>() && !repo.HasComponent<AcousticEmitter>(entity))
                 repo.AddComponent(entity, new AcousticEmitter
