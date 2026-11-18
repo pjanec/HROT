@@ -169,9 +169,13 @@ namespace Fdp.Toolkit.Combat.Systems
                 FragmentRadius = w.FragmentRadiusM, BlastInjuryRadius = w.BlastInjuryRadiusM,
             };
 
+            // ⭐⭐ CE-4654 D-3 (user 2026-11-18) — an anti-personnel mine MAIMS the man who stepped on it: his legs, not his whole body
+            var triggerMan = evt.Ammo == Fdp.Toolkit.Terrain.Minefields.MunitionAntiPersonnel ? TriggerManOf(repo, burst) : Entity.Null;
+
             foreach (var e in repo.Query().With<Health>().With<SimTransform>().Build())
             {
                 if (!repo.IsAlive(e)) continue;   // ⚠ the STRUCK entity is included: it is at the burst (its direct hit is extra)
+                if (e == triggerMan) { Maim(repo, in evt, e, record); continue; }
                 if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, e)) continue;   // ⭐ CE-3110 I-2c (R-271) — inside an enclosed hull
                 if (repo.GetComponentRO<Health>(e).Current <= 0f) continue;
                 var tf = repo.GetComponentRO<SimTransform>(e);
@@ -606,6 +610,51 @@ namespace Fdp.Toolkit.Combat.Systems
 
         /// <summary>⭐ <c>CE-4584</c> — a person in the sense <see cref="FragmentTargetOf"/> uses: no stated presented area (equipment) and no hull,
         /// and not a destructible obstacle.</summary>
+        /// <summary>⭐ <c>CE-4654</c> D-3 — how close to an AP mine's burst (2-D, m) the man who set it off stands (the trigger tests his feet against
+        /// the mine).</summary>
+        internal const float TriggerManRadius = 1.5f;
+
+        /// <summary>⭐ <c>CE-4654</c> D-3 — what share of his incapacitation line a maimed man is left at: under it (out of the fight, bleeding, carried),
+        /// never dead.</summary>
+        internal const float MaimedShareOfLine = 0.75f;
+
+        /// <summary>⭐ <c>CE-4654</c> D-3 — the man an AP mine burst is under: the nearest living PERSON within <see cref="TriggerManRadius"/> of it
+        /// (the lower index on a tie), else none.</summary>
+        internal static Entity TriggerManOf(EntityRepository repo, Vector3 burst)
+        {
+            Entity best = Entity.Null;
+            float bestD = TriggerManRadius;
+            var at = new Vector2(burst.X, burst.Y);
+            foreach (var e in repo.Query().With<Health>().With<SimTransform>().Build())
+            {
+                if (!repo.IsAlive(e) || repo.GetComponentRO<Health>(e).Current <= 0f || !IsPerson(repo, e)) continue;
+                var p = repo.GetComponentRO<SimTransform>(e).Position;
+                float d = Vector2.Distance(at, new Vector2(p.X, p.Y));
+                if (d < bestD || (d == bestD && !best.IsNull && e.Index < best.Index)) { best = e; bestD = d; }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4654</c> D-3 (user, `2026-11-18`: <i>"the trigger man is MAIMED, not killed"</i>; 📄 DESIGN_Minefields MF-5) — the burst's share on
+        /// the man who stepped on the mine goes to his LEGS (both shins, half each), leaving him at <see cref="MaimedShareOfLine"/> of his
+        /// incapacitation line: out of the fight, alive, bleeding — the squad's casualty drill carries him. ⛔ Not the whole-body blast law, which
+        /// killed him outright.
+        /// </summary>
+        private static void Maim(EntityRepository repo, in DetonationNotification evt, Entity e, DetonationRecord record)
+        {
+            ref readonly var h = ref repo.GetComponentRO<Health>(e);
+            float line = repo.IsComponentTypeRegistered<InjuryThresholds>() && repo.HasComponent<InjuryThresholds>(e)
+                ? repo.GetComponentRO<InjuryThresholds>(e).IncapacitatedBelow * h.Max : 0.3f * h.Max;
+            float left = MathF.Max(MaimedShareOfLine * line, 0.01f * h.Max);
+            float damage = h.Current - left;
+            if (damage <= 0f) return;
+            repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = damage * 0.5f, HasBodyPart = 1, BodyPart = Fdp.Toolkit.Physics.BodyParts.PersonPart.ShinL, Effect = HitEffect.Kinetic, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
+            repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = damage * 0.5f, HasBodyPart = 1, BodyPart = Fdp.Toolkit.Physics.BodyParts.PersonPart.ShinR, Effect = HitEffect.Kinetic, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
+            var tf = repo.GetComponentRO<SimTransform>(e);
+            record.Effects.Add(new DetonationEffect(e, "maimed (the man on the mine)", 0, 0f, 1f, 0f, 1f, 0f, 0f, 1f, 1f, damage, damage, null) { At = tf.Position });
+        }
+
         internal static bool IsPerson(EntityRepository repo, Entity e)
             => !TerrainObstacles.IsObstacle(repo, e)
                && PhysicsColliderReaders.HullHeight(repo, e) <= 0f
