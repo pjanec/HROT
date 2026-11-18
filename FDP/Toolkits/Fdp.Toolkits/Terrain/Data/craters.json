@@ -6,5 +6,7 @@
   "rimPerCbrtKg": 0.08,
   "maxBurstHeightPerRadius": 0.5,
   "largeRadiusM": 3.0,
+  "wallContactM": 0.5,
+  "//wallContactM": "CE-5019 (R-5064) — a burst that breaches a wall within this many metres of its face makes NO crater: a contact charge spends itself on the wall (before, a breaching charge left a 0.7 m pit at the wall foot the breachers could not climb out of). 0 = never skipped.",
   "coverAfterSeconds": { "small": 30, "large": 60 }
 }

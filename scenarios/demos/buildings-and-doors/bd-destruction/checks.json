@@ -32,6 +32,26 @@
       "after": "the charge bursts"
     },
     {
+      "name": "Breach 1 never stands in a pit at the wall's foot (CE-5019: a charge that breaches the wall it touches makes no crater)",
+      "never": {
+        "on": "field",
+        "who": "Breach 1",
+        "path": "SimTransform.Position.2",
+        "op": "<",
+        "value": -0.3
+      }
+    },
+    {
+      "name": "Breach 2 never stands in a pit at the wall's foot (CE-5019: a charge that breaches the wall it touches makes no crater)",
+      "never": {
+        "on": "field",
+        "who": "Breach 2",
+        "path": "SimTransform.Position.2",
+        "op": "<",
+        "value": -0.3
+      }
+    },
+    {
       "name": "the tank fires",
       "on": "shot",
       "by": "Tank"

@@ -277,6 +277,23 @@ public sealed class HrotNodeBuilderTests
         Assert.Equal((0.0, 0.0, 0.0), plain.GeoTransform!.Origin);   // ⛔ no Berlin default
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-5018 — the node's own id is a world singleton on every node (<see cref="Fdp.Toolkit.Replication.INetworkTopology"/>), so a system that
+    /// names THIS node as an entity's owner — a breach's damage entity (<c>BuildingDamageSystem</c>), a crater or minefield record — targets
+    /// this node, not 0 ("any default", which a cluster hands to the brain node). 🔴 Red-proof: drop the singleton from <c>HrotNodeBuilder.Build</c> ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(1)] [InlineData(7)]
+    public void CE5018_Build_PublishesTheNodesOwnId_OnTheWorld(int nodeId)
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig(nodeId)).WithRole("Test", Fdp.Core.NodeRole.MuscleGround).Build();
+        var world = ctx.World;
+        Assert.True(world.HasSingletonManaged<Fdp.Toolkit.Replication.INetworkTopology>(), "the node frame publishes no node id");
+        Assert.Equal(nodeId, (int)world.GetSingletonManaged<Fdp.Toolkit.Replication.INetworkTopology>().LocalNodeId);
+
+        // ⭐ the consumer half (a breach's damage request names this id) is the feature suite's: BuildingDamageSystemTests.CE5018_*
+    }
+
     // ── CE-3330 — every ECS node keeps a LIVE event-timeline index, served on its debug surface ──────────
 
     private static HrotNodeContext InitialisedNode(int nodeId)

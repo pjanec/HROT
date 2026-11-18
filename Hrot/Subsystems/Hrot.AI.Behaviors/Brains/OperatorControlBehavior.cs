@@ -52,6 +52,8 @@ namespace Hrot.AI.Behaviors.Brains
             public ushort UseAction;
             /// <summary>⭐ CE-1154 — its <see cref="InteractionChannel.ActionInstanceId"/>, so the answer is read only from OUR action.</summary>
             public uint UseStarted;
+            /// <summary>⭐ <c>CE-1298</c> (§8s) — when an empty-handed operator may strike again (<see cref="Melee.CooldownSeconds"/>). Appended.</summary>
+            public Fdp.Core.SimInstant NextStrikeAt;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -265,7 +267,12 @@ namespace Hrot.AI.Behaviors.Brains
             if (input.ShotSeq != ws.ShotSeq)
             {
                 ws.ShotSeq = input.ShotSeq;
-                if (!CanFireNow(world, platform, platformMount))
+                if (PersonHands.EmptyHanded(world, platform, mountDto))
+                {
+                    ws.Pending = 0;   // ⭐ CE-1298 (§8s) — EMPTY HANDS: the press is a blow on the man under the crosshair, when he is in reach
+                    Strike(world, self, ShotTargetOf(world, self, input.ShotTarget), ref ws);
+                }
+                else if (!CanFireNow(world, platform, platformMount))
                     ws.Pending = 0;   // ⭐ CE-4344 — a press while the weapon reloads (or is empty / too hot) is DROPPED, never fired when it is ready again
                 else if (mode == OperatorFireMode.Lock)
                 {
@@ -309,6 +316,22 @@ namespace Hrot.AI.Behaviors.Brains
                     Trigger = held ? (byte)1 : (byte)0, Mount = input.Mount, Point = alongBarrel ? lookPoint : input.AimPoint,
                     CooldownSeconds = OperatorCooldownFor(mountDto),
                 };
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-1298</c> (docs/DESIGN_Entity_Control.md §8s) — an empty-handed operator's press: the blow every brain strikes
+        /// (<see cref="Melee.Strike"/>, the fist: its damage, knock-down, reach and cooldown — never an operator-only rule), on the unit the
+        /// crosshair is on, when he is in reach, standing and not already down; a non-combatant's blow is his hostile act, as a civilian brain's is. Out of reach,
+        /// on nothing, or inside the cooldown ⇒ nothing (the swing is not drawn for a blow that is not struck).
+        /// </summary>
+        private static void Strike(EntityRepository world, Entity self, Entity victim, ref ManualControlState ws)
+        {
+            double now = world.SimulationTime;
+            if (victim.IsNull || now < ws.NextStrikeAt || !Standing(world, victim) || Effects.IsKnockedDown(world, victim)) return;
+            if (!Melee.Strike(world, self, victim)) return;
+            if (!Armament.IsCombatant(world, self))   // a possessed CIVILIAN's blow is his act, as his brain's is (CIV-4); a soldier's is not (AW-16)
+                Fdp.Toolkit.Civilians.HostileActs.Commit(world, self, Fdp.Toolkit.Civilians.HostileActKind.NonLethal);
+            ws.NextStrikeAt = (Fdp.Core.SimInstant)(now + Melee.CooldownSeconds);
         }
 
         /// <summary>⭐ <c>CE-1155</c> — the entity and mount index a frame's <c>Mount</c> names: the man's own mount, or — for a controlled

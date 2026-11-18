@@ -265,6 +265,10 @@ public sealed class HrotNodeBuilder
         //   EntityMap. 📄 DESIGN_Subsystem_Composition_Unification.md §4.1ae.1.
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkbDb);
         world.SetSingletonManaged(entityMap);
+        // ⭐ CE-5018 — and the node's own id, the same way: the systems that must name THIS node as an entity's owner (a breach's damage
+        //   entity, a crater / minefield record) read it from the world. ⛔ Without it they asked for 0 ("any default"), so in a cluster the
+        //   brain node was asked to make the muscle's damage entity and a possessed bulldozer's bump made no breach (UTM §8.3 #8).
+        world.SetSingletonManaged<Fdp.Toolkit.Replication.INetworkTopology>(new Fdp.Toolkit.Replication.LocalNodeTopology(_config.NodeId));
         var elm         = new EntityLifecycleModule(tkbDb, new List<int>(), localNodeId: _config.NodeId);
         var geoModule   = new GeographicModule(geoTransform);
         var baseModules = new List<IEcsModule> { elm, geoModule };

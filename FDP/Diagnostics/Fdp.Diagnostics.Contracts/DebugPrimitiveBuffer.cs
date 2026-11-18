@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     // When capacity is exhausted, primitives are silently dropped (DroppedCount tracks overflow).
     public sealed class DebugPrimitiveBuffer : IDebugDrawBuilder
     {
-        private readonly DebugPrimitive[] _primitives;
+        private DebugPrimitive[] _primitives;   // ⭐ CE-1470 — grows (never shrinks) at a frame reset after a frame that overflowed
         private int _count;
         private int _droppedCount;
         private readonly StringInternMap _internMap;
@@ -163,10 +163,47 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             return _primitives.AsSpan(0, count);
         }
 
+        /// <summary>⭐ <c>CE-1470</c> — the most the buffer grows to (primitives): past it a frame still drops, and says so.</summary>
+        public const int MaxCapacity = 1 << 18;
+
+        /// <summary>⭐ CE-1470 — the primitives the LAST finished frame dropped (the frame stats and the render telemetry read it; <see cref="DroppedCount"/>
+        /// is the frame being written).</summary>
+        public int LastFrameDropped { get; private set; }
+
+        /// <summary>⭐ CE-1470 — telemetry over EVERY buffer in the process (the frame-stats line): the most primitives one frame dropped, and the largest
+        /// capacity grown to. Written only at a frame reset that overflowed or grew.</summary>
+        public static int PeakDropped, PeakCapacity;
+
+        /// <summary>⭐ CE-1470 — how many times the buffer grew (telemetry).</summary>
+        public int Grown { get; private set; }
+
+        /// <summary>The slots there are now.</summary>
+        public int Capacity => _primitives.Length;
+
+        /// <summary>
+        /// ⭐ <c>CE-1470</c> — at a frame reset (the one single-threaded moment): a frame that dropped primitives grows the buffer to hold all it was asked for
+        /// (the next power of two, at most <see cref="MaxCapacity"/>), so the NEXT frame loses none. 📐 Measured on Windows (scale-1 + 1 000 men, 3-D, filter off):
+        /// all 16 384 slots full and the rest dropped silently — which gizmos vanished depended on the order they drew in. Allocates only when it grows.
+        /// </summary>
+        private void GrowAfterOverflow()
+        {
+            LastFrameDropped = _droppedCount;
+            if (_droppedCount > PeakDropped) PeakDropped = _droppedCount;
+            if (_droppedCount <= 0 || _primitives.Length >= MaxCapacity) return;
+            int want = Math.Max(_count, _primitives.Length + 1);
+            int size = _primitives.Length;
+            while (size < want && size < MaxCapacity) size <<= 1;
+            if (size == _primitives.Length) return;
+            Array.Resize(ref _primitives, Math.Min(size, MaxCapacity));
+            Grown++;
+            if (_primitives.Length > PeakCapacity) PeakCapacity = _primitives.Length;
+        }
+
         // Resets the transient write cursor for the next frame. Persistent entries are NOT affected.
         // For frame-boundary management call EndFrame(deltaTime) instead.
         public void Clear()
         {
+            GrowAfterOverflow();
             _count        = 0;
             _droppedCount = 0;
             _suppressedCount = 0;
@@ -263,6 +300,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             _persistentCount = writeIdx;
 
             // Reset the transient buffer.
+            GrowAfterOverflow();   // ⭐ CE-1470
             _count        = 0;
             _droppedCount = 0;
             _suppressedCount = 0;

@@ -99,6 +99,7 @@ namespace Fdp.Toolkit.Combat
         public static OperatorFireMode Of(EntityRepository world, Entity unit, WeaponMountDto? mount, long loadedAmmo = 0, byte pref = 0)
         {
             if (mount == null) return OperatorFireMode.Sight;
+            if (PersonHands.EmptyHanded(world, unit, mount)) return OperatorFireMode.Sight;   // ⭐ CE-1298 — empty hands strike; nothing to lock
             if (mount.TurretIndex >= 0 && world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()
                 && !TurretParts.Find(world, unit, mount.TurretIndex).IsNull)
             {

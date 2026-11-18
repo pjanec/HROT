@@ -51,6 +51,10 @@ namespace Hrot.Map.Common.Tests
                 var warhead = Db.GetByType(mine)!.GetDescriptor<WarheadDto>();
                 Assert.NotNull(warhead);
                 Assert.InRange(warhead!.BlastInjuryRadiusM, 1f, 20f);
+                // ⭐ CE-2446 — and it DOES damage there: radii with 0 damage made an AP mine under a man hurt nobody (mf-strike-and-halt).
+                //   🔴 Red-proof: drop BlastLethalDamage from the mine registrations ⇒ 0.
+                Assert.True(warhead.BlastLethalDamage * Fdp.Toolkit.Combat.AreaEffect.BlastFalloff(0.3f, warhead.BlastLethalRadiusM, warhead.BlastInjuryRadiusM) >= 100f,
+                    $"mine {mine}: {warhead.BlastLethalDamage} blast damage at 0.3 m");
             }
         }
     }
