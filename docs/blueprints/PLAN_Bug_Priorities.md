@@ -31,6 +31,7 @@ above as the priority ones."* Ranked by: does it make the product SILENTLY wrong
 | scale | at 1 000 men only 1 of 12 sampled movers moved · the CGF frame 70 ms (budget 10) · the brain's cost · the gizmo buffer drops primitives silently under load · roads at height 0 on the scale rig | CE-3424 · CE-3425 · CE-4395 · CE-1470 · CE-4401 | backend · ui · terrain |
 | rules | the root objective never aggregates its children | CE-3460 | backend |
 | animals | a pig walked through its pen's brick wall | CE-3471 | backend |
+| visuals | a static car obstacle gets a grey solid block over it (its baked terrain box drawn as terrain, likely after the navmesh re-bake) | CE-4656 | terrain (+ ui) |
 | editor | right-click move also orders units no longer selected · a press on an unselected unit drags it on the threaded editor | CE-1133 · CE-1954 | ui |
 | tests and tools | the SimHost suite runs a different number of tests per run · a replay test fails under load · `Hrot.ClusterRunner.Tests` did not build · rails red on a non-English Windows (decimal commas) · three pre-existing presentation reds | CE-1038 · CE-1046 · CE-1473 / CE-3451 · CE-1475 · CE-1955 | backend · ui |
 | ⚠ to re-check before work | a cluster move stops ~21 m short (September — may be stale) | CE-167 | backend |
