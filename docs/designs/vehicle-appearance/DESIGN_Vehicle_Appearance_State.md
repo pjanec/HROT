@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-18
-build-state: DESIGN — leans VA-1…VA-12 for the user; NOT approved; ids fixed at dispatch
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §4 components and TKB · §5 UML · §6 slices
+build-state: DESIGN — leans VA-1…VA-12 and LK-1…LK-6 (§7, the shared look library, CE-4671) for the user; NOT approved; ids fixed at dispatch
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §4 components and TKB · §5 UML · §6 slices · §7 the shared look library (CE-4671)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -74,9 +74,12 @@ openings, the kill kind, smoke launchers — and ONE reader every renderer share
 | **VA-11** | the gateway | the DIS appearance mapping joins the thermal TD-11 table in the protocol reference: lights → the light bits, openings → hatch / ramp, `PartState` + `Destruction` → the damage state, `FireState` → flaming / smoking, `HeatSource` → power plant | an outside product needs it written down |
 | **VA-12** | the wire | ⭐ two descriptors (`VehicleLights`, `VehicleOpenings`) with the wire's OWN types and enums (R-4295); their translators in the vehicle subsystem's bridge, handed to the node by the host; `EntityDamage` gains `Destruction` (APPENDED, R-169) | the network layer stays separate from HROT internals |
 
-⚠ **The component id space is nearly full** (`2026-11-18`: free and unreserved ids are essentially gone; the thermal rows took the last three
-coordinator ids, each shared with a test-local struct). VA-3 / VA-4 need two ⇒ the ids are a dispatch-time question; a lane block's spare ids,
-or freeing retired ones, is the backend lane's call.
+⭐ **Component ids — there is room** *(re-measured `2026-11-18`, user: "the components ID space cannot be full … just look for it")*: production
+requires an explicit `[ComponentId]` (`FdpConfig.cs:106-118`), so the used set is exactly the constants of the classes `[ComponentId(…)]`
+references (`GlobalComponentIds`, `HrotComponentIds`, the `*ComponentIds` classes, `NavFakeIds`) plus literal ids, on every lane branch:
+**≈ 112 of 512 are free** (e.g. 86–108, 171–199, 228–254, 290–299, 319–329, 500–511). ⛔ The earlier "space 0–511 is FULL" note
+(`GlobalComponentIds.cs` R-10000) counted the constants of EVERY `*Ids` class — behaviour, panel, request and tool ids too — an overcount.
+VA-3 / VA-4 take two at dispatch.
 
 ## 4. Components and TKB
 
@@ -207,3 +210,34 @@ graph TD
 | 4 | **VA-S4 rotors and engines** | `VehicleLook.RotorSpeed` from `HeatSource` + `FlightState` + spin-up seconds (after thermal CE-4658) | a helicopter on the ground spins up before take-off, down after shutdown |
 | 5 | **VA-S5 smoke launchers** | the `SmokeDischarger` mount + its salvo; the "pop smoke" behaviour (behaviors) | a tank under ATGM threat fires its smoke; the clouds block sight and IR |
 | 6 | **VA-S6 the gateway mapping** | VA-11's rows in the protocol reference | the table |
+
+## 7. The shared LOOK library — every renderer derives the same picture *(CE-4671, `2026-11-18`)*
+
+🔒 Request (`2026-11-18`, the same lane): *"Move these rules (kinds, anchors, timings, which munition gives which effect) into a shared library with no
+presentation dependency. HROT's map should keep using it, and external renderers' gateways should use it too … The same library is the home for the
+person-appearance resolver … Pure functions over components and events; deterministic; no Stride, no ImGui."*
+
+⭐ **The overlap with §3:** `VehicleLook` (VA-2) IS such a derivation — so the library is ONE home for three readers: vehicles (this design),
+effects, and people (`DESIGN_Person_Outfits.md`). ⛔ Not three libraries.
+
+| measured `2026-11-18` | where | ⛔ what ties it to presentation today |
+|---|---|---|
+| the effect RULES — muzzle flash per fire event (none for silent weapons, bombs), explosion + ground mark per detonation, impact puffs and marks per surface, dust for inert thrown items and broken barriers; kinds and lifetimes from `EffectTkbCatalog` (the round's `Effect.Set`, else its calibre class, VE-D) | `Hrot.Presentation/Effects/EffectSystems.cs` (`EffectSpawnSystem`, 525 lines) | the rule and the SPAWNING (effect entities on each map host) and two HUD feeds (player messages, the kill feed) share one system |
+| the wreck's flames ~60 s and smoke ~180 s | `WreckSpawnSystem` (same file, :449) | a per-display decision ⇒ the thermal `FireState` (CE-4660) replaces the decision; the library keeps only "smoke after the fire" |
+| the person-appearance resolver | `Map3D/Outfits.cs` (624 lines), `Wardrobe.cs`, `KitFromTkb.cs` | the resolved look carries `Raylib.Color` |
+
+| # | question | ⭐ lean | why |
+|---|---|---|---|
+| **LK-1** | where | ⭐ ONE new assembly **`Hrot.Look`** (refs `Fdp.Toolkits` + `Hrot.Core`; ⛔ no Raylib, Stride, ImGui or `Hrot.UI`) — `VehicleLook`, `EffectRules`, `PersonLook` | the person resolver needs `Hrot.Core.Tkb`, so it cannot sit in `Fdp.Toolkits`; one home for all three keeps renderers agreeing (ruling 9) |
+| **LK-2** | the effect rules | ⭐ split RULE from SPAWN: `EffectRules.For(event, view, tkb) → EffectSpec[]` (kind, anchor, lifetime, size — pure, deterministic, 0 B on the steady path); `EffectSpawnSystem` keeps spawning the map's effect entities FROM the specs; the HUD feeds move out of it (they are not effects) | a gateway calls the same function on its node's events and gets the same flashes and marks |
+| **LK-3** | the wreck | `WreckSpawnSystem` retires into the thermal `FireState` (CE-4660, dispatched); `EffectRules`/`VehicleLook` answer "smoke after the fire" from the spot's end + the type's smoulder seconds | one truth: fire is simulation state |
+| **LK-4** | people | `PersonLook.Of(view, entity, tkb) → PersonAppearance` — the outfit, colours as a plain RGBA struct (⛔ no `Raylib.Color`), the face, the extras (Person Outfits design); the map converts to its colour type when drawing | the resolver is already pure apart from the colour type |
+| **LK-5** | determinism | every function a pure function of components, events, the TKB and an entity-seeded random (the outfits' seeded variety) — never the wall clock, never a frame count | the same picture on every renderer, in replay too |
+| **LK-6** | the order | ⭐ FIRST move what exists (the effect rules, the person resolver) with their rails unchanged — a pure refactor; THEN `VehicleLook` grows there with VA-S1 | moving first is cheap and testable (the map's rails must stay green); new code then lands in its final home |
+
+| slice | builds | done when |
+|---|---|---|
+| **LK-S1** | `Hrot.Look`; `EffectRules` extracted, `EffectSpawnSystem` spawns from it, the HUD feeds moved out | the map's effect rails (`EffectTests`, the 3-D frame rails under `xvfb-run -a`) green UNCHANGED; a rail calls `EffectRules` with no presentation assembly loaded |
+| **LK-S2** | `PersonLook` extracted (RGBA, no Raylib) | the outfit / wardrobe rails green unchanged; the same rail with no presentation assembly |
+| **LK-S3** | `VehicleLook` lands here (VA-S1 onward) | as §6 |
+
