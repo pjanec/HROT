@@ -84,6 +84,14 @@ namespace Fdp.Toolkit.Terrain
             return n;
         }
 
+        /// <summary>
+        /// ⭐ CE-4655 (behaviors' note, their CE-2447) — how far OUTSIDE its outline a field's navmesh area reaches: a route round a known or suspected field keeps
+        /// this clearance (the ring is priced as the field). The field's spacing, never under <see cref="RouteClearanceMinM"/>.
+        /// </summary>
+        public static float RouteClearance(in Minefield f) => MathF.Max(f.SpacingM, RouteClearanceMinM);
+        /// <summary>The floor of <see cref="RouteClearance"/> (m).</summary>
+        public const float RouteClearanceMinM = 5f;
+
         /// <summary>⭐ CE-4655 — the least distance a mine lies inside the outline: half a spacing, never under <see cref="MinEdgeInsetM"/>.</summary>
         public static float EdgeInset(in Minefield f) => MathF.Max(0.5f * f.SpacingM, MinEdgeInsetM);
         /// <summary>The floor of <see cref="EdgeInset"/> (m): a man walking the outline (foot 0.4 m) never reaches a mine.</summary>

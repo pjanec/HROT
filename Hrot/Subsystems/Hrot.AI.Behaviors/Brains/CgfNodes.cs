@@ -254,6 +254,40 @@ namespace Hrot.AI.Behaviors.Brains
         //   it through SharedNodeBuilderExtensions. 📄 docs/blueprints/DESIGN_BTree_Node_Call_Shapes.md.
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3458</c> (P1, the bug queue) — did THIS behaviour's OWN activation of <paramref name="action"/> fail (the executor's
+        /// <c>FailedUnreachable</c> / <c>FailedBlocked</c> / the no-progress watchdog)? 📄 Navigation v2 §3.1 / §3.3: a failed move is a BTree
+        /// <b>Failure</b>, and a retry is the CALLER's policy ("retry with an alternate destination? alert the squad? fall back?"). 📌 The move
+        /// nodes re-activated on ANY failure on the channel, their own included, so an unreachable destination re-issued itself every tick for
+        /// good — the unit stood still, nothing above it ever heard. ⭐ A failure left by an EARLIER behaviour (another instance id), or an
+        /// activation not yet dispatched, is not ours: that one still re-activates.
+        /// </summary>
+        public static bool OwnActivationFailed(EntityRepository world, Entity self, ushort action)
+        {
+            ref readonly var c = ref world.GetComponentRO<LocomotionChannel>(self);
+            if (c.Status != NodeStatus.Failure || c.ActiveAction != action || c.DispatchedInstanceId != c.ActionInstanceId) return false;
+            return !world.HasComponent<BehaviorState>(self) || c.BehaviorInstanceId == world.GetComponentRO<BehaviorState>(self).InstanceId;
+        }
+
+        /// <summary>⭐ CE-3458 — <see cref="OwnActivationFailed"/> for THIS move: the failed MoveTo went to <paramref name="x"/>, <paramref name="y"/> (a tree's
+        /// fallback move elsewhere, in the same behaviour, still issues).</summary>
+        private static unsafe bool OwnMoveFailed(EntityRepository world, Entity self, float x, float y)
+        {
+            if (!OwnActivationFailed(world, self, NavigationConstants.ActionIdMoveTo)) return false;
+            var c = world.GetComponentRO<LocomotionChannel>(self);
+            var issued = *(MoveToParams*)c.Params;
+            return issued.Destination.X == x && issued.Destination.Y == y;
+        }
+
+        /// <summary>⭐ CE-3458 — <see cref="OwnActivationFailed"/> for THIS route (another route, in the same behaviour, still issues).</summary>
+        private static unsafe bool OwnRouteFailed(EntityRepository world, Entity self, int trajectoryId, int routeNetworkId)
+        {
+            if (!OwnActivationFailed(world, self, NavigationConstants.ActionIdFollowRoute)) return false;
+            var c = world.GetComponentRO<LocomotionChannel>(self);
+            var issued = *(Fdp.Toolkit.Navigation.FollowRouteParams*)c.Params;
+            return issued.RouteEntityId == routeNetworkId && (trajectoryId == 0 || issued.TrajectoryId == trajectoryId);
+        }
+
+        /// <summary>
         /// BTree action node for the MoveToLocation behavior.
         /// Writes the parsed destination into the <see cref="LocomotionChannel"/> every tick.
         /// </summary>
@@ -266,6 +300,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;
             }
 
+            if (OwnMoveFailed(world, self, p.X, p.Y)) return NodeStatus.Failure;   // ⭐ CE-3458 — fails up, never re-issues itself
             ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
             if (world.HasComponent<BehaviorState>(self))
             {
@@ -327,6 +362,7 @@ namespace Hrot.AI.Behaviors.Brains
                 else if (p.RouteNetworkId <= 0) return NodeStatus.Running;
             }
 
+            if (OwnRouteFailed(world, self, p.TrajectoryId, p.RouteNetworkId)) return NodeStatus.Failure;   // ⭐ CE-3458 / CE-9023 — a route that cannot be driven fails up
             WriteFollowRoute(world, self, p.TrajectoryId, p.RouteNetworkId, p.Loop);
             return NodeStatus.Running;
         }
@@ -372,6 +408,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;
             }
 
+            if (OwnActivationFailed(world, self, NavigationConstants.ActionIdJoinFormation)) return NodeStatus.Failure;   // ⭐ CE-3458
             ref var channel = ref world.GetComponentRW<LocomotionChannel>(self);
             if (world.HasComponent<BehaviorState>(self))
             {

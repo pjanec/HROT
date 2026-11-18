@@ -7,16 +7,16 @@ related-designs:
 # STATUS — backend, the queue
 
 Handoff: [`HANDOFF_Coordinator_To_Backend_Bug_Queue.md`](HANDOFF_Coordinator_To_Backend_Bug_Queue.md). Started at `2e274c5fd` (`origin/coordinator` merged).
-Self-wake-up: ✅ the scheduled task `backend self-wake-up` (hourly, :58), created `2026-11-18 08:58 UTC` without an approval prompt.
+Self-wake-up: ✅ the scheduled task `backend self-wake-up` (hourly, :58), created `2026-11-18 08:58 UTC` without an approval prompt; it fired at 09:58 and 10:58 into this session, no approval asked.
 
 ## 1. Now
-IN PROGRESS: **CE-3458** (an unreachable move never fails) — fix built + rails red-proved, on the side branch `backend-wip-ce3458` (`a9758271c`); ⏳ the 46 movement scenarios verifying (output `scratchpad/v3458`); when green ⇒ commit to `backend`, then CE-3452. **Root cause:** `CgfNodes.Action_WriteMoveToChannel` (and `FollowRoute`, `JoinFormation`) re-activated on ANY channel failure, its own included (`needsActivation = … || Status == Failure`), so a failed move re-issued itself every tick for good. **Fix:** `CgfNodes.OwnActivationFailed` / `OwnMoveFailed` / `OwnRouteFailed` — this behaviour's own dispatched move to THIS destination (route) failed ⇒ the node answers Failure (Navigation v2 §3.1 / §3.3: a failed move is a BTree Failure, the retry is the caller's). Rails `MoveToLocationRoadUseTests.CE3458_*` 2/2, neighbours 79/79; red-proofs: no OwnMoveFailed ⇒ red, no OwnRouteFailed ⇒ red.
+IN PROGRESS: **CE-3452** (a bike from a standstill reports FailedBlocked while it moves) — reproducing (test-town, a motorcycle at (40, 200) east to (230, 200)); lead: vehicle path progress is speed × the path tangent at the current progress, so a path that starts at an angle to the heading gains nothing while the bike drives and the 4 s no-progress watchdog fails it.
 
 ## 2. The queue (in order)
 | row | state | sha | rail | scenario |
 |---|---|---|---|---|
-| CE-3458 P1 unreachable move never fails | IN PROGRESS — on `backend-wip-ce3458` | `a9758271c` (wip) | `CE3458_*` 2/2, red-proved | ⏳ 46 movement scenarios |
-| CE-3452 P1 bike from a standstill reports FailedBlocked | TODO | | | |
+| CE-3458 P1 unreachable move never fails | ✅ DONE | (this commit) | `MoveToLocationRoadUseTests.CE3458_*` 2/2, red-proved (no OwnMoveFailed / no OwnRouteFailed ⇒ red); neighbours 79/79 | 46 movement scenarios: 40 PASS; 6 RED AT THE BASE TOO (same checks): pc-ambush-bypass, pc-attack-dry, pc-urban-ambush, uc-reinforce-dry, uc-request-chain-dry, uc-urban-battle — behaviors' scenarios, open rows CE-2284 / CE-2352 / CE-2277 / CE-4042 / CE-2310 / CE-9023 |
+| CE-3452 P1 bike from a standstill reports FailedBlocked | IN PROGRESS | | | |
 | CE-9023 P1 disabled vehicle runs its route forever (the locomotion half) | TODO | | | |
 | CE-3457 P5 vehicles never yield to animals | TODO | | | |
 | CE-3468 T2 Points / Best blind under the parallel phase | TODO | | | |
@@ -42,7 +42,7 @@ IN PROGRESS: **CE-3458** (an unreachable move never fails) — fix built + rails
 (none yet)
 
 ## 4. Notes sent / received
-(none yet)
+- ⬅ `NOTE_Behaviors_To_Backend_NearMiss_And_LyingCap.md` ② (my `CE4649` lying-cap allocation rail red under the strict guards) — ✅ DONE: the process-wide AccessTrace growing inside the one window; three windows, cheapest 0 B; guarded 4/4, red-proved. ➡ answered in `NOTE_Backend_To_Behaviors_LyingCapRail.md`.
 
 ## 5. Gates (rule 8)
 (per row, in §2)

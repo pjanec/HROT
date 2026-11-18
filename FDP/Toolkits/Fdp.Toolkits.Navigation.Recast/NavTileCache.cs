@@ -138,7 +138,7 @@ public sealed class NavTileCache
         data = null;
         if (Mode != NavTileCacheMode.Normal || !_memory.TryGetValue(key, out var bytes))
         {
-            bytes = seed?.ReadSeed(key) ?? ReadDisk(key);
+            bytes = seed?.ReadSeed(key) ?? (Mode == NavTileCacheMode.Normal ? ReadDisk(key) : ReadSeedOwn(key));   // ⭐ CE-3428 — a seed / prefill folder may be packed
             if (bytes == null) return false;
             Remember(key, bytes);
         }
@@ -196,11 +196,27 @@ public sealed class NavTileCache
 
     private byte[]? ReadSeed(in NavTileKey key)
     {
-        var bytes = ReadDisk(key);
+        var bytes = ReadSeedOwn(key);
         if (bytes != null || _moreSeeds == null) return bytes;
-        foreach (var more in _moreSeeds) if ((bytes = more.ReadDisk(key)) != null) return bytes;
+        foreach (var more in _moreSeeds) if ((bytes = more.ReadSeedOwn(key)) != null) return bytes;
         return null;
     }
+
+    // ⭐ CE-3428 (UTM §12.4) — a seed folder's PACKS first, then a loose file (a terrain prefilled before the packs keeps working)
+    private byte[]? ReadSeedOwn(in NavTileKey key)
+    {
+        if (Folder == null) return null;
+        var packs = _packs ??= new NavTilePackReader(Folder);
+        return packs.Read(key) ?? ReadDisk(key);
+    }
+    private NavTilePackReader? _packs;
+
+    /// <summary>
+    /// ⭐ CE-3428 (UTM §12.4) — a PREFILL cache's folder, packed (<see cref="NavTilePack.Pack"/>): one file per layer per 32 × 32 tiles instead of a file and a
+    /// folder per tile. Called by <see cref="RecastNavmeshFactory.Build"/> at the end of a bake into a prefill cache, so every writer of a terrain's
+    /// <c>navtiles/</c> (the importer's prefill, the overlay compiler) packs by construction. No-op for any other mode. Returns the pack count.
+    /// </summary>
+    public int Seal() => Mode == NavTileCacheMode.Prefill && Folder != null ? NavTilePack.Pack(Folder) : 0;
 
     private byte[]? ReadDisk(in NavTileKey key)
     {

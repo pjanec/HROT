@@ -34,13 +34,14 @@ namespace Fdp.Toolkit.Terrain
         public bool Contains(Vector2 p) => p.X >= Min.X && p.X <= Max.X && p.Y >= Min.Y && p.Y <= Max.Y && MinePattern.Inside(Outline, p);
 
         /// <summary>The index of the first lane whose strip holds <paramref name="p"/> (within <paramref name="slack"/> m of its half width), or −1.</summary>
-        public int LaneAt(Vector2 p, float slack = 0f)
+        public int LaneAt(Vector2 p, float slack = 0f, float extend = 0f)
         {
             for (int i = 0; i < Lanes.Length; i++)
             {
                 var l = Lanes[i];
                 var d = l.B - l.A; float len2 = d.LengthSquared();
-                float t = len2 < 1e-6f ? 0f : Math.Clamp(Vector2.Dot(p - l.A, d) / len2, 0f, 1f);
+                float e = len2 < 1e-6f ? 0f : extend / MathF.Sqrt(len2);   // ⭐ CE-4655 — a lane runs on through the clearance ring at both ends
+                float t = len2 < 1e-6f ? 0f : Math.Clamp(Vector2.Dot(p - l.A, d) / len2, -e, 1f + e);
                 float r = l.Width * 0.5f + slack;
                 if (Vector2.DistanceSquared(l.A + d * t, p) <= r * r) return i;
             }
@@ -96,7 +97,7 @@ namespace Fdp.Toolkit.Terrain
                 var f = world.GetComponentRO<Minefield>(e);
                 var at = world.GetComponentRO<SimTransform>(e).Position;
                 ulong fh = 1469598103934665603UL;
-                fh = Mix(fh, at.X); fh = Mix(fh, at.Y); fh = Mix(fh, f.OrientationDeg);
+                fh = Mix(fh, at.X); fh = Mix(fh, at.Y); fh = Mix(fh, f.OrientationDeg); fh = Mix(fh, f.SpacingM);   // ⭐ CE-4655 — the clearance ring follows the spacing
                 for (int i = 0; i < o.Points.Count; i++) { fh = Mix(fh, o.Points[i].X); fh = Mix(fh, o.Points[i].Y); }
                 for (int i = 0; i < f.LaneCount && i < Minefield.MaxLanes; i++)
                 {
@@ -147,7 +148,7 @@ namespace Fdp.Toolkit.Terrain
                 var min = pts[0]; var max = pts[0];
                 foreach (var p in pts) { min = Vector2.Min(min, p); max = Vector2.Max(max, p); }
                 ulong h = 1469598103934665603UL;
-                h = Mix(h, f.OrientationDeg); h = Mix(h, anchor.X); h = Mix(h, anchor.Y);
+                h = Mix(h, f.OrientationDeg); h = Mix(h, anchor.X); h = Mix(h, anchor.Y); h = Mix(h, f.SpacingM);   // ⭐ CE-4655
                 foreach (var p in pts) { h = Mix(h, p.X); h = Mix(h, p.Y); }
                 foreach (var l in lanes) { h = Mix(h, l.A.X); h = Mix(h, l.A.Y); h = Mix(h, l.B.X); h = Mix(h, l.B.Y); h = Mix(h, l.Width); h = Mix(h, (ulong)l.ClearedBySidePlus1); h = Mix(h, (ulong)l.KnownToSides); }
                 list.Add(new TerrainMinefield { Field = guid, Params = f, Anchor = anchor, Outline = pts, Lanes = lanes.ToArray(), Min = min, Max = max, Hash = h });

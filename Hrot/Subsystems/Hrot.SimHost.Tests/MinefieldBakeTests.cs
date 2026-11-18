@@ -94,7 +94,7 @@ namespace Hrot.SimHost.Tests
         private float Cost(int side) => _node.PathCost(new Vector3(5, 30, 0), new Vector3(55, 30, 0), (uint)NavLayerMask.Infantry | NavLayerSelection.SideBits(side), DoorStates.Of(_world, Resident));
 
         /// <summary>
-        /// ⭐⭐ MR-3 — a field is gathered, baked and priced: the diffed bake's dirty region is the field's box (±3 m, one rectangle); the resident world holds it; a side that knows it goes round, one that does not crosses.
+        /// ⭐⭐ MR-3 — a field is gathered, baked and priced: the diffed bake's dirty region is the field's box (± its clearance ring + 3 m, one rectangle — CE-4655); the resident world holds it; a side that knows it goes round, one that does not crosses.
         /// Then a runtime LANE record (cleared by Blue) re-bakes the field's tiles — Blue crosses at the lane — and the record gone (a seek back) re-bakes again: Blue goes round.
         /// 🔴 Red-proof: leave <c>MinefieldSet.SignatureOf</c> out of the bake's signature ⇒ no bake after the field is added (a timeout); drop <c>MinefieldDirt</c> ⇒ no dirty rectangle.
         /// </summary>
@@ -109,8 +109,8 @@ namespace Hrot.SimHost.Tests
             Bake(sys, 2);
             Assert.Single(Resident.Minefields);
             var dirty = Assert.Single(sys.LastDirty!);
-            Assert.Equal(new Vector2(12f, -3f), dirty.Min);
-            Assert.Equal(new Vector2(48f, 53f), dirty.Max);
+            Assert.Equal(new Vector2(7f, -8f), dirty.Min);    // ⭐ CE-4655 — the field's box ± (its clearance ring 5 m + 3 m)
+            Assert.Equal(new Vector2(53f, 58f), dirty.Max);
             float red = Cost(2), blue = Cost(Blue);
             Assert.True(red < 56f, $"a side that does not know the field crosses it ({red:F0} m)");
             Assert.True(blue > 70f, $"a side that knows it goes round its north end ({blue:F0} m)");

@@ -263,6 +263,8 @@ reading the code (§6 table).*
 | Q-3 | the rig runs with **recording OFF** (`/run-settings recordLiveRuns:false`, CE-4090) unless `--record` | the recorder (18.7 ms on cgf, §5.4) is not the terrain's; a live load without recording runs the same systems |
 | Q-4 | `--keep` leaves the nodes up after the report | to inspect what a measurement found (CE-3424's stuck movers) |
 
+✏ **CE-3440 (`terrain` lane, `2026-11-18`):** the switch (`QueryTimings.Enabled`) is PROCESS-WIDE and a thread's FIRST timed call registers its buffer (four arrays) — so a test that turns it on must run ALONE: `QueryTimingsCollection` is `DisableParallelization = true`. 📐 While it ran in parallel, a zero-allocation rail on another thread (`BuildingBreachTests.HotPath_ThroughABreachedWall_*`) counted that registration ⇒ red in 1 of 3 full runs. Rail `QueryTimingsTests.CE3440_*`.
+
 **Not timed, on purpose:** `GroundHeightAt` / `SurfaceZ` (called per entity per frame; the timer's two reads would cost a large share of
 the call). **Whole-terrain scans found by reading** (timed now, not yet measured at scale): `EnterableShelter` (every door per query —
 its generator's slot), `DoorPassageSystem.NextDoorAhead` (every door per door mark), `WorldSurveySolve` (every building), `BreachDoors`

@@ -2159,6 +2159,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             || Hrot.Core.Tkb.BuildingDamageTkb.Is(tkbType)
             || Hrot.Core.Tkb.GroundDamageTkb.Is(tkbType)
             || tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainFeature || tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainBlock   // ⭐ CE-1966 — nor a placed terrain FEATURE / BLOCK: the terrain mesh draws what it makes, the feature gizmo its handle (it drew the unknown pink box at its anchor); terrain lane, cross-lane
+            || IsTerrainDrawnObstacle(tkbType)   // ⭐ CE-4656 (terrain's note) — nor a baked CULTURAL-FEATURE obstacle: the terrain mesh draws its material box (it was ALSO drawn as the unknown box); the car (kind 1) stays ours
             || tkbType == Hrot.Map.Common.TkbEntityTypes.AirArena   // ⭐ CE-4647 — nor an AIR ARENA: AirArenaProjector draws it (a map graphic, no body)
             || tkbType == Fdp.Toolkit.Terrain.Minefields.TkbType || tkbType == Hrot.Core.Tkb.MinefieldRecordTkb.StrikesType || tkbType == Hrot.Core.Tkb.MinefieldRecordTkb.KnowledgeType   // ⭐ CE-4624 — nor a MINEFIELD or its records: MinefieldGizmo draws the field (it drew an unknown purple box at its anchor)
             || Hrot.Core.Tkb.TreeDamageTkb.Is(tkbType))   // ⭐ CE-4603 (B-6) — nor a cell's felled trunks (the trees vanish from the terrain); terrain lane, cross-lane   // ⭐ CE-4591 (P-4) — nor a ground cell's craters (drawn into the ground); terrain lane, cross-lane one-line edit   // ⭐ CE-4391 S-1 — nor a building's DAMAGE entity (breaches): drawn into the walls in S-4 (ui, R-4195); a cross-lane one-line edit
@@ -2167,6 +2168,12 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         _looks[tkbType] = look;
         return look;
     }
+
+    /// <summary>⭐ <c>CE-4656</c> (NOTE_Terrain_To_Ui_Obstacle_Drawing) — a static obstacle the terrain bake draws (every obstacle type but the
+    /// platform-typed car, which carries <c>TerrainPrism.DrawnByEntity</c>, plus a wreck).</summary>
+    internal static bool IsTerrainDrawnObstacle(long tkbType)
+        => tkbType != Hrot.Map.Common.TkbEntityTypes.Obstacle_Car
+           && (tkbType == Hrot.Map.Common.TkbEntityTypes.Obstacle_Wreck || Array.IndexOf(Hrot.Map.Common.TkbEntityTypes.Obstacles, tkbType) >= 0);
 
     /// <summary>⭐ CE-1457 (§6ad-3 TC1) — the kit a look is drawn with: its body style's when a wheeled car type names one, else its family's.</summary>
     public static ShapeKit KitOf(in TypeLook look)

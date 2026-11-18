@@ -197,6 +197,35 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-4655 (behaviors' note, their CE-2447) — a route ROUND a field the side knows keeps the field's CLEARANCE outside the outline (max(spacing, 5 m)): no point
+        /// of the planned path comes nearer than that (less a metre of voxel slack), none is inside. 📐 Before, the route hugged the outline (the leader at y 110.1 against an
+        /// outline at y 110, `mf-no-way-round`). 🔴 Red-proof: <c>AddClearanceRing</c> returning at once ⇒ the path runs ~0 m off the outline.
+        /// </summary>
+        [Fact]
+        public void CE4655_ARouteRoundAKnownField_KeepsItsClearance()
+        {
+            var rig = new Rig(LongField, knownAtStart: (ushort)(1 << Blue));
+            rig.Lay(Open);
+            var nav = rig.Mesh();
+            var doors = rig.Doors();
+            var wp = new NavWaypoint[256];
+            int n = nav.PlanPath(new Vector3(100, 40, 0), new Vector3(190, 40, 0), wp, Mask(Infantry, Blue), doors);
+            Assert.True(n >= 2, "a route round the field");
+            float clearance = MinePattern.RouteClearance(rig.R.GetComponentRO<Minefield>(rig.Field));
+            Assert.Equal(5f, clearance);
+            float nearest = float.MaxValue;
+            for (int i = 1; i < n; i++)
+                for (int k = 0; k <= 20; k++)
+                {
+                    var q = Vector3.Lerp(wp[i - 1].Position, wp[i].Position, k / 20f);
+                    var p2 = new Vector2(q.X, q.Y);
+                    Assert.False(MinePattern.Inside(LongField, p2), $"the route enters the field at {p2}");
+                    nearest = MathF.Min(nearest, MathF.Sqrt(MinePattern.EdgeDistanceSquared(LongField, p2)));
+                }
+            Assert.True(nearest >= clearance - 1f, $"the route comes {nearest:F2} m from the outline (clearance {clearance} m)");
+        }
+
+        /// <summary>
         /// ⭐ MR-20, KR-10 — KNOWN-MINED is dearer than SUSPECTED: a 30 m crossing costs ×20 (+570 m) when suspected — cheaper than the ~1 100 m detour, so the route crosses — and ×200 (+5 970 m) when known-mined — so it goes round.
         /// 🔴 Red-proof: price suspected like known-mined ⇒ the suspecting side goes round too.
         /// </summary>
