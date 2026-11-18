@@ -8,14 +8,14 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-IN PROGRESS: **CE-5018** (a possessed bulldozer's bump makes no breach in `--mode all`) — step ①: reproduce in `--mode all` (bt-doors), then find which node runs the contact rule.
+IN PROGRESS: **CE-4630** (a possessed soldier pushed back from a bumped hole) — step ①: reproduce in `--mode all` now that the bump breaches there (CE-5018).
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt.
 
 ## 2. The queue (in order)
 
 | tier | row | state | sha · rail · scenario |
 |---|---|---|---|
-| P3 | CE-5018 bump makes no breach in a cluster | IN PROGRESS | |
+| P3 | CE-5018 bump makes no breach in a cluster | ✅ DONE — no host published the node id, so the damage entity was requested from the brain node; `HrotNodeBuilder` now publishes `LocalNodeTopology`. Live `--mode all` after: the damage entity on SimHost / Player / Scenario | rails `HrotNodeBuilderTests.CE5018_*` (red-proved: singleton dropped ⇒ 2 red), `BuildingDamageSystemTests.CE5018_*` · ⚠ no scenario row can see it: the scenario run is one editor world (no cluster run exists yet) · UTM §8.3 #8 |
 | P3 | CE-4630 a possessed soldier pushed back from a bumped hole | TODO — ⚠ not reproduced in the EDITOR (2026-11-16, rails `BuildingDamageBakeTests.CE4630_*`); next: the cluster (likely the same root as CE-5018) | |
 | P3 | CE-5019 a charge's crater blocks its own breach | TODO | |
 | P4 | CE-2446 an AP mine bursts under a man and hurts nobody | TODO | |
@@ -34,4 +34,8 @@ Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at
 - none yet
 
 ## 5. Gates (rule 8)
-*(per row)*
+| row | gate | result |
+|---|---|---|
+| CE-5018 | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Tests --no-build --filter HrotNodeBuilderTests` | 26 / 27 — ⚠ `CE1436_CgfShapedHost_PlayLive_…` red, and red with the fix removed too ⇒ not this change (`Single()` on an empty sequence, line 771) |
+| CE-5018 | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build --filter BuildingDamage` | 34 / 34 |
+| CE-5018 | live `--mode all`, bt-doors, a possessed TKB 112 rams House A | breach entity 1201 on all three perspectives (before: none) |
