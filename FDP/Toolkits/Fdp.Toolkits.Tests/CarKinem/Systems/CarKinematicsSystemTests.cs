@@ -2963,6 +2963,40 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3452</c> (P1, the bug queue; 📌 live <c>ua-moto-parked-bomb</c>) — a vehicle whose path STARTS with a short join segment pointing away from
+        /// its heading (here 2 m back and south onto the lane, then 80 m east along it) drives on along the lane and its progress follows it: it never turns
+        /// back to the path's start, and the no-progress watchdog has nothing to see. 🔴 Red-proof: drop the <c>PathProgress.OnPathAhead</c> line ⇒ progress
+        /// stays ~0 while it drives east, and it loops back west.
+        /// </summary>
+        [Theory]
+        [InlineData(VehicleClass.Truck)]
+        [InlineData(VehicleClass.PersonalCar)]
+        public void CE3452_APathStartingAtAnAngle_IsFollowedAlongTheLane_NeverBackToItsStart(VehicleClass cls)
+        {
+            var (repo, e, pool) = TrajectoryWorld(10f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(cls));
+            pool.RegisterTrajectoryWithKey(new[] { new Vector3(0f, 0f, 0f), new Vector3(-1.5f, -1f, 0f), new Vector3(0f, -1.5f, 0f), new Vector3(80f, -1.5f, 0f) }, 13);
+            var nav = repo.GetComponent<NavState>(e);
+            nav.TrajectoryId = 13; nav.FinalDestination = new Vector3(80f, -1.5f, 0f); nav.ArrivalRadius = 3f;
+            repo.SetComponent(e, nav);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float farthest = 0f, turnedBack = 0f;
+            for (int i = 0; i < 12 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                float x = repo.GetComponent<SimTransform>(e).Position.X;
+                farthest = MathF.Max(farthest, x);
+                turnedBack = MathF.Max(turnedBack, farthest - x);
+            }
+            var end = repo.GetComponent<NavState>(e);
+            Assert.True(turnedBack < 3f, $"{cls}: it turned back {turnedBack:F1} m toward the path's start");
+            Assert.True(end.ProgressS > 50f && farthest > 50f, $"{cls}: progress {end.ProgressS:F1} at x {farthest:F1}");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>A cow (Quadruped) at (0, 0) facing +X, driven forward (a running animal), its <see cref="Fdp.Toolkit.Animals.AnimalState"/> in
         /// <paramref name="mode"/> at <paramref name="band"/>, its species breaking fences when <paramref name="breaks"/>.</summary>
         private static (EntityRepository Repo, Entity E) RunningAnimal(bool breaks, Fdp.Toolkit.Animals.AnimalMode mode, byte band, string geojsonFeatures, bool jumps = false)
