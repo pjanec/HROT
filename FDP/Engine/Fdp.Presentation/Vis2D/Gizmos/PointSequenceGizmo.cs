@@ -83,7 +83,10 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     }
 
     /// <inheritdoc/>
-    public string? ToolMenuJson => Session.Menu?.Json;
+    // ⭐ CE-1969 — the menu (Finish · Remove last · Cancel) only while there is something to finish: with no point placed yet (a fresh tool, or the
+    //   one re-armed after a Finish) right-click is the map's ordinary menu. 🔒 User, 2026-11-17: "I would expect the finish to appear only when I
+    //   before clicked the points on the map, so there is something to finish actually".
+    public string? ToolMenuJson => Session.Points.Count > 0 ? Session.Menu?.Json : null;
 
 
 
