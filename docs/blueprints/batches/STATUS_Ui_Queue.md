@@ -6,10 +6,10 @@ current-answer: §1
 
 # STATUS — ui, the queue
 
-self-wake-up: deleted 2026-11-18 10:45 (queue done).
+self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms) — deleting it was DENIED 2026-11-18 10:46; still scheduled (on firing it will find the queue idle).
 
 ## 1. Now
-**idle** — the queue is done (2 rows await decisions in `DECISIONS_Ui.md`: CE-1954, CE-1067; plus CE-1286 taken while dry). Self-wake-up deleted.
+**idle** — the queue is done (2 rows await decisions in `DECISIONS_Ui.md`: CE-1954, CE-1067; plus CE-1286 taken while dry). Self-wake-up NOT deleted (the delete was denied).
 
 ## 2. The queue (in order)
 
