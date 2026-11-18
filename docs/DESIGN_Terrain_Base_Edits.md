@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-18
-build-state: DESIGN — leans on D-1…D-8 for the user; mockup docs/UX/terrain-base-edits.svg
+build-state: READY-TO-BUILD — ✅ D-1…D-8 APPROVED by the user `2026-11-18` ("approved", R-5067); mockup docs/UX/terrain-base-edits.svg
 current-answer: §1 inventory · §2 the proven solution · §3 decisions · §4 UML · §5 the UI · §6 slices · §7 acceptance
 stale-below: nothing
 known-rot: none
@@ -55,7 +55,7 @@ the door objects should go with the buildings (and destructions as well). pls wr
 | identity of a masked object | a stable id, never a position in a list | ⭐ ADOPT: `Label` (the merge already requires it unique); an index renumbers |
 | what remains where an object is removed | the ground under it re-derived (here: the user ruled **bare, flattened ground**) | ⭐ the existing `Level` ground shape over the footprint, at the building's floor height |
 
-## 3. Decisions — leans for the user
+## 3. Decisions — ✅ APPROVED `2026-11-18` (🔒 user: *"approved"*, R-5067)
 
 | # | question | ⭐ lean | why / what would change it |
 |---|---|---|---|
