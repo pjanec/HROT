@@ -218,5 +218,42 @@ namespace Hrot.SimHost.Tests
             }
             Assert.Equal(0, count);
         }
+    
+        /// <summary>
+        /// ⭐⭐ <c>CE-4661</c> (thermal drivers TD-S5, TD-7; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4h) — a body's time of death crosses the wire to a
+        /// LATE JOINER: the reader is created AFTER the sample was written and still gets <c>StateSince</c> (TransientLocal); and a change of
+        /// <c>StateSince</c> alone republishes (the change gate covers the whole sample). 🔴 Red-proof: drop the <c>StateSince</c> line in <c>ScanState</c> ⇒ 0.
+        /// </summary>
+        [Fact]
+        public void CE4661_ABodysTimeOfDeath_ReachesALateJoiner()
+        {
+            const uint domainId = 213u;
+            using var participant = new DdsParticipant(domainId);
+            var translator = new EntityDamageEgressTranslator(participant, new NetworkEntityMap());
+            var body = SpawnEntity(netId: 4661, currentHealth: 0f);
+            _world.GetComponentRW<Health>(body).StateSince = 41.5;
+            translator.ScanAndPublish(_world);
+            Thread.Sleep(200);
+
+            using var lateJoiner = new DdsReader<EntityDamage>(participant);   // joins AFTER the write
+            Assert.Equal(41.5, LastStateSince(lateJoiner, 4661));
+
+            _world.GetComponentRW<Health>(body).StateSince = 50.0;   // Current and Max unchanged
+            translator.ScanAndPublish(_world);
+            Assert.Equal(50.0, LastStateSince(lateJoiner, 4661));
+        }
+
+        private static double LastStateSince(DdsReader<EntityDamage> reader, int id)
+        {
+            double found = double.NaN;
+            for (int tries = 0; tries < 20 && double.IsNaN(found); tries++)
+            {
+                Thread.Sleep(100);
+                using var loan = reader.Take();
+                foreach (var sample in loan)
+                    if (sample.IsValid && sample.Data.EntityId == id) found = sample.Data.StateSince;
+            }
+            return found;
+        }
     }
 }

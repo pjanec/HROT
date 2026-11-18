@@ -77,6 +77,10 @@ namespace Hrot.NED.Descriptors
 
         /// <summary>Maximum hit points — the scenario's value when it authored one, else the TKB default.</summary>
         public float Max;
+
+        /// <summary>⭐ <c>CE-4661</c> (thermal TD-7) — APPENDED (R-169): the sim time the derived injury state last changed (a dead body's time of death),
+        /// <c>Health.StateSince</c> as its owner stamped it. A late joiner gets it with the rest of the sample.</summary>
+        public double StateSince;
     }
 
     // ⭐ Buildings Stage 5b — a terrain DOOR's live state, published by the door's owner, applied on every other node, and mirrored
