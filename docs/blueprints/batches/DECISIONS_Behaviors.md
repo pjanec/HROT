@@ -6,6 +6,22 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-7 · CE-4667 — `SupportByFire` has no exit for an empty weapon or dead targets: what should the base of fire do then? *(2026-11-18)*
+
+**Measured / read:** the design gives the base of fire ONE exit — the platoon LIFTS it when the assault holds a foothold (DA-11, `DESIGN_Assault_Under_Fire.md`
+§9.1); `Suppress` runs "until the order is taken away" (Squad Tactics §7.5) and already stops firing at a dead target (it holds). ⛔ No design names an exit for
+"out of ammo" or "every reported post is dead"; no resupply exists (searched `docs/`: resupply / out of ammo — none for infantry). The live report (real-1):
+Blue Squad 2 kept `Suppress` 434 s with the weapon "out of ammo" and every contact at hp 0 — the assault never reached its foothold, so the lift never came.
+
+**My lean: ① — two exits inside `SupportByFire`, the platoon's lift unchanged:** (a) a man with NO rounds left (`StaffComposerSystem.RoundsOf` = 0) is
+re-ordered from `Suppress` to the squad's hold-with-return-fire (`CombatPosture` at his position: he takes cover, may pick up a weapon later); (b) every
+reported post with no live contact within 25 m for 10 s ⇒ the play stops firing (Hold, PROGRESS `TargetsDown` to the platoon) and keeps its position —
+the platoon still decides what comes next. Cost: two rules + rails; touches every SupportByFire run (`pc-*`, `cc-*` goldens move).
+- ② only (a) — an empty man stops; dead targets keep everyone holding in `Suppress` (already not firing) — smallest change, but the squad never says "done".
+- ③ resupply (a new capability: an ammo bearer / a vehicle's stowage) — not built anywhere; a design of its own.
+
+⛔ Not built.
+
 ## D-6 · CE-3462 — `ts-house-defenders`' Waverer is killed before he can break: how should a low-resolve man surrender in a room clearance? *(2026-11-18)*
 
 **Measured** (editor, after CE-3462's re-author — the Coward now breaks at 30.75 s): the Waverer (resolve 0.2, the type's nerve) in closet E peaks at
