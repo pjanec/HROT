@@ -9,14 +9,14 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-1954 (DECIDED A) — a press on an unselected unit selects it and the same drag moves it, threaded AND serial. Next: CE-1286 (DECIDED A).
+IN PROGRESS: CE-1286 (DECIDED A) — a Watch row section `Occurrence` for a C# behaviour's fields (OccurrenceSlotCatalog read, R-1041 write), Add to Watch in the dump's row menu.
 
 ## 2. The queue (in order)
 
 | row | state | sha | rail | scenario |
 |---|---|---|---|---|
 | CE-1133 RTS right-click orders deselected units | NOT REPRODUCED (original); the RTS right-click found BROKEN at the merge (Convoy took the ground-click gesture) — FIXED under CE-1978 | (this push) | `RtsCommandToolTests` 13/13 incl. `CE1133_EachClickGesture_…` (red-proved) | n/a (editor input) |
-| CE-1954 press on an unselected unit drags it (threaded) | IN PROGRESS — DECIDED A | | | |
+| CE-1954 press on an unselected unit drags it (threaded) | DONE — DECIDED A: a plain left body press drives the unit's move gizmo in the one routing (both editors) | (this push) | `DataDrivenGizmoSystemRoutingTests.CE1954_…` (red-proved); gizmo 21/0; Presentation drag/selection 61/0 | n/a (editor input) |
 | CE-1470 gizmo buffer overflow drops primitives | DONE — grows after an overflowing frame; drops reported in [FrameStats] | (this push) | `DebugPrimitiveBufferLayerTests.CE1470_…` (red-proved); Diagnostics.Contracts.Tests 67/0; Presentation gizmo suites 415/0 | n/a |
 | CE-1955 three Presentation reds (five with S1 + LR1) | DONE — all stale tests vs other lanes' deliberate changes | (this push) | Map3DTests · EffectTests · TerrainAddEntityFrameRail 286/0 | n/a |
 | CE-1298 FPS bare-hand fire does nothing | DONE — empty hands: SIGHT (no lock box) and the press strikes the crosshair's unit (`Melee.Strike`); Entity Control §8s | `640d30871` | `EmbarkNodesTests.CE1298_…` (red-proved); SimHost EmbarkNodes 28/0; Toolkits fire-mode 153/0; PossessionStation 83/0 | n/a (no scenario holds a possessed bare hand) |

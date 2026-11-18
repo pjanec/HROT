@@ -27,7 +27,7 @@ namespace Hrot.ScenarioEditor.Gizmos;
 /// Replaces <c>Hrot.ScenarioEditor.Tools.EntityDragTool</c> and
 /// <c>Fdp.Toolkit.Vis2D.Tools.EntityDragTool</c> (Phase 5 eradication).
 /// </summary>
-public sealed class EntityDragGizmo : IEntityStatefulGizmo
+public sealed class EntityDragGizmo : Fdp.Toolkit.Diagnostics.Gizmos.IBodyPressDragGizmo   // ⭐ CE-1954 — a body press on an unselected unit drags it
 {
     // ⭐⭐⭐ CE-3147 — THE DRAG AREA IS THE SELECT AREA, and both are sized from the ENTITY'S OWN FOOTPRINT.
     //   🔒 User, 2026-10-09: "click-to-drag sensitive area is enormous now (no change) - should be identical to
