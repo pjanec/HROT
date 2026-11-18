@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-18
+tracker: CE-5026 (row) · slices CE-5032…CE-5034
 build-state: READY-TO-BUILD — ✅ D-1…D-10 APPROVED by the user `2026-11-18` ("approved", R-5068; D-10 the user's own rule); mockup docs/UX/glass-windows.svg
 current-answer: §0 the user's rulings · §1 inventory · §2 the proven solution · §3 decisions · §4 UML · §5 the look · §6 slices · §7 acceptance
 stale-below: nothing
@@ -200,9 +201,9 @@ window state is not authored; the building damage's existing views list it).
 
 | slice | lane | builds | rails |
 |---|---|---|---|
-| **GW-1** the pane | terrain | `TerrainOpening.Glazed` (template + generators, default true); `TerrainPrismKind.Pane` from `ExpandPanelPieces` | a glazed window's trace crosses a 1 cm `glass` pane; sight transmittance unchanged; sound −20 dB; a `Gap` has none |
-| **GW-2** the state + rules | terrain | `WindowDamage` (component + `dtWindowDamage` translators + the `"windows"` save field) on the damage entity; `glass.json` (pressure and fragment radii); the window portal's closed / open by its pane in `SoundPaths.ThroughOpenings`; `WindowHitEvent` from `BallisticsSystem` / `AreaEffectSystem`; `BuildingDamageSystem` rules D-4, D-9; `PaneBroken` skip | 2 rounds ⇒ 2 cracks at their (u, v), the 3rd ⇒ broken and skipped; a muzzle at 1 m ⇒ broken on the first; a bomb breaks panes within its pressure radius, a grenade within its fragment radius only with a clear line; a broken window lets a shot outside be heard inside louder (an open portal); a window change triggers NO navmesh rebake; a breach over a window removes its pane and marks it broken (D-10); a collapse removes every pane; a replica receives the same entries byte for byte; save → load keeps them |
-| **GW-3** the look | ui | panes and cracks in the chunk build from the table; the shatter burst + the glass sound's playback | frame rails against the mockup (R-4146) |
+| **GW-1** ([CE-5032](blueprints/Blueprint_Issues_Tracker.md)) the pane | terrain | `TerrainOpening.Glazed` (template + generators, default true); `TerrainPrismKind.Pane` from `ExpandPanelPieces` | a glazed window's trace crosses a 1 cm `glass` pane; sight transmittance unchanged; sound −20 dB; a `Gap` has none |
+| **GW-2** ([CE-5033](blueprints/Blueprint_Issues_Tracker.md)) the state + rules | terrain | `WindowDamage` (component + `dtWindowDamage` translators + the `"windows"` save field) on the damage entity; `glass.json` (pressure and fragment radii); the window portal's closed / open by its pane in `SoundPaths.ThroughOpenings`; `WindowHitEvent` from `BallisticsSystem` / `AreaEffectSystem`; `BuildingDamageSystem` rules D-4, D-9; `PaneBroken` skip | 2 rounds ⇒ 2 cracks at their (u, v), the 3rd ⇒ broken and skipped; a muzzle at 1 m ⇒ broken on the first; a bomb breaks panes within its pressure radius, a grenade within its fragment radius only with a clear line; a broken window lets a shot outside be heard inside louder (an open portal); a window change triggers NO navmesh rebake; a breach over a window removes its pane and marks it broken (D-10); a collapse removes every pane; a replica receives the same entries byte for byte; save → load keeps them |
+| **GW-3** ([CE-5034](blueprints/Blueprint_Issues_Tracker.md)) the look | ui | panes and cracks in the chunk build from the table; the shatter burst + the glass sound's playback | frame rails against the mockup (R-4146) |
 
 ## 7. Acceptance *(R-4277)*
 

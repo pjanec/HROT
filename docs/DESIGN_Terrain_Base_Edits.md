@@ -1,6 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-18
+tracker: CE-5024, CE-5025 (rows) · slices CE-5027…CE-5031
 build-state: READY-TO-BUILD — ✅ D-1…D-8 APPROVED by the user `2026-11-18` ("approved", R-5067); mockup docs/UX/terrain-base-edits.svg
 current-answer: §1 inventory · §2 the proven solution · §3 decisions · §4 UML · §5 the UI · §6 slices · §7 acceptance
 stale-below: nothing
@@ -198,11 +199,11 @@ node that loads a scenario with an edit never creates the removed building's doo
 
 | slice | builds | rails |
 |---|---|---|
-| **BE-1** the merge removes | `Merge(base, overlay, removed)` compacts the base (every index re-pointed); `Edit` kind (`remove`) → removed label + a `Level` part; `LiveOverlay` + `OverlayCompiler` pass the labels | a removed building's prisms / panels / walkables / doors are gone and every other index still names its own part; the footprint's ground equals its `BaseZ`; a base world without edits merges byte-for-byte as today |
-| **BE-2** doors and damage go, doors come | `TerrainObjectReconcile` on every commit: destroy door entities whose key is gone, destroy damage of a gone building; create door entities for new doors (G-3) | remove a house with a breached wall: its 2 door entities and its damage entity are gone the same commit; a scenario saved after it carries neither; an overlay house gains its door entities |
-| **BE-3** enterable + door | `IUniqueBuildings.FromFootprint(footprint, storeys, doorHint)`; the generator's ≥ 1 door rule (the importer too); `Edit` kinds `enterable` / `door` | a solid 22 m² shed becomes a template with ≥ 1 door, a floor, windows; a terrace's middle house with a door hint gets the door there; every imported house has ≥ 1 door or is reported |
-| **BE-4** the tools | the Buildings family, the terrain pick (2-D / 3-D), hover, ghost, the edit's Details, one undo step | frame rails measured against the mockup (R-4146) |
-| **BE-5** Save terrain as | delete the removed buildings' features from `world.json` before the append; write the templates | a saved terrain reloaded without the scenario has no building there, flat ground, the new house enterable |
+| **BE-1** ([CE-5027](blueprints/Blueprint_Issues_Tracker.md)) the merge removes | `Merge(base, overlay, removed)` compacts the base (every index re-pointed); `Edit` kind (`remove`) → removed label + a `Level` part; `LiveOverlay` + `OverlayCompiler` pass the labels | a removed building's prisms / panels / walkables / doors are gone and every other index still names its own part; the footprint's ground equals its `BaseZ`; a base world without edits merges byte-for-byte as today |
+| **BE-2** ([CE-5028](blueprints/Blueprint_Issues_Tracker.md)) doors and damage go, doors come | `TerrainObjectReconcile` on every commit: destroy door entities whose key is gone, destroy damage of a gone building; create door entities for new doors (G-3) | remove a house with a breached wall: its 2 door entities and its damage entity are gone the same commit; a scenario saved after it carries neither; an overlay house gains its door entities |
+| **BE-3** ([CE-5029](blueprints/Blueprint_Issues_Tracker.md)) enterable + door | `IUniqueBuildings.FromFootprint(footprint, storeys, doorHint)`; the generator's ≥ 1 door rule (the importer too); `Edit` kinds `enterable` / `door` | a solid 22 m² shed becomes a template with ≥ 1 door, a floor, windows; a terrace's middle house with a door hint gets the door there; every imported house has ≥ 1 door or is reported |
+| **BE-4** ([CE-5030](blueprints/Blueprint_Issues_Tracker.md)) the tools | the Buildings family, the terrain pick (2-D / 3-D), hover, ghost, the edit's Details, one undo step | frame rails measured against the mockup (R-4146) |
+| **BE-5** ([CE-5031](blueprints/Blueprint_Issues_Tracker.md)) Save terrain as | delete the removed buildings' features from `world.json` before the append; write the templates | a saved terrain reloaded without the scenario has no building there, flat ground, the new house enterable |
 
 ## 7. Acceptance *(the scenarios — R-4277, by §6a proportionate)*
 
