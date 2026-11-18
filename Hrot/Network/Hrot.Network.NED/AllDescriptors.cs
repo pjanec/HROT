@@ -250,6 +250,9 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-4670 (vehicle appearance VA-S2, VA-12) — a vehicle's hatches / doors / ramps (the boarding arbiter → every node). 244 dtVehicleLights reserved (VA-S3).
         dtVehicleOpenings             = 243,
         dtVehicleLights               = 244,   // ⭐ CE-4670 (VA-S3) — lights (the Brain group → every node)
+        // ⭐ CE-5033 (glass windows GW-2; docs/DESIGN_Glass_Windows.md D-3) — a building's damaged window panes, on its damage entity, the deciding node (no group) → every node.
+        //   245 measured free on backend, ui, behaviors, coordinator 2026-11-18 (243 / 244 are backend's). ⚠ the toolkit states it too (BuildingDamageSystem.WindowDescriptorOrdinal; a rail pins it).
+        dtWindowDamage                = 245,
         // etc., all known descriptor types here
     }
 

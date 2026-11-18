@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.Perception.Sensors
 
         // ── A–J: room to room through the openings ───────────────────────────────────────────────────────────────────────────
 
-        private readonly record struct Node(Vector3 At, int Building, int RoomA, int RoomB, bool Closed);
+        private readonly record struct Node(Vector3 At, int Building, int RoomA, int RoomB, bool Closed, float ClosedDb = 0f);
 
         private const int Outside = -1;
 
@@ -159,6 +159,8 @@ namespace Fdp.Toolkit.Perception.Sensors
             nodes.Clear();
             float doorDb = MathF.Min(world.Materials.TryGet(TerrainWorld.DoorMaterial, out var m) ? m.SoundAttenuationDb : TerrainWorldQuery.DefaultSoundDb,
                                      AcousticPerception.WallCapDb) * AcousticPerception.BandFactor(cls);
+            float glassDb = MathF.Min(world.Materials.TryGet(TerrainWorld.PaneMaterial, out var gm) ? gm.SoundAttenuationDb : TerrainWorldQuery.DefaultSoundDb,
+                                      AcousticPerception.WallCapDb) * AcousticPerception.BandFactor(cls);
             foreach (int b in bs == be || be < 0 ? new[] { bs } : bs < 0 ? new[] { be } : new[] { bs, be })
             {
                 if (b < 0) continue;
@@ -166,7 +168,10 @@ namespace Fdp.Toolkit.Perception.Sensors
                 {
                     bool closed = p.Door >= 0 && (doors != null ? doors[p.Door] : world.Doors[p.Door].Initial)
                                   is TerrainDoorState.Closed or TerrainDoorState.Locked;
-                    nodes.Add(new Node(p.Centre, b, p.RoomA, p.RoomB, closed));
+                    // ⭐ CE-5033 (glass windows D-5) — a glazed window is CLOSED while its pane is intact (glass's dB), OPEN once broken: one broken window lets the sound in
+                    if (!closed && p.Glazed && !(doors?.Windows?.PaneBroken(p.Panel, p.Opening) ?? false))
+                        nodes.Add(new Node(p.Centre, b, p.RoomA, p.RoomB, true, glassDb));
+                    else nodes.Add(new Node(p.Centre, b, p.RoomA, p.RoomB, closed, doorDb));
                 }
             }
             int n = nodes.Count;
@@ -178,7 +183,7 @@ namespace Fdp.Toolkit.Perception.Sensors
             for (int i = 0; i < n; i++)
             {
                 done[i] = false; pred[i] = -2;
-                cost[i] = Reaches(from, nodes[i]) ? Vector3.Distance(source, nodes[i].At) + (nodes[i].Closed ? doorDb : 0f) * MetresPerDb : float.PositiveInfinity;
+                cost[i] = Reaches(from, nodes[i]) ? Vector3.Distance(source, nodes[i].At) + (nodes[i].Closed ? nodes[i].ClosedDb : 0f) * MetresPerDb : float.PositiveInfinity;
                 if (!float.IsPositiveInfinity(cost[i])) pred[i] = -1;   // −1 = the source
             }
             // Dijkstra over ~10–50 nodes; the corner at a node is charged when the path leaves it (its turn needs the next point)
@@ -198,7 +203,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                 for (int v = 0; v < n; v++)
                 {
                     if (done[v] || v == u || !Adjacent(nodes[u], nodes[v])) continue;
-                    float cv = cu + Vector3.Distance(nodes[u].At, nodes[v].At) + (nodes[v].Closed ? doorDb : 0f) * MetresPerDb
+                    float cv = cu + Vector3.Distance(nodes[u].At, nodes[v].At) + (nodes[v].Closed ? nodes[v].ClosedDb : 0f) * MetresPerDb
                              + (Turns(prevAt, nodes[u].At, nodes[v].At, cosCorner) ? cornerDb * MetresPerDb : 0f);
                     if (cv < cost[v]) { cost[v] = cv; pred[v] = u; }
                 }
@@ -216,7 +221,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                 var node = nodes[chain[j]];
                 var next = j > 0 ? nodes[chain[j - 1]].At : ear;
                 metres += Vector3.Distance(at, node.At);
-                if (node.Closed) db += doorDb;
+                if (node.Closed) db += node.ClosedDb;
                 if (Turns(at, node.At, next, cosCorner)) { db += cornerDb; corners++; }
                 at = node.At;
             }

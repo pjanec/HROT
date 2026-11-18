@@ -84,21 +84,21 @@ public static class TerrainObjectRequests
         foreach (var (key, building, entities) in BuildingDamageLoad.Resolve(world, saved, warn))
         {
             if (existingKeys.Contains(key)) continue;   // a re-commit never doubles a building's damage
-            var b = world.Buildings[building];
-            foreach (var d in entities)
+            var anchor = WallGroups.Anchor(world, building);
+            for (int i = 0; i < entities.Count; i++)
+            {
+                var initial = new List<object> { new SimTransform { Position = anchor, Rotation = Quaternion.Identity }, entities[i], new TerrainObjectKey { Key = key } };
+                // ⭐ CE-5033 (glass windows GW-2) — the saved windows ride the building's first entity; the others carry none
+                initial.Add(i == 0 ? BuildingDamageLoad.WindowsOf(world, building, saved[key], warn) : new WindowDamage { Building = building });
                 requests.Add(new EntityCreationRequest
                 {
                     RequestId             = Guid.NewGuid(),
                     TkbType               = (Fdp.Core.TkbTypeId)BuildingDamages.TkbType,
                     PreAllocatedNetworkId = idAllocator.AllocateId(),
                     IsTransient           = true,
-                    InitialComponents     = new List<object>
-                    {
-                        new SimTransform { Position = new Vector3(b.Position, b.BaseZ), Rotation = Quaternion.Identity },
-                        d,
-                        new TerrainObjectKey { Key = key },
-                    },
+                    InitialComponents     = initial,
                 });
+            }
         }
         return requests;
     }

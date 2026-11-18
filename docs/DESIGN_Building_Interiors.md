@@ -10,6 +10,8 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
+  - DESIGN_Glass_Windows.md — OWNS glass in windows (CE-5026): a window opening's `glazed` flag, the pane piece, cracks and shattering
+  - DESIGN_Terrain_Base_Edits.md — OWNS making a solid baked-in building enterable / adding a door in the editor (the template written by the importer's generator)
   - docs/DESIGN_Map_View_Filter.md — OWNS the map's view filter (CE-4388): what is on screen and close enough to draw, decided ONCE per entity before any gizmo rule, in 2-D and 3-D
   - DESIGN_Terrain_Import_UTM.md — the importer GENERATES ~2 000 enterable *.building.json templates; ⭐ its §8 PROPOSES E3 wall breaching (a breach = an extra opening, world state) for every building
   - docs/blueprints/Architect_Question_106_Sound_Paths.md — B-6 v2 (portal propagation) as approved, R-3050

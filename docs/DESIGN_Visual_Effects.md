@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
 related-designs:
+  - DESIGN_Glass_Windows.md — a pane's crack is replicated STATE drawn from `BuildingDamage`, not a §10 impact mark; the round's puff stays §10; the shatter burst is a local effect on the state change
   - designs/weapons/DESIGN_Bows_And_Crossbows.md — bows and crossbows: the `Arrow` round shape and a lying round STUCK along its pose (BW-3, BW-4, CE-4649)
   - designs/air-attack/DESIGN_Air_Combat.md — air combat: the jet's afterburner, vortex trails, launch and falling-smoke effects (§4d)
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (CE-1148 S2): the RoundImpact pair is on every node with an own-sample skip; supersedes §10's MuscleGround exclusion.

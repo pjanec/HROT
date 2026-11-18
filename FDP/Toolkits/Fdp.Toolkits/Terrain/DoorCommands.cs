@@ -121,6 +121,10 @@ namespace Fdp.Toolkit.Terrain
         public const int MinesCleared = 5109;
         /// <summary>⭐ CE-4664 (thermal drivers TD-14) — <c>GroundHeatMarkEvent</c>: a vehicle left a warm stand (5110 free on every lane, <c>2026-11-18</c>).</summary>
         public const int GroundHeatMark = 5110;
+        /// <summary>⭐ CE-5033 (glass windows GW-2) — <c>WindowHitEvent</c>: a pane was hit or must break (5111 free on every lane, <c>2026-11-18</c>).</summary>
+        public const int WindowHit = 5111;
+        /// <summary>⭐ CE-5033 (glass windows GW-2, D-8) — <c>WindowBrokenEvent</c>: a pane shattered (its sound; 5112 free on every lane, <c>2026-11-18</c>).</summary>
+        public const int WindowBroken = 5112;
     }
 
     /// <summary>

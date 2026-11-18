@@ -235,6 +235,17 @@ namespace Fdp.Toolkit.Terrain
                     saved.AddDistinct(b with { Panel = local });
                 }
                 if (d.Collapsed != 0) saved.Collapsed = true;
+                if (repo.IsComponentTypeRegistered<WindowDamage>() && repo.HasComponent<WindowDamage>(e))   // ⭐ CE-5033 — the same entity's windows
+                {
+                    var w = repo.GetComponentRO<WindowDamage>(e);
+                    for (int i = 0; i < w.Count; i++)
+                    {
+                        var x = w.Get(i);
+                        int local = BuildingPanelIndex.ToLocal(terrain, x.Panel);
+                        if (local < 0 || WallGroups.Of(terrain, x.Panel) != d.Building) continue;
+                        saved.AddWindow(x with { Panel = local });
+                    }
+                }
             }
             foreach (var key in new List<string>(result.Keys)) if (result[key].IsEmpty) result.Remove(key);
             return result;

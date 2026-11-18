@@ -171,7 +171,9 @@ namespace Fdp.Toolkit.Combat.Systems
             };
 
             // ⭐⭐ CE-4654 D-3 (user 2026-11-18) — an anti-personnel mine MAIMS the man who stepped on it: his legs, not his whole body
-            var triggerMan = evt.Ammo == Fdp.Toolkit.Terrain.Minefields.MunitionAntiPersonnel ? TriggerManOf(repo, burst) : Entity.Null;
+            //   ⭐ the body the trigger NAMED (DetonationNotification.TriggeredBy); the nearest person only for a burst that names none (a scripted one)
+            var triggerMan = evt.Ammo != Fdp.Toolkit.Terrain.Minefields.MunitionAntiPersonnel ? Entity.Null
+                : !evt.TriggeredBy.IsNull && repo.IsAlive(evt.TriggeredBy) ? evt.TriggeredBy : TriggerManOf(repo, burst);
 
             foreach (var e in repo.Query().With<Health>().With<SimTransform>().Build())
             {
@@ -284,6 +286,7 @@ namespace Fdp.Toolkit.Combat.Systems
             if (!_spentOnWall) MakeCrater(repo, in evt, w, burst, terrain, record);   // ⭐ CE-4591 (P-4) — the ground, by the same detonation
             else record.Crater = "none: spent on the wall it breached";   // ⭐ CE-5019 (R-5064) — a contact burst's energy went into the wall
             FellTrees(repo, in evt, w, burst, terrain, doors, record);     // ⭐ CE-4603 (B-6) — the lone trunks, by the same detonation
+            ShatterPanes(repo, in evt, w, burst, terrain, doors);          // ⭐ CE-5033 (GW-2, D-4) — the window panes, by the same detonation
             // ⭐ CE-8005 (R-171) — the STOCHASTIC units the burst reaches are NOT applied here: a hidden UnitEntity is skipped above, and
             //   Fdp.Toolkit.Aggregate.StochasticAreaEffectSystem applies the burst on the node that owns the unit (its slot table is the Brain's)
             log.Add(record);
@@ -421,7 +424,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (state == TerrainDoorState.Destroyed || state == TerrainDoorState.Open) continue;
                 terrain.QueryFire(burst, centre, _crossings, doors);
                 bool clear = true;
-                foreach (var c in _crossings) if (c.Kind != "door") { clear = false; break; }
+                foreach (var c in _crossings) if (c.Kind != "door" && c.Kind != TerrainWorld.PaneKind) { clear = false; break; }   // ⭐ CE-5032 — glass spares nothing
                 if (!clear) continue;
                 var door = TerrainObjects.Find(repo, d.Key);
                 if (!repo.IsAlive(door)) continue;
@@ -475,6 +478,42 @@ namespace Fdp.Toolkit.Combat.Systems
             }
         }
         private readonly List<int> _trees = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-5033</c> (glass windows GW-2, D-4; 📄 docs/DESIGN_Glass_Windows.md) — a burst SHATTERS every unbroken pane within EITHER radius of <c>glass.json</c>
+        /// (<see cref="GlassShatterTable"/>): its PRESSURE (∛kg of its explosive — through walls), or its FRAGMENTS (a fragmenting warhead, with a clear line from the
+        /// burst to the pane: nothing but glass between). Each as a <see cref="WindowHitEvent"/> (Shatter) its <see cref="BuildingDamageSystem"/> writes.
+        /// ⚠ A loop over the world's panes per burst (bursts are rare; a pane is a centre test).
+        /// </summary>
+        private void ShatterPanes(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst, TerrainWorld? terrain, DoorStates? doors)
+        {
+            if (terrain == null || terrain.PaneLeaves.Count == 0 || NonLethalEffectOf(w.Kind) != HitEffect.Kinetic || !repo.Bus.IsRegistered<WindowHitEvent>()) return;
+            var table = GlassShatterTable.Shared;
+            float pressure = table.PressureRadius(w.ExplosiveKg);
+            float fragments = w.FragmentRadiusM > 0f ? table.FragmentShatterM : 0f;
+            float reach = MathF.Max(pressure, fragments);
+            if (reach <= 0f) return;
+            var panes = terrain.PaneLeaves;
+            var windows = doors?.Windows;
+            for (int i = 0; i < panes.Count; i++)
+            {
+                var pane = panes[i];
+                if ((pane.Min.X - burst.X) > reach || (burst.X - pane.Max.X) > reach || (pane.Min.Y - burst.Y) > reach || (burst.Y - pane.Max.Y) > reach) continue;
+                var (panel, opening) = terrain.Panes[i];
+                if (pane.Building < 0 || (windows != null && windows.PaneBroken(panel, opening))) continue;
+                var centre = new Vector3((pane.Min + pane.Max) * 0.5f, (pane.BaseZ + pane.TopZ) * 0.5f);
+                float d = Vector3.Distance(burst, centre);
+                bool shatter = d <= pressure;
+                if (!shatter && d <= fragments)
+                {
+                    terrain.QueryFire(burst, centre, _crossings, doors);
+                    shatter = true;
+                    for (int k = 0; k < _crossings.Count && shatter; k++) shatter = _crossings[k].Kind == TerrainWorld.PaneKind;   // only glass between
+                }
+                if (shatter)
+                    repo.Bus.Publish(new WindowHitEvent { Building = pane.Building, Panel = panel, Opening = opening, Shatter = 1, Source = evt.Shooter });
+            }
+        }
 
         /// <summary>
         /// ⭐ <c>CE-5019</c> (R-5064; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7) — set by <see cref="BreachWalls"/> when this burst breached a wall it was
@@ -589,7 +628,8 @@ namespace Fdp.Toolkit.Combat.Systems
             if (dh <= panel.Thickness * 0.5f + 0.03f) return true;   // against (or inside) the wall
             var face = onWall + toward / dh * (panel.Thickness * 0.5f + 0.02f);
             terrain.QueryFire(burst, new Vector3(face, z), _crossings, doors);
-            return _crossings.Count == 0;
+            for (int i = 0; i < _crossings.Count; i++) if (_crossings[i].Kind != TerrainWorld.PaneKind) return false;   // ⭐ CE-5032 GW-1 — glass spares no wall
+            return true;
         }
 
         /// <summary>

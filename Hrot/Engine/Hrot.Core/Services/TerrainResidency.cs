@@ -678,6 +678,11 @@ public sealed class TerrainResidency
             var d = world.GetComponentRO<BuildingDamage>(e);
             string? key = world.HasManagedComponent<TerrainObjectKey>(e) ? world.GetComponent<TerrainObjectKey>(e).Key : null;   // ⭐ CE-3439 — by the entity's own key (an Unpack re-keys it)
             if (BuildingDamages.Remap(ref d, from, to, key)) world.SetComponent(e, d);
+            if (world.IsComponentTypeRegistered<WindowDamage>() && world.HasComponent<WindowDamage>(e))   // ⭐ CE-5033 — the same entity's windows, by the same rule
+            {
+                var w = world.GetComponentRO<WindowDamage>(e);
+                if (WindowDamages.Remap(ref w, from, to, key)) world.SetComponent(e, w);
+            }
         }
     }
 
