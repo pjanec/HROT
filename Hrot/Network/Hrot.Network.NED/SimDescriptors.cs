@@ -999,6 +999,8 @@ namespace Hrot.NED.Descriptors
         public byte State;
         /// <summary>Seconds of sim time the state began.</summary>
         public double Since;
+        /// <summary>⭐ VA-4 — 1 = a crewman's head is out of this hatch (it stays open; he rides exposed). APPENDED (R-169).</summary>
+        public byte CrewExposed;
     }
 
     // ⭐ CE-4670 (vehicle appearance VA-S2, VA-4 / VA-12; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §4) — a vehicle's hatches, doors and

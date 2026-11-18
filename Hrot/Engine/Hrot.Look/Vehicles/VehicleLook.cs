@@ -1,8 +1,12 @@
 using System.Numerics;
 using Fdp.Core;
+using Fdp.Interfaces;
+using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Perception.Signatures;
 using Fdp.Toolkit.Physics.BodyParts;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Hrot.Look.Vehicles
@@ -93,6 +97,45 @@ namespace Hrot.Look.Vehicles
             }
             return now >= outAt && now < outAt + body.SmoulderSeconds;
         }
+
+        /// <summary>
+        /// VA-4 — opening <paramref name="id"/>'s animation progress at <paramref name="now"/> (0 closed … 1 open), for the opening with that TKB id (a renderer
+        /// maps its model by id / socket, never by slot). Delegates to <see cref="VehicleOpenings.Progress"/> — THE one progress rule — with the type's open seconds.
+        /// 0 when the vehicle has no openings, or no opening with that id.
+        /// </summary>
+        public static float OpeningProgress(EntityRepository world, Entity vehicle, byte id, double now)
+        {
+            if (!world.IsComponentTypeRegistered<VehicleOpenings>() || !world.HasComponent<VehicleOpenings>(vehicle)) return 0f;
+            var openings = VehicleOpeningsCatalog.Of(TypeOf(world, vehicle));
+            ref readonly var state = ref world.GetComponentRO<VehicleOpenings>(vehicle);
+            for (int i = 0; i < openings.Length; i++)
+                if (openings[i].Id == id) return state.ProgressAt(i, openings[i].OpenSeconds, now);
+            return 0f;
+        }
+
+        /// <summary>
+        /// VA-3 / VA-2 — the EFFECTIVE light mask (bit i = the type's light group i, <see cref="VehicleLightsCatalog"/> order): the stored
+        /// <see cref="VehicleLights.OnMask"/>, plus every <see cref="LightKind.Brake"/> group while <paramref name="brakes"/> says the vehicle is braking — only under
+        /// <see cref="LightDiscipline.Normal"/> (a blacked-out convoy shows no stop light). ⛔ Brake lights are never stored: they flicker at driving rate, so a
+        /// reader derives them from the speed it sees (<see cref="BrakeLights"/>, one per renderer). <paramref name="brakes"/> null = the stored mask only.
+        /// </summary>
+        public static uint Lights(EntityRepository world, Entity vehicle, double now, BrakeLights? brakes)
+        {
+            if (!world.IsComponentTypeRegistered<VehicleLights>() || !world.HasComponent<VehicleLights>(vehicle)) return 0u;
+            ref readonly var lights = ref world.GetComponentRO<VehicleLights>(vehicle);
+            uint mask = lights.OnMask;
+            if (brakes == null || lights.Discipline != LightDiscipline.Normal || !brakes.IsBraking(world, vehicle, now)) return mask;
+            var groups = VehicleLightsCatalog.Of(TypeOf(world, vehicle));
+            for (int i = 0; i < groups.Length && i < 32; i++)
+                if (groups[i].Kind == LightKind.Brake) mask |= 1u << i;
+            return mask;
+        }
+
+        /// <summary>The vehicle's TKB type (the lookup <c>VehicleOpeningsSystem</c> / <c>LightRuleSystem</c> make), or null.</summary>
+        internal static TkbTemplate? TypeOf(EntityRepository world, Entity vehicle)
+            => world.IsComponentTypeRegistered<TkbIdentity>() && world.HasComponent<TkbIdentity>(vehicle)
+               && world.HasSingletonManaged<ITkbDatabase>() && world.GetSingletonManaged<ITkbDatabase>() is { } db
+               && db.TryGetByType(world.GetComponentRO<TkbIdentity>(vehicle).TkbType, out var t) ? t : null;
 
         /// <summary>The level at which <paramref name="part"/> counts as destroyed: its zone's threshold, 255 when it is in no zone or the type has no body.</summary>
         private static int DestroyedAt(ResolvedBody? body, byte part)

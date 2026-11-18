@@ -223,6 +223,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpRoundEvent>();
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.RestationEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.OpeningRequestEvent>();   // ⭐ CE-4670 (VA-4) — a crewman's head out / in (interaction kind 15)
+        world.RegisterEvent<Fdp.Toolkit.Behavior.LightsRequestEvent>();    // ⭐ CE-4670 (VA-3) — a station's light switch (interaction kind 16)
         world.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();   // ⭐ CE-3246 — the EntityHitDamage ingress runs on every node
         world.RegisterEvent<Fdp.Toolkit.Combat.Events.ManDownedEvent>();   // ⭐ CE-3364 D5 — the dtManDowned ingress runs on every node
         world.RegisterEvent<Fdp.Toolkit.Combat.StrikeNotification>();   // ⭐ CE-3266 (G3) — a blow struck (MeleeStrike topic)

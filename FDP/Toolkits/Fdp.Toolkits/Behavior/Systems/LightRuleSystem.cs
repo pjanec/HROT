@@ -16,7 +16,8 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// <see cref="DarkBelow"/>, the CE-3229 curve's full-light point, R-3017) and the engine runs (<see cref="HeatSource"/> Idle / Running); the convoy marker
     /// instead under <see cref="LightDiscipline.Convoy"/>; an aircraft's nav + anti-collision whenever its engine runs, day or night, unless blacked out / off.
     /// ⛔ Brake lights are never stored (a reader derives them from deceleration); ⏳ interior, searchlight (an order) and landing (near the ground) are not
-    /// switched yet; ⏳ the discipline from an SOP / ROE / order (behaviors) — today it is authored. Evaluated every <see cref="StepSeconds"/>; writes only on a
+    /// switched yet; ⏳ the discipline from an SOP / ROE / order (behaviors) — today it is authored, or ⭐ switched by a station (<see cref="LightsRequestEvent"/>, a
+    /// request to this owner — applied at once, the mask with it). Evaluated every <see cref="StepSeconds"/>; writes only on a
     /// change. First sight ADDS the component with its final value (D-31). ⭐ Parallel contract: serial; writes only vehicles whose lights this node owns. 0 B
     /// per steady frame.
     /// </summary>
@@ -34,6 +35,19 @@ namespace Fdp.Toolkit.Behavior.Systems
         public const double StepSeconds = 0.5;
 
         private static readonly long LightsKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
+
+        /// <summary>Light switches this node applied (rails, diagnostics).</summary>
+        public long Requests { get; private set; }
+
+        /// <summary>True when this node writes <paramref name="vehicle"/>'s lights (the <c>dtVehicleLights</c> owner) — the transport's owner test too. ⛔ A ghost
+        /// (a replica whose master has not arrived) is never ours.</summary>
+        public static bool OwnsLights(EntityRepository repo, Entity vehicle)
+        {
+            if (!repo.IsAlive(vehicle)) return false;
+            if (!(repo.IsComponentTypeRegistered<NetworkAuthority>() && repo.HasComponent<NetworkAuthority>(vehicle))
+                && repo.GetLifecycleState(vehicle) == EntityLifecycle.Ghost) return false;
+            return Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, vehicle, LightsKey);
+        }
         private EntityQuery? _vehicles;
         private EntityRepository? _for;
         private long _lastStep = long.MinValue;
@@ -50,10 +64,11 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
             if (!repo.HasSingletonUnmanaged<GlobalTime>() || !repo.HasSingletonManaged<ITkbDatabase>() || repo.GetSingletonManaged<ITkbDatabase>() is not { } tkb) return;
             double now = repo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime;
+            bool sources = repo.IsComponentTypeRegistered<HeatSource>();
+            if (repo.Bus.IsRegistered<LightsRequestEvent>()) ApplyRequests(repo, tkb, now, sources);
             long step = (long)Math.Floor(now / StepSeconds);
             if (step == _lastStep) return;
             _lastStep = step;
-            bool sources = repo.IsComponentTypeRegistered<HeatSource>();
 
             foreach (var v in _vehicles!)
             {
@@ -61,9 +76,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 var lights = VehicleLightsCatalog.Of(type);
                 if (lights.Length == 0 || !Fdp.Toolkit.Replication.Extensions.AuthorityExtensions.HasAuthority(repo, v, LightsKey)) continue;
                 var discipline = repo.HasComponent<VehicleLights>(v) ? repo.GetComponentRO<VehicleLights>(v).Discipline : LightDiscipline.Normal;
-                bool engine = sources && repo.HasComponent<HeatSource>(v) && repo.GetComponentRO<HeatSource>(v).State is HeatSourceState.Idle or HeatSourceState.Running;
-                bool dark = Fdp.Toolkit.Perception.Sensors.PerceptionWeather.TrySample(repo, v, out var w) && w.RelativeLight < DarkBelow;
-                uint mask = MaskOf(lights, discipline, dark, engine);
+                uint mask = Evaluate(repo, v, lights, discipline, sources);
 
                 if (!repo.HasComponent<VehicleLights>(v))
                 {
@@ -74,6 +87,38 @@ namespace Fdp.Toolkit.Behavior.Systems
                 ref var rw = ref repo.GetComponentRW<VehicleLights>(v);
                 rw.OnMask = mask;
                 rw.Since = now;
+            }
+        }
+
+        private static uint Evaluate(EntityRepository repo, Entity v, LightDto[] lights, LightDiscipline discipline, bool sources)
+        {
+            bool engine = sources && repo.HasComponent<HeatSource>(v) && repo.GetComponentRO<HeatSource>(v).State is HeatSourceState.Idle or HeatSourceState.Running;
+            bool dark = Fdp.Toolkit.Perception.Sensors.PerceptionWeather.TrySample(repo, v, out var w) && w.RelativeLight < DarkBelow;
+            return MaskOf(lights, discipline, dark, engine);
+        }
+
+        /// <summary>⭐ VA-3 — a station's switch: set the discipline of a vehicle whose lights this node owns, and its mask by the rule at once (added with its
+        /// final value when the vehicle has no lights yet, D-31). Others' requests were carried to their owner by the transport.</summary>
+        private void ApplyRequests(EntityRepository repo, ITkbDatabase tkb, double now, bool sources)
+        {
+            var events = repo.ReadEvents<LightsRequestEvent>();
+            for (int e = 0; e < events.Length; e++)
+            {
+                ref readonly var req = ref events[e];
+                var v = req.Vehicle;
+                if (!OwnsLights(repo, v) || !repo.HasComponent<TkbIdentity>(v) || !tkb.TryGetByType(repo.GetComponentRO<TkbIdentity>(v).TkbType, out var type)) continue;
+                var lights = VehicleLightsCatalog.Of(type);
+                if (lights.Length == 0) continue;
+                uint mask = Evaluate(repo, v, lights, req.Discipline, sources);
+                Requests++;
+                if (!repo.HasComponent<VehicleLights>(v))
+                {
+                    repo.AddComponent(v, new VehicleLights { OnMask = mask, Discipline = req.Discipline, Since = now });
+                    continue;
+                }
+                ref var rw = ref repo.GetComponentRW<VehicleLights>(v);
+                rw.Discipline = req.Discipline;
+                if (rw.OnMask != mask) { rw.OnMask = mask; rw.Since = now; }
             }
         }
 
