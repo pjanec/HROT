@@ -95,6 +95,26 @@ namespace Hrot.SimHost.Tests
             w.Dispose(); w2.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1958</c> (pigs stuck in their pen's wall) — an ENCLOSED area's HOME circle fits INSIDE its outline with a body's room to spare: a 12 m
+        /// square pen (farm-under-fire's) gives 6 − 1.5 = 4.5 m, so no grazing spot or flight is chosen past its wall. ⭐ An OPEN area keeps its reach (the
+        /// outline's farthest corner) — its home is the animal's ground too (a guard dog's yard). 🔴 Red-proof: the farthest-vertex radius for the pen ⇒ 8.5 m.
+        /// </summary>
+        [Fact]
+        public void CE1958_AnEnclosedAreasHome_FitsInsideItsOutline_AnOpenOneKeepsItsReach()
+        {
+            var (w, area) = World(AnimalSpecies.Pig, 3);
+            w.GetComponentRW<AnimalArea>(area).Enclosed = 1;
+            w.SetManagedComponent(area, new EditablePolyline { Points = new[] { new Vector2(-6, -6), new Vector2(6, -6), new Vector2(6, 6), new Vector2(-6, 6) } });
+            var home = Frame(w, new AnimalAreaSystem())[0].InitialComponents.OfType<AnimalHome>().Single();
+            Assert.Equal(6f - AnimalAreaSystem.BodyClearanceM, home.Radius, 3);
+            Assert.Equal(home.Radius, w.GetComponentRO<AnimalHome>(area).Radius, 3);   // the herd's own home (its grazing spots) the same
+            // the OPEN 40 × 20 m field keeps its reach: the farthest corner, 22.4 m
+            var (w2, _) = World(AnimalSpecies.Cattle, 2);
+            Assert.Equal(MathF.Sqrt(20f * 20f + 10f * 10f), Frame(w2, new AnimalAreaSystem())[0].InitialComponents.OfType<AnimalHome>().Single().Radius, 3);
+            w.Dispose(); w2.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-4623</c> AB-10 — the PRODUCT registers every animal component: the shared registry the area (every node loads it with a
         /// scenario), the brain's registry the fear, herds and homes. 📐 Found by the demo: only the rails registered them, so in the product every
         /// "is it registered" guard was false — the scenario failed to load (<c>unknown component type name 'AnimalArea'</c>), and fear, herds and

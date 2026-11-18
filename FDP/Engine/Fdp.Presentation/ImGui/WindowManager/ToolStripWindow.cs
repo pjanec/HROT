@@ -85,10 +85,25 @@ public abstract class ToolStripWindow : ManagedWindow
     /// Returns true on a click. Allocates nothing.
     /// </summary>
     private static bool Tile(string id, in IconGlyph glyph, bool lit, bool hasMenu, string tooltip, Vector2 size, float scale)
+        => Tile(id, glyph, lit, hasMenu, tooltip, size, scale, out _);
+
+    /// <summary>⭐ <c>CE-1965</c> — the share of a dropdown tile (from its right and its bottom edge) that is its ▾: a click there opens the menu; anywhere
+    /// else on the tile runs the member chosen last (a SPLIT button). 🔒 User, 2026-11-17: "when I click the arrow part of the split icon it will open the
+    /// menu, and whatever I click in the menu it will be remembered for the next click of the icon".</summary>
+    public const float ArrowZone = 0.42f;
+
+    /// <summary>⭐ CE-1965 — is <paramref name="local"/> (from the tile's top-left) on the ▾ of a tile of <paramref name="size"/>?</summary>
+    public static bool OnArrow(Vector2 local, Vector2 size) => local.X >= size.X * (1f - ArrowZone) && local.Y >= size.Y * (1f - ArrowZone);
+
+    private static bool Tile(string id, in IconGlyph glyph, bool lit, bool hasMenu, string tooltip, Vector2 size, float scale, out bool menu)
     {
         var pos = Gui.GetCursorScreenPos();
-        bool clicked = Gui.InvisibleButton(id, size);
+        bool clicked = Gui.InvisibleButton(id, size, ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight);
         bool hovered = Gui.IsItemHovered();
+        // ⭐ CE-1965 — a dropdown: the ▾ corner (or a right-click) opens the menu; the face runs the chosen member
+        bool right = Gui.IsMouseReleased(ImGuiMouseButton.Right);
+        menu = clicked && hasMenu && (right || OnArrow(Gui.GetIO().MousePos - pos, size));
+        if (clicked && !hasMenu && right) clicked = false;   // a plain tile: the left button only, as before
         var dl = Gui.GetWindowDrawList();
         float rounding = 4f * scale;
         dl.AddRectFilled(pos, pos + size, Gui.GetColorU32(lit ? NeutralLit : Neutral), rounding);
@@ -99,6 +114,11 @@ public abstract class ToolStripWindow : ManagedWindow
         dl.AddText(Gui.GetFont(), px, new Vector2(pos.X + (size.X - gw) * 0.5f, pos.Y + (size.Y - px) * 0.5f), Gui.GetColorU32(c), glyph.Glyph);
         if (hasMenu)
         {
+            // ⭐ CE-1965 — the ▾ zone reads as a part of its own: a thin divider, lit while the mouse is over it
+            var corner = pos + size * (1f - ArrowZone);
+            bool overArrow = hovered && OnArrow(Gui.GetIO().MousePos - pos, size);
+            if (overArrow) dl.AddRectFilled(corner, pos + size, Gui.GetColorU32(new Vector4(1f, 1f, 1f, 0.10f)), rounding);
+            dl.AddLine(new Vector2(corner.X, corner.Y), new Vector2(corner.X, pos.Y + size.Y - 2f * scale), Gui.GetColorU32(lit ? BorderLit : Border), 1f);
             float m = 3.5f * scale; var br = pos + size - new Vector2(3f * scale, 3f * scale);
             dl.AddTriangleFilled(br + new Vector2(-2f * m, -m), br + new Vector2(0f, -m), br + new Vector2(-m, 0f), Gui.GetColorU32(new Vector4(0.78f, 0.78f, 0.83f, 0.9f)));
         }
@@ -113,7 +133,12 @@ public abstract class ToolStripWindow : ManagedWindow
         if (e.Family is { Count: > 0 } fam)
         {
             int sel = Math.Clamp(e.Selected, 0, fam.Count - 1);
-            if (Tile(e.Id, fam[sel].Glyph, lit, true, fam[sel].Tooltip, tile, scale)) Gui.OpenPopup(e.MenuId);
+            // ⭐ CE-1965 — a SPLIT button: the ▾ (or a right-click) opens the members; the face runs the one chosen last
+            if (Tile(e.Id, fam[sel].Glyph, lit, true, fam[sel].Tooltip, tile, scale, out bool menu))
+            {
+                if (menu) Gui.OpenPopup(e.MenuId);
+                else e.Pick(sel);
+            }
             if (Gui.BeginPopup(e.MenuId))
             {
                 // ⭐ a VERTICAL list: each row the member's glyph in its own colour, its label, a ✓ on the chosen one; each row has its own id scope (no clash with the face)

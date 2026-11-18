@@ -197,6 +197,8 @@ is too small to click; a unit keeps its symbol). ⭐ **The whole-terrain frame: 
 measured case). Rails: `Map3DGizmoTests.CE4388_TheCardsRows_StopAtTheirMapScale`, `EntityPresentationGizmoTests.CE4388_ADoorZoomedOut_HasNoAnchorOrPickBox_ButAUnitKeepsItsSymbol`
 (both red-proved). ⚠ Frame times between runs vary ±5 ms (the 2-D plan alone 13–16 ms) — the primitive counts are the firm number.
 
+⭐ **`2026-11-18` (ui, CE-1971) — an AIRCRAFT's name has no zoom limit:** `AircraftNameGizmo` (fixed / rotary wing) draws the name row at every zoom and `EntityNameGizmo` leaves aircraft to it. Few, small, far and high, an aircraft without its name cannot be found (🔒 user, 2026-11-17). Rail `Map3DGizmoTests.CE1971_…`.
+
 ### 6.3 The 3-D gizmo draw, measured stage by stage (`2026-11-10`)
 
 | measured | finding |

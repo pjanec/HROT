@@ -184,6 +184,19 @@ public class AreaShapeGizmoTests
         Assert.Equal("[{\"id\":2410}]", g.ToolMenuJson);
     }
 
+    /// <summary>⭐ CE-1969 — a drawing tool offers its Finish / Cancel menu only once a point is placed: armed afresh (or re-armed after a Finish) the
+    /// right-click is the map's ordinary menu. 🔒 User, 2026-11-17: "I would expect the finish to appear only when I before clicked the points on the map".
+    /// ✅ Red-proof: <c>ToolMenuJson</c> without the point count ⇒ the first assert red.</summary>
+    [Fact]
+    public void CE1969_A_drawing_tool_offers_Finish_only_once_a_point_is_placed()
+    {
+        var g = new PointSequenceGizmo(_ => { }, () => { }, minPoints: 2, noun: "a ditch");
+        g.Session.Menu = new ShapeMenu("[{\"id\":2410}]", _ => null);
+        Assert.Null(g.ToolMenuJson);                                  // nothing to finish
+        g.Session.Add(new Vector2(10f, 10f));
+        Assert.Equal("[{\"id\":2410}]", g.ToolMenuJson);            // a point: the menu
+    }
+
     [Fact]
     public void With_no_start_the_first_click_places_a_50m_circle_there_and_Finish_with_nothing_placed_says_so_and_stays_armed()
     {

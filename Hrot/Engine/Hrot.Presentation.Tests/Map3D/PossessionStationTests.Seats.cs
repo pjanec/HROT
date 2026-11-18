@@ -89,6 +89,27 @@ public sealed partial class PossessionStationTests
         Assert.Equal(pickup, Assert.Single(u.W.Bus.Read<PossessRequestEvent>().ToArray()).Unit);   // back to the driver seat
     }
 
+    /// <summary>⭐ <c>CE-1962</c> — the DRIVER's trigger works the station gun: possessing the pickup (its driver seat), the frame's mount is the M2
+    /// (a controlled index the pickup controls) — with an AI gunner at it and with the gunner seat empty. 🔒 User, 2026-11-17: "if there is no real
+    /// gunner, that I will be able to drive the vehicle as well as fire from its weapon".</summary>
+    [Fact]
+    public void CE1962_TheDriversTrigger_WorksTheStationGun_GunnerOrNot()
+    {
+        foreach (bool aiGunner in new[] { true, false })
+        {
+            using var u = new UseWorld();
+            var (pickup, gunner, gun) = Technical(u);
+            if (!aiGunner) Assert.True(Embarkation.Disembark(u.W, gunner));
+            u.W.RemoveComponent<PossessedBy>(u.Me);
+            u.W.AddComponent(pickup, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            var (_, sw, _) = Station(u, 0);
+            var frame = Frame(u, sw, new Input());
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.IsControlledIndex(frame.Mount), $"gunner {aiGunner}: mount {frame.Mount} is no station gun");
+            Assert.Equal(gun, Fdp.Toolkit.Combat.WeaponSystems.ControlledAt(u.W, pickup, frame.Mount));
+            Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(u.W, gun, out var why), $"gunner {aiGunner}: {why}");
+        }
+    }
+
     /// <summary>
     /// ⭐⭐ <c>R-4096</c> S4 (docs/DESIGN_Entity_Control.md C-3′, §8n MW-1) — G never moves into a seat ANOTHER player holds: the driver seat
     /// (the vehicle) while another player drives it, a gun seat while another player plays it — no G, no seat line; the moment that player

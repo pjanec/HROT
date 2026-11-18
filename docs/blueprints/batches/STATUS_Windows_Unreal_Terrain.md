@@ -1,0 +1,57 @@
+<!--STATUS
+state: LIVE — running
+updated: 2026-11-17
+current-answer: the whole file
+related-designs:
+  - ../../designs/IG/DRAFT_Unreal_Image_Generator.md — the draft this experiment measures for (U-5, U-9); the results land there
+  - HANDOFF_Coordinator_To_Windows_Unreal_Terrain.md — the handoff (CE-4651)
+-->
+
+# STATUS — our terrain in Unreal 5.8 through Landscape Combinator (CE-4651)
+
+Branch `unreal-ig` from `coordinator@1a975b492`. The Unreal project is OUTSIDE the repo, at `D:\Work\HrotUnreal` (never committed).
+
+## The machine
+
+| | |
+|---|---|
+| Unreal | 5.8.4 (CL 58902052), installed at `C:\UE_5.8\UE_5.8` |
+| Visual Studio | 2026 Community 18.10; MSVC toolchain 14.44.35207; Windows SDK 10.0.26100 |
+| Python | 3.13.15 with rasterio 1.5.2 (GDAL 3.12.2), pyproj 3.8.0, numpy 2.5.5 (`pip install --user`; no OSGeo4W / conda) |
+| hardware | 16 logical cores, 31 GB RAM, NVIDIA RTX 3070 Laptop + AMD integrated graphics |
+
+## Steps
+
+| # | step | result | time |
+|---|---|---|---|
+| 1a | the C++ project `HrotUnreal`: copied from the engine's `TP_Blank` template; plugins enabled: LandscapeCombinator, PCG, Water, GeometryScripting, PythonScriptPlugin, EditorScriptingUtilities | ✅ | minutes |
+| 1b | Landscape Combinator from GitHub, `main` = v0.9.0 (`eef7e900`), `EngineVersion` 5.8.0, into `Plugins/`; it bundles its own GDAL (Win64 `gdal.lib` + 34 DLLs), so nothing else to install. Its modules need GeometryScripting, PCG and StructUtils | ✅ compiled first time, no errors (431 actions) | 333 s |
+| 1c | Python: plain rasterio + pyproj + numpy (GDAL arrives inside the rasterio wheel) | ✅ | ~1 min |
+| 2 | `scripts/terrain-to-unreal.py` — GeoTIFF + GeoJSON + `frame.json` | ✅ `basic-desert` 61 × 61 at 10 m (tmerc at the origin) · `city-battle` 1 501 × 1 501 at 1 m (EPSG:32632, E = x + 499 250, N = y + 5 599 250). ⭐ read-back: every post identical (3 721 / 20 000 sampled, max difference 0) | seconds |
+| 3a | `basic-desert` through Landscape Combinator, height agreement (`scripts/unreal/lc-measure.py` → the editor with `hrot_lc_import.py`) | ✅ after 4 findings (below): landscape 0…600 m in x and y, exactly HROT's; 16 components, no padding / cropping (61 posts = 60 quads). ⭐ **posts: mean 1.1 mm, max 1.8 mm** (2 000 points — Unreal's 16-bit heights); ⚠ **inside a cell: up to 0.47 m** where Unreal's triangle diagonal differs from HROT's (10 m cells on the ridge; vs Unreal's diagonal ≤ 1.5 mm) | spawn 24 s cold / 1 s warm; editor run 24–49 s |
+| 3c | `city-battle` landscape (1 501 × 1 501 at 1 m, EPSG:32632) | ✅ landscape 0…1 500 m, exactly HROT's. ⭐ **posts: mean 0.4 mm, max 2.3 mm · cell centres: mean 0.4 mm, max 2.6 mm** (4 022 traces, 0 missed) — at 1 m posts the diagonal (F-6) is below the 16-bit step | spawn 18 s; editor run 73 s |
+
+| 3c+ | `city-battle` buildings: our 472 footprints → splines (`SplineImporter`, a per-kind WGS84 GeoJSON) → `BuildingsFromSplines` with the plugin's `BCFG_Basic` style, floors from `building_levels` | ✅ 472 / 472 built, on the ground (base − ground 0.0 m). ⭐ footprints exact (median edge 0.00 m in every template). ⚠ heights 3 m × floors + ~1.2 m (+0.9 … +1.7 m vs ours; barn −0.3 m) — UL-8 | splines 0.6 s; buildings 26 s |
+| 3d | ⭐ **Stechovice** — the user's OSM import on this machine (`data/shared/assets/terrain/Stechovice`, ignored by git: the editor's data root is `data/shared/`, not the repo's `assets/`): 4 067 × 4 305 posts at 1 m, UTM 33N, 195–453 m; 9 585 buildings (4 099 placed from per-house templates in its own `buildings/`, 5 486 inline). ⚠ imported BEFORE the ground was flattened under buildings (user) — a building's base may float or sink on a slope in both engines | ① unpadded: Unreal's "Auto" STRETCHED it to 16 × 17 components of 255 quads (4 080 × 4 335 m, shifted 7 / 15 m) — posts off by up to 1.03 m ⇒ **UL-7: pad to whole components**. ② padded to 4 081 × 4 336 (edge posts repeated): ⭐ **exactly from (0, 0); posts mean 1.8 mm, max 5 mm; every one of 4 022 traces within 5 mm of Unreal's own diagonal** — the largest difference from HROT (2.2 m) is the other diagonal on a 6 : 1 slope | export 37 s; landscape 11.7 s (272 components); editor run 34 s |
+| 3d+ | ⭐ UL-7 padding, then the buildings matched BY ID (the plugin carries each feature's attributes onto its building as `UOSMUserData`; our `name` is the id) | `city-battle` padded to 1 525² posts: **144 components** (was 10 000), landscape 1.8–2.5 s (was ~20 s), buildings 8 s (was 26 s). Stechovice: the OSM import models each ROOF as its own prism (`<id>-roof`, 4 763) — exported as a separate `roofs` file, the house gets `roof_height` ⇒ 4 822 buildings in 2 min 11 s. **By id: every building built and matched, every one on the ground (median 0.00 m).** ⭐ the footprint SPLINES are exact (472 / 472 within 0.00 m) — the error is the GENERATOR's: footprints within 0.1 m: `city-battle` 84 %, Stechovice 46 % (78 % within 1 m). A building that touches / overlaps a neighbour is moved or reshaped (`city-battle` 50 % of them vs 2 % of the isolated); Stechovice's complex outlines (6–12 corners) also grow on one side when isolated (52 %) — the cause inside `BuildingsFromSplines` not yet found. Heights: +1.7 m (`city-battle`), +2.5 m (Stechovice, roofs not modelled) median | |
+| UL-9 | ⭐ **our own landscape import**, `tools/unreal/HrotTerrain` (an editor plugin, one call `ImportHeights` → `ALandscape::Import`; linked into the project by a junction) + the exporter's `<name>.height.r16` and `frame.json` "unreal" (location, scale, components computed outside Unreal) — `lc-measure.py --importer hrot` | ✅ posts max **0.5 mm** (`basic-desert`) · **1.2 mm** (`city-battle`) · **3.9 mm = one 16-bit step** (Stechovice); the height range exact (195.284 … 452.949 m); no reprojection, no stretching, none of F-1 … F-10 | import **0.1 / 0.7 / 3.2 s** (Landscape Combinator 12–24 s) |
+| UL-10/11 | ⭐ **the LOOK** (`scripts/unreal/look.py` + `hrot_look.py`; `terrain-to-unreal.py --look`): Stechovice with Unreal's sky / sun / clouds / fog / Lumen, a ground material placing Megascans grass, wild grass, forest floor and rock by OUR cover mask (forest / water / open) and slope, 109 036 European beech (Nanite, 6 variants 8–33 m) at points inside OUR forests on HROT's own ground, and OUR building shapes (4 822 houses + 4 763 imported roof volumes, 159 426 triangles, 75 tiles) in Megascans plaster and roof tiles. Assets: the user added Megascans surfaces / plants and the European beech + Megaplants packs from Fab (Megascans free again from 12 Nov 2026). Shots in the scratchpad (never in git) | ✅ pass 4. ⚠ pass 3a ran the machine out of memory (first-time shader compiling of the new assets with 16 compilers + 279 k trees) ⇒ `NumUnusedShaderCompilingThreads=10` in the project, one tree set (the pack ships each tree twice), one tree per ~64 m², a free-memory watchdog in `look.py` (lowest 8.5–12.9 GB since). ⚠ Megaplants trees are SKELETAL (rigged for wind) — not instanceable as static meshes; not used yet | build 8 s; 4 shots 3 min |
+| — | the results written into the draft: `DRAFT_Unreal_Image_Generator.md` "Measured on Windows `2026-11-17`" (UL-1 … UL-8) | ✅ | |
+| ⏳ | not done yet: `basic-desert`'s rocks / wall (3b), road splines (Stechovice has roads only in its SUMO net), walls, forests (3e), the viewport frame time (3c) | | |
+
+To look at it: open `D:\Work\HrotUnreal\HrotUnreal.uproject` (Unreal 5.8 at `C:\UE_5.8\UE_5.8`), then the map `Content/Maps/city_battle` (or `basic_desert`).
+
+## Findings on the way (each one cost a run)
+
+| # | what happened | fix |
+|---|---|---|
+| F-1 | `-ExecutePythonScript` CLOSES THE EDITOR on the next tick after the script returns (`EditorPythonExecuter.cpp:73`); the plugin's generation is asynchronous, so it died mid-import — then crashed on an assertion in its own `Concurrency` helper while unwinding (a plugin bug: a fatal `State->IsComplete()` in `RunOnThreadAndWait`) | `unreal.EditorPythonScripting.set_keep_python_script_alive(True)`, released when done |
+| F-2 | a basic (non World Partition) level refuses a fresh landscape unless "Merge Images" is set — even for one file (`LandscapeSpawner.cpp:205`) | `HeightmapDownloader.bMergeImages = true` |
+| F-3 | the plugin REWRITES its input GeoTIFF in place | the driver hands it a copy (`lc-input/`) |
+| F-4 | ⭐ the plugin names a working folder after the CRS string (only `:` replaced) ⇒ a WKT CRS is an invalid path and its Reproject phase fails | UL-3: give it `EPSG:n`, or the PROJ string for a transverse Mercator |
+| F-5 | ⭐ the plugin puts a landscape VERTEX on each pixel's north-west CORNER ⇒ a pixel-is-area GeoTIFF of our posts landed half a cell east and south (5 m) | UL-4: the exporter puts the pixel corner ON the post |
+| F-6 | ⭐ **Unreal's landscape splits a cell along the OTHER diagonal** than HROT's `TerrainHeightGrid.Sample` (south-west → north-east) | ⏳ a design question, not fixed: harmless at 1 m posts; at 10 m posts on a slope the two grounds differ by up to ~0.5 m between posts |
+| F-8 | the plugin's `Import` (spline importer) is an editor button, not Blueprint-callable | `actor.call_method("Import")` |
+| F-9 | ⭐ the spline importer reads every vector file as WGS84 lon / lat (`SplineImporter.cpp:231`) — our projected metres became (inf, inf) | UL-5: the per-kind files are written in lon / lat |
+| F-10 | the plugin's building styles (`BCFG_*`) are Blueprints; `BCFG_Basic` has `auto_compute_num_floors` OFF (every building ~13 m) | the class's default object, with `auto_compute_num_floors` on for the run |
+| F-7 | the editor's "delete asset" leaves a map file on disk and `new_level` refuses an existing path | the driver deletes the old `.umap` before launching |

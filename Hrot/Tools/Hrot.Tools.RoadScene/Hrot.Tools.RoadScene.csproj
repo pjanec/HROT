@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- CE-4651 (UL-14): the terrain's SUMO road scene — the SAME TrafficRoadScene HROT's 3-D map draws (asphalt, sidewalks, junction fills,
+       lane markings, crosswalks; SumoSharp's Sim.Scene builders) — written as mesh tiles for the Unreal image generator
+       (tools/unreal/HrotTerrain BuildMesh). docs/designs/IG/DRAFT_Unreal_Image_Generator.md. Used by scripts/unreal/look.py. -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>hrot-roadscene</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Engine\Hrot.Traffic\Hrot.Traffic.csproj" />
+  </ItemGroup>
+</Project>
