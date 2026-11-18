@@ -159,6 +159,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                     $"{nameof(BrainTickSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
+            RetireTheDead(repo);   // ⭐⭐ CE-4668 — serial, before either path (it clears slots — structural)
+
             // ⭐⭐⭐ DISCOVERY IS THE TIER WALK — the shape BlueprintTickSystem has had since B3, and
             //   which BTree adopted in O7c-②. 📐 There is no brain COMPONENT left to query on: both
             //   roots live in occurrence slots, so the thing to enumerate is "entities carrying a
@@ -462,6 +464,42 @@ namespace Fdp.Toolkit.Behavior.Systems
             else ReleaseCadenceReader(entity.Index);   // asleep until woken: it reads nothing, so it must not pin the history
         }
 
+        private EntityQuery? _deadQuery;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4668</c> (📐 live street fight, real-1: two men at Health 0 showed <c>doing = Break</c> from 470 s on, Locomotion
+        /// "moving") — a DEAD unit (Health 0, <c>CombatLife.IsAlive</c>) runs NOTHING (OVERVIEW §8a): the task a man was running when he died
+        /// is ended (journal <c>TaskEnded</c>, the finished event), the task it paused is dropped (never resumed), and his move is stopped.
+        /// ⛔ SUPERSEDED: death stripped his move and fire (<c>HealthApplicationSystem.StopTheDown</c>) but the brain went on ticking the
+        /// task. A man DOWN but alive (incapacitated) is untouched here. Only where this node owns his brain; no allocation in the steady state.
+        /// </summary>
+        private void RetireTheDead(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) return;
+            _deadQuery ??= repo.Query().With<BehaviorState>().With<Fdp.Toolkit.Combat.Components.Health>().WithOwnedWhen<BehaviorState>(_gateOnAuthority).Build();
+            foreach (var e in _deadQuery)
+            {
+                if (repo.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Current > 0f) continue;
+                ref readonly var b = ref repo.GetComponentRO<BehaviorState>(e);
+                bool paused = repo.TryGetTable(typeof(PausedTask), out _) && repo.HasManagedComponent<PausedTask>(e);
+                if (b.ActiveBehaviorHash == BehaviorIds.None && !paused) continue;
+                if (paused) BehaviorIngressSystem.DropPausedTask(repo, e, _registry);
+                if (b.ActiveBehaviorHash != BehaviorIds.None)
+                {
+                    var origin = b.Origin; int hash = b.ActiveBehaviorHash;
+                    repo.Bus.Publish(new BehaviorFinishedEvent { Entity = e, Result = NodeStatus.Failure, Origin = origin });
+                    Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, e, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskEnded,
+                        a: hash, origin: (byte)origin, urgency: (byte)NodeStatus.Failure);
+                    BehaviorIngressSystem.Clear(repo, e, _registry);
+                }
+                if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.LocomotionChannel>() && repo.HasComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e))
+                {
+                    ref var ch = ref repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
+                    if (ch.ActiveAction != 0) { ch.ActiveAction = 0; ch.Status = NodeStatus.Failure; }
+                }
+            }
+        }
+
         private void ReleaseCadenceReader(int entityIndex)
         {
             if (!_cadenceReaders.Remove(entityIndex, out var held)) return;
@@ -517,6 +555,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 ref var sop = ref repo.GetComponentRW<SopState>(entity);
                 if (sop.SopHash == BehaviorIds.None || sop.SopFaulted != 0) continue;
+                if (!Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, entity)) continue;   // ⭐ CE-4668 — a dead unit's SOP proposes nothing
 
                 // ⭐ CE-2382 (D7) — the SOP slot's cadence is the SAME rule as the task slot's (CadenceGate), on its own fields
                 byte wake = sop.SopWake != 0 || _sopWokenThisFrame.Contains(entity.Index)

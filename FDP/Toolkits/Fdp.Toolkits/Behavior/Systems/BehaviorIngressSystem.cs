@@ -231,6 +231,16 @@ namespace Fdp.Toolkit.Behavior.Systems
                            int behaviorId = 0)
         {
             ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
+            // ⭐⭐ CE-4668 — a DEAD unit (Health 0) runs nothing (OVERVIEW §8a): every assign is refused, whoever sends it
+            if (!Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, entity))
+            {
+                pause = false;
+                RefusedCount++;
+                _lastRefusal = BrainRefusal.Dead;
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    urgency: (byte)urgency, cause: (byte)BrainRefusal.Dead);
+                return false;
+            }
             if (AdmitsWithReactions(repo, entity, origin, urgency, running, out pause, behaviorId))
             {
                 // ⭐ CE-2081 lean B — a reaction that IS the task it would pause (or the task already paused) is refused: the two
