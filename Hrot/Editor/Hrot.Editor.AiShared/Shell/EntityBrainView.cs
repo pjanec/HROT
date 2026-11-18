@@ -814,6 +814,13 @@ public sealed class EntityBrainView : IDetailsViewInstance
             }
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Unpins its map gizmos, turns off its remembered trace and stops the camera following it (remembered per scenario).");
         }
+        // ⭐ CE-1283 (docs/DESIGN_Behaviour_Debugging.md DBG-2) — ONE global switch: every unit with a brain traced, remembered per scenario
+        {
+            var store = Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(w);
+            bool all = store.ObserveAll;
+            if (ImGui.Checkbox("Observe all brain units", ref all)) store.SetObserveAll(all);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Trace every unit with a brain (graph steps and decisions), not only the one this tab shows. Remembered per scenario.");
+        }
         // ⛔ CE-1317 (BV-48) — the "Debug this unit" checkbox is gone: viewing the tab arms the traces, and the map families are
         //   pinned one by one in "Show on map"
         // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-2) — watch him: the map's 3-D camera follows this unit (wheel: in to his eyes)

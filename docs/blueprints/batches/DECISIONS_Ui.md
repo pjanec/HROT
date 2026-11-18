@@ -6,6 +6,23 @@ current-answer: the whole file
 
 # DECISIONS — ui
 
+## CE-1067 — should a REMOTE terminal's panel reach another node's GLOBAL gizmo? *(asked 2026-11-18)*
+
+**The question:** `GizmoInteractionIngressTranslator` drops a remote StructUpdate / InspectorClosed whose anchor is not an entity in its world. A
+global gizmo (the layer control, picker tools — `GlobalGizmoManager.NewId()`, 8 call sites: `MapInteractionPack.cs:337/382/394`, `PickerToolHost.cs:240/354`,
+`AreaAuthoringArm.cs:116`, `ScenarioToolRegistrations.cs:139`) has a per-run, per-node id, so a remote terminal cannot name it at all — fixing the drop
+alone fixes nothing.
+
+| option | what it means | cost |
+|---|---|---|
+| **A (lean)** — NOT A DEFECT TODAY: a global gizmo is a host's OWN UI (each map host draws and edits its own layer control; §5e made the layers per view, remembered locally) — close the row; reopen when a feature needs a terminal to drive ANOTHER node's global gizmo | nothing changes; the row stops sitting in the bug queue | none; the drop stays correct for picks and drags (behaviour ②) |
+| B — a stable global-gizmo ADDRESS (a registered name per kind, e.g. `layer-control`, resolved per node) and the ingress admits StructUpdate / InspectorClosed for a registered name | a new addressing scheme in the gizmo wire + 8 registrations named | a design (DESIGN_Uniform_Gizmo_Membership) + the wire change; no current flow uses it |
+
+**Claim table (lean A):** a local panel is unaffected — ✅ the row's own measurement (`:120` drops only remote batches); a shipped flow edits a REMOTE global gizmo —
+⛔ searched `docs/DESIGN_Terrain_Combat_Tuning.md` §5d/§5e and `docs/DESIGN_Uniform_Gizmo_Membership.md`, none found; ⚠ graph not queried for this one (grep only).
+
+**State:** SKIPPED — needs decision. Nothing built.
+
 ## CE-1954 — does a PRESS-AND-DRAG on an UNSELECTED unit move it? *(asked 2026-11-18)*
 
 **The question:** the threaded editor moves it, the serial one does not (it only selects); the two must agree (R-4224). Which rule?
