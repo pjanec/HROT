@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-IN PROGRESS: the queue's 11 rows are done or recorded. ✅ TAKEN from a note and DONE: **CE-4655's route half — the clearance ring** (rail red-proved; `mf-way-round`, `mf-strike-and-halt`, `mf-at-vs-vehicle`, `mf-recon-and-mark` pass; `mf-no-way-round` now goes round ⇒ behaviors re-authors it, NOTE sent). ⇒ next: the "always available" open `RW-M`+ rows of the terrain area.
+**IDLE** (`2026-11-18` ~11:45 UTC) — the 11-row queue is done or recorded, behaviors' clearance note is done, and no open `RW-M`+ terrain row is unheld: CE-4630 waits on the user's re-check; CE-5004's rest is a cross-lane slice (a storage op — backend — + the wizard page — ui) and the deferred prune; CE-5020 / CE-5021 are `RW-S`. The self-wake-up stays (R-4292) and takes any new handoff.
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292, coordinator `12ce6cebb`).
 
 ## 2. The queue (in order)
