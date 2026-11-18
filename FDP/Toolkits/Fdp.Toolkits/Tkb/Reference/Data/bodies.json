@@ -30,6 +30,12 @@
       "kit": "Tank",
       "engine": "rear",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Head", "socket": "light_head" },
+        { "id": 2, "kind": "Tail", "socket": "light_tail" },
+        { "id": 3, "kind": "Brake", "socket": "light_brake" },
+        { "id": 4, "kind": "Convoy", "socket": "light_convoy" }
+      ],
       "openings": [
         { "id": 1, "kind": "Hatch", "roles": ["Commander"], "openSeconds": 1.5, "socket": "hatch_commander" },
         { "id": 2, "kind": "Hatch", "roles": ["Driver"], "openSeconds": 1.5, "socket": "hatch_driver" },
@@ -50,6 +56,12 @@
       "kit": "Afv",
       "engine": "front",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Head", "socket": "light_head" },
+        { "id": 2, "kind": "Tail", "socket": "light_tail" },
+        { "id": 3, "kind": "Brake", "socket": "light_brake" },
+        { "id": 4, "kind": "Convoy", "socket": "light_convoy" }
+      ],
       "openings": [
         { "id": 1, "kind": "Ramp", "roles": ["Passenger"], "openSeconds": 4, "socket": "ramp_rear" },
         { "id": 2, "kind": "Hatch", "roles": ["Driver"], "openSeconds": 1.5, "socket": "hatch_driver" },
@@ -71,6 +83,12 @@
       "kit": "SpArtillery",
       "engine": "front",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Head", "socket": "light_head" },
+        { "id": 2, "kind": "Tail", "socket": "light_tail" },
+        { "id": 3, "kind": "Brake", "socket": "light_brake" },
+        { "id": 4, "kind": "Convoy", "socket": "light_convoy" }
+      ],
       "openings": [
         { "id": 1, "kind": "Hatch", "roles": ["Commander"], "openSeconds": 1.5, "socket": "hatch_commander" },
         { "id": 2, "kind": "Hatch", "roles": ["Driver"], "openSeconds": 1.5, "socket": "hatch_driver" },
@@ -91,6 +109,12 @@
       "kit": "WheeledUtility",
       "engine": "front",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Head", "socket": "light_head" },
+        { "id": 2, "kind": "Tail", "socket": "light_tail" },
+        { "id": 3, "kind": "Brake", "socket": "light_brake" },
+        { "id": 4, "kind": "Convoy", "socket": "light_convoy" }
+      ],
       "openings": [
         { "id": 1, "kind": "Door", "roles": ["Driver"], "openSeconds": 1, "socket": "door_front_left" },
         { "id": 2, "kind": "Door", "roles": ["Commander", "Gunner"], "openSeconds": 1, "socket": "door_front_right" },
@@ -111,6 +135,12 @@
       "kit": "WheeledCar",
       "engine": "front",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Head", "socket": "light_head" },
+        { "id": 2, "kind": "Tail", "socket": "light_tail" },
+        { "id": 3, "kind": "Brake", "socket": "light_brake" },
+        { "id": 4, "kind": "Interior", "socket": "light_interior" }
+      ],
       "openings": [
         { "id": 1, "kind": "Door", "roles": ["Driver"], "openSeconds": 1, "socket": "door_front_left" },
         { "id": 2, "kind": "Door", "roles": ["Commander"], "openSeconds": 1, "socket": "door_front_right" },
@@ -274,6 +304,12 @@
       "dis": ["1.2.*.21", "1.2.*.22", "1.2.*.23", "1.2.*.24", "1.2.*.25"],
       "kit": "Helicopter",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Nav", "socket": "light_nav" },
+        { "id": 2, "kind": "AntiCollision", "socket": "light_beacon" },
+        { "id": 3, "kind": "Landing", "socket": "light_landing" },
+        { "id": 4, "kind": "Searchlight", "socket": "light_search" }
+      ],
       "openings": [
         { "id": 1, "kind": "Door", "roles": ["Driver", "Commander"], "openSeconds": 1, "socket": "door_cockpit" },
         { "id": 2, "kind": "CargoDoor", "roles": ["Passenger", "Gunner"], "openSeconds": 2, "socket": "door_cabin" }
@@ -295,6 +331,11 @@
       "dis": "1.2.*.20",
       "kit": "AttackHelicopter",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Nav", "socket": "light_nav" },
+        { "id": 2, "kind": "AntiCollision", "socket": "light_beacon" },
+        { "id": 3, "kind": "Landing", "socket": "light_landing" }
+      ],
       "openings": [
         { "id": 1, "kind": "Hatch", "roles": ["Driver", "Commander", "Gunner"], "openSeconds": 3, "socket": "canopy" }
       ],
@@ -315,6 +356,11 @@
       "dis": ["1.2.*.1", "1.2.*.6", "1.2.*.7", "1.2.*.40", "1.2.*.47"],
       "kit": "Jet",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Nav", "socket": "light_nav" },
+        { "id": 2, "kind": "AntiCollision", "socket": "light_beacon" },
+        { "id": 3, "kind": "Landing", "socket": "light_landing" }
+      ],
       "openings": [
         { "id": 1, "kind": "Hatch", "roles": ["Driver", "Commander", "Gunner"], "openSeconds": 3, "socket": "canopy" }
       ],
@@ -335,6 +381,11 @@
       "dis": "1.2.*.1.200",
       "kit": "TwinEngineJet",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Nav", "socket": "light_nav" },
+        { "id": 2, "kind": "AntiCollision", "socket": "light_beacon" },
+        { "id": 3, "kind": "Landing", "socket": "light_landing" }
+      ],
       "openings": [
         { "id": 1, "kind": "Hatch", "roles": ["Driver", "Commander", "Gunner"], "openSeconds": 3, "socket": "canopy" }
       ],
@@ -355,6 +406,11 @@
       "dis": "1.2.*.2",
       "kit": "AttackJet",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Nav", "socket": "light_nav" },
+        { "id": 2, "kind": "AntiCollision", "socket": "light_beacon" },
+        { "id": 3, "kind": "Landing", "socket": "light_landing" }
+      ],
       "openings": [
         { "id": 1, "kind": "Hatch", "roles": ["Driver", "Commander", "Gunner"], "openSeconds": 3, "socket": "canopy" }
       ],
@@ -375,6 +431,11 @@
       "dis": ["1.2.*.3", "1.2.*.4", "1.2.*.5", "1.2.*.8", "1.2.*.57"],
       "kit": "CargoPlane",
       "inheritArmour": true,
+      "lights": [
+        { "id": 1, "kind": "Nav", "socket": "light_nav" },
+        { "id": 2, "kind": "AntiCollision", "socket": "light_beacon" },
+        { "id": 3, "kind": "Landing", "socket": "light_landing" }
+      ],
       "openings": [
         { "id": 1, "kind": "Ramp", "roles": ["Passenger"], "openSeconds": 8, "socket": "ramp_rear" },
         { "id": 2, "kind": "Door", "roles": ["Driver", "Commander"], "openSeconds": 1.5, "socket": "door_crew" }

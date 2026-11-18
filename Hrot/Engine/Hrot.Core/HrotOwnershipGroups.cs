@@ -99,6 +99,8 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.PassengerBuffer);
         // ⭐ CE-4670 (VA-S2, VA-4) — the hatches / doors / ramps: the passenger list's owner writes them (dtVehicleOpenings).
         brain.SetBit(GlobalComponentIds.VehicleOpenings);
+        // ⭐ CE-4670 (VA-S3, VA-3) — the lights: the crew (the Brain) decides them (dtVehicleLights).
+        brain.SetBit(GlobalComponentIds.VehicleLights);
         // ⭐ Weapon systems WS-1 (W-C, R-136) — a weapon system's deploy state: its brain's WeaponDeploySystem writes it (dtWeaponSystemState).
         brain.SetBit(GlobalComponentIds.WeaponSystemState);
         // ⭐ CE-3216 S1-0 (R-3012, W-6) — the scenario clock: the Brain that loads the scenario creates and owns it, applies an edit (dtScenarioClock).

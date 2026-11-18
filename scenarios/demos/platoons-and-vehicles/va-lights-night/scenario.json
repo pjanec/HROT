@@ -1,0 +1,172 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: a crew's light discipline at night (CE-4670, vehicle appearance VA-S3; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §6b). On basic-desert at 00:30 local, clear sky, two crewed T-72s idle 200 m apart on the terrain: 'Lit Tank' at (550, 250) under the default Normal discipline, 'Blacked-out Tank' at (550, 450) authored VehicleLights.Discipline Blackout. Judge: it is dark and both engines idle, so the Lit Tank's head and tail lights are on (its type's groups 0 and 1, OnMask 3) and the brake / convoy groups off; the Blacked-out Tank shows no light at all, ever. Fail: the lit one dark, or the blacked-out one lit. Red-proof: author the second tank Normal and it lights up.",
+    "world": {
+      "ScenarioClock": {
+        "Start": "2025-06-22T00:30:00+02:00"
+      },
+      "WeatherConditions": {
+        "GroundTemperatureC": 15,
+        "LapseRateKPerKm": 6.5,
+        "SeaLevelPressureHpa": 1013.25,
+        "RelativeHumidity": 0.6,
+        "WindCount": 0,
+        "CloudCount": 1,
+        "VisibilityM": 25000,
+        "FogTopM": 0,
+        "FogVisibilityM": 200,
+        "Precipitation": 0,
+        "PrecipitationMmPerHour": 0,
+        "FeatherM": 0,
+        "WindAltitudeM": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindFromDeg": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindSpeedMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindGustMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "CloudBaseM": [
+          1500,
+          0,
+          0,
+          0
+        ],
+        "CloudThicknessM": [
+          600,
+          0,
+          0,
+          0
+        ],
+        "CloudOctas": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "CloudKind": [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "entities": {
+    "c4658000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          550,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Lit Tank",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c4658000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          550,
+          450,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Blacked-out Tank",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "VehicleLights": {
+        "OnMask": 0,
+        "Discipline": "Blackout",
+        "Since": 0,
+        "SearchAz": 0,
+        "SearchEl": 0
+      }
+    }
+  }
+}

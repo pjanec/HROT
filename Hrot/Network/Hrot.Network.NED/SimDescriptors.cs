@@ -1011,6 +1011,25 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<DdsOpening> Openings;
     }
 
+    // ⭐ CE-4670 (vehicle appearance VA-S3, VA-3 / VA-12) — a vehicle's or aircraft's lights, its Brain group (the light rule) → every node. Reliable +
+    //   TransientLocal + KeepLast(1) keyed by entity (the EntityHeatSource shape — blittable, compared whole): a late joiner sees a convoy blacked out. On change.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityVehicleLights
+    {
+        [DdsKey] public int EntityId;
+        /// <summary>Bit i = the type's light group i is on (the type's light-group order).</summary>
+        public uint OnMask;
+        /// <summary>The wire's own enum (R-4295): 0 Normal · 1 Convoy · 2 Blackout · 3 Off.</summary>
+        public byte Discipline;
+        /// <summary>Seconds of sim time the mask last changed.</summary>
+        public double Since;
+        /// <summary>A searchlight's azimuth / elevation relative to the hull (rad).</summary>
+        public float SearchAz;
+        public float SearchEl;
+    }
+
     // ⭐ CE-8001 (CE-4616 ST-0 ③, RV-10; docs/designs/aggregate-units/DESIGN_Stochastic_Units_And_Resolution.md) — a stochastic unit's state,
     //   the unit's brain owner → every node (a display node draws the footprint, the staff reads strength). Reliable + TransientLocal +
     //   KeepLast 1, like EntityRadarEmission: a late joiner must know every unit. Sent on change. Instants as doubles (SimInstant's memory).

@@ -249,6 +249,7 @@ namespace Hrot.NED.Descriptors
         dtFireState                   = 241,
         // ⭐ CE-4670 (vehicle appearance VA-S2, VA-12) — a vehicle's hatches / doors / ramps (the boarding arbiter → every node). 244 dtVehicleLights reserved (VA-S3).
         dtVehicleOpenings             = 243,
+        dtVehicleLights               = 244,   // ⭐ CE-4670 (VA-S3) — lights (the Brain group → every node)
         // etc., all known descriptor types here
     }
 

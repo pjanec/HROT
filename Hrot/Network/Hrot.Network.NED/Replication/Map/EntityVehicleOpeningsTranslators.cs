@@ -84,6 +84,55 @@ namespace Hrot.Map.Common.Replication.Egress
         public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
     }
+    /// <summary>⭐ <c>CE-4670</c> (VA-S3, VA-12) — publishes a vehicle's <see cref="VehicleLights"/> from the node owning its <c>dtVehicleLights</c> (the Brain group —
+    /// the light rule), on change. The <c>EntityHeatSource</c> shape: a blittable sample, compared whole.</summary>
+    public sealed class EntityVehicleLightsEgressTranslator : IDescriptorTranslator
+    {
+        private const long OrdinalValue = (long)EDescriptorType.dtVehicleLights;
+        private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityVehicleLights> _instances;
+        private EntityQuery? _query;
+        private ISimulationView? _queryView;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityVehicleLights>();
+        public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Egress;
+
+        public EntityVehicleLightsEgressTranslator(DdsParticipant? participant)
+            => _instances = new(participant is not null ? new DdsWriter<EntityVehicleLights>(participant) : null, static key => new EntityVehicleLights { EntityId = (int)key });
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
+
+        public void ScanAndPublish(ISimulationView view)
+        {
+            _instances.OnFrame(view);
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<VehicleLights>()) return;
+            if (!ReferenceEquals(view, _queryView) || _query == null)
+            {
+                _query = view.Query().With<VehicleLights>().DefaultRoutePublishable().Build();
+                _queryView = view;
+            }
+            long packedKey = OwnershipExtensions.PackKey(OrdinalValue, 0);
+            foreach (var unit in _query)
+            {
+                if (!view.HasAuthority(unit, packedKey)) continue;
+                int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
+                var sample = ToSample(netId, view.GetComponentRO<VehicleLights>(unit));
+                if (_instances.Unchanged(netId, sample)) continue;
+                _instances.Write(netId, sample);
+                SentSampleCount++;
+            }
+        }
+
+        /// <summary>The wire form (the test seam).</summary>
+        internal static EntityVehicleLights ToSample(int netId, in VehicleLights c)
+            => new() { EntityId = netId, OnMask = c.OnMask, Discipline = (byte)c.Discipline, Since = c.Since, SearchAz = c.SearchAz, SearchEl = c.SearchEl };
+
+        public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);
+        public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+    }
 }
 
 namespace Hrot.Map.Common.Replication.Ingress
@@ -152,6 +201,73 @@ namespace Hrot.Map.Common.Replication.Ingress
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo)
         {
             if (data is not EntityVehicleOpenings d || Owns(repo, entity)) return;
+            repo.SetComponent(entity, FromSample(in d));
+        }
+
+        public void Dispose(int networkEntityId) { }
+
+        private static bool Owns(EntityRepository repo, Entity entity)
+            => AuthorityExtensions.IsRecordedOwner(repo, entity, OwnershipExtensions.PackKey(OrdinalValue, 0));
+    }
+
+    /// <summary>⭐ <c>CE-4670</c> (VA-S3) — applies a vehicle's published <see cref="VehicleLights"/> on every node that does not own it (a late joiner included); an
+    /// unknown id makes a ghost; the recorded owner never takes its own sample back.</summary>
+    public sealed class EntityVehicleLightsIngressTranslator : IDescriptorTranslator, IDiscardableIngress
+    {
+        private const long OrdinalValue = (long)EDescriptorType.dtVehicleLights;
+        private readonly DdsReader<EntityVehicleLights>? _reader;
+        private readonly NetworkEntityMap _entityMap;
+        private readonly GhostCreationSystem _ghostCreationSystem;
+        private readonly NodeId _localNodeId;
+
+        public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityVehicleLights>();
+        public long DescriptorOrdinal => OrdinalValue;
+        public long ReceivedSampleCount { get; private set; }
+        public long SentSampleCount { get; private set; }
+        public TranslatorDirection Direction => TranslatorDirection.Ingress;
+
+        public EntityVehicleLightsIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, GhostCreationSystem ghostCreationSystem, int localNodeId)
+        {
+            _reader = participant is not null ? new DdsReader<EntityVehicleLights>(participant) : null;
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
+            _localNodeId = (NodeId)localNodeId;
+        }
+
+        /// <inheritdoc />
+        public int DiscardIngress() => _reader.DiscardAll();
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (_reader is null) return;
+            using var loan = _reader.Take();
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid || sample.Info.InstanceState != DdsInstanceState.Alive) continue;
+                ReceivedSampleCount++;
+                Apply(sample.Data, cmd, view);
+            }
+        }
+
+        /// <summary>Takes one sample (the test seam).</summary>
+        internal void Receive(in EntityVehicleLights d, IEntityCommandBuffer cmd, ISimulationView view) { ReceivedSampleCount++; Apply(in d, cmd, view); }
+
+        private void Apply(in EntityVehicleLights d, IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            if (!ThermalIngress.Resolve(d.EntityId, _entityMap, _ghostCreationSystem, view, _localNodeId, out var entity)) return;
+            if (view is EntityRepository repo && Owns(repo, entity)) return;
+            cmd.SetComponent(entity, FromSample(in d));
+        }
+
+        /// <summary>The component a sample carries (the test seam).</summary>
+        internal static VehicleLights FromSample(in EntityVehicleLights d)
+            => new() { OnMask = d.OnMask, Discipline = (LightDiscipline)d.Discipline, Since = d.Since, SearchAz = d.SearchAz, SearchEl = d.SearchEl };
+
+        public void ScanAndPublish(ISimulationView view) { }
+
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo)
+        {
+            if (data is not EntityVehicleLights d || Owns(repo, entity)) return;
             repo.SetComponent(entity, FromSample(in d));
         }
 
