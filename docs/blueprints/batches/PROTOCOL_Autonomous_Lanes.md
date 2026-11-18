@@ -41,7 +41,7 @@ from outside does (the user, another session, a scheduled task). All sessions sh
 | ⭐ the rule | |
 |---|---|
 | ⭐⭐ **at the START of a handoff run, create ONE recurring scheduled task into YOUR OWN session** — `create_trigger` (claude-code-remote) with no `persistent_session_id` and no new session, `cron_expression` `0 * * * *` (hourly — the minimum; the server spreads it across the hour), name `<lane> self-wake-up` | ⭐ check `list_triggers` first: if one named `<lane> self-wake-up` exists, keep it — ⛔ never two |
-| ⭐ its message, verbatim: *"Self-wake-up (PROTOCOL_Autonomous_Lanes §1a): if you are in the middle of work, ignore this. Otherwise: if your queue has rows left, read `docs/blueprints/batches/STATUS_<Lane>_Queue.md` and continue under the protocol. If it is empty, git fetch and look for new HANDOFF_* / STEER_* / NOTE_* files addressed to you (§2 ④ ⑤) and take them. If there are none, write 'idle — waiting for a handoff' in the status and end the turn. Never delete this scheduled task."* | ⭐ harmless while you work: a message that arrives during a running turn waits for the turn's end |
+| ⭐ its message, verbatim: *"Self-wake-up (PROTOCOL_Autonomous_Lanes §1a): if you are in the middle of work, ignore this. Otherwise: if your queue has rows left, read `docs/blueprints/batches/STATUS_<Lane>_Queue.md` and continue under the protocol. If it is empty, git fetch and look for new HANDOFF_* / STEER_* / NOTE_* files addressed to you and new DECIDED answers in your DECISIONS file (§2 ④ ⑤) and take them. If there are none, write 'idle — waiting for a handoff' in the status and end the turn. Never delete this scheduled task."* | ⭐ harmless while you work: a message that arrives during a running turn waits for the turn's end |
 | ⭐ **on a wake-up**: read your status file, `git fetch`, continue the IN PROGRESS row (§1) | a firing during the limit just fails; the next hour retries |
 | ⭐⭐⭐ **NEVER delete it** *(user, `2026-11-18`, R-4292: "i want to keep that trigger as coordinator will issue new follow up tasks and that trigger should make the lane check for new handoff if the lane is finished with the previous one")* — when the queue is empty, a wake-up checks for new handoffs (§2 ④ ⑤) and takes them; with none it writes `idle — waiting for a handoff` and ends the turn | ⭐ the coordinator dispatches follow-up work by pushing a handoff — the next hourly wake-up picks it up, nobody has to message the lane. ⛔ SUPERSEDED: the first version (R-4291) deleted it when the queue emptied |
 | ⛔ **never** a trigger to watch or wake ANOTHER lane, and never a second schedule | CLAUDE.md "NO SCHEDULED CHECK-INS" still holds for everything else |
@@ -53,9 +53,10 @@ from outside does (the user, another session, a scheduled task). All sessions sh
 ① commit the row (only your own files, by path) and push your branch
 ② rewrite your status file (§4) and push it
 ③ git fetch origin coordinator behaviors backend terrain ui convoy
-④ ⭐ NEW WORK FOR YOU? — git diff --name-only HEAD...origin/coordinator -- docs/blueprints/batches/ | grep -E "To_<Lane>|To_All"
+④ ⭐ NEW WORK FOR YOU? — git diff --name-only HEAD...origin/coordinator -- docs/blueprints/batches/ | grep -E "To_<Lane>|To_All|DECISIONS_<Lane>"
    a new HANDOFF_*_To_<Lane>_* or STEER_* ⇒ append its rows to your queue at the priority IT states (a STEER pre-empts; a handoff goes
-   after your current one unless it says "first"); record "taken" in your status
+   after your current one unless it says "first"); record "taken" in your status;
+   a new **DECIDED** answer in DECISIONS_<Lane>.md ⇒ the SKIPPED row goes back into your queue (it counts as new work, idle or not)
 ⑤ read every NOTE_*_To_<Lane>_* new since your last loop; answer a REQUEST (do it next if small, else queue it and say when)
 ⑥ merge what moved: git merge origin/coordinator, and every lane branch whose work yours touches (MERGE, never rebase); then
    `dotnet restore` the test projects you run (a merge can add a package — the stale-binary trap); conflicts keep BOTH sides
