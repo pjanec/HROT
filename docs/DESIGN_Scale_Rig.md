@@ -219,6 +219,15 @@ sequenceDiagram
 | 296 | 36.7 s | 28.7 ms · 240 KB | 19.2 ms · 146 KB | 1.62 GB | 11 / 12 |
 | 1 000 + 50 + 10 | **35.6 s** (was 70.1) | **69.7 ms · 0.49 MB** (was 89.0 · 4.23) | **31.7 ms · 0.28 MB** (was 45.4 · 1.55) | **1.99 GB** (was 3.08) ✅ | 4 / 12 ⚠ CE-3424 |
 
+⭐ **CE-3424 re-measured `2026-11-18` (terrain lane; the ONE-SIDE march, `--sides 1`, 1 000 men, Debug, 4 cores, real-time factor 1.0):** **5 / 12** and
+**4 / 12** sampled movers moved (two runs); a 40-man probe with `--keep`: **18 / 40** moved. ⛔ Paths are NOT the cause any more (`nav.PlanPath` 69–89 µs,
+~59 nodes and ~7 corridor polygons per plan — far under the 20 000-node cap and the 256-polygon corridor). 📐 Of the 22 stuck: **19 read
+`NavigationStatus.Result = Arrived` with `HasArrived = 1` after 2–3 m of progress toward a goal hundreds of metres away** (a SHORT path, then "arrived"),
+3 are Idle (one `FailedUnreachable`). ⇒ ⭐ the planner answered with the polygon NEAREST an unreachable goal — `DotRecastNavmeshProvider.PlanPath` drops its
+`complete` flag on purpose (*"a partial path is still returned — the agent goes as near as it can"*) — and the follower reports a partial path's end as
+ARRIVED. ⚠ Not yet measured: WHY the goal is unreachable for so many (the lean: a man spawned on a small navmesh ISLAND of scale-1's steep ground,
+heights 500–900 m), and why the brain (CGF) holds intent 19 while the muscle (SimHost) still runs intent 15 (the re-orders do not reach it).
+
 ### 5.4 Still over budget — each a row with its numbers *(the biggest first)*
 
 | cost at 1 000 men (cgf / simhost) | owner | row |

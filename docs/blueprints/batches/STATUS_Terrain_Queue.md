@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-**Taken `2026-11-18` ~15:10 UTC: [`HANDOFF_Coordinator_To_Terrain_Moved_Rows.md`](HANDOFF_Coordinator_To_Terrain_Moved_Rows.md)** (three rows moved from backend; scenarios per row by §6a, R-4294) — in order: CE-4664 ground heat marks ✅ DONE · CE-3471 ✅ DONE · **CE-3424** scale-1 movers (in progress) · filed CE-5022 (tt-dozer-breach's fence row, a later merge). Earlier: CE-4662 ✅ DONE (§2).
+**Taken `2026-11-18` ~15:10 UTC: [`HANDOFF_Coordinator_To_Terrain_Moved_Rows.md`](HANDOFF_Coordinator_To_Terrain_Moved_Rows.md)** (three rows moved from backend; scenarios per row by §6a, R-4294) — in order: CE-4664 ground heat marks ✅ DONE · CE-3471 ✅ DONE · **CE-3424** scale-1 movers — MEASURED, not closed (19 / 22 stuck "arrived" at a partial path's end; Scale Rig §5.3) · filed CE-5022 (tt-dozer-breach's fence row, a later merge). Earlier: CE-4662 ✅ DONE (§2).
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292); its message is now §1a's text VERBATIM (updated `2026-11-18` 12:05).
 
 ## 2. The queue (in order)
