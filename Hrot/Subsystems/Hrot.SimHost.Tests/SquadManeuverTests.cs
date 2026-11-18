@@ -4112,6 +4112,25 @@ namespace Hrot.SimHost.Tests
             Assert.True(after > before, "the failed assault is ordered forward again");
         }
 
+        /// <summary>⭐⭐ <c>CE-4669</c> — the RESERVE that has reached its point (its bound reports Set) is ordered to DEFEND there, once; before it
+        /// arrives it only bounds. 📌 Live pc-defend-house: Blue Squad 3's BoundingOverwatch ended Success at 160 s and the squad sat with no task
+        /// (`doing = nothing`) to the end. 🔴 Red-proof: the arrival guard off ⇒ no SquadDefend to the reserve.</summary>
+        [Fact]
+        public void CE4669_AReserveAtItsPoint_DefendsThere_NotIdleOnAFinishedBound()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
+            p.ReportSet(p.Bravo); p.Ticks(4);   // the base of fire is up ⇒ the approach
+            Assert.True(p.OrdersTo(p.Charlie, BehaviorNames.BoundingOverwatch) > 0, "the reserve bounds behind the assault");
+            Assert.Equal(0, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
+            p.ReportSet(p.Charlie); p.Ticks(4);   // its bound arrived
+            Assert.Equal(1, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
+        }
+
         /// <summary>⭐⭐ <c>CE-7015</c> (AQ101 §R E — the rout; AT-9 / AT-10) — the assault squad's men BREAK (3 of 4: fewer than the 2 a squad of 4 needs
         /// still stand) while its SITREP is never Black: with no reserve the platoon breaks the attack off, as for a Black assault. Unbroken, it does
         /// not. 🔴 Red-proof: <c>AssaultBlack</c> back on the colour alone ⇒ no break contact.</summary>

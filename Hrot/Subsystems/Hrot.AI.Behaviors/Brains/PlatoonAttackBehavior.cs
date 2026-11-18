@@ -579,9 +579,16 @@ namespace Hrot.AI.Behaviors.Brains
                     && CommandPictureOps.ProgressOf(world, self, slot) == ProgressKind.TaskFailed
                     && Fdp.Toolkit.Squad.CombatEffective.StandingMembers(world, squad) >= ApproachMinMen)
                     p.Dirty[slot] = 1;
+                // ⭐⭐ CE-4669 — the RESERVE that has reached its point (its bound Set) waits there DEFENDING, never on a finished order: its order
+                //   "stood" (Stands names the run, not the task) ⇒ 📐 live pc-defend-house: Blue Squad 3's BoundingOverwatch ended Success at
+                //   160 s and the squad sat with no task to the end (`doing = nothing`). Re-sending an unchanged SquadDefend is a no-op below.
+                bool reserveArrived = p.Role[slot] == PlatoonAttackPlan.Reserve && p.Spent[slot] == 0
+                    && (p.Phase == PlatoonAttackPlan.PhaseApproach || p.Phase == PlatoonAttackPlan.PhaseAssault)
+                    && CommandPictureOps.ProgressOf(world, self, slot) == ProgressKind.Set;
+                if (reserveArrived) p.Dirty[slot] = 1;
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;
                 p.Dirty[slot] = 0;
-                if (!OrderFor(ref p, slot, json, out var behaviour, out var order, out var kind, out var neutral)) continue;
+                if (!OrderFor(ref p, slot, json, out var behaviour, out var order, out var kind, out var neutral, reserveArrived)) continue;
                 // ⭐ CE-2346 (R-2066 D) — a phase change re-dirties every slot; the support's SquadDefend is the same order in the next
                 //   phase, and re-sending it restarted the squad from "move to the point" (measured: men walked back round the berm)
                 // ⭐ agg-behaviors R-8305 / R-8315 — every arm is routed by kind with the TWO payloads (a stochastic squad gets Order(kind, neutral); a physical one
@@ -596,7 +603,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>The order a slot of <paramref name="slot"/>'s role gets in the plan's phase (false = none: it keeps what it has).</summary>
-        private static unsafe bool OrderFor(ref PlatoonAttackPlan p, int slot, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral)
+        private static unsafe bool OrderFor(ref PlatoonAttackPlan p, int slot, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral, bool reserveArrived = false)
         {
             behaviour = order = neutral = "";
             kind = 0;
@@ -632,6 +639,8 @@ namespace Hrot.AI.Behaviors.Brains
                         return true;
                     }
                     if (p.Phase == PlatoonAttackPlan.PhaseSupport) return false;   // the assault and the reserve wait for the base of fire
+                    if (reserveArrived && role == PlatoonAttackPlan.Reserve)   // ⭐ CE-4669 — at its point: it holds there, ready to relieve
+                        return Defend(p.ReserveAt, SupportPostRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);
                     // ⭐⭐ CE-2436 AU-2 (A-7) — in contact the assault CLOSES by fire and movement (rushes between cover, its own half covering,
                     //   the crossing smoke) — bounding only before contact. 📌 measured: bounding under the line's fire ≈ 0.66 m/s over 113 m
                     if (role == PlatoonAttackPlan.Assault)
