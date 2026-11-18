@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: HL-5 and S2-7 below say a VEHICLE part is scored on "the face entered" and that "no armour number moves" — SUPERSEDED for vehicles by §9b (CE-2217): a vehicle part's face is the armour model's arc in the part's frame. People keep HL-5.
 known-conflict: none.
 related-designs:
+  - ../vehicle-appearance/DESIGN_Vehicle_Appearance_State.md — exposes `PartDamage` to renderers as a per-part visible state (Intact · Damaged · Destroyed · Burning) and adds the kill KIND (`Health.Destruction`) through one reader, `VehicleLook`
   - ../weapons/DESIGN_Bows_And_Crossbows.md — an arrow stuck in a body is a `HitMarks` kind (`Arrow` / `Bolt`), drawn as a shaft in the part frame (BW-5, CE-4649)
   - docs/designs/tkb-1/DESIGN.md - §6.6b OWNS the ghost-promotion gate (MandatoryComponentResolver); §14 here depends on it: measured 2026-10-28 the gate does NOT wait for SimTransform on a real IG, so a promoted replica holds the SpatialCore stamp until its first WorldPos lands (CE-4080)
   - docs/DESIGN_Entity_Control.md — §8g: the FPS crosshair meets these same parts through BodyPartRay (CE-1126), the function the solver's narrow phase is routed through
