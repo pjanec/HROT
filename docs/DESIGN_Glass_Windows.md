@@ -9,7 +9,8 @@ superseded-inline: D-3's first lean (window entries APPENDED to `BuildingDamage`
 known-conflict: none
 related-designs:
   - DESIGN_Building_Interiors.md — OWNS the *.building.json template and its openings (doors, windows); this adds the window's `glazed` flag and the PANE
-  - DESIGN_Vehicle_Breaching.md — OWNS building damage (`BuildingDamage`, breaches, collapse; B-*): the window state is APPENDED to its record, the same owner, save and replication
+  - DESIGN_Vehicle_Breaching.md — OWNS building damage (`BuildingDamage`, breaches, collapse; B-*): the window state is a SEPARATE `WindowDamage` on the SAME per-building damage entity (the same owner, save, lifecycle)
+  - blueprints/Architect_Question_106_Sound_Paths.md — OWNS sound through openings (R-3050, BUILT): a glazed window is one of its portals, closed while intact
   - DESIGN_Visual_Effects.md — §10 OWNS the impact marks a round leaves on each face (VE-I step 2, `RoundImpactNotification`); a pane's crack is NOT one of them (it is state), the round's puff still is
   - DESIGN_Node_Roles_And_Policies.md — §3.0a OWNS who may query the terrain (SimHost's roles only; every map only draws it): every glass rule runs on SimHost
   - DESIGN_Terrain_Base_Edits.md — the generator that writes enterable houses (and their windows) for the editor tools; its windows are glazed by the same default
@@ -41,6 +42,7 @@ related-designs:
 | building damage | `BuildingDamage` (`BuildingDamage.cs:37-75`; `int Building`, `Collapsed`, 16 breaches × 21 B ≈ 342 B), one entity per building, owned by the deciding node, recorded, replicated (`EntityBuildingDamage`), saved by label (`TerrainObjectsSection.cs:219-231`), remapped by label | the per-building runtime damage | ⭐ the window state rides the SAME entity, in its own component (D-3) |
 | its writer | `BuildingDamageSystem` (`BuildingDamageEvent`, `DamageAssessmentModule`, SimHost) | breaches from bursts | ⭐ also writes window hits |
 | its view | `BuildingDamageTable` on `DoorStates.Damage`, built when the records change | read by queries and the drawing | ⭐ gains the broken-pane set and the cracks |
+| sound through openings | `SoundPaths.ThroughOpenings` (`Perception/Sensors/SoundPaths.cs:56-80`, AQ106 / R-3050, BUILT): every opening of `BuildingLayout` is a PORTAL node, CLOSED (pays the door material's dB) or OPEN (free); a straight line pays each crossed piece's material dB | a window portal is always open today | ⭐ CLOSED while its pane is intact (glass 20 dB), OPEN once broken (D-5) |
 | impact marks | `EffectSpawnSystem` (`Hrot.Presentation/Effects/EffectSystems.cs:20-40, 396-401`): a LOCAL effect entity per `RoundImpactNotification` (`Lifespan`, recorded, never replicated, capped) | wall / roof / ground marks | the round's PUFF stays this; ⛔ a crack is not (D-6) |
 | the chunk drawing | `TerrainWorldQuery.BuildChunk(..., damage)` (`TerrainWorldQuery.cs`), `ChunksTouchedBy` via `DamagedBuildings.Touched` | rebuilds the chunks a damage change touches | ⭐ draws panes and cracks; a window change touches its chunk |
 
@@ -120,6 +122,9 @@ classDiagram
   class GlassShatterEffect {
     <<new, local on every map>>
   }
+  class SoundPaths {
+    <<existing AQ106 solver, a window portal closed while its pane is intact>>
+  }
   TerrainOpening --> TerrainBuildingExpander : glazed window
   TerrainBuildingExpander --> TerrainPrism : emits a Pane
   BallisticsSystem --> WindowHitEvent : raises
@@ -132,6 +137,7 @@ classDiagram
   TerrainWorld --> BuildingDamageTable : skips a broken pane
   TerrainChunkMesh --> BuildingDamageTable : panes and cracks
   GlassShatterEffect --> BuildingDamageTable : on a turn to broken
+  SoundPaths --> BuildingDamageTable : pane intact or broken
 ```
 
 *What the picture shows that prose hid:* ONE new component and descriptor, but NO new writer, entity or view — `WindowDamage` sits on the

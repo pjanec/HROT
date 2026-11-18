@@ -7,7 +7,7 @@ stale-below: §5 slices — replaced by §7.4; §4 rows marked ⛔ SUPERSEDED
 known-rot: (§3 was redrawn to §7 on 2026-11-14 and is current) · §2's "free-standing walls" row (they are wall PANELS with no building, not prisms — §7 V-2) and "⚠ the user's drives through" row (the cause is not the corner probes — §7 V-1) · §3.2's "open to the hull at once" (§7 V-3) · B-D5/B-D6/B-D7 `WallDamage` (§7 V-2) · B-D9 (§7 V-1) · B-D1's gate "a player's ManualDrive" (§7 V-4) · B-D11's order shape and deciding node (§7 V-13) · B-D1's "only a player's hull" is AMENDED by R-4260 (a `RamTarget` AI vehicle too)
 known-conflict: none
 related-designs:
-  - DESIGN_Glass_Windows.md — OWNS window glass state (cracks, broken), APPENDED to `BuildingDamage` (the same owner, save, replication)
+  - DESIGN_Glass_Windows.md — OWNS window glass state (cracks, broken): a separate `WindowDamage` on the same per-building damage entity as `BuildingDamage` (the same owner, save, lifecycle)
   - DESIGN_Terrain_Base_Edits.md — OWNS removing a baked-in building in the editor; its doors and its building damage go with it
   - reference/NED_DDS_Protocol.md — OWNS the wire as an outsider sees it: this design's messages and descriptors are listed there (kept current by scripts/protocol-doc-check.py)
   - designs/motion-models/DESIGN_Motion_Domains.md — §5f OWNS the hull guard (`HullClearance`, a hull never enters a building, hold and back out, R-3025); this design adds the possessed-only break-through at the guard's refusal and closes its thin-wall holes
