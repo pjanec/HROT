@@ -356,6 +356,12 @@ Brain BTree observes NavigationStatus.Result:
   FailedUnreachable     → BTree Failure  (no path existed)
 ```
 
+> ⭐ **As built, CE-3458 (`2026-11-18`, backend):** the move nodes (`CgfNodes` — `MoveToLocation`, `FollowRoute`, `JoinFormation`) DO answer
+> Failure on their OWN failed activation (`CgfNodes.OwnActivationFailed` / `OwnMoveFailed` / `OwnRouteFailed`: this behaviour's dispatched move to
+> THIS destination / route). ⛔ SUPERSEDED: they re-activated on ANY channel failure, their own included, so an unreachable move re-issued itself
+> every tick for good and the caller never heard (📌 a man ordered off the farm map stood still forever). A failure an earlier behaviour left on
+> the channel, or a fallback move elsewhere in the same tree, still issues. Rails: `MoveToLocationRoadUseTests.CE3458_*`.
+
 In the **scale-out** topology where the `NavigationSolverModule` is on its own node, the `PathfindingRequestEvent` is bridged across DDS via `PathRequestEgressTranslator` (Muscle side) and `PathResponseIngressTranslator` (Muscle side, ingress). The Brain-facing flow above is unchanged — only the Muscle↔Solver hop changes transport.
 
 ### 3.2 `PlanRoute` flow (Brain wants the verdict and the handle, doesn't move yet)
