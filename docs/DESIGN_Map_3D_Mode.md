@@ -1034,6 +1034,8 @@ graph TD
 the bake takes the untagged overload, so the walkable soup cannot drift from what is drawn; the road ribbons are not a road
 layer but the road GIZMO's own metre-wide lines, drawn at their width; and the gait rule is shared with Stride, not copied.
 
+✏ **CE-4401 (`terrain` lane, `2026-11-18`) — the ribbons lie ON the ground:** the road graph is 2-D (SUMO's net, `RoadNetworkBlob`) and the gizmo drew every point at a literal z 0 (`RoadNetworkGizmo.cs:45-55` before), so on a terrain at ≈ 500 m (the scale rig's `scale-1`) the roads hung 500 m under it. Now each point is `RoadNetworkGizmo.On(terrain, p)` = `TerrainWorld.GroundHeightAt` + 0.05 m (z 0 with no terrain). Rail `RoadNetworkGizmoTests.CE4401_*`. ⚠ It follows the BASE ground (a crater under a road is not followed).
+
 | built | where |
 |---|---|
 | `TerrainWorldMesh.Build(…, out TerrainTriangleTag[] tags)` — kind (ground, wall, roof, slab) and material (a prism's material, `"forest"` ground) per triangle; the untagged overload returns the same soup (rail: identical verts and indices) | `Fdp.Toolkits/Terrain/TerrainWorldMesh.cs` |
@@ -3664,6 +3666,8 @@ the hedge's) and wood pattern (244).
 listed wins where woods overlap). ⛔ Was: a whole 25 m cell planted wherever its CENTRE fell inside the wood ⇒ trees up to ~12.5 m past the edge and bare strips inside it.
 The simulation's woods (sight, fire, the navmesh — R-4190 T-2) and the FAR canopy sheet stay per cell. Rail `TerrainChunkTreesTests.CE1968_*`.
 ⭐ **CE-1966 (`terrain` lane, `2026-11-17`):** a placed terrain FEATURE / BLOCK (TKB 8818 / 8817) has no body — `EntityBodyLayer3D.LookOf`'s no-body list (it drew the
+
+⭐ **CE-4656 (`terrain` lane, `2026-11-18`) — ONE drawer per baked obstacle:** the obstacle bake (`StaticObstacleBakeSystem.CollectPrisms`) makes every static obstacle a terrain prism (collision, navmesh, sight); a PLATFORM-typed obstacle (DIS kind 1 — the parked car, drawn by `EntityBodyLayer3D` as a car) gets `TerrainPrism.DrawnByEntity`, and the terrain mesh (`TerrainWorldMesh.IsDrawn`, every draw path and the ground cut) skips it. 📐 Before: once the bake committed, a grey `car-body` box the size of the car's footprint was drawn over the car (user). ⚠ A cultural-feature obstacle (kind 5: sandbags, block, crate, barrel, barrier, booth, wreck) keeps its baked box — open question for ui: does the entity layer ALSO draw it (its family is `Unknown`)? If so, it is drawn twice and one drawer should go (`NOTE_Terrain_To_Ui_Obstacle_Drawing.md`). Rail `StaticObstacleBakeTests.CE4656_*`.
 UNKNOWN box at the feature's anchor, the user's "pink cube"). Rail `Map3DTests.CE1966_*`.
 
 ```mermaid

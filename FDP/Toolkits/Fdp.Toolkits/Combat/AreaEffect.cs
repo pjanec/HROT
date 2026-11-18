@@ -147,7 +147,8 @@ namespace Fdp.Toolkit.Combat
         {
             float t = 1f;
             for (int i = 0; i < crossings.Count && t > 0f; i++)
-                t *= ArmorModel.PenetrationChance(fragmentPenetrationMm, crossings[i].Loss);
+                t *= ArmorModel.PenetrationChance(fragmentPenetrationMm, crossings[i].Loss)
+                     * (1f - crossings[i].Stop);   // ⭐ CE-3426 (R-4190 T-6) — a wood's trunks stop a share of fragments, as of rounds (TerrainPenetration): its crossing has no resistance, only Stop
             return t;
         }
 

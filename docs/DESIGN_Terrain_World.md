@@ -919,7 +919,10 @@ were run (see the commit).
 **Rails (S2, S3):** a lone tree blocks sight, stops small arms, is a hole in the navmesh; a wood across the map stops a wheeled vehicle,
 not a tracked one, not infantry; with a gap at one end the tracked vehicle goes round (×4) and infantry cuts through (×1.5).
 
-**Not yet built:** felling a lone tree (the §8 / Nav v2 §14 state-on-fixed-geometry seam — a vehicle or a blast removes a trunk; T-4), and
-fragments in woods (a blast's fragments ignore the trunks — `FragmentTransmission` reads resistance only).
+**Not yet built:** felling a lone tree (the §8 / Nav v2 §14 state-on-fixed-geometry seam — a vehicle or a blast removes a trunk; T-4) — ✏ since built as CE-4603
+(Vehicle Breaching §7.7). ⛔ ~~fragments in woods (a blast's fragments ignore the trunks — `FragmentTransmission` reads resistance only)~~ — ✏ **BUILT `2026-11-18`
+(CE-3426, terrain):** `AreaEffect.FragmentTransmission` multiplies each crossing by `1 − Stop` as the round law does (W-10), so the woods crossing the fragment rays
+already get (they trace with the FIRE purpose) stops the same share of fragments as of rounds (100 m at 115 / ha ⇒ ≈ 0.71). The blast wave is unchanged (a wood is no
+closed barrier). Rail `TerrainWoodsTests.CE3426_*`.
 ⚠ A hand-drawn forest polygon over a road still closes it to a wheeled navmesh path (road-graph driving is not affected) — W-8 opens roads
 only in CLUSTERED woods. The shipped forests (test-town, highway-rest) carry no road.

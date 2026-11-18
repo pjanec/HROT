@@ -315,6 +315,8 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         pending?.Clear();
         if (!world.IsComponentTypeRegistered<StaticObstacle>() || !world.IsComponentTypeRegistered<ObstacleShape>()) return;
         var library = (world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>()?.Materials : null) ?? TerrainMaterialLibrary.Shared;
+        var tkb = world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
+        bool tkbKnown = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>();
 
         foreach (var e in world.Query().With<StaticObstacle>().With<ObstacleShape>().With<SimTransform>().WithLifecycle(EntityLifecycle.All).Build())
         {
@@ -329,9 +331,18 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
             if (!known)
                 FdpLog<StaticObstacleBakeSystem>.Warn($"[Obstacles] {e}: unknown material '{materialName}' — baked as concrete.");
             prisms.Add(TerrainObstacles.PrismOf(t.Position, TerrainObstacles.Yaw(t.Rotation), shape, material,
-                TerrainObstacles.LabelPrefix + e.Index));
+                TerrainObstacles.LabelPrefix + e.Index, drawnByEntity: DrawsItsOwnBody(world, e, tkb, tkbKnown)));
         }
     }
+
+    /// <summary>
+    /// ⭐ CE-4656 — true when obstacle <paramref name="e"/> is drawn by the entity layer as a body of its own: its TKB type is a PLATFORM (DIS kind 1 — the parked
+    /// car, a ground-vehicle avatar and the 3-D car kit, rail <c>Map3DTests.CE3148_*</c>). Its baked prism is then collision / navmesh / sight only. ⚠ A cultural
+    /// feature (kind 5: sandbags, a block, a crate, a wreck …) keeps its baked box drawn — the 3-D layer has no kit of its own for it.
+    /// </summary>
+    public static bool DrawsItsOwnBody(EntityRepository world, Entity e, Fdp.Interfaces.ITkbDatabase? tkb, bool tkbKnown)
+        => tkb != null && tkbKnown && world.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e)
+           && tkb.TryGetByType((long)world.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType, out var t) && t.DisType.Kind == 1;
 
     /// <summary>
     /// ⭐ O-8 (CE-4420) — the hash of the obstacle set read STRAIGHT FROM THE COMPONENTS, allocating nothing (HOT PATH: the Replay Browser asks it on every tick at playback speeds above one frame per tick):
