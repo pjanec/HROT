@@ -318,6 +318,43 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<int> Trunks;
     }
 
+    /// <summary>⭐ CE-4664 (thermal drivers TD-14) — one warm stand of <see cref="EntityGroundHeatMarks"/>: the footprint (terrain-local), the hot end, when it stood, the engine time, the power class.</summary>
+    [DdsStruct]
+    public partial struct DdsHeatMark
+    {
+        /// <summary><c>HeatMarkKind</c>: 1 VehicleStand · 2 BurnedArea · 3 BodyImprint.</summary>
+        public byte Kind;
+        public float X;
+        public float Y;
+        /// <summary>Radians.</summary>
+        public float Heading;
+        public float Length;
+        public float Width;
+        /// <summary><c>HeatMarkEnd</c>: 0 none · 1 front · 2 rear.</summary>
+        public byte HotEnd;
+        /// <summary>Seconds of sim time.</summary>
+        public double StandSince;
+        public double LeftAt;
+        public float EngineOnSeconds;
+        /// <summary><c>ThermalPowerClass</c>: 1 car · 2 truck · 3 tank · 4 aircraft.</summary>
+        public byte PowerClass;
+    }
+
+    // ⭐ CE-4664 (thermal drivers TD-14; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4b) — one ground cell's warm vehicle stands, the node that moves the vehicles →
+    //   every node (an image generator included). Reliable + TransientLocal + KeepLast(1) keyed by entity: a late joiner gets every mark still warm. The crater shape.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityGroundHeatMarks
+    {
+        [DdsKey]
+        public int EntityId;
+        public int CellX;
+        public int CellY;
+        [DdsManaged] public List<DdsHeatMark> Marks;
+    }
+
     // ⭐ CE-10000 (air lane, AC-2; DESIGN_Air_Combat §4b) — a fighter's air-combat ORDER (AirCombatSteer), its brain → the motion node; the target, the
     //   arena as network ids (0 = none). Reliable + TransientLocal + KeepLast 1, keyed by entity, sent on change (the BladeCut shape).
     [DdsTopic]

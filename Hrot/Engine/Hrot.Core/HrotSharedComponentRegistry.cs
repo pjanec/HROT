@@ -186,6 +186,9 @@ public static class HrotSharedComponentRegistry
         // ⭐ CE-4603 (B-6) — the lone trunks one node felled in one cell (dtTreeDamage), read by every view's DoorStates.Trees; the local "a trunk was felled"
         world.RegisterComponent<Fdp.Toolkit.Terrain.TreeDamage>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.TreeFellEvent>();
+        // ⭐ CE-4664 (thermal drivers TD-14) — the warm stands one moving node's vehicles left in one cell (dtGroundHeatMarks); the local "a vehicle left a warm stand"
+        world.RegisterComponent<Fdp.Toolkit.Terrain.GroundHeatMarks>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.GroundHeatMarkEvent>();
         // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker (Brain group, dtBladeCut): written by its ClearObstacle point order, read by the Muscle's DozerCutSystem
         world.RegisterComponent<Fdp.Toolkit.Terrain.BladeCut>();   // ⭐ CE-4600 (B-3) — a vehicle broke a barrier / met one too strong
         // ⭐ CE-10000 (air lane, DESIGN_Air_Combat §4a) — air combat: the brain's order (dtAirCombatSteer), the motion node's report (dtFighterPilotState),

@@ -83,6 +83,47 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(3, replica.GetComponentRO<GroundDamage>(ghost).Count);
             Assert.False(EntityGroundDamageEgressTranslator.Matches(in sample, in newer));
         }
+        /// <summary>⭐ <c>CE-4664</c> — the heat marks' ordinal (the toolkit cannot reference NED) equals the wire's: 242, fixed at dispatch.</summary>
+        [Fact]
+        public void CE4664_TheHeatMarksOrdinal_IsTheDescriptorsOrdinal()
+            => Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtGroundHeatMarks, GroundHeatMarkSystem.DescriptorOrdinal);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4664</c> (thermal drivers TD-14) — a mark written on one node is on EVERY node, a late joiner included: the cell's record crosses the wire BYTE FOR BYTE
+        /// (the footprint, the hot end, the stand's times, the engine time, the power class) and reaches a GHOST — a node that never saw the entity made, as a late joiner reads
+        /// the TransientLocal sample; an unchanged record matches its last sample (no resend); the recorded owner never takes its own sample back.
+        /// 🔴 Red-proof: drop the <c>EngineOnSeconds</c> copy in <c>FromSample</c> ⇒ the bytes differ.
+        /// </summary>
+        [Fact]
+        public void CE4664_AHeatMark_IsOnEveryNode_ALateJoinerIncluded_ByteForByte()
+        {
+            using var lateJoiner = new EntityRepository();
+            lateJoiner.RegisterComponent<NetworkIdentity>(); lateJoiner.RegisterComponent<NetworkAuthority>(); lateJoiner.RegisterComponent<GhostStateTracker>();
+            lateJoiner.RegisterComponent<GroundHeatMarks>();
+            var original = new GroundHeatMarks { CellX = 1, CellY = -2 };
+            GroundHeatMarkRules.Add(ref original, new HeatMark(HeatMarkKind.VehicleStand, new Vector2(80f, -100f), 1.2f, 6.9f, 3.6f, HeatMarkEnd.Rear,
+                                                               (SimInstant)100.0, (SimInstant)1000.0, 900f, ThermalPowerClass.Tank), out _);
+            GroundHeatMarkRules.Add(ref original, new HeatMark(HeatMarkKind.VehicleStand, new Vector2(100f, -90f), -0.4f, 4.5f, 1.8f, HeatMarkEnd.Front,
+                                                               (SimInstant)1100.0, (SimInstant)1300.0, 120f, ThermalPowerClass.Car), out _);
+            var sample = EntityGroundHeatMarksEgressTranslator.ToSample(6200, in original);
+            Assert.True(EntityGroundHeatMarksEgressTranslator.Matches(in sample, in original));
+
+            var map = new NetworkEntityMap();
+            var ingress = new EntityGroundHeatMarksIngressTranslator(participant: null, map, new GhostCreationSystem(map), localNodeId: 3);
+            using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, lateJoiner); cmd.Playback(lateJoiner); }
+            Assert.True(map.TryGetEntity(6200, out var ghost));
+            Assert.True(SameBytes(in original, lateJoiner.GetComponentRO<GroundHeatMarks>(ghost)));
+
+            lateJoiner.AddComponent(ghost, new NetworkAuthority(primaryOwnerId: 3, localNodeId: 3));
+            var newer = original;
+            GroundHeatMarkRules.Add(ref newer, new HeatMark(HeatMarkKind.VehicleStand, new Vector2(70f, -70f), 0f, 5f, 2.5f, HeatMarkEnd.Rear,
+                                                            (SimInstant)1400.0, (SimInstant)1500.0, 100f, ThermalPowerClass.Truck), out _);
+            lateJoiner.SetComponent(ghost, newer);
+            using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, lateJoiner); cmd.Playback(lateJoiner); }
+            Assert.Equal(3, lateJoiner.GetComponentRO<GroundHeatMarks>(ghost).Count);
+            Assert.False(EntityGroundHeatMarksEgressTranslator.Matches(in sample, in newer));
+        }
+
         private static EntityRepository MineWorld()
         {
             var repo = new EntityRepository();

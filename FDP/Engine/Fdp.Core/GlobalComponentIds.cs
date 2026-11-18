@@ -1326,6 +1326,12 @@ namespace Fdp.Core
         /// <c>ClearObstacle</c> point order, read by the Muscle's <c>DozerCutSystem</c>. Brain group, replicated (<c>dtBladeCut</c>, 186). ⚠ 491 (terrain lane, top-down).</summary>
         public const int BladeCut = 491;
 
+        /// <summary><c>GroundHeatMarks</c> — ⭐ CE-4664 (thermal drivers TD-14, docs/designs/thermal/DESIGN_Thermal_Drivers.md §4b): the warm stands ONE moving node's vehicles left
+        /// in ONE ground cell (the crater record's shape), on a runtime entity that node owns; recorded, replicated (<c>dtGroundHeatMarks</c>, 242). NoScenario (a mark cools within
+        /// hours; never saved). ⚠ 493, fixed at dispatch (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md): free in production on every lane; the toolkit test struct
+        /// <c>KeyframeTestPos</c> moved 493 → 502 (Fdp.Core.Tests' <c>TwClock</c> keeps 493: that suite never registers this type).</summary>
+        public const int GroundHeatMarks = 493;
+
         /// <summary><c>TerrainBlock</c> — ⭐ O-4 (CE-4415, docs/DESIGN_Terrain_Authoring.md §18c): a placed block of terrain features (recipe, seed, heading, fit flags), one saved entity per block;
         /// the <c>OverlayCompiler</c> expands it at save. Unmanaged, authored, recorded and saved. ⚠ 494–495: the backend block (434–449) is full, so these are taken from the TOP of the coordinator / new-lane block (476–495), which allocates upward (highest in use 485, every lane, 2026-11-11) — NOTE_Backend_To_Coordinator_Component_Ids_494_495.md.</summary>
         public const int TerrainBlock = 494;

@@ -239,6 +239,10 @@ namespace Hrot.NED.Descriptors
         dtFormationFollower           = 199,
         // ⭐ CE-4622 K-2 — a hull's ram order (Brain group → the node that moves it). 196 fixed by the coordinator (197 held).
         dtRamOrder                    = 196,
+        // ⭐ CE-4664 (thermal drivers TD-14; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4b) — one ground cell's warm vehicle stands, the node that moves the
+        //   vehicles (no group: the entity's creator keeps it) → every node. 242 fixed at dispatch (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md; 240 / 241 backend's).
+        //   ⚠ the toolkit states it too (GroundHeatMarkSystem.DescriptorOrdinal; a rail pins it).
+        dtGroundHeatMarks             = 242,
         // etc., all known descriptor types here
     }
 

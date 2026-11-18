@@ -7,7 +7,7 @@ using Xunit;
 
 namespace Fdp.Toolkits.Tests.Replay
 {
-    [ComponentId(493)]
+    [ComponentId(502)]   // ⭐ CE-4664 — was 493, now GroundHeatMarks in production (a process-wide registry refuses two types on one id)
     internal struct KeyframeTestPos { public float X; }
 
     /// <summary>A content singleton: never world state (D7).</summary>
