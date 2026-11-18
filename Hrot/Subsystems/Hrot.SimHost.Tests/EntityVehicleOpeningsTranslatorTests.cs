@@ -67,5 +67,24 @@ namespace Hrot.SimHost.Tests
             using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, lateJoiner); cmd.Playback(lateJoiner); }
             Assert.Equal(OpeningState.Closing, lateJoiner.GetComponentRO<VehicleOpenings>(ghost).Slots[0].State);
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-4670</c> (VA-S3) — a vehicle's lights (mask, discipline, time, searchlight aim) reach a late joiner byte for byte (<c>dtVehicleLights</c> 244); the
+        /// toolkit's ordinal matches the wire's. 🔴 Red-proof: drop the <c>Discipline</c> copy in <c>FromSample</c> ⇒ the bytes differ.
+        /// </summary>
+        [Fact]
+        public void CE4670_AVehiclesLights_AreOnEveryNode_ALateJoinerIncluded_ByteForByte()
+        {
+            Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtVehicleLights, Fdp.Toolkit.Behavior.Systems.LightRuleSystem.DescriptorOrdinal);
+            using var lateJoiner = LateJoiner();
+            lateJoiner.RegisterComponent<VehicleLights>();
+            var original = new VehicleLights { OnMask = 0b1001, Discipline = LightDiscipline.Convoy, Since = 1200.25, SearchAz = 0.5f, SearchEl = -0.1f };
+            var sample = EntityVehicleLightsEgressTranslator.ToSample(7400, in original);
+            var map = new NetworkEntityMap();
+            var ingress = new EntityVehicleLightsIngressTranslator(participant: null, map, new GhostCreationSystem(map), localNodeId: 3);
+            using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, lateJoiner); cmd.Playback(lateJoiner); }
+            Assert.True(map.TryGetEntity(7400, out var ghost));
+            Assert.True(SameBytes(in original, lateJoiner.GetComponentRO<VehicleLights>(ghost)));
+        }
     }
 }

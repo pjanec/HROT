@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved, fold both into the design", R-4296): VA-1…VA-12, LK-1…LK-7, with §3a (partial damage, how expressed) and LK-7 (effect categories + the DIS munition type); ids fixed at dispatch — `2026-11-18`: components 290 `VehicleOpenings` · 291 `VehicleLights`; descriptors 243 · 244 (`HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md`)
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §7 the shared look library (CE-4671) · §7a effect categories
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §7 the shared look library (CE-4671) · §7a effect categories
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -251,6 +251,31 @@ renderer computes the animation from two samples per dismount.
 | rails | `VehicleOpeningsTests` (the class template + an override; a dismount opens the ramp once and closes it; only the arbiter writes; 0 B; the progress rule) · `EntityVehicleOpeningsTranslatorTests` (ids; byte for byte to a late joiner; the owner keeps its own) |
 | scenario | `uc-convoy-hit` + 3 rows: the carrier's ramp opens as the squad dismounts, is closing by the end, the driver's hatch never opens |
 | ⏳ not built | a crewman's "head out" (a request to the arbiter) · opening BEFORE a man arrives (it opens on the boarding itself) · our 3D map drawing them (ui, with LK-S1) · reopening while Closing restarts from 0 |
+
+## 6b. As built — lights *(VA-S3, CE-4670, backend, `2026-11-18`)*
+
+```mermaid
+graph TD
+  W[weather RelativeLight - CE-3229 curve] --> LR[LightRuleSystem - the lights owner, Brain group]
+  H[HeatSource Idle or Running] --> LR
+  D[VehicleLights.Discipline - authored, saved] --> LR
+  C[VehicleLightsCatalog - class groups by DIS + Gen.Lights] --> LR
+  LR -->|OnMask + Since, on change| VL[VehicleLights 291]
+  VL -->|dtVehicleLights 244| N[every node, a late joiner too]
+  SOP[SOP / ROE / order] -.->|not wired yet| D
+```
+*What the picture shows that prose hid:* the discipline is an INPUT the rule never writes — today it is authored; the dashed edge (an SOP or an
+order setting it) is the open half.
+
+| piece | as built |
+|---|---|
+| **`VehicleLights`** (component 291, DataPolicy Default — saved) | `OnMask` (bit i = the type's light group i) · `Discipline` (Normal · Convoy · Blackout · Off) · `Since` (the mask's last change) · `SearchAz` / `SearchEl` |
+| the class templates | `lights` on the same body profiles as the openings: road vehicles head · tail · brake · convoy; a car interior instead of convoy; helicopter nav · anti-collision · landing · searchlight; jets / cargo nav · anti-collision · landing. `Gen.Lights` the sparse override; `VehicleLightsCatalog` merges with the SAME `MergeById` as the openings (one copy) |
+| **`LightRuleSystem`** (`Interactions` capability, on the `dtVehicleLights` owner) | every 0.5 s: `MaskOf(lights, discipline, dark, engine)` — head + tail when dark (relative light < 0.3) under Normal, the convoy marker under Convoy, an aircraft's nav + anti-collision whenever its engine runs (day too); nothing blacked out / off / engine off; writes only on a change (`Since` = then); the component ADDED on first sight (D-31). 0 B steady |
+| the wire | `EntityVehicleLights` (blittable, compared whole — the `EntityHeatSource` shape), the wire's own byte for the discipline (R-4295), `dtVehicleLights` 244, Brain group; `LightRuleSystem.DescriptorOrdinal` pinned to it by a rail |
+| rails | `VehicleLightsTests` (the rule over discipline × darkness × engine; owner-only, on change, an authored Blackout holds, 0 B) · `EntityVehicleLightsTranslatorTests`-in-`EntityVehicleOpeningsTranslatorTests` (byte for byte to a late joiner) |
+| scenario | `scenarios/demos/platoons-and-vehicles/va-lights-night` — two crewed T-72s idling at 00:30: the Normal one lit (head + tail, `OnMask` 3), the authored Blackout one never |
+| ⏳ not built | the discipline from an SOP / ROE / an order (behaviors) · a possessed vehicle's switches (a command to the owner) · the searchlight's aim · interior lights · landing lights near the ground · brake lights (a reader derives them from deceleration — ui's `VehicleLook`) |
 
 ## 7. The shared LOOK library — every renderer derives the same picture *(CE-4671, `2026-11-18`)*
 
