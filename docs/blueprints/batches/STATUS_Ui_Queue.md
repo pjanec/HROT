@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-NEXT (§7, an open ui RW-M row with an accepted design, no handoff holds it): CE-1147 — body stance travels like every "one owner → every node" datum, not by host-wired role halves (accepted by the user 2026-10-16). Start: R-129 sweep for the stance replication design + `AnimationReplicationModule`; graph + grep inventory of StanceIntent / StanceStatus writers and readers.
+idle — waiting for a handoff (CE-1147 SKIPPED — needs decision: where the shared stance pair lives, `DECISIONS_Ui.md`; no other open ui row with an approved design — see the assessment below).
 Assessed and NOT taken: CE-1045 (its open half is the EQS inside test — owner behaviors), CE-1018 / CE-1024 / CE-1028 ("design needed"), CE-1160 (verify on the user's machine), CE-1030 (deferred by the user).
 
 ## 2. The queue (in order)
@@ -29,6 +29,7 @@ Assessed and NOT taken: CE-1045 (its open half is the EQS inside test — owner 
 | CE-1281 Brain tab: Recent changes scroll / menu | DONE — 8-row scrolling grid, row menu Open graph of … / Copy | `b461d8fca` | `TheBrainViewTests.CE1281_…` (red-proved); TheBrainViewTests 26/0 (xvfb) | n/a |
 | CE-1286 (taken while dry) a C# behaviour's fields in the Watch | DONE — DECIDED A: section `Occurrence`, read by the slot reader, written by R-1041's writer; Add to Watch in the dump | (this push) | `TheBrainViewTests.CE1286_…` (red-proved); AiShared Watch/Variable/Brain 597/0; Editor live-value 20/2 — the 2 reds (`LiveBlackboardValueProviderTests.CE1412_…`, `CE1430_…`) expect the shipped SOP's sense list WITHOUT `AirSense`, which CE-7029 (another lane, already in the tree) added | n/a |
 | CE-1979 (§7, ui's own find) threaded map faults on a dead entity | DONE — `SyncFrom` moves the structural clock when the source's structure moved | (this push) | `EntityRepositorySyncTests.CE1979_…` (red-proved); Fdp.Core 6 reds are source scans flagging other lanes' files (env names, a shared fixture component id, JSON options, wall clock); ModuleHost snapshot/sync 61/0; Toolkits gizmo/gate 242/0 | `bt-window-duel`: 0 faults (was 20) |
+| CE-1147 (§7) stance replicates like every one-owner datum | SKIPPED — needs decision (`DECISIONS_Ui.md`: the network pack cannot see the stance types; lean A: NED references the animation replication) | | | |
 | CE-1246 Stride mode 2 host actions | DONE — node `HostActions` + shared `HostActionsPumpSystem`; inspector + Details get them | `8952f8c3d` | `GlobalActionDispatchSystemTests.CE1246_…` (red-proved) 4/0; `HrotStrideApp.Game` builds (restored first) | ⚠ not run on a Stride window (Windows only) |
 
 ## 3. Taken from new handoffs

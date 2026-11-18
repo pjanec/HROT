@@ -6,6 +6,24 @@ current-answer: the whole file
 
 # DECISIONS — ui
 
+## CE-1147 (§7) — where does the shared stance pair live, given the network pack cannot see it? *(asked 2026-11-18)*
+
+**The question:** the accepted fix puts the stance egress + ingress pair into `SharedTranslatorPack` (every node). ⚠ Measured: that pack is in
+`Hrot.Network.NED`, which references neither `Hrot.MuscleCharacter.Animation` (where `StanceIntent` / `StanceStatus` live) nor
+`Hrot.Animation.Replication` (the stance translators) — today only SimHost and Player reference the replication assembly, and CGF reaches it through
+`CgfNodeBootstrapper.cs:326`. A new dependency edge between the network and animation assemblies (or a seam) decides the shape.
+
+| option | what it means | cost |
+|---|---|---|
+| **A (lean)** — `Hrot.Network.NED` references `Hrot.Animation.Replication` (+ `Hrot.MuscleCharacter.Animation`); `SharedTranslatorPack.Create` yields the stance pair (ingress skips the recorded owner of 104 / 105, like `EntityPossessedByIngressTranslator`); the components move into the shared component registry; `RegisterStanceOn` (CGF, SimHost), `RegisterStanceViewerOn` (IG) and the role-split `StanceTranslators` are deleted | ⭐ by construction on every node — the pattern every other one-owner datum uses; no cycle (measured: neither animation assembly references NED) | NED gains two project references; touches backend's pack and three bootstrappers (cross-lane); the look-at pair (`LookAtTranslators`, which rides beside stance in `RegisterStanceOn`) must stay or move with it |
+| B — a contribution seam: `NedReplicationModule` takes extra "every node" translators from the host's node builder, and the shared node frame passes the stance pair | no new reference from the network assembly | one more seam; "every node" depends on every builder path passing it — the host-wired shape the row exists to remove |
+
+**Claim table (lean A):** NED cannot see the stance types — ✅ `Hrot.Network.NED.csproj` references (Core, Common, Orchestration, Fdp.*) · no cycle — ✅ neither
+animation csproj references NED · the pattern — ✅ `SharedTranslatorPack.cs` (owner egress / skip-own ingress pairs) · the design names the pack — ✅ the row,
+`DESIGN_Decision_Layer.md` §3.3g (to be superseded) · the look-at pair's home — ⛔ not decided anywhere (searched the row and §3.3g).
+
+**State:** SKIPPED — needs decision. Nothing built.
+
 ## CE-1286 (taken while the queue ran dry) — how does a C# behaviour's param / working-state field get into the Watch? *(asked 2026-11-18)*
 
 **DECIDED `2026-11-18` (user, via coordinator): A — a new Watch row section `Occurrence` addressed by (behaviour hash, slot kind, field path), read through `OccurrenceSlotCatalog`, written through R-1041's one live-write path; the dump's row menu gains Add to Watch.**
