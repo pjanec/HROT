@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-**idle — CE-4662 DONE `2026-11-18`** (thermal drivers, the environment half; was taken from [`HANDOFF_Coordinator_To_Terrain_Thermal_Drivers.md`](HANDOFF_Coordinator_To_Terrain_Thermal_Drivers.md) (priority: before the T2 rows). ① materials + surfaces + the export ✅ built (R-5065, for review) · ② IR-blocking smoke ✅ built (R-5066, for review) · ③ weather `Since` ✅ built — gates in §2). Now idle: CE-4630 waits on the user's re-check; CE-5004's rest is cross-lane; CE-5020 / CE-5021 are `RW-S`.
+**Taken `2026-11-18` ~15:10 UTC: [`HANDOFF_Coordinator_To_Terrain_Moved_Rows.md`](HANDOFF_Coordinator_To_Terrain_Moved_Rows.md)** (three rows moved from backend; scenarios per row by §6a, R-4294) — in order: **CE-4664** ground heat marks (in progress) · CE-3471 a pig through its pen's wall · CE-3424 scale-1 movers. Earlier: CE-4662 ✅ DONE (§2).
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292); its message is now §1a's text VERBATIM (updated `2026-11-18` 12:05).
 
 ## 2. The queue (in order)
