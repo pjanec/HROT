@@ -6450,6 +6450,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Failure, RunUntilFinished(t, 5));
         }
 
+        /// <summary>⭐ <c>CE-9023</c> — a KILLED man (his body stays, Health 0) does not hold the squad back: the drill is done once every LIVING
+        /// member is aboard. 📐 Live <c>uc-urban-battle</c>: Squad A's four riflemen died at the IED; its leader boarded the IFV at 79 s, but
+        /// <c>SquadEmbark</c> ran to its 60 s timeout and failed, and the platoon waited out its 120 s remount timeout — the convoy moved on
+        /// at 195 s, after the row's 200 s window in the regression run. ✅ Red-proof: <c>AboardIt</c> judging the entity only ⇒ Failure.</summary>
+        [Fact]
+        public void CE9023_SquadEmbark_TheDeadDoNotHoldTheSquadBack_DoneWhenTheLivingAreAboard()
+        {
+            var s = new Squad(members: 3);
+            var heli = Helicopter(s, new Vector3(0f, 20f, 0f), 9023);
+            foreach (var m in new[] { s.Members[1], s.Members[2] })   // killed: the body stays
+            {
+                if (s.Repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(m)) s.Repo.SetComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+                else s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            }
+            s.Order("{\"vehicle\":9023,\"timeoutSeconds\":30}", BehaviorNames.SquadEmbark);
+            Ticks(s, 4);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[0], heli));
+            Assert.Equal(Fbt.NodeStatus.Success, RunUntilFinished(s, 5));
+            Assert.True(SquadEmbarkBehavior.AllAboard(s.Repo, s.Commander, heli));
+        }
+
         // ── CE-2173 slice 3 (B8, B10; Air Operations §9b) — riding, unloading, and the helicopter brain's hold release ──────────────
 
         /// <summary>A helicopter (Rotorcraft, a route phase) at <paramref name="at"/> with <paramref name="aboard"/> seated.</summary>

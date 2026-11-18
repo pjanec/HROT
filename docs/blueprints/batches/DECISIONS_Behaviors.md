@@ -6,6 +6,36 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-6 · CE-3462 — `ts-house-defenders`' Waverer is killed before he can break: how should a low-resolve man surrender in a room clearance? *(2026-11-18)*
+
+**Measured** (editor, after CE-3462's re-author — the Coward now breaks at 30.75 s): the Waverer (resolve 0.2, the type's nerve) in closet E peaks at
+stress **0.11** and is killed when the squad enters (Health 0 by ~120 s). TS-6 lets a man surrender only as the OUTCOME of a break (effective resolve
+< 0.3 and a rifle on him), and a CQB entry is too fast for the near-miss stress to reach his break line first.
+
+**My lean: ① — a cornered low-resolve man gives up when a rifle is on him at close range, without waiting for his stress** (TS-6 gains a row: resolve
+< 0.3 + `Covering.By` within ~5 m ⇒ Surrender) — it is what the scenario's Judge describes (*"once broken with a rifle on him"* is the stress path; the
+room entry is the cornered path). Cost: a StressSystem rule + a rail; touches every low-resolve man in a clearance.
+- ② re-author: give the Waverer low nerve too (e.g. 0.2), so the entry's fire breaks him before he is shot — keeps the model, changes the character.
+- ③ loosen the row: drop the Waverer's rows — loses the demo's point.
+
+⛔ Not built.
+
+## D-5 · CE-9023 — `uc-urban-battle` "the convoy moves on": the platoon holds while the ambush lasts — what should the row wait for? *(2026-11-18)*
+
+**Measured** (editor, after the boarding fix `b7a088964`): one defect found and FIXED — a KILLED man (body, Health 0) held a squad's boarding back:
+Squad A's leader boarded at 79 s, yet SquadEmbark failed on its 60 s timeout and the remount waited its 120 s (the move-on at 195 s). ⚠ What remains is
+by design: the platoon SOP's contact row (`PlatoonHold`) pauses `PlatoonConvoy` while an enemy element (team+) is reported within 400 m in the last
+30 s — and DA-100 (§11a) approved exactly that and REJECTED a "not convoying" exemption. Two runs of the SAME scenario diverge: the regression run
+remounted at 147 s; a live run held from 14.9 s and was still holding at 250 s, the ambush still reported (the editor run does not repeat — cf. CE-2438).
+So *when* the convoy moves on is how long the ambush lives, not the convoy play.
+
+**My lean: ① — the row waits for the AMBUSH TO END, not a clock:** author the fire team's end (e.g. it withdraws or is killed by a fixed time — a
+`do` that hurts it, as other scenarios do) and keep runFor 200; the row then tests the move-on, which is what it is for.
+- ② runFor 400+: the scenario is already ~20 min wall; and it may still not end (250 s measured, still in contact).
+- ③ revisit DA-100 (a convoy ignores the platoon hold): reverses an approved decision.
+
+⛔ Not changed. The boarding fix is in (rail `SquadManeuverTests.CE9023_*`).
+
 ## D-4 · `uf-squad-under-fire` row (4) "the bounds complete" — the squad now needs ~300 s: change the hostiles, or the clock? *(2026-11-18)*
 
 **Measured** (live, after CE-4652's fixes): the two InertSop hostiles now lie down and fire the whole run (Hostile 2: 103 rounds by 80 s,
