@@ -505,3 +505,85 @@ in `EjectionSystemTests.cs:26` only).
 | MS-U3 authoring | `MinefieldOps` (`AddEntity/`): type · spacing 2…100 · orientation wrapped to [0,360) · seed · anti-handling · known-at-start side · `AddLane` (≤ 8, width 4.5) · `DeleteLane` (compacts) — each ONE undo step, no-op when unchanged; `ShapeLock` (a Struck entry of a `MinefieldStrikes` keyed by the field's `EntityGuid`) and `Counts` (cached per field, 0 B steady). The ONE area tool: `PlacementToolRegistry.Graphics` has "Minefield" (8830); `AreaAuthoringArm.BornWith` drops the `MapOverlayStyle` (MR-8) and adds `MinefieldOps.Default()` (Mixed, 10 m, 0°, seed 1). Form: `MinefieldDetailsView` (`details.minefield`, rank 39, `Hrot.Editor.AiShared/Shell`), the mockup's rows + Lanes (trash = `DeleteLane`) + Add lane. **Add lane = the area tool in LINE mode**: `ScenarioSpawnAdapter.StartLaneAuthoringMode` arms the same `AreaAuthoringArm` (MinPoints 2, open) with a sink that calls `AddLane` with the line's first and last points (click A, click B, Enter / ✓) — no entity is spawned. **Shape lock** through ONE hook, `OutlineEditPolicy` (`ScenarioEditor/Gizmos`): `VertexEditGizmo` asks `ReasonFor(world, entity)` before a move / centre drag / insert / delete and puts the reason on the hint line; the minefield registers `MinefieldOps.OutlineRefusal`. Cross-lane, one line each: `HrotSharedComponentRegistry` registers `Minefield` (terrain's MS-T1 had not); `Icons` keys `minefield/field` (FA land-mine-on, red) and `minefield/lanes` | `MinefieldOpsTests` (7) · `MinefieldDetailsViewTests` (3, frame rail under xvfb) |
 | bound to terrain's MS-T1 / MS-T2 / MS-T4 (part), `2026-11-16` | `FlailActivity.IsOn` = the clearer's `MineClearing` active with the FLAIL (a plough / line charge never turns the drum) · the gizmo draws terrain's RUNTIME lanes (`MinefieldLanes` records, a cached query, 0 B): all for the truth, a side only those it cut (MF-10), known field or not · the mines' bursts (`EffectTkbCatalog`): AP → `ExplosionMedium` + a small scorch, AT and the line charge → `ExplosionHuge` + a large one · the knowledge cells are real (MS-T2) | `MinefieldGizmoRail.ARuntimeLane_…`, `MineClearerModelRail` (the switch) |
 | re-bind ✅ DONE `2026-11-16` | `["MineClearer"]` in `FamilyOfClass`, type 116 through the real catalogue, the picker thumbnail (`Mine_Clearer__engineer_tank_`, atlas 91), the catalog goldens | `MineClearerModelRail.TheRealType116_…`, `EntityTypeCatalogTests` |
+
+## 13. MS-B5 — the HQ answers `Engineers` *(D-2, CE-2442 — ✅ decided `2026-11-18`, user via coordinator; behaviors; build-state: BUILT `2026-11-18`)*
+
+> 🔒 **Decided (D-2 ①):** *"`SupportAsset.Engineers` (a free unit with a TKB 116 clearer or an engineer squad); the HQ answers with `ReconMinefield` at
+> the request's point, then the clearer's `Breach` along the requester's route once the field is marked. Add a demo scenario with checks."*
+
+**INVENTORY** (`2026-11-18`): `scripts/cbm.sh search_graph '.*(Engineer|MinefieldKnowledge|Breach|SupportAsset|RequestKind).*' Class` → 3 hits, all
+`BreachDoor*` (⚠ the index predates the minefield code — grep is the record here) · grep: `SupportCommandBehavior.Command` answers `FireSupport` (`:90`)
+and `Reinforce` (`:131`) only; `SupportAsset` {AttackHelicopter, StrikePlane, Battery, GroundUnit}; the request is `MinefieldAheadBehavior.Tick`'s
+`RequestKind.Engineers` at the field's NEAR side (`At`, radius 30); `ReconMinefield` (a MAN's, `{Field, At, Mark}`) and `Breach` (a UNIT's with a
+clearer vehicle + a crossing man, `{Field, Start, End, Width}`) exist; `PlaceKnowledgeTable.Marked(side, field)` answers "known in full" (marked or
+known at start); `TkbEntityTypes.Engineer_MineClearer` = 116. ⇒ **reuse all of it**; new: one asset kind, one answer branch, the far-side point.
+
+```mermaid
+classDiagram
+  class SupportCommandBehavior { <<existing, grows>> +Command() +KindOf() Engineers ; +EngineersAnswer() NEW }
+  class SupportCommandState { <<existing, grows>> +EngPhase +EngFieldNetId +EngUnit +EngNear +EngFar }
+  class SupportAsset { <<existing enum, grows>> Engineers = 5 }
+  class MinefieldAheadBehavior { <<existing>> queues RequestKind.Engineers at the near side }
+  class ReconMinefieldBehavior { <<existing>> a man: Field, At, Mark }
+  class BreachBehavior { <<existing>> a unit: clearer + crossing man }
+  class PlaceKnowledgeTable { <<existing>> +Marked(side, field) }
+  class EngineersAnswer { <<NEW static>> +FieldAt(world, at) +FarSide(world, field, from, near) }
+  MinefieldAheadBehavior ..> SupportCommandBehavior : REQUEST Engineers (up the chain)
+  SupportCommandBehavior --> SupportCommandState
+  SupportCommandBehavior ..> EngineersAnswer
+  SupportCommandBehavior ..> ReconMinefieldBehavior : assigns to the engineer unit's man
+  SupportCommandBehavior ..> BreachBehavior : assigns to the engineer unit
+  SupportCommandBehavior ..> PlaceKnowledgeTable : marked for the HQ's side?
+```
+*What the picture shows that prose hid:* nothing new runs the work — the HQ only CHOOSES and ORDERS two behaviours that already exist; its one
+new piece of state is which phase its single engineer job is in.
+
+```mermaid
+sequenceDiagram
+  participant S as Squad (MinefieldAhead)
+  participant H as HQ (SupportCommand)
+  participant E as Engineer unit
+  participant M as its man
+  S->>H: REQUEST Engineers at the near side
+  H->>H: the field at the point, the far side along the requester's line
+  alt the field is not marked for the HQ's side
+    H->>M: ReconMinefield Field, At, Mark
+    M-->>H: the field marked (the side's knowledge) or his walk ends
+  end
+  H->>E: Breach Field, Start = near side, End = far side
+  E->>E: support by fire, the clearer cuts the lane, the crossing
+  H->>H: the job ends when the Breach order no longer runs
+```
+
+```mermaid
+graph TD
+  BP[BrainPhase - per entity, parallel] --> HQ[SupportCommand tree on the HQ]
+  HQ -->|CommandOrders.Assign| EU[Engineer unit's Breach tree]
+  HQ -->|CommandOrders.Assign| EM[its man's ReconMinefield tree]
+  BP --> EU
+  BP --> EM
+```
+*Caption:* every node ticks in the brains' per-entity phase; the HQ writes only orders (commands, next tick) — no cross-entity write (the
+parallel rule).
+
+| decision | why | rejected |
+|---|---|---|
+| an Engineers asset = a UNIT whose roster holds a TKB 116 clearer; `KindOf` names it BEFORE `GroundUnit` | the decided definition; a clearer's unit must not be sent to reinforce a line | a per-entity "engineer" flag — no such component; the TKB type already says it |
+| the field = the nearest `Minefield` whose outline lies within the request's 30 m of its point | the request carries a point only (D-2: "derived, not added") | a field id in the request — a wire change |
+| the far side = where the line from the REQUESTER through the point leaves the outline, + 5 m | "along the requester's route": he came along that line | the field's centroid side — not his way |
+| marked for the HQ's side (`Marked`: marked or known at start) ⇒ Breach at once; else ReconMinefield {Mark} first, Breach when marked or his walk ends | the decided order; a known field needs no recon | waiting only for the mark — a recon that ends unmarked would stall the job for good |
+| ONE engineer job at a time (the state's phase) | an HQ has few engineers; a second request waits in the picture | a job list — no scenario needs two |
+
+**As built (`2026-11-18`)** — matches the diagrams; three findings folded:
+
+| what | as built | 📐 found |
+|---|---|---|
+| the answer | `SupportCommandBehavior.Engineers` / `AdvanceEngineers` / `OrderBreach` + `EngineersAnswer` (`FieldAt`, `FarSide`, `KnowsInFull`, `HasClearer`, `ManOf`); `SupportAsset.Engineers` named by `KindOf` before `GroundUnit`; the job's phase in `SupportCommandState` (`EngPhase` …) | — |
+| the recon man | `ManOf` = the unit's first live man on foot — ⭐ inside a sub-unit when the unit holds TEAMS (a unit is never sent on `ReconMinefield`) | the demo's engineer unit holds its crossing element as a team |
+| ⚠ the crossing element is a UNIT | `Breach` gives `CrossLane` (a unit play: its roster crosses in single file) to its LAST member on foot — authored as a TEAM, not a lone man | 📐 a lone sapper as that member: `CrossLane` failed at once, the Breach ended "Success" and cancelled the clearer's lane mid-way. ⚠ Breach itself does not refuse a lone man — a later hardening (not in D-2's scope) |
+| the demo | `mf-engineers-answer`: the squad STARTS in `MinefieldAhead` 15 m short of the field (a march's route skirts the field's edge today — CE-2447, blocked on terrain); the HQ's Engineers (a TKB 116 clearer 18 m clear of the sappers — a man inside a moving clearer's hull is run over, CE-1967 — 'Sapper 3' supporting, the 'Sapper Team' crossing) | 7 / 7: MinefieldAhead 0 s · Breach + ClearLane 3.25 s · CrossLane 22.25 s · nobody hurt |
+
+**Rails** (`SquadManeuverTests`, the HQ's suite): `CE2442_Engineers_ReconTheUnknownField_ThenTheUnitBreachesAlongTheRequestersLine` (recon at the
+point with Mark, the request answered; the breach after his walk, from the point to the far edge + 5 m along the requester's line) ·
+`CE2442_AnEngineerUnit_IsNeverSentToReinforce`. ✅ Red-proofs: the Engineers branch removed ⇒ the first red; `KindOf`'s engineer test removed ⇒
+both red. Strict parallel env (`HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`): 5 / 0.

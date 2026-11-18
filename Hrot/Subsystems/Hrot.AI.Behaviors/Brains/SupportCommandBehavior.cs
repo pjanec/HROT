@@ -16,7 +16,7 @@ using Hrot.Map.Definitions.Behavior;
 namespace Hrot.AI.Behaviors.Brains
 {
     /// <summary>⭐ <c>CE-2312</c> (HQ-6) — what an HQ's asset is, for the answers.</summary>
-    public enum SupportAsset : byte { None = 0, AttackHelicopter = 1, StrikePlane = 2, Battery = 3, GroundUnit = 4 }
+    public enum SupportAsset : byte { None = 0, AttackHelicopter = 1, StrikePlane = 2, Battery = 3, GroundUnit = 4, /** ⭐ CE-2442 D-2 — a unit with a TKB 116 clearer */ Engineers = 5 }
 
     /// <summary>⭐ <c>CE-2312</c> (HQ-6) — the HQ's task: how near an air defence counts, and how long a reported one stays a threat.</summary>
     [StructLayout(LayoutKind.Sequential)]
@@ -37,6 +37,14 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-4617</c> — when the last SEAD strike was ordered (one per <c>SeadIntervalSeconds</c>: an order reaches the asset's
         /// brain a frame or more later, and a unit is not "busy" until then).</summary>
         public SimInstant LastSeadAt;
+        /// <summary>⭐ <c>CE-2442</c> D-2 (Minefields §13) — the ONE engineer job: 0 none · 1 the man's recon · 2 the unit's breach.</summary>
+        public byte EngPhase;
+        public int EngFieldNetId;
+        public long EngUnitPacked, EngManPacked;
+        public Vector3 EngNear, EngFar;
+        public SimInstant EngSince;
+        /// <summary>Engineer jobs started (a test / diagnostics probe).</summary>
+        public int EngineerJobs;
     }
 
     /// <summary>
@@ -143,7 +151,76 @@ namespace Hrot.AI.Behaviors.Brains
                     ws.Answered++;
                 }
             }
+            Engineers(ref ws, self, world, now);   // ⭐ CE-2442 D-2
             return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2442</c> D-2 (📄 docs/designs/minefields/DESIGN_Minefields.md §13) — an <c>Engineers</c> request: a free engineer unit breaches the
+        /// field at the request's point along the requester's line; when the HQ's side does not know the field in full, the unit's man first
+        /// recons it (<c>ReconMinefield</c>, Mark) and the breach follows when it is marked or his walk ends. One job at a time.
+        /// </summary>
+        private static void Engineers(ref SupportCommandState ws, Entity self, EntityRepository world, SimInstant now)
+        {
+            if (ws.EngPhase != 0) { AdvanceEngineers(ref ws, self, world, now); return; }
+            int req = CommandPictureOps.FirstRequest(world, self, RequestKind.Engineers);
+            if (req < 0) return;
+            var request = world.GetComponentRO<CommandPicture>(self).Requests.Items[req];
+            var unit = Free(world, self, SupportAsset.Engineers, Entity.Null);
+            if (unit.IsNull || !EngineersAnswer.FieldAt(world, request.At, out var field, out int fieldNetId)) return;   // waits in the picture
+            var from = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, request.FromNetId);
+            if (from.IsNull) from = SubordinateByNetId(world, self, request.FromNetId);
+            var fromAt = !from.IsNull && world.HasComponent<SimTransform>(from) ? world.GetComponentRO<SimTransform>(from).Position
+                       : world.HasComponent<SimTransform>(self) ? world.GetComponentRO<SimTransform>(self).Position : request.At;
+            ws.EngFieldNetId = fieldNetId;
+            ws.EngUnitPacked = (long)unit.PackedValue;
+            ws.EngNear = request.At;
+            ws.EngFar = EngineersAnswer.FarSide(world, field, fromAt, request.At);
+            ws.EngSince = now;
+            ws.EngineerJobs++;
+            var man = EngineersAnswer.KnowsInFull(world, self, field) ? Entity.Null : EngineersAnswer.ManOf(world, unit);
+            if (man.IsNull) OrderBreach(ref ws, self, world, unit, now);
+            else
+            {
+                var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+                CommandOrders.Assign(world, self, man, BehaviorNames.ReconMinefield, JsonSerializer.Serialize(new ReconMinefieldParamsJsonDto
+                {
+                    Field = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(fieldNetId)), At = request.At, Mark = true,
+                }, json), newOrder: true);
+                ws.EngManPacked = (long)man.PackedValue;
+                ws.EngPhase = 1;
+            }
+            CommandPictureOps.Answered(world, self, req);
+            ws.Answered++;
+        }
+
+        private static void AdvanceEngineers(ref SupportCommandState ws, Entity self, EntityRepository world, SimInstant now)
+        {
+            var unit = new Entity((ulong)ws.EngUnitPacked);
+            if (!world.IsAlive(unit)) { ws.EngPhase = 0; return; }
+            if (now - ws.EngSince < OrderGraceSeconds) return;   // an order lands a tick later
+            if (ws.EngPhase == 1)
+            {
+                var man = new Entity((ulong)ws.EngManPacked);
+                var field = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, ws.EngFieldNetId);
+                bool marked = !field.IsNull && EngineersAnswer.KnowsInFull(world, self, field);
+                bool walking = world.IsAlive(man) && CurrentOrders.Of(world, man) is { Exists: true, Paused: false };
+                if (marked || !walking) OrderBreach(ref ws, self, world, unit, now);
+                return;
+            }
+            if (CurrentOrders.Of(world, unit) is { Exists: true, Paused: false }) return;   // the breach still runs
+            ws.EngPhase = 0;
+        }
+
+        private static void OrderBreach(ref SupportCommandState ws, Entity self, EntityRepository world, Entity unit, SimInstant now)
+        {
+            var json = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
+            CommandOrders.Assign(world, self, unit, BehaviorNames.Breach, JsonSerializer.Serialize(new BreachParamsJsonDto
+            {
+                Field = new Fdp.Toolkit.Replication.EntityLink(new Fdp.Toolkit.Replication.EntityRef(ws.EngFieldNetId)), Start = ws.EngNear, End = ws.EngFar,
+            }, json), newOrder: true);
+            ws.EngPhase = 2;
+            ws.EngSince = now;
         }
 
         /// <summary>
@@ -268,6 +345,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>HQ-6 — an asset's kind: an armed rotorcraft · an armed fixed-wing · an artillery battery unit · another unit.</summary>
         public static SupportAsset KindOf(EntityRepository world, Entity a)
         {
+            if (SquadManeuverRunner.IsUnit(world, a) && EngineersAnswer.HasClearer(world, a)) return SupportAsset.Engineers;   // ⭐ CE-2442 D-2 — before GroundUnit
             if (SquadManeuverRunner.IsUnit(world, a))
                 return world.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(a)
                        && world.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(a).TkbType == Hrot.Map.Common.TkbEntityTypes.Unit_ArtilleryBattery

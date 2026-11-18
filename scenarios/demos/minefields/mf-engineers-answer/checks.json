@@ -1,0 +1,61 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — D-2 / CE-2442 (Minefields §13 MS-B5): the HQ answers an Engineers request with a Breach by its engineer unit. Rows from the header's Judge (1)-(6).",
+  "runFor": 400,
+  "golden": {
+    "every": 20
+  },
+  "expect": [
+    {
+      "name": "(1) the squad reacts MinefieldAhead",
+      "on": "task",
+      "who": "Squad",
+      "is": "MinefieldAhead"
+    },
+    {
+      "name": "(2) the Engineers run Breach",
+      "on": "task",
+      "who": "Engineers",
+      "is": "Breach"
+    },
+    {
+      "name": "(3) the Clearer runs ClearLane",
+      "on": "task",
+      "who": "Clearer",
+      "is": "ClearLane"
+    },
+    {
+      "name": "(4) the Sapper Team runs CrossLane",
+      "on": "task",
+      "who": "Sapper Team",
+      "is": "CrossLane"
+    },
+    {
+      "name": "(5) nobody of the squad is hurt",
+      "never": {
+        "on": "field",
+        "who": "*Man",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "(5) no sapper is hurt",
+      "never": {
+        "on": "field",
+        "who": "*Sapper",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "(6) never the crossing drill",
+      "never": {
+        "on": "task",
+        "who": "Squad",
+        "is": "SquadDangerCrossing"
+      }
+    }
+  ]
+}

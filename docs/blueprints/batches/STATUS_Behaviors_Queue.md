@@ -12,7 +12,7 @@ Started at the merge of `origin/coordinator` (2026-11-18 09:00).
 
 ## 1. Now
 
-CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. Next: D-2 (`SupportAsset.Engineers` — design first), then CE-9023.
+CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. Next: CE-9023 (`uc-urban-battle`, the immobilised APC's play).
 
 ## 2. The queue (in order)
 
@@ -26,13 +26,13 @@ CE-4652 done (row 4 → D-4); CE-2447 blocked on terrain CE-4655. Next: D-2 (`Su
 | CE-9023 the immobilised APC's play never ends | TODO | | | `uc-urban-battle` |
 | D-1 `ts-fire-discipline` re-tune (CE-3461 regulars) | ✅ DONE — 22 rounds at 1.3 s (the measured window between the slowest militia break, ~25 s, and a centre regular's, ~33 s) | (this commit) | — (scenario) | ✅ `ts-fire-discipline` 7 / 7 |
 | D-3 the mine's trigger man maimed (CE-4654 follow-up) | ✅ DONE — `AreaEffectSystem.Maim` (cross-lane): shins, 0.75 of the incapacitation line, alive | (this commit) | `AreaEffectSystemTests.CE4654_*` (red-proved; suite 34 / 0) | ✅ `mf-strike-and-halt` 8 / 8 · `mf-at-vs-vehicle` · `mf-recon-and-mark` · `mf-way-round` |
-| D-2 `SupportAsset.Engineers` (CE-2442) | TODO | | | a new `mf-*` demo |
+| D-2 `SupportAsset.Engineers` (CE-2442) | ✅ DONE — Minefields §13 designed and built (recon when unknown, then Breach along the requester's line) | (this commit) | `SquadManeuverTests.CE2442_*` (2, red-proved; parallel env 5 / 0) | ✅ `mf-engineers-answer` 7 / 7 (new) |
 | CE-3462 the waverer never breaks | TODO | | | `ts-house-defenders` |
 | CE-3463 the guard does not fire first | TODO | | | `ia-area-defend` |
 | CE-3464 a pinned man never fires, walks to the house | TODO | | | `rf-pinned-in-open` |
 | CE-3465 no grenade at the wall-hugger | TODO | | | `rf-wall-hugger` |
 | CE-3444 a unit thrashes between cover points | TODO | | | `uc-urban-battle` |
-| CE-2442 no HQ answers an `Engineers` request | **SKIPPED — needs decision** (D-2: who answers, with what — the design names the engineers' work, not who orders it) | | | |
+| CE-2442 no HQ answers an `Engineers` request | ✅ DONE via D-2 | | | |
 | CE-3470 the mounted riders abort under the strict parallel env | TODO | | | |
 
 ## 3. Taken from new handoffs
