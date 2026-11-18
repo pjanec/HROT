@@ -67,6 +67,58 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(1f / 16f, StandardInputs.EqsResultCount(in ctx), 3);
         }
 
+        /// <summary>⭐ CE-4652 — the posture's scoring sensor and the TakeCover branch's own (PeekAndFire) run ONE template for ONE run; the
+        /// branch's fresh one takes the lowest free part id, and while it has not answered the cover score must still read the answered one.
+        /// 📐 Live (uf-squad-under-fire): it read 0 ⇒ HoldProne for a tick ⇒ the branch released its sensor ⇒ TakeCover again — ~33 flips in
+        /// 30 s and no aimed fire.</summary>
+        [Fact]
+        public void CE4652_TwoOfTheRunsOwnSensorsOnOneTemplate_TheAnsweredOneIsRead_NotAFreshOneWithALowerPartId()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>())
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>())
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+            const uint template = 0xC0FE4652u;
+            var unit = repo.CreateEntity();
+            repo.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.BehaviorState { InstanceId = 5 });
+            var answered = _world.SpawnEqsSensor(unit, template, topScore: 0.9f, count: 1, instanceId: 3);
+            repo.AddComponent(answered, new Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart { OwnerInstanceId = 5 });
+            var fresh = repo.CreateEntity();   // the branch's own, made this tick: no answer yet, a LOWER part id (a freed slot)
+            repo.AddComponent(fresh, new EqsSensor { BlueprintId = template });
+            repo.AddComponent(fresh, new EqsCognitiveBuffer { Count = 0, LastUpdateTick = 0 });
+            repo.AddComponent(fresh, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = unit, InstanceId = 1 });
+            repo.AddComponent(fresh, new Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart { OwnerInstanceId = 5 });
+
+            var ctx = MakeCtx(unit, parms: new InputParams { BlueprintId = template });
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+        }
+
+        /// <summary>⭐ CE-4652 — a sensor RE-ASKED (re-pointed at a new threat) scores its last answer until the new one lands; one whose last
+        /// answer was empty still reads 0. 📐 Live (uf-squad-under-fire): the posture's own cover sensor was refreshed every ~0.5 s as the
+        /// hostile's top threat changed, the decision re-scored in that tick, read 0 ⇒ HoldProne ⇒ TakeCover again — no aimed fire.</summary>
+        [Fact]
+        public void CE4652_AReAskedSensor_ScoresItsLastAnswer_UntilTheNewOneLands_AnEmptyOneStillReadsZero()
+        {
+            var repo = _world.Repo;
+            const uint template = 0xC0DE4652u;
+            var unit = repo.CreateEntity();
+            var sensor = _world.SpawnEqsSensor(unit, template, topScore: 0.9f, count: 1, instanceId: 1);
+            var ctx = MakeCtx(unit, parms: new InputParams { BlueprintId = template });
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+
+            Assert.True(EqsChildSensor.Refresh(repo, sensor));
+            Assert.False(repo.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);   // no reader takes a POINT from it
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+
+            // an EMPTY answer, then re-asked: nothing to hold
+            ref var buffer = ref repo.GetComponentRW<EqsCognitiveBuffer>(sensor);
+            buffer.Count = 0; buffer.LastUpdateTick = 7;
+            Assert.Equal(0f, StandardInputs.EqsTopScore(in ctx));
+            Assert.True(EqsChildSensor.Refresh(repo, sensor));
+            Assert.Equal(0f, StandardInputs.EqsTopScore(in ctx));
+        }
+
         // ── SC-P1-06-1: AmmoFraction ─────────────────────────────────────────────
 
         [Fact]

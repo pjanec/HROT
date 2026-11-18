@@ -204,6 +204,10 @@ namespace Hrot.AI.Behaviors.Brains
         {
             edge = null; broken = false;
             if (!world.HasComponent<Stress>(e) || !Feels(world, e)) return false;   // a man down (or no longer a combatant) breaks no more
+            // ⭐⭐ CE-4652 — an InertSop man ("no reactions", CE-2322) is never JUDGED broken: his level still rises (it shows), but being broken also
+            //   ends his aimed fire elsewhere — 📐 live: with only the Break reaction blocked, uf-squad's two hostile shooters (stress 0.99, Broken) still
+            //   fired 1 and 0 rounds in 30 s
+            if (IsInertSop(world, e)) return false;
             float breakAt = BreakLevel(world, e);
             var s = world.GetComponentRO<Stress>(e);
             if (s.Broken == 0)
@@ -235,6 +239,11 @@ namespace Hrot.AI.Behaviors.Brains
         public static void StartBreak(EntityRepository world, Entity e)
         {
             if (!world.HasComponent<BehaviorState>(e)) return;
+            // ⭐⭐ CE-4652 / CE-3461 — InertSop is "the explicit NONE: no idle choice and no reactions" (CE-2322, AQ97 C) ⇒ no break either: his stress
+            //   still rises (it shows), but nothing takes his task off him. 📐 Measured live: the scenarios' hostile shooters (InertSop, on an authored
+            //   CombatPosture / FireAtPoint) were fired back at, broke within 2–5 s and fell silent after 0–2 rounds — so the militia, the squad's movers,
+            //   never met the sustained fire those scenarios are about (ts-fire-discipline, uf-squad-under-fire).
+            if (IsInertSop(world, e)) return;
             var task = world.GetComponentRO<BehaviorState>(e);
             if (task.Origin == BehaviorOrigin.Reaction && task.ActiveBehaviorHash != BehaviorIds.None
                 && (task.Urgency == ReactionUrgency.Grenade || task.Urgency == ReactionUrgency.Break)) return;   // the grenade first; his break runs
@@ -249,6 +258,12 @@ namespace Hrot.AI.Behaviors.Brains
             if ((Flees(world, e) && Flee(world, e, out var to)) || Retreat(world, e, out to)) { dto.HasRetreat = true; dto.Retreat = to; }   // ⭐ CE-2376 (DS-3)
             SopActions.React(world, e, Hrot.Map.Definitions.Behavior.BehaviorNames.Break, ReactionUrgency.Break, in dto);
         }
+
+        private static readonly int s_inertSop = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.InertSop);
+
+        /// <summary>⭐ CE-4652 — his SOP is <c>InertSop</c> (no reactions).</summary>
+        public static bool IsInertSop(EntityRepository world, Entity e)
+            => world.IsComponentTypeRegistered<SopState>() && world.HasComponent<SopState>(e) && world.GetComponentRO<SopState>(e).SopHash == s_inertSop;
 
         /// <summary>TS-6 — he gives up: effective resolve under <see cref="SurrenderResolve"/> and a forces rifle on him (<see cref="Covering.By"/>).</summary>
         public static bool Surrenders(EntityRepository world, Entity e)

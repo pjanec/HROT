@@ -48,10 +48,16 @@ namespace Fdp.Toolkit.Tkb.Reference
         private readonly Dictionary<(string Ammo, string Weapon), RefPair> _pairs;
 
         private ReferenceLibrary(Dictionary<string, RefAmmo> ammo, Dictionary<string, RefWeapon> weapons,
-            Dictionary<(string, string), RefPair> pairs)
+            Dictionary<(string, string), RefPair> pairs, float blastLethalDamage)
         {
-            _ammo = ammo; _weapons = weapons; _pairs = pairs;
+            _ammo = ammo; _weapons = weapons; _pairs = pairs; BlastLethalDamage = blastLethalDamage;
         }
+
+        /// <summary>
+        /// ⭐ CE-2446 — the ONE blast law's damage inside a warhead's lethal radius (<c>coefficients.json</c> <c>blast.lethalDamage</c>), for a TKB warhead stated
+        /// by hand (the mines, the line charge) so it does not restate the number. 📐 Without it the mines' warheads had radii and 0 damage: an AP mine under a man hurt nobody.
+        /// </summary>
+        public float BlastLethalDamage { get; }
 
         /// <summary>The library shipped with the engine (embedded <c>ammo.json</c>, <c>weapons.json</c>, <c>coefficients.json</c>).</summary>
         public static ReferenceLibrary Shared => s_shared.Value;
@@ -102,7 +108,7 @@ namespace Fdp.Toolkit.Tkb.Reference
                 }
                 weapons[name] = new RefWeapon(name, factor, list);
             }
-            return new ReferenceLibrary(ammo, weapons, pairs);
+            return new ReferenceLibrary(ammo, weapons, pairs, c.BlastLethalDamage);
         }
 
         private static RefPair Pair(AmmoDriving d, string? weapon, float velocityFactor, Coefficients c)

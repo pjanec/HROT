@@ -88,6 +88,21 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>The creation system, as far as this suite needs it: makes the entity a request describes, owned by this node.</summary>
+        /// <summary>
+        /// ⭐⭐ CE-5018 — a breach of an untouched building asks for a damage entity owned by THIS node — the world's node id (published by the node
+        /// frame, <c>HrotNodeBuilder</c>; rail <c>HrotNodeBuilderTests.CE5018_*</c>) — never 0, which a cluster hands to the DEFAULT PROCESSOR (the brain node):
+        /// 📐 measured live (`--mode all`, bt-doors): the muscle published two breaches, its request went out with owner 0, and no damage entity appeared on any node.
+        /// </summary>
+        [Fact]
+        public void CE5018_ABreach_AsksTheWorldsOwnNodeToOwnTheDamage()
+        {
+            _w.SetSingletonManaged<Fdp.Toolkit.Replication.INetworkTopology>(new Fdp.Toolkit.Replication.LocalNodeTopology((NodeId)7));
+            _w.Bus.Publish(new BuildingDamageEvent { Building = 0, Panel = _south, From = 4f, To = 6f, Bottom = 0f, Top = 2.2f, Kind = (byte)BreachKind.Passage });
+            _w.Bus.SwapBuffers();
+            var request = Assert.Single(Tick());
+            Assert.Equal(7, request.OwnerAppInstanceId);
+        }
+
         private Entity Materialise(EntityCreationRequest request)
         {
             var e = _w.CreateEntity();

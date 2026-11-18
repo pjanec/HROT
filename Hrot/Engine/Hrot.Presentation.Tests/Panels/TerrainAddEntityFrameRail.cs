@@ -111,7 +111,7 @@ public sealed class TerrainAddEntityFrameRail : IDisposable
         Assert.True(action.Open(GlobalActionIds.AddEntityFriendly));
         var rows = req!.ItemsProvider().Where(e => e.Category == TerrainPickCatalog.Clutter || e.Category!.StartsWith(TerrainPickCatalog.Clutter + "/")).ToList();
         Assert.Equal(Fdp.Toolkit.Terrain.ClutterTypes.All.Count + 1, rows.Count);
-        Assert.Single(rows, e => !e.IsEnabled);   // the scatter, greyed
+        Assert.DoesNotContain(rows, e => !e.IsEnabled);   // ⭐ CE-1955 — the scatter is placeable since CE-5007 shipped its recipes (it was greyed: "no scatter recipe, T-3")
         var registry = EntityAuthoring.CreatePickers();
         registry.OpenPicker(req!, _ => { });
         for (int i = 0; i < 10; i++) frame.Step(registry.DrawFrame);

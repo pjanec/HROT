@@ -27,6 +27,10 @@ namespace Hrot.AI.Behaviors.Brains
         public float ScoreDeltaThreshold;
         /// <summary>Which forces count as threats for the exposure scoring (bit N = force N; 0 = every acquired contact).</summary>
         public uint FactionFilter;
+        /// <summary>⭐ <c>CE-4652</c> — how far the COVER query looks (m), when it differs from <see cref="SearchRadius"/> (0 = the same). The
+        /// decision's cover score must see only the cover its TakeCover branch can use: <c>CombatPosture</c> sets the branch's (PeekAndFire)
+        /// search radius, so with none in reach HoldProne wins (§3.3f) instead of a TakeCover that waits, fails and is chosen again.</summary>
+        public float CoverSearchRadius;
     }
 
     /// <summary>⭐ <c>CE-2073</c> — the posture's sensors and the threat they are pointed at.</summary>
@@ -181,8 +185,10 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus PostureSensors(ref PostureSensorsParams p, ref PostureSensorsState ws, Entity self, EntityRepository world)
         {
             // ⭐ CE-3063 ③ — an entity, or a HEARD contact's point: cover is scored against either.
+            var cover = p;
+            if (p.CoverSearchRadius > 0f) cover.SearchRadius = p.CoverSearchRadius;   // ⭐ CE-4652 — the cover its branch can use
             KeepPair(ref ws.Cover, CoverSite, FindCoverFromTarget.BlueprintId, ref ws.Retreat, RetreatSite, FindSafeRetreatPoint.BlueprintId,
-                     ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in p, self, world);
+                     ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in cover, in p, self, world);
             return NodeStatus.Running;
         }
 
@@ -200,7 +206,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus ApproachSensors(ref PostureSensorsParams p, ref ApproachSensorsState ws, Entity self, EntityRepository world)
         {
             KeepPair(ref ws.Flank, FlankScoreSite, FindFlankingPosition.BlueprintId, ref ws.Firing, FiringScoreSite, FindOpenFiringPosition.BlueprintId,
-                     ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in p, self, world);
+                     ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in p, in p, self, world);
             // ⭐ WL-4 W-12f (Weapon_Layers §5f L-5) — a grenadier's third sensor: where to THROW from, around the threat's
             //   LAST-KNOWN point (never the live entity). A unit with no throwable keeps none (it would only cost a query).
             if (Fdp.Toolkit.Combat.HiddenTargetThrow.ThrowableMount(world, self, out _, out _, out _, out _)
@@ -224,13 +230,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// when it moves.</summary>
         private static void KeepPair(ref EqsSensorHandle a, int siteA, uint templateA, ref EqsSensorHandle b, int siteB, uint templateB,
                                      ref Entity threatEntity, ref long heardId, ref Vector3 heardPoint,
-                                     in PostureSensorsParams p, Entity self, EntityRepository world)
+                                     in PostureSensorsParams pA, in PostureSensorsParams pB, Entity self, EntityRepository world)
         {
             var was = new ThreatAim(threatEntity, heardId, heardPoint);
             if (!EqsTacticsNodes.TopAim(world, self, in was, out var threat)) return;   // nothing to score yet
             bool retarget = EqsTacticsNodes.Moved(in was, in threat);
-            a = Keep(a, world, self, siteA, templateA, in p, in threat, retarget);
-            b = Keep(b, world, self, siteB, templateB, in p, in threat, retarget);
+            a = Keep(a, world, self, siteA, templateA, in pA, in threat, retarget);
+            b = Keep(b, world, self, siteB, templateB, in pB, in threat, retarget);
             if (retarget || heardId != threat.HeardId) heardPoint = threat.Point;
             threatEntity = threat.Entity;
             heardId = threat.HeardId;

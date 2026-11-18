@@ -137,6 +137,13 @@ namespace Fdp.Toolkit.Spatial.Eqs
         public bool IsReady => LastUpdateTick > 0;
 
         /// <summary>
+        /// ⭐ <c>CE-4652</c> — while NOT ready: the top score of the answer before the sensor was re-asked (<c>EqsChildSensor.Refresh</c>
+        /// keeps the entries and zeroes entry 0's score when that answer was empty), 0 for a sensor that never answered. Only a SCORE
+        /// reader uses it (the utility <c>EqsTopScore</c> input); ⛔ never a point to move to — that answer was for the old aim.
+        /// </summary>
+        public float PendingTopScore => IsReady ? 0f : GetSpanRO()[0].Score;
+
+        /// <summary>
         /// Returns a read-only reference to the top-ranked result (index 0).
         /// The buffer must not be empty.
         /// </summary>
