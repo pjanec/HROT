@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "test-town",
-    "description": "What: AQ96 C3 (CE-2319) - a six-man squad closes 120 m on two hostile riflemen by fire and movement: one half suppresses while the other rushes, then they swap (all immortal). Judge: (1) the rushing half runs CROUCHED at the rush speed; (2) a mover near-missed in the open drops prone and stops; (3) while the other half's fire covers his half he rises even though rounds still come (he does not wait for the fire on him to lapse), after a ~1.5 m sideways crawl; (4) the bounds still complete (the squad reaches the objective area). Compare uf-alone-under-fire, where the same fire keeps a lone man down. Check: python3 scripts/utility-demo-check.py --launch uf-squad-under-fire The fixed fire source(s) 'Hostile 1', 'Hostile 2' are authored STEADY (Temperament resolve 1, nerve 1; CE-3462): under TS-6 a man breaks whatever his SOP, so a gunner that must keep firing is steady, not exempted."
+    "description": "What: AQ96 C3 (CE-2319) - a six-man squad closes 120 m on two hostile riflemen by fire and movement: one half suppresses while the other rushes, then they swap (all immortal). Judge: (1) the rushing half runs CROUCHED at the rush speed; (2) a mover near-missed in the open drops prone and stops; (3) while the other half's fire covers his half he rises even though rounds still come (he does not wait for the fire on him to lapse), after a ~1.5 m sideways crawl; (4) the bounds still complete (the squad reaches the objective area). Compare uf-alone-under-fire, where the same fire keeps a lone man down. Check: python3 scripts/utility-demo-check.py --launch uf-squad-under-fire"
   },
   "entities": {
     "a9700000-0000-4000-8000-0000000000c0": {
@@ -259,7 +259,7 @@
       "EntityInfo": {
         "Name": "Hostile 1",
         "ForceId": "Hostile"
-      }, "Temperament": {"resolve": 1.0, "nerve": 1.0},
+      },
       "TargetMemory": {
         "Entries": []
       },
@@ -298,7 +298,7 @@
       "EntityInfo": {
         "Name": "Hostile 2",
         "ForceId": "Hostile"
-      }, "Temperament": {"resolve": 1.0, "nerve": 1.0},
+      },
       "TargetMemory": {
         "Entries": []
       },
