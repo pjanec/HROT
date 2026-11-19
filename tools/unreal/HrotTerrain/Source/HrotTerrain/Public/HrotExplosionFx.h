@@ -7,6 +7,8 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "HrotExplosionFx.generated.h"
 
+class UFXSystemAsset;
+
 UENUM(BlueprintType)
 enum class EHrotBlast : uint8
 {
@@ -26,4 +28,9 @@ public:
 	 *  dropped it (the flash light still counts as seen from afar). */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Blast", meta = (WorldContext = "WorldContext"))
 	static bool Explode(UObject* WorldContext, FVector Location, FVector Normal, EHrotBlast Kind);
+
+	/** The same with an explicit effect (a Cascade ParticleSystem or a Niagara system) at `EffectScale` — the lab tries candidates
+	 *  this way; Explode() uses the per-kind table */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Blast", meta = (WorldContext = "WorldContext"))
+	static bool ExplodeWith(UObject* WorldContext, FVector Location, FVector Normal, EHrotBlast Kind, UFXSystemAsset* Effect, float EffectScale);
 };

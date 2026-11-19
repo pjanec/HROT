@@ -100,6 +100,14 @@ GROUPS = [
         {"label": "dead left", "base": "MM_Death_Left_01", "loop": False, "pose": 6, "weapon": "rifle", "body": "US_Soldier", "side": "B"},
         {"label": "dead right", "base": "MM_Death_Right_01", "loop": False, "pose": 6, "weapon": "rifle", "body": "US_Soldier", "side": "B"},
         {"label": "dying (mixamo)", "base": "RTG_Dying_mixamo.*", "loop": False, "pose": 8, "body": "US_Soldier", "side": "B"}]},
+    # ⭐ the Mixamo deaths (user, 2026-11-19): standing front/back (body and headshot), crouching, prone — each falling and dead
+    {"name": "deaths", "anims": [
+        {"label": f"{lab} {'falling' if t < 1 else 'dead'}", "base": clip, "loop": False, "pose": t, "body": "US_Soldier", "side": "B"}
+        for lab, clip in (("front", "RTG_Death_From_The_Front.*"), ("back", "RTG_Death_From_The_Back.*"),
+                          ("front head", "RTG_Death_From_Front_Headshot.*"), ("back head", "RTG_Death_From_Back_Headshot.*"),
+                          ("crouch head", "RTG_Death_Crouching_Headshot_Front.*"), ("crouch", "RTG_Crouch_Death.*"),
+                          ("prone", "RTG_Prone_Death.*"))
+        for t in (0.5, 8)]},
     # ⭐ the GRENADE throw: Lyra's full-body toss played once, at three moments; the additive toss on a walk
     {"name": "throw", "anims": [
         {"label": "toss 0.3 s", "base": "MM_Rifle_GrenadeToss", "loop": False, "pose": 0.3, "weapon": "rifle", "body": "US_Soldier", "side": "A"},
@@ -107,6 +115,9 @@ GROUPS = [
         {"label": "toss 0.9 s", "base": "MM_Rifle_GrenadeToss", "loop": False, "pose": 0.9, "weapon": "rifle", "body": "US_Soldier", "side": "A"},
         {"label": "walk + toss", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_Hipfire", "action": "MM_Rifle_GrenadeToss_Additive",
          "weapon": "rifle", "body": "US_Soldier", "side": "A"},
+        {"label": "overhand 0.6 s", "base": "RTG_Throw_mixamo.*", "loop": False, "pose": 0.6, "body": "US_Soldier", "side": "A"},
+        {"label": "overhand 1.0 s", "base": "RTG_Throw_mixamo.*", "loop": False, "pose": 1.0, "body": "US_Soldier", "side": "A"},
+        {"label": "overhand 1.4 s", "base": "RTG_Throw_mixamo.*", "loop": False, "pose": 1.4, "body": "US_Soldier", "side": "A"},
         {"label": "hit heavy", "base": "MM_HitReact_Front_Hvy_01", "loop": False, "pose": 0.35, "weapon": "rifle", "body": "US_Soldier", "side": "A"}]},
     # the aim pitch seen from the SIDE (facing 90: the barrel crosses the picture) — to judge the angle, not foreshortened
     {"name": "pitch-side", "anims": [
@@ -136,11 +147,19 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", required=True); ap.add_argument("--shots", required=True)
     ap.add_argument("--engine", default=r"C:\UE_5.8\UE_5.8"); ap.add_argument("--min-free-gb", type=float, default=6.0)
+    ap.add_argument("--blast-trial", action="store_true", help="the live phase sets off every explosion system of the VFX pack instead")
+    ap.add_argument("--only", default="", help="comma-separated group names to render (default: all)")
     a = ap.parse_args()
     os.makedirs(a.shots, exist_ok=True)
     fwd = lambda p: os.path.abspath(p).replace("\\", "/")
     out = os.path.join(a.shots, "animlab-result.json")
-    job = {"groups": GROUPS, "shots": fwd(a.shots), "out": fwd(out), "settleSeconds": 20}
+    groups = [g for g in GROUPS if not a.only or g["name"] in a.only.split(",")]
+    job = {"groups": groups, "shots": fwd(a.shots), "out": fwd(out), "settleSeconds": 20}
+    if a.blast_trial:   # each candidate once, at scale 1, with the mortar's flash and scorch; pictured at 0.15, 0.6 and 2 s
+        d = "/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Explosion/"
+        job["blasts"] = [{"name": n, "kind": "MORTAR", "effect": d + n + "." + n, "scale": 1.0}
+                         for n in ("P_Explosion_Big_A", "P_Explosion_Big_B", "P_Explosion_Big_C", "P_Explosion_Side", "P_Explosion_Smoke", "P_Molotov")]
+        job["blastPics"] = [0.15, 0.6, 2.0]
     jp = os.path.join(a.shots, "animlab-job.json"); json.dump(job, open(jp, "w"), indent=1)
     if os.path.exists(out): os.remove(out)
     umap = os.path.join(os.path.dirname(os.path.abspath(a.project)), "Content", "Maps", "AnimLab.umap")

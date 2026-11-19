@@ -344,13 +344,15 @@ def live():
         # the wall stands 9 m ahead (−Y): the blasts land 5 m ahead, seen from 15 m off to the side
         cam, look = unreal.Vector(a.x - 1500, a.y - 500, 300.0), unreal.Vector(a.x, a.y - 500, 150.0)
         UES().set_level_viewport_camera_info(cam, unreal.MathLibrary.find_look_at_rotation(cam, look))
-        kinds = [("grenade", unreal.HrotBlast.GRENADE), ("mortar", unreal.HrotBlast.MORTAR), ("tank-he", unreal.HrotBlast.TANK_HE)]
+        # the job's blasts (animlab.py --blasts): {name, kind, effect (a path = try that system), scale}; default the three kinds
+        kinds = [(b["name"], getattr(unreal.HrotBlast, b["kind"]), b.get("effect"), b.get("scale", 1.0)) for b in JOB.get("blasts") or
+                 [{"name": "grenade", "kind": "GRENADE"}, {"name": "mortar", "kind": "MORTAR"}, {"name": "tank-he", "kind": "TANK_HE"}]]
         if L["blast"] >= len(kinds):
             LES().editor_request_end_play(); L.update(phase="end", t=now + 4); return True
-        name, kind = kinds[L["blast"]]
-        land = unreal.Vector(a.x + (L["blast"] - 1) * 300, a.y - 500, 0.0)
+        name, kind, effect, scale = kinds[L["blast"]]
+        land = unreal.Vector(a.x + ((L["blast"] % 3) - 1) * 300, a.y - 500, 0.0)
         if L.get("blast_t") is None:
-            L.update(blast_t=now, exploded=False, pics=[0.12, 1.0], pending=None)
+            L.update(blast_t=now, exploded=False, pics=list(JOB.get("blastPics") or [0.12, 1.0]), pending=None)
             if name == "grenade" and L.get("grenade_actor") is None:
                 w = UES().get_game_world()
                 L["grenade_actor"] = next((x for x in unreal.GameplayStatics.get_all_actors_of_class(w, unreal.StaticMeshActor)
@@ -365,7 +367,8 @@ def live():
             if u < 1.0: return True
         if not L["exploded"]:
             if g and name == "grenade": g.set_actor_hidden_in_game(True)
-            ok = unreal.HrotExplosionFx.explode(L["gunner"]["actor"], land, unreal.Vector(0, 0, 1), kind)
+            ok = (unreal.HrotExplosionFx.explode_with(L["gunner"]["actor"], land, unreal.Vector(0, 0, 1), kind, unreal.load_asset(effect), scale)
+                  if effect else unreal.HrotExplosionFx.explode(L["gunner"]["actor"], land, unreal.Vector(0, 0, 1), kind))
             log(f"blast {name}: {'shown' if ok else 'dropped (budget / range)'}")
             L.update(exploded=True, boom=now); return True
         if L.get("pending"):
