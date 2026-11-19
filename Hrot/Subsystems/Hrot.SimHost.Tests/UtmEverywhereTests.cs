@@ -77,22 +77,27 @@ namespace Hrot.SimHost.Tests
                 {
                     TerrainResidency.ApplyGeoOrigin(world, def.Origin, name, def.Utm);
                     var u = Assert.IsType<UtmTransform>(geo.Inner);
-                    Assert.Equal(33, u.Zone); Assert.False(u.South);
                     var o = def.Origin!.Value;
+                    // ⭐ the zone is the origin's own longitude band (DESIGN_Geo_Origin §6.1a), or the terrain's explicit frame — stated here, not read from the product.
+                    //   Re-pinned `2026-11-19` (ui's CE-1980 triage): the rail said 33 for every terrain while all were synthetic Berlin; `city-battle` (an imported
+                    //   real terrain at 50.5° N 9.0° E) is zone 32 — correctly. The method name still says 33N: a C# rename is not done by text.
+                    int zone = def.Utm?.Zone ?? (int)Math.Floor((o.Lon + 180.0) / 6.0) + 1;
+                    bool south = def.Utm?.South ?? o.Lat < 0;
+                    Assert.Equal(zone, u.Zone); Assert.Equal(south, u.South);
 
                     // local (0, 0) ↔ the origin's lat / lon exactly (a round trip well under 1 mm)
                     var back = geo.ToCartesian(o.Lat, o.Lon, o.Alt);
                     Assert.True(Math.Abs(back.X) < 0.001 && Math.Abs(back.Y) < 0.001 && Math.Abs(back.Z) < 0.001, $"{name}: the origin is at local {back}");
                     var (lat, lon, alt) = geo.ToGeodetic(Vector3.Zero);
-                    var (e0, n0) = Utm.FromGeodetic(o.Lat, o.Lon, 33, false);
-                    var (eLat, eLon) = Utm.ToGeodetic(e0, n0, 33, false);
-                    Assert.Equal(eLat, lat, 10); Assert.Equal(eLon, lon, 10); Assert.Equal(o.Alt, alt, 6);
+                    var (e0, n0) = Utm.FromGeodetic(o.Lat, o.Lon, zone, south);
+                    var (eLat, eLon) = Utm.ToGeodetic(e0, n0, zone, south);
+                    Assert.Equal(eLat, lat, 8); Assert.Equal(eLon, lon, 8); Assert.Equal(o.Alt, alt, 6);   // 1e-8° ≈ 1 mm: the reference is itself a projection ROUND TRIP (~3e-9° off at city-battle's origin), the product returns the origin exactly
                     Assert.Equal(o.Lat, lat, 8); Assert.Equal(o.Lon, lon, 8);
 
                     // a point 1 km east lands where Utm.ToGeodetic says
                     var (kLat, kLon, _) = geo.ToGeodetic(new Vector3(1000, 0, 0));
-                    var (xLat, xLon) = Utm.ToGeodetic(e0 + 1000, n0, 33, false);
-                    Assert.Equal(xLat, kLat, 9); Assert.Equal(xLon, kLon, 9);
+                    var (xLat, xLon) = Utm.ToGeodetic(e0 + 1000, n0, zone, south);
+                    Assert.Equal(xLat, kLat, 8); Assert.Equal(xLon, kLon, 8);   // ≈ 1 mm — the same projection round-trip offset as above
                 }
                 checkedTerrains++;
             }

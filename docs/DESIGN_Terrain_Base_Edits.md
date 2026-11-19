@@ -216,10 +216,54 @@ node that loads a scenario with an edit never creates the removed building's doo
 
 Rails: `TerrainWorldMergeTests.CE5025_Without_DropsTheBuildingWithItsParts_AndASolidBlockByLabel_ReindexingTheRest`, `CE5025_AnEditRemovingABaseHouse_LeavesItsFootprintLevelledAtItsFloor`.
 
+### 6b. As built — BE-2 *(terrain, `2026-11-19`)*
+
+| design said | as built — and why |
+|---|---|
+| D-4 `TerrainObjectReconcile` on every commit | ⭐ `TerrainObjectReconcile.Reconcile` (`Hrot.Core/Services/LoadPhase`), called by `TerrainResidency.CommitObstacles` right after the new world is published (after the damage remap): an OWNED door entity whose key the world lost is destroyed; an OWNED damage entity the remap left at building −1 is destroyed (its windows with it); every door the world gained is asked for through `TerrainObjectRequests.ForDoors` — the load step's own request (closes Authoring G-3) |
+| — | ⚠ **who creates:** the node that already OWNS door entities (it made them at load), or — a world with none yet — this node. ⛔ Never on a world's FIRST commit (the load step creates the doors then: two creators would make each door twice). A door asked for is remembered per world until its entity exists (two bakes can commit before the creation system runs). ⚠ A cluster whose terrain started with NO doors would get its first new doors from every baking node — not reached today (the live overlay is the editor's, one node) |
+| — | a node destroys only what it owns; another node's orphan is left to its owner |
+
+Rail: `LiveOverlayBakeTests.CE5028_AddedHousesGainTheirDoors_ARemovedHouseTakesItsDoorAndDamage` (a real live bake: six huts' doors asked once, a removed base house's door and damage gone the same commit), red-proved (no reconcile ⇒ red).
+
+### 6c. As built — BE-3 *(terrain, `2026-11-19`)*
+
+| design said | as built — and why |
+|---|---|
+| D-6 the generator places a door on the free wall facing the nearest road, else the longest, else refuses — the importer too | ⭐ `OpeningPlacer.Place` (the importer's, and through it the editor's): a ground-floor door added when the data gave none; a ground-floor window where it goes gives way; every wall shared ⇒ `ImportReport.Doorless` + a warning. ⚠ The importer passes no road points yet ⇒ the LONGEST free wall (the road-facing choice works when a caller passes `nearestRoad`) |
+| D-6 `IUniqueBuildings.FromFootprint(footprint, storeys, doorHint)` | `FromFootprint(footprint, baseZ, height, door)` — a DEFAULT interface method (null: a host without a generator), implemented by `SynthUniqueBuildings` through `BuildingTemplateGenerator`: storeys from the height (3 m each), a window every 3.5 m on every wall per storey, the door hint as a door OPENING (the placer's own input — no second door path) |
+| D-6 placed as an overlay house `<editGuid>/0` | the edit's parts: `/0` remove, `/2` the levelled footprint, `/1` the house with its template INLINE (`"building": {…}`, the parser's own form) — no template file to register |
+| D-7 add door = regenerate with a hint | as designed: the same path, `door` passes the edit's position as the hint |
+| — | ⛔ no generator, a building not in the base, or no house fits (no stair) ⇒ the edit expands to NOTHING (the building stays) and the host warns — never a removed house with nothing in its place |
+
+Rails: `OpeningPlacerDoorRuleTests` (5), `BaseEditHouseTests` (2, the real generator), both red-proved.
+
+### 6d. As built — BE-5 *(terrain, `2026-11-19`)*
+
+| design said | as built — and why |
+|---|---|
+| D-8 delete the removed buildings' features from `world.json` (by label) before the append | ⭐ `TerrainBake.BakeFeatures(baseFeatures, overlayFeatures)` — ONE step used by both `SaveAs` and the save's in-memory check (`TerrainBake` preview): the targets of the overlay's `"remove"` parts are deleted from the base's features by `label` (the same key `TerrainWorldMerge.Without` drops), then the overlay's features are appended **without** their remove parts (a baked world has nothing left for them to remove) |
+| D-8 write the templates | nothing new: the levelled ground and a made-enterable house are ordinary overlay features, the house's template INLINE (§6c) ⇒ the existing append carries them |
+
+Rail: `TerrainBakeTests.CE5031_ARemovedBaseHouse_IsGoneFromTheSavedTerrain` (the saved folder read on its own: no "B", no door, no remove part, the levelled ground kept), red-proved. ⚠ The made-enterable house in a SAVED terrain is not railed on its own — it rides the same append as every overlay feature, which `TheSavedFolder_ParsesToTheSameWorldAsTheMerge` covers.
+
+### 6e. As built — BE-4 *(terrain, `2026-11-19`)*
+
+| design said | as built — and why |
+|---|---|
+| the Buildings family, armed tools | part 1: `TerrainPick.EditPicks` (Remove building · Make enterable · Add door) on the Terrain strip, icons `terrain/remove-building` · `make-enterable` · `add-door`; spec `feature:16:<action>:Point`; a click is born naming the baked building under it (`TerrainBirth.ResolveEdit` → `FeatureExpander.BaseBuildingAt`, the SAME pick the hover uses), a click on open ground or an overlay house places nothing |
+| hover: outline amber, a tooltip naming it and the action | ⭐ ONE more branch of the placing ghost (`TerrainGhost.Compute` → `BuildingEditHover`), cached by `TerrainPlacement.Preview` (no per-frame work): the footprint outlined SOLID amber (`TerrainGhostShape.Highlight`), three lines — `Baked building · <label>[ · NO DOOR]` · `SOLID — no interior / enterable · n storeys · m²` · the verdict (green), or why not (amber: *Make enterable* on an enterable house, open ground). ⚠ The mockup's building TYPE (`shed`) is not shown: the world keeps no OSM type. ⚠ *Add door* does not refuse a shared wall in the hover — the generator places the door (its own rule) |
+| the ghost after *Remove*, only while the toolbar is open | ⭐ the merge RECORDS what it took (`TerrainWorld.Removed`: label, footprint, floor Z, doors; carried through the obstacle bake) — the merged world no longer has the building. `TerrainFeatureGizmo` draws a remove edit as that footprint DASHED with a `removed` chip, the outline its pick (a click selects the edit); closed toolbar ⇒ nothing (TE-18). Rejected: the footprint as the edit's `EditablePolyline` — it would get vertex handles and a second outline |
+| right-click → Restore building · Select the edit | ⚠ no context menu: a click on the ghost selects the edit, Delete or the Details' **Restore building** removes it (one undo step) |
+| the edit's Details | ⭐ the existing Terrain tab, an Edit branch: Action · Building (`label  (baked)`) · Ground (`levelled to Z m`) · Goes with it (`n doors · its damage`) · **Restore building** (the shared delete, `SelectionInteractionSystem.DeleteEntity`) · **Show on map** (the shared `CenterOnEntityCommand`); facts from `TerrainFeatureOps.FactsOf` |
+
+Rails: `BuildingEditBirthTests` (part 1) · `BuildingEditHoverTests` (4) · `TerrainFeatureGizmoTests.CE5030_ARemoveEdit_DrawsTheRemovedBuildingsGhost_AndItsFacts` · `TerrainFeatureDetailsViewTests.CE5030_ARemoveEdit_ShowsTheMockupsRows_AndRestoreDeletesIt` (a frame, under `xvfb-run -a`).
+
 ## 7. Acceptance *(the scenarios — R-4277, by §6a proportionate)*
 
 | scenario | expect rows |
 |---|---|
 | ⭐ new `te-remove-building` | after the edit: no door entity of the building; a man walks straight across the footprint (it was a wall); the ground there within 0.05 m of the building's floor height |
 | ⭐ new `te-make-enterable` | a rifleman ordered into the converted shed enters through its door and stands inside; the shed has ≥ 1 door entity |
+| ⭐ as built `2026-11-19` | ✅ `te-remove-building` PASSES (crosses the old footprint at 8.75 s, never off the line, arrives). ⚠ `te-make-enterable` is RED by [CE-5039](blueprints/Blueprint_Issues_Tracker.md): the run starts before the scenario's live overlay is baked, his first plan runs on the base mesh (the block still solid) and is never retried; loaded and run in Preview AFTER the bake he walks in through the new door and the door opens (measured over HTTP). Its checks name only the door rule's outcome (inside the footprint), not a door entity count — the grammar has no cue for one |
 | existing `bd-destruction`, `tt-dozer-breach` | unchanged (the merge without edits is byte-for-byte as today) |

@@ -56,6 +56,9 @@ namespace Fdp.Toolkit.Terrain
         public float Length => Vector2.Distance(A, B);
     }
 
+    /// <summary>⭐ <c>CE-5030</c> — a base building a merge removed (<see cref="TerrainWorld.Removed"/>): its label, footprint, floor height and how many doors went with it.</summary>
+    public sealed record TerrainRemovedBuilding(string Label, Vector2[] Footprint, float FloorZ, int Doors);
+
     /// <summary>A door the terrain defines (its static definition); one door ENTITY per key arrives with Stage 5.</summary>
     public sealed class TerrainDoorDef
     {

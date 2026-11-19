@@ -239,5 +239,33 @@ namespace Fdp.Toolkit.Terrain.Tests
             }
             finally { f.Dispose(); }
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5031</c> BE-5 (📄 docs/DESIGN_Terrain_Base_Edits.md D-8, §6d) — a source scenario REMOVES the base's house "B" (an Edit, kind 16): the saved terrain, read on
+        /// its own (no scenario, no overlay), has no "B" — its world.json no longer holds the feature — and no remove part (nothing left for it to remove); the levelled ground the
+        /// edit leaves is a saved feature. 🔴 Red-proof: <c>BakeFeatures</c> deletes nothing ⇒ "B" is still a building of the saved world ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE5031_ARemovedBaseHouse_IsGoneFromTheSavedTerrain()
+        {
+            using var f = new OverlayFixture();
+            Assert.Contains(f.BaseWorld().Buildings, b => b.Label == "B");
+            var edit = OverlayFixture.Feature(TerrainFeature.Edit, 100, 100, template: "remove");
+            ((JsonObject)edit["TerrainFeature"]!)["Target"] = "B";
+            File.WriteAllText(Path.Combine(f.ScenarioDir, "scenario.json"), f.Scenario(("e5031000-0000-4000-8000-000000000001", edit)).ToJsonString());
+            string target = Path.Combine(f.Assets, "terrain", "saved-t");
+            TerrainBake.SaveAs(f.ScenarioDir, target, "saved-t", f.Resolve, new[] { f.Recipes }, bakeNavtiles: false);
+
+            string def = Path.Combine(target, "terrain.json");
+            var saved = TerrainFolderWorld.ReadWorld(def, TerrainFolderWorld.ReadDefinition(def), "saved-t")!;
+            Assert.DoesNotContain(saved.Buildings, b => b.Label == "B");
+            Assert.Empty(saved.Doors);                                       // B's door went with it
+            Assert.Empty(saved.RemovedBuildings);                             // a baked world removes nothing
+            var json = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(target, TerrainFolderWorld.ReadDefinition(def).World)))!;
+            var features = (JsonArray)json["features"]!;
+            Assert.DoesNotContain(features, x => (string?)x!["properties"]?["label"] == "B");
+            Assert.DoesNotContain(features, x => (string?)x!["properties"]?["kind"] == "remove");
+            Assert.Contains(features, x => ((string?)x!["properties"]?["label"] ?? "").StartsWith("e5031000-0000-4000-8000-000000000001/", StringComparison.Ordinal));   // the levelled ground
+        }
     }
 }

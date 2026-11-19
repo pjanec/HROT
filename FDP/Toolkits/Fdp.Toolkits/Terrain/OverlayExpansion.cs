@@ -38,8 +38,9 @@ namespace Fdp.Toolkit.Terrain
         public sealed record FeatureSpec(string Key, byte Kind, string Template, float HeadingDeg, float Pad, uint Seed, Vector2 At, IReadOnlyList<Vector2> Points, string Target = "");
 
         /// <summary>The parts of one feature (<c>&lt;key&gt;/&lt;i&gt;</c>) — a house, a wall, a wood, a bridge, a scatter's items … (<see cref="FeatureExpander.OfKind"/>).</summary>
-        public static IReadOnlyList<JsonObject> Feature(FeatureSpec s, TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots)
-            => FeatureExpander.OfKind(s.Kind, s.Key, s.Template, s.HeadingDeg, s.Pad, s.Seed, s.At, s.Points, baseWorld, assets, recipeRoots, s.Target);
+        /// <param name="unique">⭐ CE-5029 — the host's house generator (an <c>Edit</c> that makes a building enterable or adds a door); null ⇒ those edits remove nothing and warn.</param>
+        public static IReadOnlyList<JsonObject> Feature(FeatureSpec s, TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots, IUniqueBuildings? unique = null)
+            => FeatureExpander.OfKind(s.Kind, s.Key, s.Template, s.HeadingDeg, s.Pad, s.Seed, s.At, s.Points, baseWorld, assets, recipeRoots, s.Target, unique);
 
         /// <summary>One house feature (<c>&lt;key&gt;/0</c>).</summary>
         public static JsonObject House(string key, string template, float headingDeg, float pad, Vector2 at, TerrainWorld baseWorld, TerrainAssets assets)

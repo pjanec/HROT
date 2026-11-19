@@ -41,6 +41,17 @@ public sealed record TerrainPick(TerrainPickKind Kind, string Id, string Name, s
         _ => null,
     };
 
+    /// <summary>⭐ CE-5030 (BE-4) — the Buildings family's tools (Remove · Make enterable · Add door): a building EDIT, armed from the Terrain strip only (never in the Add Entity picker).</summary>
+    public static IReadOnlyList<TerrainPick> EditPicks { get; } = new[]
+    {
+        new TerrainPick(TerrainPickKind.Feature, "edit-remove", "Remove building", TerrainPickCatalog.Buildings, null, "flat ground, its doors and damage go", Array.Empty<(string, string)>(),
+            FeatureKind: Fdp.Toolkit.Terrain.TerrainFeature.Edit, Template: "remove"),
+        new TerrainPick(TerrainPickKind.Feature, "edit-enterable", "Make enterable", TerrainPickCatalog.Buildings, null, "floors · stairs · windows · ≥ 1 door", Array.Empty<(string, string)>(),
+            FeatureKind: Fdp.Toolkit.Terrain.TerrainFeature.Edit, Template: "enterable"),
+        new TerrainPick(TerrainPickKind.Feature, "edit-door", "Add door", TerrainPickCatalog.Buildings, null, "click a wall of a doorless house", Array.Empty<(string, string)>(),
+            FeatureKind: Fdp.Toolkit.Terrain.TerrainFeature.Edit, Template: "door"),
+    };
+
     /// <summary>The placement spec the arm carries (<c>block:hamlet</c> / <c>house:house-2f</c> / <c>feature:2:brick:Line</c>) — what <see cref="TerrainBirth"/> reads.</summary>
     public string Spec => Kind switch
     {

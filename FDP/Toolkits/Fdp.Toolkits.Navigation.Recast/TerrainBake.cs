@@ -80,7 +80,7 @@ public static class TerrainBake
             var header = TerrainOverlayHeader.Parse(File.ReadAllText(Path.Combine(overlayFolder, TerrainOverlayHeader.FileName)), overlayFolder);
             var overlayJson = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(overlayFolder, header.World)))!;
             var features = worldJson["features"] as JsonArray ?? throw new InvalidOperationException($"[Terrain] World file '{worldPath}' has no features array.");
-            foreach (var f in (JsonArray)overlayJson["features"]!) features.Add(f!.DeepClone());
+            BakeFeatures(features, (JsonArray)overlayJson["features"]!);
             var overlayBase = TerrainFolderWorld.ReadWorld(baseDef, definition, baseName)!;
             var merged = TerrainWorldMerge.Merge(overlayBase, TerrainFolderWorld.ReadOverlay(overlayFolder, baseName, TerrainAssets.RecipesSibling(baseFolder), overlayBase.Height).World);   // ⭐ CE-5014 — on the base's relief
             var hrot = worldJson["hrot"] as JsonObject ?? (JsonObject)(worldJson["hrot"] = new JsonObject { ["schemaVersion"] = 1 });
@@ -161,7 +161,7 @@ public static class TerrainBake
                 var worldJson = JsonNode.Parse(File.ReadAllText(worldPath)) as JsonObject ?? throw new InvalidOperationException($"[Terrain] World file '{worldPath}' is not a GeoJSON object.");
                 var overlayJson = (JsonObject)JsonNode.Parse(File.ReadAllText(Path.Combine(overlayFolder, overlay.Header.World)))!;
                 var features = worldJson["features"] as JsonArray ?? throw new InvalidOperationException($"[Terrain] World file '{worldPath}' has no features array.");
-                foreach (var f in (JsonArray)overlayJson["features"]!) features.Add(f!.DeepClone());
+                BakeFeatures(features, (JsonArray)overlayJson["features"]!);   // ⭐ CE-5031 BE-5 — the base edits baked: removed buildings deleted
                 var hrot = worldJson["hrot"] as JsonObject ?? (JsonObject)(worldJson["hrot"] = new JsonObject { ["schemaVersion"] = 1 });
                 hrot["bounds"] = new JsonArray(merged.BoundsMin.X, merged.BoundsMin.Y, merged.BoundsMax.X, merged.BoundsMax.Y);
                 File.WriteAllText(worldPath, worldJson.ToJsonString());
@@ -414,6 +414,29 @@ public static class TerrainBake
     }
 
     /// <summary>Copies every file under <paramref name="from"/> to <paramref name="to"/> (existing files are overwritten), skipping the relative paths <paramref name="skip"/> names (a folder's whole subtree through its first segment test).</summary>
+    /// <summary>
+    /// ⭐⭐ <c>CE-5031</c> BE-5 (📄 docs/DESIGN_Terrain_Base_Edits.md D-8, §6d) — the saved world's features: the base's, minus every feature an overlay <c>"remove"</c> part
+    /// targets (by label — the building the merge drops, <c>TerrainWorldMerge.Without</c>), then the overlay's own features minus those remove parts (they have nothing left
+    /// to remove in a world that no longer holds their target). The levelled ground and a made-enterable house (its inline <c>"building"</c> template) ride as ordinary
+    /// overlay features ⇒ the saved terrain loads WITHOUT the scenario as the edited ground.
+    /// </summary>
+    public static int BakeFeatures(JsonArray baseFeatures, JsonArray overlayFeatures)
+    {
+        var removed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var f in overlayFeatures)
+            if (f?["properties"] is JsonObject p && (string?)p["kind"] == "remove" && (string?)p["target"] is { Length: > 0 } t) removed.Add(t);
+        int deleted = 0;
+        for (int i = baseFeatures.Count - 1; i >= 0; i--)
+            if (removed.Count > 0 && baseFeatures[i]?["properties"]?["label"] is JsonValue v && v.TryGetValue<string>(out var label) && removed.Contains(label))
+            {
+                baseFeatures.RemoveAt(i);
+                deleted++;
+            }
+        foreach (var f in overlayFeatures)
+            if (!(f?["properties"] is JsonObject p && (string?)p["kind"] == "remove")) baseFeatures.Add(f!.DeepClone());
+        return deleted;
+    }
+
     private static void CopyTree(string from, string to, Func<string, bool> skip)
     {
         Directory.CreateDirectory(to);

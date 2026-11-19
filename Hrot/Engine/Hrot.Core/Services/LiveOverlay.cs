@@ -288,7 +288,7 @@ public sealed class LiveOverlay
                 foreach (var (tn, tj) in bx.Templates) entry.Templates[tn] = tj;
             }
             else
-                entry.Features.AddRange(OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(s.Key, s.Kind, s.Name, s.HeadingDeg, s.Pad, s.Seed, s.At, s.Points ?? Array.Empty<Vector2>(), s.Target ?? ""), baseWorld, _assets!, _roots!));
+                entry.Features.AddRange(OverlayExpansion.Feature(new OverlayExpansion.FeatureSpec(s.Key, s.Kind, s.Name, s.HeadingDeg, s.Pad, s.Seed, s.At, s.Points ?? Array.Empty<Vector2>(), s.Target ?? ""), baseWorld, _assets!, _roots!, Unique));
             foreach (var f in entry.Features)
             {
                 var (min, max) = OverlayExpansion.BoundsOf(f);
