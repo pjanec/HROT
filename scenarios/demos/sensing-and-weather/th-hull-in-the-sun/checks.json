@@ -1,0 +1,36 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-1987 (R-1058): a sun-heated parked hull is seen by THERMAL against cool grass. Modality is a bitmask (Visual 1, Thermal 4): the values listed are those with the thermal bit.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the observer holds the Grass Tank with the THERMAL bit (Modality has 4)",
+      "on": "field",
+      "who": "Observer",
+      "path": "TargetMemory.Entries.0.Modality",
+      "op": "in",
+      "value": [
+        4,
+        5,
+        6,
+        7,
+        12,
+        13,
+        14,
+        15
+      ],
+      "before": 20
+    },
+    {
+      "name": "... at the Grass Tank's place (420, 200)",
+      "on": "field",
+      "who": "Observer",
+      "path": "TargetMemory.Entries.0.PosX",
+      "op": "==",
+      "value": 420,
+      "atEnd": true
+    }
+  ]
+}

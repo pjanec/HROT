@@ -148,7 +148,7 @@ namespace Hrot.Map.Definitions.Tkb
                     p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry; p.AvoidanceRadius = Fdp.Toolkit.Tkb.Domain.VehicleParametersDto.CloseOrderAvoidanceRadius;   // ⭐ R-2065
                 })
                 .WithCombat(type, c => { c.ArmorFront = 5; c.Weapons.Add(lmg); if (second is { } w2) c.Weapons.Add(w2); c.SensorRange = 500;
-                                         c.ThermalRange = thermalRange; c.ThermalMinSignature = thermalMin; })   // ⭐ CE-4658 — a hand-held thermal sight (0 = none)
+                                         c.ThermalRange = thermalRange; c.ThermalMinContrastK = thermalMin; })   // ⭐ CE-4658 — a hand-held thermal sight (0 = none)
                 .WithFaction(type, faction)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
@@ -1219,7 +1219,7 @@ namespace Hrot.Map.Definitions.Tkb
             //   (Gen.HuntingRules — read through Animals.MayEngage by the weapon brain's target choice; a dog is never listed).
             MachineGunner(builder, TkbEntityTypes.Infantry_Hunter, "Hunter (12-gauge)", AntiDroneShotgun(), UnitedStates, faction: 1);
             // ⭐ CE-4658 (thermal drivers TD-S2) — the thermal observer: a rifleman with a hand-held thermal sight (th-idling-tank's observer)
-            MachineGunner(builder, TkbEntityTypes.Infantry_ThermalObserver, "Observer (thermal sight)", M4Carbine(), UnitedStates, faction: 1, thermalRange: 1500f, thermalMin: 0.3f);
+            MachineGunner(builder, TkbEntityTypes.Infantry_ThermalObserver, "Observer (thermal sight)", M4Carbine(), UnitedStates, faction: 1, thermalRange: 1500f, thermalMin: 4f);   // ⭐ CE-1987 (R-1058) — 4 K of contrast (was a 0.3 signature)
             {   // his standing orders are the hunter's own SOP (the soldier's reaction takes cover in the open and never fires at game)
                 var hunter = tkbDb.GetByType(TkbEntityTypes.Infantry_Hunter)!;
                 hunter.AddDescriptor(hunter.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BehaviorProfileDto>()! with { DefaultSop = Hrot.Map.Definitions.Behavior.BehaviorNames.HunterSop });

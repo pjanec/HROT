@@ -1032,9 +1032,10 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ CE-3061 — the THERMAL sensor sees a target only when its signature reaches the sensor's MinSignature: a cold
-        /// target at rest is not seen; the same target, heated by running (ThermalHeatSystem), is. 📄
-        /// DESIGN_Thermal_And_Acoustic_Sensing.md §5.2, §6 E–F.
+        /// ⭐ CE-3061 / ⭐⭐ CE-1987 (R-1058) — the THERMAL sensor sees a target only when its °C CONTRAST against the ground under it reaches the sensor's
+        /// <c>MinContrastK</c>: a vehicle long parked with its engine OFF (its painted hull within a few K of the soil) is not seen; the same vehicle with its
+        /// engine IDLING (the engine end tens of K above it) is — through the whole EQS solve, its serial background prepare included. 📄
+        /// DESIGN_Thermal_And_Acoustic_Sensing.md §5.2, §6 E–F, §9. 🔴 Red-proof: EqsSolverSystem not preparing the background AND the filter's fallback removed ⇒ never seen.
         /// </summary>
         [Fact]
         public void S7_TheThermalSensor_SeesATargetOnlyOnceItIsHotEnough_CE3061()
@@ -1053,7 +1054,7 @@ namespace Hrot.SimHost.Tests
             template.AddDescriptor(new SensorCapabilitiesDto { Sensors = new List<SensorEntryDto> { new()
             {
                 Kind = SensorModality.Thermal, Template = ThermalPerception.AssetGuid, SearchRadius = 200f,
-                Thermal = new ThermalSensorDto { Range = 100f, FieldOfViewDegrees = 360f, MinSignature = 0.5f },
+                Thermal = new ThermalSensorDto { Range = 100f, FieldOfViewDegrees = 360f, MinContrastK = 4f },
             } } });
             new PerceptionTkbTranslator().Inject(_world, unit, template);
             var sensor = UnitSensors.Of(_world, unit, SensorModality.Thermal);
@@ -1062,15 +1063,15 @@ namespace Hrot.SimHost.Tests
             var enemy = CreateEnemyAt(new Vector2(60f, 10f));   // 50 m, in range and in sight
             _world.AddComponent(enemy, new Fdp.Toolkit.Perception.Signatures.ThermalState
             {
-                BaseSignature = 0.3f, RunningHeatPerSecond = 0.5f, CooldownPerSecond = 0.05f, ReferenceSpeed = 5f, IdleHeat = 0.2f, RunningHeat = 0.8f,   // a body
+                BaseSignature = 0.2f, IdleHeat = 0.4f, RunningHeat = 0.8f, RunningHeatPerSecond = 0.01f, CooldownPerSecond = 0.002f, ReferenceSpeed = 8f,
+                HasPowerPlant = true, HotEnd = 2,   // an engine, its hot end at the rear
             });
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.HeatSource>()) _world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.HeatSource>();
+            _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 3600.0 });
+            _world.AddComponent(enemy, Fdp.Toolkit.Perception.Signatures.HeatSource.Of(Fdp.Toolkit.Perception.Signatures.HeatSourceState.Off,
+                (SimInstant)double.NegativeInfinity, (SimInstant)double.NegativeInfinity));   // parked, engine cold
 
             var solver = new EqsSolverSystem { BudgetUnits = int.MaxValue };
-            // ⭐ CE-4658 — the heat is the writer's DECISION (HeatSourceSystem) + the sensor's computation (ThermalDriversOps), not an integrated Heat
-            var heat   = new Fdp.Toolkit.Perception.Signatures.HeatSourceSystem();
-            double clock = 0.0;
-            void Heat() { clock += 0.1; _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = clock }); heat.Execute(view, 0.1f); }
             unsafe bool Sensed()
             {
                 if (!_world.HasComponent<SensorContactList>(sensor)) return false;
@@ -1091,20 +1092,18 @@ namespace Hrot.SimHost.Tests
             //   crashed the test host — "double free or corruption").
             {
                 Solve();
-                Assert.False(Sensed(), "a cold target (signature 0.3 < 0.5) is not seen");
+                var bg = Fdp.Toolkit.Perception.Signatures.ThermalBackground.Of(view);
+                Assert.True(bg != null, "the solve prepared the frame's thermal background (serially, before its parallel solves)");
+                float cold = ThermalPerception.ContrastOf(view, enemy, in _world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(enemy), 3600.0, bg!);
+                Assert.False(Sensed(), $"a parked cold hull ({cold:0.0} K against the ground < 4 K) is not seen");
 
-                Heat();                                                           // first sight: standing (rest heat 0.2 ⇒ 0.44 < 0.5)
+                _world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 3700.0 });
+                _world.SetComponent(enemy, Fdp.Toolkit.Perception.Signatures.HeatSource.Of(Fdp.Toolkit.Perception.Signatures.HeatSourceState.Idle,
+                    (SimInstant)3100.0, (SimInstant)double.NegativeInfinity));   // its engine idling for ten minutes
                 Solve();
-                Assert.False(Sensed(), "a man at rest (0.3 + 0.2 × 0.7 = 0.44 < 0.5) is not seen");
-                for (int i = 0; i < 10; i++)                                      // 1 s running at 5 m/s, staying in range
-                {
-                    ref var t = ref _world.GetComponentRW<SimTransform>(enemy);
-                    t.Position += new Vector3(0f, (i % 2 == 0) ? 0.5f : -0.5f, 0f);
-                    Heat();
-                }
-                Assert.Equal(Fdp.Toolkit.Perception.Signatures.HeatSourceState.Moving, _world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.HeatSource>(enemy).State);
-                Solve();
-                Assert.True(Sensed(), $"the running target is hot enough to be seen (state {_world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.HeatSource>(enemy).State}, " +
+                float warm = ThermalPerception.ContrastOf(view, enemy, in _world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(enemy), 3700.0,
+                    Fdp.Toolkit.Perception.Signatures.ThermalBackground.Of(view)!);
+                Assert.True(Sensed(), $"the idling engine ({warm:0.0} K) is seen (" +
                     $"buffer {(_world.HasComponent<EqsCognitiveBuffer>(sensor) ? _world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count : -1)}, " +
                     $"contacts {(_world.HasComponent<SensorContactList>(sensor) ? _world.GetComponentRO<SensorContactList>(sensor).Count : -1)}, " +
                     $"suspended {_world.GetComponentRO<EqsSensor>(sensor).Suspended}, last schedule {solver.LastSchedule.Count})");

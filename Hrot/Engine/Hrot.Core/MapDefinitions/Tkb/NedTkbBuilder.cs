@@ -382,7 +382,7 @@ namespace Hrot.Map.Definitions.Tkb
                             Kind = Fdp.Toolkit.Perception.Components.SensorModality.Thermal,
                             Template = Fdp.Toolkit.Perception.Sensors.ThermalPerception.AssetGuid,
                             SearchRadius = combatDef.ThermalRange,
-                            Thermal = new ThermalSensorDto { Range = combatDef.ThermalRange, FieldOfViewDegrees = 360f, MinSignature = combatDef.ThermalMinSignature },   // ⭐ CE-4658
+                            Thermal = new ThermalSensorDto { Range = combatDef.ThermalRange, FieldOfViewDegrees = 360f, MinContrastK = combatDef.ThermalMinContrastK },   // ⭐ CE-4658
                         });
                     if (combatDef.RadarRange > 0f)
                         listed.Add(Fdp.Toolkit.Perception.Sensors.RadarPerception.Entry(combatDef.RadarRange));

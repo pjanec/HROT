@@ -51,7 +51,7 @@ Queries: `search_graph name_pattern=".*(Thermal|Heat|Infrared|Temperature|Burn|S
 | render-target precedent | `Film.cs:382-401` (`_canvas.DrawScene(size)` into a `RenderTexture`) | the pattern, already headless-proven |
 | `VehicleLights` + `VehicleLook.Lights` (brake lights derived) → `_lightsNow` | `Behavior/Components/VehicleLights.cs`, `Look/Vehicles/VehicleLook.cs:136`, `EntityBodyLayer3D.Fittings.cs:112-147` | the lit lamps, drawn as unlit spheres today |
 | `EffectLayer.ResolveStateInto` (fires on every `FireState` holder, jets, burning men, scorch) + shots / blasts | `Effects/EffectLayer.cs:198-290` | the flames and flashes |
-| `PerceptionWeather.BaseContrast` (the sensor's crossover) | `Perception/Sensors/PerceptionWeather.cs:61` | ⚠ the AI's simpler model — §3 D-9 |
+| `PerceptionWeather.BaseContrast` (the sensor's crossover) | ⛔ retired by CE-1987 | was the AI's simpler model — §3 D-9 |
 | ⛔ **a moon** | grep `Moon` in `Weather/`, `WeatherSky.cs` ⇒ **0** | every night is starlight-only ⇒ §4a |
 | ⛔ **a view mode / post-process** | the second query ⇒ none; `MapViewModeLayer` is the 2-D / 3-D switch only | ⇒ new, one seam |
 
@@ -77,7 +77,7 @@ Queries: `search_graph name_pattern=".*(Thermal|Heat|Infrared|Temperature|Burn|S
 | **D-6** | thermal surfaces: three numbers per thermal class (α absorption, τ inertia, ε emissivity) + an evaporation pin; the steady daily cycle in closed form; sky reflection by ε; wind and rain couple to the air | 🔒 user: *"cheap but not completely out of reality"* · ⛔ a heat solver with history |
 | **D-7** | units in °C = their surface (the same model, metal / body) + their own heat from `ThermalDriversOps` (engine at the hot end, barrel, fire, a corpse cooling) | ONE calculator for the AI and the view's units |
 | **D-8** | the gain is set on the CPU from what it already knows (the light level; the class and unit temperatures in view) — no GPU read-back | cheap, deterministic |
-| **D-9** | the °C model lives in `Fdp.Toolkits` beside `ThermalDriversOps`; the AI sensor keeps its 0..1 signature for now — moving it to °C contrast is **CE-1987** (behaviour change ⇒ scenarios) | one model when CE-1987 lands; the interim duplicate is named, not hidden |
+| **D-9** | the °C model lives in `Fdp.Toolkits` beside `ThermalDriversOps`; ✅ **CE-1987 BUILT `2026-11-19` (R-1058): the AI sensor reads the same model** — °C contrast against the ground under the target (DESIGN_Thermal_And_Acoustic_Sensing §9); the view's outlines and readout call the sensor's `ContrastOf`. ⛔ SUPERSEDED: "the AI sensor keeps its 0..1 signature for now" | one model — the interim duplicate is gone |
 | **D-10** | a debugging view, on every host with a 3-D map: `View ▸ Sensor View ▸ Off / Night Vision / Thermal`, `GET/POST /view/sensor`; hover readout; units above the SELECTED observer's thermal threshold outlined | the user's "debugging view"; ⛔ tied to a unit's own sight (that is G-10, later — it reuses this) |
 | **D-11** | the post-process toggles: palette (NV: green P43 / white P45; thermal: white-hot / black-hot / ironbow), auto / manual gain, halo, sensor resolution, noise — all default ON | realistic by default, clean on demand |
 

@@ -1,0 +1,28 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-1987 (R-1058): the same sun-heated hull on hot bare ground is NOT seen by thermal (within the sight's 4 K). Modality is a bitmask (Visual 1, Thermal 4).",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Soil Tank never carries the THERMAL bit",
+      "never": {
+        "on": "field",
+        "who": "Observer",
+        "path": "TargetMemory.Entries.0.Modality",
+        "op": "in",
+        "value": [
+          4,
+          5,
+          6,
+          7,
+          12,
+          13,
+          14,
+          15
+        ]
+      }
+    }
+  ]
+}

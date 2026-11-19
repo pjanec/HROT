@@ -109,7 +109,7 @@ public sealed class SensorView : IMapLayer
     public float SpotC { get; private set; } = float.NaN;
     /// <summary>The selected observer the outlines were drawn for the last frame (<see cref="Entity.Null"/>: none, or it has no thermal sensor).</summary>
     public Entity Observer { get; private set; } = Entity.Null;
-    /// <summary>Units outlined the last frame: their signature reaches the observer's <c>MinSignature</c> within its thermal range.</summary>
+    /// <summary>Units outlined the last frame: their thermal contrast reaches the observer's <c>MinContrastK</c> within its thermal range (CE-1987).</summary>
     public int OutlinesDrawn { get; private set; }
 
     public void Update(float dt)
@@ -269,9 +269,7 @@ public sealed class SensorView : IMapLayer
             return (AirC, AirC, 0);
         ref readonly var ts = ref world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(e);
         double now = Fdp.Toolkit.Time.SimClock.TotalTimeOf(world);   // ⛔ SimClock.Of allocates a clock per call (measured 24 B per unit per frame)
-        var d = Fdp.Toolkit.Perception.Sensors.UnitThermalDrivers.Of(world, e, in ts, now);
-        var source = d.HasSource ? d.Source : default;
-        var heat = Fdp.Toolkit.Perception.Signatures.ThermalScene.Unit(in ts, in source, d.Speed, now, d.Barrel01, d.Fire01, d.DiedAt, ts.HasPowerPlant ? HullC : AirC);
+        var heat = Fdp.Toolkit.Perception.Sensors.ThermalPerception.UnitC(world, e, in ts, now, HullC, AirC);   // ⭐ CE-1987 — the sensor's own function
         int sign = !ts.HasPowerPlant ? 0 : ts.HotEnd == (byte)Fdp.Toolkit.Terrain.HeatMarkEnd.Front ? 1 : ts.HotEnd == (byte)Fdp.Toolkit.Terrain.HeatMarkEnd.Rear ? -1 : 0;
         return (heat.BodyC, MathF.Max(heat.HotEndC, heat.BarrelC), sign);
     }
@@ -350,9 +348,9 @@ public sealed class SensorView : IMapLayer
 
     /// <summary>
     /// ⭐ CE-1985 (D-10; mockup <c>docs/UX/sensor-view.svg</c> row C — the hover readout) — over a unit with thermal data: its name, its surface °C and its hot
-    /// end's (front / rear), the DRIVERS the AI's sensor reads (the engine or body state and for how long, the barrel, a fire), and its signature against the
+    /// end's (front / rear), the DRIVERS the AI's sensor reads (the engine or body state and for how long, the barrel, a fire), and its °C CONTRAST (CE-1987) against the
     /// selected observer's threshold — SEEN (outlined) or not, or beyond its range. The unit is the 3-D pick under the pointer (entities only). The text is
-    /// rebuilt only when a shown value changes (a tenth of a degree, a minute, a hundredth of signature) — 0 B in a steady frame.
+    /// rebuilt only when a shown value changes (a tenth of a degree, a minute) — 0 B in a steady frame.
     /// </summary>
     private bool DrawUnitReadout(Vector2 p)
     {
@@ -368,15 +366,15 @@ public sealed class SensorView : IMapLayer
         var d = Fdp.Toolkit.Perception.Sensors.UnitThermalDrivers.Of(world, e, in ts, now,
             world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.HeatSource>(), world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>());
         bool observed = !_eyeObserver.IsNull && _eyeObserver == Observer;
-        float contrast = observed ? _eyeContrast
-            : Fdp.Toolkit.Perception.Sensors.PerceptionWeather.TrySample(world, e, out var w) ? Fdp.Toolkit.Perception.Sensors.PerceptionWeather.BaseContrast(in w) : 1f;
-        float sig = Fdp.Toolkit.Perception.Sensors.ThermalPerception.SignatureOf(world, e, in ts, contrast, now);
+        var bg = Background(world);
+        float sig = Fdp.Toolkit.Perception.Sensors.ThermalPerception.ContrastOf(world, e, in ts, now, bg);   // ⭐ CE-1987 — K against its background
+        float bgC = bg.BackgroundC(world.HasComponent<SimTransform>(e) ? world.GetComponentRO<SimTransform>(e).Position : default);
         bool inRange = observed && world.HasComponent<SimTransform>(e)
                        && Vector3.DistanceSquared(world.GetComponentRO<SimTransform>(e).Position, _eyeAt) <= _eyeRange * _eyeRange;
         int minutes = d.HasSource ? (int)((now - d.Source.Since.Seconds) / 60.0) : -1;
         int key = HashCode.Combine(e.Index, (int)MathF.Round(bodyC * 10f), (int)MathF.Round(hotC), hotSign,
                                    HashCode.Combine(d.HasSource ? (int)d.Source.State : -1, minutes, (int)MathF.Round(d.Barrel01 * 120f), d.Fire01 > 0f),
-                                   (int)MathF.Round(sig * 100f), observed ? _eyeObserver.Index : -1, HashCode.Combine(inRange, (int)MathF.Round(_eyeMin * 100f)));
+                                   (int)MathF.Round(sig * 10f), observed ? _eyeObserver.Index : -1, HashCode.Combine(inRange, (int)MathF.Round(_eyeMin * 10f), (int)MathF.Round(bgC * 10f)));
         if (key != _kReadout)
         {
             _kReadout = key;
@@ -397,11 +395,12 @@ public sealed class SensorView : IMapLayer
                 } + (minutes >= 0 && d.Source.State != Fdp.Toolkit.Perception.Signatures.HeatSourceState.None ? $" for {minutes.ToString(inv)} min" : "");
             string barrel = d.Barrel01 > 0.005f ? $"barrel {(bodyC + d.Barrel01 * 120f).ToString("0", inv)} C" : "barrel cold";
             _r2 = $"{source}  -  {barrel}  -  {(d.Fire01 > 0f ? "BURNING" : "no fire")}";
-            _r3 = !observed ? $"signature {sig.ToString("0.00", inv)}  -  select a unit with a thermal sensor to compare"
-                : !inRange ? $"signature {sig.ToString("0.00", inv)}: beyond the observer's {_eyeRange.ToString("0", inv)} m thermal range"
+            string dt = $"contrast {sig.ToString("0.0", inv)} K vs background {bgC.ToString("0.0", inv)} C";
+            _r3 = !observed ? $"{dt}  -  select a unit with a thermal sensor to compare"
+                : !inRange ? $"{dt}: beyond the observer's {_eyeRange.ToString("0", inv)} m thermal range"
                 : Fdp.Toolkit.Perception.Sensors.ThermalPerception.Reaches(sig, _eyeMin)
-                    ? $"signature {sig.ToString("0.00", inv)} >= observer {_eyeMin.ToString("0.00", inv)}: SEEN (outlined)"
-                    : $"signature {sig.ToString("0.00", inv)} < observer {_eyeMin.ToString("0.00", inv)}: not seen";
+                    ? $"{dt} >= observer {_eyeMin.ToString("0.0", inv)} K: SEEN (outlined)"
+                    : $"{dt} < observer {_eyeMin.ToString("0.0", inv)} K: not seen";
         }
         int fs = 14, lh = fs + 4;
         int wd = Math.Max(Raylib.MeasureText(_r1, fs), Math.Max(Raylib.MeasureText(_r2, fs), Raylib.MeasureText(_r3, fs))) + 16;
@@ -420,13 +419,13 @@ public sealed class SensorView : IMapLayer
     }
 
     private Entity _eyeObserver = Entity.Null;
-    private float _eyeMin, _eyeRange, _eyeContrast = 1f;
+    private float _eyeMin, _eyeRange;
     private Vector3 _eyeAt;
 
     /// <summary>
     /// ⭐ CE-1985 (D-10) — the units the PRIMARY-selected unit's thermal sensor can see by their heat: within its (weather-capped) thermal range and with a
-    /// signature reaching its <c>MinSignature</c> — the AI sensor's own rule (<see cref="Fdp.Toolkit.Perception.Sensors.ThermalPerception.SignatureOf"/>,
-    /// ⛔ never a copy). Corner brackets round each one's projected body box, drawn after the post (sharp). ⚠ Range and signature only — no field of view,
+    /// contrast reaching its <c>MinContrastK</c> — the AI sensor's own rule (<see cref="Fdp.Toolkit.Perception.Sensors.ThermalPerception.ContrastOf"/>,
+    /// ⛔ never a copy). Corner brackets round each one's projected body box, drawn after the post (sharp). ⚠ Range and contrast only — no field of view,
     /// no line of sight (the sensor's other tests): it answers "hot enough for this sensor", not "seen now". 0 B per frame (queries built per world).
     /// </summary>
     private void DrawOutlines()
@@ -447,10 +446,10 @@ public sealed class SensorView : IMapLayer
         Entity observer = Entity.Null;
         foreach (var e in _selQuery)
             if (world.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsPrimarySelection) { observer = e; break; }
-        if (observer.IsNull || !world.HasComponent<SimTransform>(observer) || !TryThermalEye(world, observer, out float min, out float range, out float contrast)) return;
+        if (observer.IsNull || !world.HasComponent<SimTransform>(observer) || !TryThermalEye(world, observer, out float min, out float range)) return;
         Observer = observer;
         var eye = world.GetComponentRO<SimTransform>(observer).Position;
-        _eyeObserver = observer; _eyeMin = min; _eyeRange = range; _eyeContrast = contrast; _eyeAt = eye;   // the unit readout compares against the same eye
+        _eyeObserver = observer; _eyeMin = min; _eyeRange = range; _eyeAt = eye;   // the unit readout compares against the same eye
         double now = Fdp.Toolkit.Time.SimClock.TotalTimeOf(world);
         bool sources = world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.HeatSource>();
         bool fires = world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>();
@@ -460,8 +459,8 @@ public sealed class SensorView : IMapLayer
             if (e == observer) continue;
             if (Vector3.DistanceSquared(world.GetComponentRO<SimTransform>(e).Position, eye) > range * range) continue;
             ref readonly var ts = ref world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(e);
-            float sig = Fdp.Toolkit.Perception.Sensors.ThermalPerception.SignatureOf(world, e, in ts, contrast, now, sources, fires);
-            if (!Fdp.Toolkit.Perception.Sensors.ThermalPerception.Reaches(sig, min)) continue;
+            float dk = Fdp.Toolkit.Perception.Sensors.ThermalPerception.ContrastOf(world, e, in ts, now, Background(world), sources, fires);
+            if (!Fdp.Toolkit.Perception.Sensors.ThermalPerception.Reaches(dk, min)) continue;
             if (!Bodies.TryGetBox(world, e, out var c, out var r, out var h)) continue;
             if (!ScreenBox(cam, c, r, h * 1.1f, out var lo, out var hi)) continue;
             Brackets(lo, hi, OutlineColour);
@@ -471,15 +470,20 @@ public sealed class SensorView : IMapLayer
 
     /// <summary>The observer's thermal sensor: on the unit itself, or the first of its sensor PARTS (a <c>SensorTag</c> whose <c>PartMetadata</c> parent is the unit —
     /// how a TKB unit carries its sensors) that is a thermal one.</summary>
-    private bool TryThermalEye(EntityRepository world, Entity unit, out float min, out float range, out float contrast)
+    private bool TryThermalEye(EntityRepository world, Entity unit, out float min, out float range)
     {
-        if (Fdp.Toolkit.Perception.Sensors.ThermalPerception.TryEyeOf(world, unit, unit, out min, out range, out contrast)) return true;
+        if (Fdp.Toolkit.Perception.Sensors.ThermalPerception.TryEyeOf(world, unit, unit, out min, out range)) return true;
         if (_sensorQuery != null)
             foreach (var s in _sensorQuery)
                 if (world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(s).ParentEntity == unit
-                    && Fdp.Toolkit.Perception.Sensors.ThermalPerception.TryEyeOf(world, s, unit, out min, out range, out contrast)) return true;
+                    && Fdp.Toolkit.Perception.Sensors.ThermalPerception.TryEyeOf(world, s, unit, out min, out range)) return true;
         return false;
     }
+
+    /// <summary>⭐ CE-1987 (C-5, §9.6) — the frame's thermal background of the world this view draws: prepared here, on the presentation thread (serial), when the
+    /// world's own EQS solve has not (a map host without Perception; the threaded node's presentation copy) — free when it has, the same sim time.</summary>
+    private static Fdp.Toolkit.Perception.Signatures.ThermalBackground Background(EntityRepository world)
+        => Fdp.Toolkit.Perception.Signatures.ThermalBackground.Prepare(world);
 
     /// <summary>The screen rectangle round an oriented box's eight corners; false when any corner is behind the camera.</summary>
     private static bool ScreenBox(MapCamera3D cam, Vector3 centre, Quaternion rotation, Vector3 half, out Vector2 lo, out Vector2 hi)

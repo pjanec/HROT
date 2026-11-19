@@ -12,17 +12,20 @@ using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Weather;
 using Fdp.Core.Collections;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Fdp.Toolkit.Tests.Perception
 {
     /// <summary>
     /// ⭐⭐ <c>CE-3216</c> S2 (R-3017; docs/designs/weather/DESIGN_Weather_And_Time.md §8) — the weather and the night reach the sensors
     /// through their own seams: vision's range × the detection light curve, capped by the visibility (S2-1); thermal ignores the light,
-    /// fog caps it at twice the visibility, the crossover dims only a PASSIVE base signature (S2-3); wind and rain mask hearing (S2-4); a
+    /// fog caps it at twice the visibility, and the target's °C contrast against its ground decides (S2-3, CE-1987); wind and rain mask hearing (S2-4); a
     /// world with no World Environment changes nothing (S2-5). The world sits at 0° N 0° E (no geo transform): solar noon ≈ 12:00 UTC.
     /// </summary>
     public sealed class PerceptionWeatherTests
     {
+        private readonly ITestOutputHelper _out;
+        public PerceptionWeatherTests(ITestOutputHelper output) => _out = output;
         private static readonly DateTime Noon = new(2025, 6, 21, 12, 0, 0, DateTimeKind.Utc);
         private static readonly DateTime Midnight = new(2025, 6, 21, 0, 0, 0, DateTimeKind.Utc);
         private static readonly DateTime Crossover = new(2025, 6, 21, 8, 30, 0, DateTimeKind.Utc);   // solar 08:30: the swing crosses its mean
@@ -90,13 +93,14 @@ namespace Fdp.Toolkit.Tests.Perception
             using (var w = World(null, Midnight)) Assert.Equal(150f, VisionRange(w), 1);
         }
 
-        /// <summary>⭐ S2-3 — thermal: no light term (as far at midnight as at noon), fog caps it at TWICE the visibility; and the crossover
-        /// filters a cold hull (base signature only) that passes at noon, while a running engine passes both. ✅ Red-proofs: the fog cap removed
-        /// ⇒ 1000 m in fog ⇒ red; the contrast factor removed ⇒ the cold hull passes at the crossover ⇒ red.</summary>
+        /// <summary>⭐ S2-3 — thermal: no light term (as far at midnight as at noon), fog caps it at TWICE the visibility. ⭐⭐ CE-1987 (R-1058) — and what is seen is
+        /// decided by the target's °C CONTRAST against the ground under it, not by the hour: at the morning crossover (solar 08:30, where the old rule dimmed every
+        /// target) a standing man and an idling engine are seen; at night a long-parked cold hull is not (its painted metal within the sight's 4 K of the soil).
+        /// ✅ Red-proofs: the fog cap removed ⇒ 1000 m in fog ⇒ red; <c>ContrastOf</c> on the BODY only (not the hottest part) ⇒ the idling engine is missed ⇒ red.</summary>
         [Fact]
-        public void S2_3_ThermalIgnoresTheNight_FogCapsIt_AndTheCrossoverDimsOnlyAPassiveHull()
+        public void S2_3_ThermalIgnoresTheNight_FogCapsIt_AndContrastNotTheHourDecides()
         {
-            var entry = new SensorEntryDto { Thermal = new ThermalSensorDto { Range = 1000f, FieldOfViewDegrees = 360f, MinSignature = 0.4f } };
+            var entry = new SensorEntryDto { Thermal = new ThermalSensorDto { Range = 1000f, FieldOfViewDegrees = 360f, MinContrastK = 4f } };
             float ThermalRange(EntityRepository w)
             {
                 var unit = Man(w, Vector3.Zero, ForceId.Friend);
@@ -108,28 +112,41 @@ namespace Fdp.Toolkit.Tests.Perception
             fog.FogTopM = 30f; fog.FogVisibilityM = 150f;
             using (var w = World(fog, Noon)) Assert.Equal(150f * PerceptionWeather.ThermalFogFactor, ThermalRange(w), 1);
 
-            bool[] Passes(DateTime when)
+            (bool Man, bool Engine, bool Hull) Seen(DateTime when)
             {
                 using var w = World(Clear(), when);
+                if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.HeatSource>()) w.RegisterComponent<Fdp.Toolkit.Perception.Signatures.HeatSource>();
                 var unit = Man(w, Vector3.Zero, ForceId.Friend);
                 var sensorEntity = Sensor(w, entry);
-                var hull = Man(w, new Vector3(50, 0, 0), ForceId.Hostile);
-                w.AddComponent(hull, new ThermalState { BaseSignature = 0.5f, Heat = 0f });     // a parked vehicle: passive only
-                var engine = Man(w, new Vector3(60, 0, 0), ForceId.Hostile);
-                // ⭐ CE-4658 — its engine running: a replicated DECISION (idling, warmed through) the sensor computes 0.8 from, not a written Heat
-                if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.HeatSource>()) w.RegisterComponent<Fdp.Toolkit.Perception.Signatures.HeatSource>();
-                w.AddComponent(engine, new ThermalState { BaseSignature = 0.5f, IdleHeat = 0.8f, RunningHeat = 0.8f, HasPowerPlant = true });
-                w.AddComponent(engine, Fdp.Toolkit.Perception.Signatures.HeatSource.Of(Fdp.Toolkit.Perception.Signatures.HeatSourceState.Idle,
-                    (SimInstant)double.NegativeInfinity, (SimInstant)double.NegativeInfinity));
+                Entity Target(float x, ThermalState ts, Fdp.Toolkit.Perception.Signatures.HeatSourceState state)
+                {
+                    var e = Man(w, new Vector3(x, 0, 0), ForceId.Hostile);
+                    w.AddComponent(e, ts);
+                    w.AddComponent(e, Fdp.Toolkit.Perception.Signatures.HeatSource.Of(state, (SimInstant)double.NegativeInfinity, (SimInstant)double.NegativeInfinity));
+                    return e;
+                }
+                var engineType = new ThermalState { BaseSignature = 0.2f, IdleHeat = 0.4f, RunningHeat = 0.8f, HasPowerPlant = true };
+                var man = Target(40, new ThermalState { BaseSignature = 0.5f, IdleHeat = 0.2f, RunningHeat = 0.7f }, Fdp.Toolkit.Perception.Signatures.HeatSourceState.Standing);
+                var engine = Target(50, engineType, Fdp.Toolkit.Perception.Signatures.HeatSourceState.Idle);
+                var hull = Target(60, engineType, Fdp.Toolkit.Perception.Signatures.HeatSourceState.Off);
                 var sensor = new EqsSensor { ContextSlot0 = unit };
-                Span<EqsResult> c = stackalloc EqsResult[2];
-                c[0] = new EqsResult { EntityId = (long)hull.PackedValue };
+                Span<EqsResult> c = stackalloc EqsResult[3];
+                c[0] = new EqsResult { EntityId = (long)man.PackedValue };
                 c[1] = new EqsResult { EntityId = (long)engine.PackedValue };
+                c[2] = new EqsResult { EntityId = (long)hull.PackedValue };
                 new SignatureFilterTest().ExecuteBatch(sensorEntity, ref sensor, w, c);
-                return new[] { c[0].EntityId > 0, c[1].EntityId > 0 };
+                var bg = Fdp.Toolkit.Perception.Signatures.ThermalBackground.Of(w)!;
+                double now = w.GetSingletonUnmanagedRO<GlobalTime>().TotalTime;
+                float K(Entity e) => ThermalPerception.ContrastOf(w, e, in w.GetComponentRO<ThermalState>(e), now, bg);
+                _out.WriteLine($"{when:HH:mm} UTC: ground {bg.BackgroundC(new Vector3(40, 0, 0)):0.0} C · man {K(man):0.0} K · idling engine {K(engine):0.0} K · cold hull {K(hull):0.0} K");
+                return (c[0].EntityId > 0, c[1].EntityId > 0, c[2].EntityId > 0);
             }
-            Assert.Equal(new[] { true, true }, Passes(new DateTime(2025, 6, 21, 14, 30, 0, DateTimeKind.Utc)));   // the day's warmest: full contrast
-            Assert.Equal(new[] { false, true }, Passes(Crossover));
+            var dawn = Seen(Crossover);
+            Assert.True(dawn.Man, "at the old rule's crossover the man IS seen (it dimmed him to 0.22 < 0.3)");
+            Assert.True(dawn.Engine, "an idling engine is seen at any hour");
+            // (the cold hull at 08:30 is seen — measured 5.8 K: painted metal warms faster in the morning sun than the soil; the old rule could not say that)
+            var night = Seen(Midnight);
+            Assert.Equal((true, true, false), night);   // at night the parked hull sits within the sight's 4 K of the soil
         }
 
         /// <summary>⭐ S2-4 — a shot 80 m off is heard by a 100 m listener in calm air, not in a strong wind, nor in heavy rain. ✅ Red-proof:
@@ -178,7 +195,6 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.Equal(PerceptionWeather.HearingFloor, PerceptionWeather.HearingFactor(new WeatherSample { Wind = new Vector2(40f, 0f) }));
             Assert.Equal(150f, PerceptionWeather.VisionRange(150f, new WeatherSample { RelativeLight = 0.3f, VisibilityM = 1e6f }), 3);
             Assert.Equal(37.5f, PerceptionWeather.VisionRange(150f, new WeatherSample { RelativeLight = 0f, VisibilityM = 1e6f }), 3);
-            Assert.Equal(PerceptionWeather.CrossoverFloor, PerceptionWeather.BaseContrast(new WeatherSample { DiurnalPhase = 0f }));
         }
     }
 }

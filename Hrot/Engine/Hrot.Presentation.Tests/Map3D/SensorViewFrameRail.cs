@@ -389,8 +389,8 @@ public sealed class SensorViewFrameRail
     }
 
     /// <summary>⭐ D-10 — the selected observer's OUTLINES: with a unit carrying a thermal sensor (a sensor part, as a TKB unit carries it) primary-selected, a truck
-    /// whose engine runs is bracketed and the same truck long parked is not — the AI sensor's own signature rule (<c>ThermalPerception.SignatureOf</c>).
-    /// 🔴 Red-proof: <c>ThermalPerception.Reaches</c> comparing <c>&gt; min</c> against the BASE signature only ⇒ the running truck is not bracketed.</summary>
+    /// whose engine runs is bracketed and the same truck long parked is not — the AI sensor's own rule, its °C contrast against the ground (<c>ThermalPerception.ContrastOf</c>,
+    /// CE-1987). 🔴 Red-proof: <c>ThermalPerception.Reaches</c> demanding 1 K more than the minimum (and the sight's minimum above the truck's contrast) ⇒ not bracketed.</summary>
     [SkippableFact]
     public void TH_TheSelectedObserversOutlines_BracketWhatItsThermalSensorCanSee()
     {
@@ -413,7 +413,7 @@ public sealed class SensorViewFrameRail
         var entry = new Fdp.Toolkit.Tkb.Domain.SensorEntryDto
         {
             Kind = Fdp.Toolkit.Perception.Components.SensorModality.Thermal,
-            Thermal = new Fdp.Toolkit.Tkb.Domain.ThermalSensorDto { Range = 800f, MinSignature = 0.5f },
+            Thermal = new Fdp.Toolkit.Tkb.Domain.ThermalSensorDto { Range = 800f, MinContrastK = 4f },
         };
         w.SetManagedComponent(sensor, new Fdp.Toolkit.Perception.Components.SensorCapability { Default = entry, Current = entry });
         // the hover readout over the truck (mockup row C): a 3-D pick by the drawn box, as AttachMapLayers registers it
