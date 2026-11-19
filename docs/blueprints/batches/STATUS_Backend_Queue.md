@@ -39,7 +39,7 @@ NEXT: CE-4670 VA-S1 waits for ui's `Hrot.Look` (LK-S1) ⇒ the T2 rows: **CE-244
 | CE-2438 T2 paused-preview + run-to does not repeat | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-2448 T2 cp-vbied golden does not repeat | TODO | | | |
 | CE-3449 T2 five goldens differ from t = 0 | TODO | | | |
-| CE-4670 VA-S4 rotors and engines — derived, no new component ([handoff](HANDOFF_Coordinator_To_Backend_Vehicle_Appearance_2.md)) | TODO | | | |
+| CE-4670 VA-S4 rotors and engines — derived, no new component ([handoff](HANDOFF_Coordinator_To_Backend_Vehicle_Appearance_2.md)) | ✅ DONE — `VehicleLook.RotorSpeed` / `EngineLevel` (Hrot.Look) from `HeatSource` (State + Since + MotionSince: a stop writes Since = MotionSince, a crew change Since alone ⇒ the edge is known on a replica) + the type's `SpinUpSeconds` / `SpinDownSeconds` (appended to the thermal power-plant data; class defaults ground 2 / 3 s, aircraft 20 / 30 s); a state held from the start is settled at once; ⛔ deviation: no `FlightState` (not replicated) — design §6d | (this commit) | `VehicleLookTests` 38 / 0 (red-proved: no time ⇒ red; no stop/crew distinction ⇒ red); owner == replica at every sample; 0 B | `ua-air-assault` + 2 rows 12 / 12 (Running in flight, Idle once landed); golden re-captured (it predated RT-3's visible-state comparison) |
 | CE-4670 VA-S5 smoke dischargers — the mount; NOTE to behaviors when it works | TODO | | | |
 | CE-4670 VA-S6 the remaining DIS rows (lights, openings, kill kind, detonation result) | TODO | | | |
 | CE-4674 a move failed for an unreachable target re-plans once when the navmesh version changes ([handoff](HANDOFF_Coordinator_To_Backend_Path_Retry.md)) | TODO | | | |

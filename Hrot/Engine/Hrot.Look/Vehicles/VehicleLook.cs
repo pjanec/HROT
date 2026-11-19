@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -143,6 +144,53 @@ namespace Hrot.Look.Vehicles
             for (int i = 0; i < groups.Length && i < 32; i++)
                 if (groups[i].Kind == LightKind.Brake) mask |= 1u << i;
             return mask;
+        }
+
+        /// <summary>A rotor's / engine's speed at ground idle (0..1 of full) — a turbine idles well up; a renderer's starter value (VA-5).</summary>
+        public const float IdleSpeed = 0.6f;
+
+        /// <summary>
+        /// ⭐ VA-5 (VA-S4, §6d) — a rotor's / propeller's / engine's speed at <paramref name="now"/>, 0 stopped … 1 full, DERIVED from replicated state only — the
+        /// engine's <see cref="HeatSource"/> state and the time it took it (<c>Since</c>) — and the type's spin-up / spin-down seconds (the thermal type data,
+        /// <see cref="Fdp.Toolkit.Perception.Signatures.ThermalDefaults"/> by class), so a replica computes exactly what the owner does. Targets: Running 1 ·
+        /// Idle <see cref="IdleSpeed"/> · Off / Dead 0, reached at a constant rate (full scale per spin-up / spin-down seconds) from the state it LEFT — read from the
+        /// replicated times: a stop writes <c>Since</c> = <c>MotionSince</c> (it was Running), a crew change writes <c>Since</c> alone (Idle ⇄ Off); Running is
+        /// taken from idle and Dead from full (⚠ an uncrewed hull driven off from Off reads as from idle); a state held
+        /// from the scenario's start is at its target at once. 0 for a type
+        /// with no power plant. 0 B.
+        /// </summary>
+        public static float RotorSpeed(EntityRepository world, Entity vehicle, double now)
+        {
+            if (!world.IsComponentTypeRegistered<HeatSource>() || !world.HasComponent<HeatSource>(vehicle)) return 0f;
+            ref readonly var src = ref world.GetComponentRO<HeatSource>(vehicle);
+            if (!src.IsEngine) return 0f;
+            var plant = Fdp.Toolkit.Perception.Signatures.ThermalDefaults.Of(TypeOf(world, vehicle));
+            float up = plant?.SpinUpSeconds ?? 0f, down = plant?.SpinDownSeconds ?? 0f;
+            // a state held from the scenario's start (Since ≤ 0) followed no change: there at once — a parked aircraft does not run down at load, one loaded
+            //   flying does not run up
+            float t = src.Since.Seconds <= 0.0 ? float.MaxValue : (float)Math.Max(0.0, now - src.Since.Seconds);
+            // the state it LEFT, from the replicated times (HeatSourceSystem): a STOP writes Since = MotionSince (it was Running); a crew change writes Since
+            //   alone (Idle ⇄ Off)
+            bool stopped = src.Since.Seconds == src.MotionSince.Seconds;
+            return src.State switch
+            {
+                HeatSourceState.Running => Ramp(IdleSpeed, 1f, t, up, down),                     // it moves off from idle
+                HeatSourceState.Idle => Ramp(stopped ? 1f : 0f, IdleSpeed, t, up, down),         // stopped from running · or started (crew aboard)
+                HeatSourceState.Dead => Ramp(1f, 0f, t, up, down),
+                _ => Ramp(stopped ? 1f : IdleSpeed, 0f, t, up, down),                           // Off: stopped empty from running · or shut down from idle
+            };
+        }
+
+        /// <summary>⭐ VA-5 — an engine-sound level for a renderer (0..1): the same derived speed (one rule — the sound follows the engine).</summary>
+        public static float EngineLevel(EntityRepository world, Entity vehicle, double now) => RotorSpeed(world, vehicle, now);
+
+        // From `from` towards `to`, `t` seconds after the change, at full scale per `up` (rising) / `down` (falling) seconds; ≤ 0 seconds ⇒ there at once.
+        private static float Ramp(float from, float to, float t, float up, float down)
+        {
+            float seconds = to >= from ? up : down;
+            if (seconds <= 0f) return to;
+            float step = t / seconds;
+            return to >= from ? Math.Min(to, from + step) : Math.Max(to, from - step);
         }
 
         /// <summary>The vehicle's TKB type (the lookup <c>VehicleOpeningsSystem</c> / <c>LightRuleSystem</c> make), or null.</summary>
