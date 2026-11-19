@@ -29,11 +29,11 @@ public static class TerrainObjectRequests
     /// <summary>One request per door of <paramref name="world"/> that has no entity yet, in key order.</summary>
     /// <param name="saved">⭐ 5e — the scenario's <c>TerrainObjects</c> door states (key → state); a door it names starts in that
     /// state, every other door as the terrain authored it. A saved key this terrain does not define is reported and ignored.</param>
-    public static List<EntityCreationRequest> ForDoors(TerrainWorld world, ISet<string> existingKeys, INetworkIdAllocator idAllocator,
+    /// <param name="idAllocator">The load's id allocator; ⭐ CE-5028 — null for a door a live commit adds (<see cref="TerrainObjectReconcile"/>): the creation system allocates.</param>
+    public static List<EntityCreationRequest> ForDoors(TerrainWorld world, ISet<string> existingKeys, INetworkIdAllocator? idAllocator,
         IReadOnlyDictionary<string, TerrainDoorState>? saved = null)
     {
         if (world == null) throw new ArgumentNullException(nameof(world));
-        if (idAllocator == null) throw new ArgumentNullException(nameof(idAllocator));
         if (saved != null)
             foreach (var key in saved.Keys)
                 if (world.DoorIndexOf(key) < 0)
@@ -51,7 +51,7 @@ public static class TerrainObjectRequests
             {
                 RequestId             = Guid.NewGuid(),
                 TkbType               = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Door),
-                PreAllocatedNetworkId = idAllocator.AllocateId(),
+                PreAllocatedNetworkId = idAllocator?.AllocateId() ?? 0,
                 IsTransient           = true,
                 InitialComponents     = new List<object>
                 {
