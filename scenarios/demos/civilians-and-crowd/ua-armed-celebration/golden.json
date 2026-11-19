@@ -1019,13 +1019,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Routine",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Routine",
               "Fear": 0,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "Aimed",
@@ -1061,6 +1062,7 @@
             "CharacterAnimationDefRuntime": "0b004b868c97cca0",
             "CivilianState": "36363284a17228b3",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "f03fdce8435606a9",
             "DisEntityType": "307ce63e83f90949",
             "EntityGuid": "f1cdbe051e7f2f5e",
             "EntityInfo": "88d8534955eb6963",
@@ -1083,7 +1085,6 @@
             "MissionAdapterState": "bf07e8891e8d8157",
             "MissionPlan": "d022098bdf628235",
             "MissionPlanQueue": "7ed891c432c5a631",
-            "Mood": "2732ebaf18ee6523",
             "NavState": "80111f62b3e72899",
             "NavigationApplied": "5645c276516cd7c4",
             "NavigationCorridorMuscle": "2e4886776626017c",
@@ -1204,13 +1205,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Routine",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Routine",
               "Fear": 0,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -1246,6 +1248,7 @@
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CivilianState": "f3c0a1d644a4305b",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "f03fdce8435606a9",
             "DisEntityType": "307ce63e83f90949",
             "EntityGuid": "487a54054f9b0040",
             "EntityInfo": "088d12e7eaae9cbc",
@@ -1267,7 +1270,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "2732ebaf18ee6523",
             "NavState": "9c889f619fd9b69e",
             "NavigationApplied": "ee0ce059dc1e36ab",
             "NavigationCorridorMuscle": "dac9f6efe9f84d76",
@@ -1315,13 +1317,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Routine",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Routine",
               "Fear": 0,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -1357,6 +1360,7 @@
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CivilianState": "0fde4354b5533e4e",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "f03fdce8435606a9",
             "DisEntityType": "307ce63e83f90949",
             "EntityGuid": "0cb139052dfb6a79",
             "EntityInfo": "a16916485ffe35a1",
@@ -1378,7 +1382,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "2732ebaf18ee6523",
             "NavState": "68c5d38c48d41b87",
             "NavigationApplied": "ee0ce059dc1e36ab",
             "NavigationCorridorMuscle": "1869c392dc46b7db",
@@ -1426,13 +1429,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Routine",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Routine",
               "Fear": 0,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -1468,6 +1472,7 @@
             "CharacterAnimationDefRuntime": "73c7a1d56d50c571",
             "CivilianState": "6f03dc5655f01398",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "f03fdce8435606a9",
             "DisEntityType": "307ce63e83f90949",
             "EntityGuid": "14736205321eafb2",
             "EntityInfo": "0fd2f6b59fc3fb16",
@@ -1489,7 +1494,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "2732ebaf18ee6523",
             "NavState": "c5b8fb10c01882f8",
             "NavigationApplied": "ee0ce059dc1e36ab",
             "NavigationCorridorMuscle": "28f9251a8c49f3a0",
@@ -1536,13 +1540,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Routine",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Routine",
               "Fear": 0,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -1578,6 +1583,7 @@
             "CharacterAnimationDefRuntime": "03b2f9155899b0f4",
             "CivilianState": "6f03dc5655f01398",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "f03fdce8435606a9",
             "DisEntityType": "307ce63e83f90949",
             "EntityGuid": "1d1d87053707cf3b",
             "EntityInfo": "68eb00e03a17ac53",
@@ -1599,7 +1605,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "2732ebaf18ee6523",
             "NavState": "7e7280f49aa49015",
             "NavigationApplied": "ee0ce059dc1e36ab",
             "NavigationCorridorMuscle": "a21e523dfa85b535",
@@ -1647,13 +1652,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Routine",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Routine",
               "Fear": 0,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -1689,6 +1695,7 @@
             "CharacterAnimationDefRuntime": "e99163890bcb7ca9",
             "CivilianState": "6f03dc5655f01398",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "f03fdce8435606a9",
             "DisEntityType": "307ce63e83f90949",
             "EntityGuid": "25d4b0053bfb7fec",
             "EntityInfo": "b23a3df9900cde08",
@@ -1710,7 +1717,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "2732ebaf18ee6523",
             "NavState": "85d16c0745e6a0c3",
             "NavigationApplied": "ee0ce059dc1e36ab",
             "NavigationCorridorMuscle": "74832fa1ddc69a7f",
@@ -1757,13 +1763,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Routine",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Routine",
               "Fear": 0,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -1799,6 +1806,7 @@
             "CharacterAnimationDefRuntime": "d3479d92fe478270",
             "CivilianState": "6f03dc5655f01398",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "f03fdce8435606a9",
             "DisEntityType": "307ce63e83f90949",
             "EntityGuid": "e931950519a24665",
             "EntityInfo": "3b32989a81f2f14d",
@@ -1820,7 +1828,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "2732ebaf18ee6523",
             "NavState": "bdf533cebd960941",
             "NavigationApplied": "ee0ce059dc1e36ab",
             "NavigationCorridorMuscle": "a4eef5fe03c8dad8",
@@ -1938,6 +1945,12 @@
           ],
           "health": 100,
           "visible": {
+            "Demeanour": {
+              "Kind": "None",
+              "Mode": "None",
+              "Fear": 0,
+              "Anger": 0
+            },
             "EntityInfo.ForceId": "Friend",
             "Health.Current": 100,
             "NavigationStatus.Phase": "Idle",
@@ -1971,12 +1984,12 @@
             "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "8fe56550292ddb21",
             "DisEntityType": "25f71413f1a90004",
             "EntityGuid": "37f306054677d3c6",
             "EntityInfo": "a9281278dc472b5a",
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "8c4f002018bb5e0f",
-            "Gesture": "225ece2630a61dcb",
             "Health": "2712238ebd632aff",
             "HeardTraces": "c57a65d87bba0ed2",
             "HeatSource": "10cc1af56e66335a",
@@ -2041,13 +2054,14 @@
           "health": 75,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Hostile",
-            "Health.Current": 75,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 4,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 75,
             "NavigationStatus.Phase": "Idle",
             "WeaponPosture": {
               "Kind": "Ready",
@@ -2085,6 +2099,7 @@
             "CharacterAnimationDefRuntime": "0b004b868c97cca0",
             "CivilianState": "700fc9f4ebb1147b",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "1f576871e8faf5d1",
             "DesignatedTarget": "89b1e0295b43ebc1",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
@@ -2112,7 +2127,6 @@
             "MissionAdapterState": "df2e52fa160f3445",
             "MissionPlan": "d022098bdf628235",
             "MissionPlanQueue": "5ff4cb1e4d005d52",
-            "Mood": "e20b58f79a32a497",
             "NavState": "278c9dbed745918b",
             "NavigationApplied": "d770b9cc79bbb448",
             "NavigationCorridorMuscle": "ab2003bb85f890a4",
@@ -2238,13 +2252,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Idle",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -2280,6 +2295,7 @@
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CivilianState": "77397108445f307e",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1669a4a3ae7d92",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "487a54054f9b0040",
@@ -2303,7 +2319,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "4382d4cb04db959c",
             "NavState": "f6ad225f6dc0db4f",
             "NavigationApplied": "3adf562d2f6c26d3",
             "NavigationCorridorMuscle": "dac9f6efe9f84d76",
@@ -2351,13 +2366,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -2393,6 +2409,7 @@
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CivilianState": "8721fd2cf071c7d0",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1669a4a3ae7d92",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "0cb139052dfb6a79",
@@ -2416,7 +2433,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "4382d4cb04db959c",
             "NavState": "17556264be7e621d",
             "NavigationApplied": "3adf562d2f6c26d3",
             "NavigationCorridorMuscle": "9f0755b48a81ed02",
@@ -2464,13 +2480,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -2506,6 +2523,7 @@
             "CharacterAnimationDefRuntime": "73c7a1d56d50c571",
             "CivilianState": "f0bcd97f6636652c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1669a4a3ae7d92",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "14736205321eafb2",
@@ -2529,7 +2547,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "4382d4cb04db959c",
             "NavState": "21b8b3343e70d4bc",
             "NavigationApplied": "c439764e69fa7566",
             "NavigationCorridorMuscle": "da64b10f004b4c52",
@@ -2577,13 +2594,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Idle",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -2619,6 +2637,7 @@
             "CharacterAnimationDefRuntime": "03b2f9155899b0f4",
             "CivilianState": "f0bcd97f6636652c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1669a4a3ae7d92",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "1d1d87053707cf3b",
@@ -2642,7 +2661,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "4382d4cb04db959c",
             "NavState": "86ad3acc9b659468",
             "NavigationApplied": "c439764e69fa7566",
             "NavigationCorridorMuscle": "36cce6552d3585d6",
@@ -2690,13 +2708,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -2732,6 +2751,7 @@
             "CharacterAnimationDefRuntime": "e99163890bcb7ca9",
             "CivilianState": "f0bcd97f6636652c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1669a4a3ae7d92",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "25d4b0053bfb7fec",
@@ -2755,7 +2775,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "4382d4cb04db959c",
             "NavState": "8ad30648cab03372",
             "NavigationApplied": "3adf562d2f6c26d3",
             "NavigationCorridorMuscle": "a4a5d461e729c680",
@@ -2803,13 +2822,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 2,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Idle",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -2845,6 +2865,7 @@
             "CharacterAnimationDefRuntime": "d3479d92fe478270",
             "CivilianState": "f0bcd97f6636652c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "bf3a047105d2be8b",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "e931950519a24665",
@@ -2868,7 +2889,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "f72f54858b407dd5",
             "NavState": "c45a25ffc0152832",
             "NavigationApplied": "3adf562d2f6c26d3",
             "NavigationCorridorMuscle": "a4eef5fe03c8dad8",
@@ -2990,6 +3010,12 @@
           ],
           "health": 90,
           "visible": {
+            "Demeanour": {
+              "Kind": "None",
+              "Mode": "None",
+              "Fear": 0,
+              "Anger": 0
+            },
             "EntityInfo.ForceId": "Friend",
             "Health.Current": 90,
             "NavigationStatus.Phase": "Idle",
@@ -3023,12 +3049,12 @@
             "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "8fe56550292ddb21",
             "DisEntityType": "25f71413f1a90004",
             "EntityGuid": "37f306054677d3c6",
             "EntityInfo": "a9281278dc472b5a",
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "8c4f002018bb5e0f",
-            "Gesture": "225ece2630a61dcb",
             "Health": "1ea2ae90a97b214f",
             "HeardTraces": "7036a6d30d1c5039",
             "HeatSource": "10cc1af56e66335a",
@@ -3096,13 +3122,14 @@
           "health": 0,
           "visible": {
             "CivilianState.Mode": "Casualty",
-            "EntityInfo.ForceId": "Hostile",
-            "Health.Current": 0,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Casualty",
               "Fear": 3,
               "Anger": 1
             },
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 0,
             "NavigationStatus.Phase": "Idle",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -3139,6 +3166,7 @@
             "CharacterAnimationDefRuntime": "0b004b868c97cca0",
             "CivilianState": "3de51295da54ca80",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "26e73bb10993ed6b",
             "DesignatedTarget": "89b1e0295b43ebc1",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5aff8f38a2aad975",
@@ -3166,7 +3194,6 @@
             "MissionAdapterState": "c75f471ef424de39",
             "MissionPlan": "d022098bdf628235",
             "MissionPlanQueue": "23b482a53ac96e6d",
-            "Mood": "5b9b2189093e4869",
             "NavState": "278c9dbed745918b",
             "NavigationApplied": "d770b9cc79bbb448",
             "NavigationCorridorMuscle": "ab2003bb85f890a4",
@@ -3286,13 +3313,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 1
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -3328,6 +3356,7 @@
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CivilianState": "f0fc76d124f8483e",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1365a4a3ac40ef",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "487a54054f9b0040",
@@ -3351,7 +3380,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "437ed8cb04d7b391",
             "NavState": "ff1652897ba81fa9",
             "NavigationApplied": "c439764e69fa7566",
             "NavigationCorridorMuscle": "22b9184dbee121a6",
@@ -3399,13 +3427,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -3441,6 +3470,7 @@
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CivilianState": "0f2cb7797c814a8f",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1669a4a3ae7d92",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "0cb139052dfb6a79",
@@ -3464,7 +3494,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "4382d4cb04db959c",
             "NavState": "089fe06050673abc",
             "NavigationApplied": "c439764e69fa7566",
             "NavigationCorridorMuscle": "38d79e4238b95ade",
@@ -3512,13 +3541,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -3554,6 +3584,7 @@
             "CharacterAnimationDefRuntime": "73c7a1d56d50c571",
             "CivilianState": "f0bcd97f6636652c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1669a4a3ae7d92",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "14736205321eafb2",
@@ -3577,7 +3608,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "4382d4cb04db959c",
             "NavState": "ff2e90e042799c24",
             "NavigationApplied": "1ceb1c46c0669c89",
             "NavigationCorridorMuscle": "175db588630d0a4d",
@@ -3625,13 +3655,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -3667,6 +3698,7 @@
             "CharacterAnimationDefRuntime": "03b2f9155899b0f4",
             "CivilianState": "f0bcd97f6636652c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1669a4a3ae7d92",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "1d1d87053707cf3b",
@@ -3690,7 +3722,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "4382d4cb04db959c",
             "NavState": "c00a7790a606ef63",
             "NavigationApplied": "1ceb1c46c0669c89",
             "NavigationCorridorMuscle": "41a1313089310b39",
@@ -3738,13 +3769,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -3780,6 +3812,7 @@
             "CharacterAnimationDefRuntime": "e99163890bcb7ca9",
             "CivilianState": "f0bcd97f6636652c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1669a4a3ae7d92",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "25d4b0053bfb7fec",
@@ -3803,7 +3836,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "4382d4cb04db959c",
             "NavState": "08ccc9be77fc5938",
             "NavigationApplied": "c439764e69fa7566",
             "NavigationCorridorMuscle": "68296da08da3d232",
@@ -3851,13 +3883,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Cower",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Cower",
               "Fear": 3,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -3893,6 +3926,7 @@
             "CharacterAnimationDefRuntime": "d3479d92fe478270",
             "CivilianState": "f0bcd97f6636652c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "ad1669a4a3ae7d92",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5b028b38a2ad0880",
             "EntityGuid": "e931950519a24665",
@@ -3916,7 +3950,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "4382d4cb04db959c",
             "NavState": "24d7ace207613d4f",
             "NavigationApplied": "c439764e69fa7566",
             "NavigationCorridorMuscle": "118c4e1f21ad3322",
@@ -4038,6 +4071,12 @@
           ],
           "health": 90,
           "visible": {
+            "Demeanour": {
+              "Kind": "None",
+              "Mode": "None",
+              "Fear": 0,
+              "Anger": 0
+            },
             "EntityInfo.ForceId": "Friend",
             "Health.Current": 90,
             "NavigationStatus.Phase": "Idle",
@@ -4071,12 +4110,12 @@
             "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "8fe56550292ddb21",
             "DisEntityType": "25f71413f1a90004",
             "EntityGuid": "37f306054677d3c6",
             "EntityInfo": "a9281278dc472b5a",
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "8c4f002018bb5e0f",
-            "Gesture": "225ece2630a61dcb",
             "Health": "1ea2ae90a97b214f",
             "HeardTraces": "7036a6d30d1c5039",
             "HeatSource": "10cc1af56e66335a",
@@ -4144,13 +4183,14 @@
           "health": 0,
           "visible": {
             "CivilianState.Mode": "Casualty",
-            "EntityInfo.ForceId": "Hostile",
-            "Health.Current": 0,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Casualty",
               "Fear": 1,
               "Anger": 1
             },
+            "EntityInfo.ForceId": "Hostile",
+            "Health.Current": 0,
             "NavigationStatus.Phase": "Idle",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -4187,6 +4227,7 @@
             "CharacterAnimationDefRuntime": "0b004b868c97cca0",
             "CivilianState": "7637f72847d64a0d",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "8bbc9ecc8229fc9d",
             "DesignatedTarget": "89b1e0295b43ebc1",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5aff8f38a2aad975",
@@ -4214,7 +4255,6 @@
             "MissionAdapterState": "c75f471ef424de39",
             "MissionPlan": "d022098bdf628235",
             "MissionPlanQueue": "39a7b094fc700434",
-            "Mood": "1cbce44c732d80c7",
             "NavState": "278c9dbed745918b",
             "NavigationApplied": "d770b9cc79bbb448",
             "NavigationCorridorMuscle": "ab2003bb85f890a4",
@@ -4334,13 +4374,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Alarmed",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Alarmed",
               "Fear": 1,
               "Anger": 1
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -4376,6 +4417,7 @@
             "CharacterAnimationDefRuntime": "cce78110d6aeff52",
             "CivilianState": "8536fcbc6b8d6eeb",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "870d82de3351126d",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5aff8f38a2aad975",
             "EntityGuid": "487a54054f9b0040",
@@ -4399,7 +4441,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "31b368c6426317f7",
             "NavState": "ff1652897ba81fa9",
             "NavigationApplied": "c439764e69fa7566",
             "NavigationCorridorMuscle": "22b9184dbee121a6",
@@ -4447,13 +4488,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Alarmed",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Alarmed",
               "Fear": 1,
               "Anger": 1
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -4489,6 +4531,7 @@
             "CharacterAnimationDefRuntime": "9b5277082b03ff31",
             "CivilianState": "663f11091fd60fb6",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "870d82de3351126d",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5aff8f38a2aad975",
             "EntityGuid": "0cb139052dfb6a79",
@@ -4512,7 +4555,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "31b368c6426317f7",
             "NavState": "0c89809482df4f2f",
             "NavigationApplied": "1ceb1c46c0669c89",
             "NavigationCorridorMuscle": "258112d19cf38463",
@@ -4560,13 +4602,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Alarmed",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Alarmed",
               "Fear": 1,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -4602,6 +4645,7 @@
             "CharacterAnimationDefRuntime": "73c7a1d56d50c571",
             "CivilianState": "6b4a37b9c831330c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "87107ede33534178",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5aff8f38a2aad975",
             "EntityGuid": "14736205321eafb2",
@@ -4625,7 +4669,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "31b76cc64267079a",
             "NavState": "e964d23623b2baef",
             "NavigationApplied": "97a3da850cd88e34",
             "NavigationCorridorMuscle": "3012448e91c9cc90",
@@ -4673,13 +4716,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Alarmed",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Alarmed",
               "Fear": 1,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -4715,6 +4759,7 @@
             "CharacterAnimationDefRuntime": "03b2f9155899b0f4",
             "CivilianState": "6b4a37b9c831330c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "87107ede33534178",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5aff8f38a2aad975",
             "EntityGuid": "1d1d87053707cf3b",
@@ -4738,7 +4783,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "31b76cc64267079a",
             "NavState": "c00a7790a606ef63",
             "NavigationApplied": "1ceb1c46c0669c89",
             "NavigationCorridorMuscle": "41a1313089310b39",
@@ -4786,13 +4830,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Alarmed",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Alarmed",
               "Fear": 1,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -4828,6 +4873,7 @@
             "CharacterAnimationDefRuntime": "e99163890bcb7ca9",
             "CivilianState": "6b4a37b9c831330c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "87107ede33534178",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5aff8f38a2aad975",
             "EntityGuid": "25d4b0053bfb7fec",
@@ -4851,7 +4897,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "31b76cc64267079a",
             "NavState": "92ae57e3d728be8e",
             "NavigationApplied": "1ceb1c46c0669c89",
             "NavigationCorridorMuscle": "639afe9bcdffe84d",
@@ -4899,13 +4944,14 @@
           "health": 100,
           "visible": {
             "CivilianState.Mode": "Alarmed",
-            "EntityInfo.ForceId": "Neutral",
-            "Health.Current": 100,
-            "Mood": {
+            "Demeanour": {
+              "Kind": "None",
               "Mode": "Alarmed",
               "Fear": 1,
               "Anger": 0
             },
+            "EntityInfo.ForceId": "Neutral",
+            "Health.Current": 100,
             "NavigationStatus.Phase": "Following",
             "WeaponPosture": {
               "Kind": "AtEase",
@@ -4941,6 +4987,7 @@
             "CharacterAnimationDefRuntime": "d3479d92fe478270",
             "CivilianState": "6b4a37b9c831330c",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "87107ede33534178",
             "DisEntityType": "307ce63e83f90949",
             "EffectState": "5aff8f38a2aad975",
             "EntityGuid": "e931950519a24665",
@@ -4964,7 +5011,6 @@
             "MapDisplayComponent": "ccfa2677ba8bb11f",
             "MissionAdapterState": "766d4a99664fb12f",
             "MissionPlanQueue": "c9922549cfdc31e6",
-            "Mood": "31b76cc64267079a",
             "NavState": "24d7ace207613d4f",
             "NavigationApplied": "c439764e69fa7566",
             "NavigationCorridorMuscle": "118c4e1f21ad3322",
@@ -5086,6 +5132,12 @@
           ],
           "health": 90,
           "visible": {
+            "Demeanour": {
+              "Kind": "None",
+              "Mode": "None",
+              "Fear": 0,
+              "Anger": 0
+            },
             "EntityInfo.ForceId": "Friend",
             "Health.Current": 90,
             "NavigationStatus.Phase": "Idle",
@@ -5119,12 +5171,12 @@
             "CarrierStations": "ae3ba254ab107e79",
             "CharacterAnimationDefRuntime": "74998346b5218a53",
             "CullingState": "9c97051fd4b28240",
+            "Demeanour": "8fe56550292ddb21",
             "DisEntityType": "25f71413f1a90004",
             "EntityGuid": "37f306054677d3c6",
             "EntityInfo": "a9281278dc472b5a",
             "FormationController": "900200110e4d4dfd",
             "FrustrationTicks": "8c4f002018bb5e0f",
-            "Gesture": "225ece2630a61dcb",
             "Health": "1ea2ae90a97b214f",
             "HeardTraces": "7036a6d30d1c5039",
             "HeatSource": "10cc1af56e66335a",

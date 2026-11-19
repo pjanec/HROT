@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Civilians
     /// hostile-act slices) and the <see cref="Mode"/> his HSM is in. ⭐ <c>CE-4628</c>: his FEAR (<see cref="Fear"/>), his home (<see cref="Home"/>) and
     /// the crowd he stands in (<see cref="GroupMember"/>) are the components he shares with an animal — added WITH this one
     /// (<see cref="CivilianMind.Ensure"/>). ⛔ BRAIN-LOCAL: it lives on the node that runs his <c>CivilianHsm</c>, is never replicated (others see what
-    /// he DOES — his side, his gesture, his cowering — and his <see cref="Mood"/>) and never saved. Added by the HSM on its first tick.
+    /// he DOES — his side, his gesture, his cowering — and his <see cref="Demeanour"/>) and never saved. Added by the HSM on its first tick.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.CivilianState)]
@@ -97,6 +97,9 @@ namespace Fdp.Toolkit.Civilians
             if (repo.IsComponentTypeRegistered<Home>() && !repo.HasComponent<Home>(unit))
                 repo.AddComponent(unit, new Home { Centre = repo.HasComponent<SimTransform>(unit) ? (WorldPoint)repo.GetComponentRO<SimTransform>(unit).Position : default });
             if (repo.IsComponentTypeRegistered<GroupMember>() && !repo.HasComponent<GroupMember>(unit)) repo.AddComponent(unit, new GroupMember { Group = Entity.Null });
+            // ⭐ CE-4628 §10c — his Demeanour from birth (calm, no gesture): its two writers — the behaviour's gesture (a DEFERRED add inside the parallel
+            //   brain phase) and the crowd pass's mood (serial) — then only ever write their own fields, and neither add can land over the other's value
+            if (repo.IsComponentTypeRegistered<Demeanour>() && !repo.HasComponent<Demeanour>(unit)) repo.AddComponent(unit, new Demeanour());
         }
 
         /// <summary>Records the mode the HSM is in (adds the mind when missing).</summary>

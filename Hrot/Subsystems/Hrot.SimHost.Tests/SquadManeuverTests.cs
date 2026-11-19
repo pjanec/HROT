@@ -3970,6 +3970,61 @@ namespace Hrot.SimHost.Tests
         /// platoon to the open one, whose base of fire goes up again. ✅ Red-proofs: the building match dropped ⇒ the first is assaulted
         /// through · the nearest-first sort dropped ⇒ the open one first · the next-objective loop dropped ⇒ it consolidates after one.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ D-12 (CE-4666, user-approved 2026-11-19; Defend &amp; Attack §8f AT-14) — while the base of fire gets SET, the assault (Alpha) and the
+        /// reserve (Charlie) WAIT IN COVER where they stand: each a <c>SquadDefend</c> at its own place (radius <see cref="PlatoonAttackBehavior.WaitRadius"/>),
+        /// its sector from there on the objective (so the post plan's cover ask runs); the support's Set replaces it with the approach.
+        /// ✅ Red-proof: the support phase back to "no order" ⇒ no SquadDefend to Alpha ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D12_WhileTheBaseOfFireSets_TheAssaultAndTheReserveWaitInCover_FacingTheObjective()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            // ⭐ Alpha as a squad WITH a man: its entity's own transform stays where it was authored, its one man stands elsewhere
+            var stale = new Vector3(500f, -400f, 0f);
+            var manAt = new Vector3(30f, 40f, 0f);
+            if (p.S.Repo.HasComponent<SimTransform>(p.Alpha)) p.S.Repo.GetComponentRW<SimTransform>(p.Alpha).Position = stale;
+            else p.S.Repo.AddComponent(p.Alpha, new SimTransform { Position = stale, Rotation = Quaternion.Identity });
+            var man = p.S.Repo.CreateEntity();
+            p.S.Repo.AddComponent(man, new SimTransform { Position = manAt, Rotation = Quaternion.Identity });
+            p.S.Repo.AddComponent(man, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            var roster = new UnitRoster { Count = 1 };
+            roster.SubordinateEntities[0] = man;
+            if (p.S.Repo.HasComponent<UnitRoster>(p.Alpha)) p.S.Repo.GetComponentRW<UnitRoster>(p.Alpha) = roster; else p.S.Repo.AddComponent(p.Alpha, roster);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            foreach (var waiting in new[] { p.Alpha, p.Charlie })
+            {
+                if (waiting == p.Alpha)
+                    Assert.True(Vector3.Distance(OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend).Position, manAt) < 0.5f,
+                                "it waits where its MEN stand, never at the squad entity's authored transform");
+                Assert.Equal(1, p.OrdersTo(waiting, BehaviorNames.SquadDefend));
+                var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend);
+                Assert.Equal(PlatoonAttackBehavior.WaitRadius, d.SearchRadius);
+                var ea = SectorOf(p, waiting);
+                Assert.Equal(1, ea.ArcSet);
+                Assert.True(Vector3.Distance(ea.ArcOrigin, d.Position) < 0.01f, "the sector is drawn from where it waits");
+                Vector3 at = d.Position;
+                float bearing = MathF.Atan2(o.X - at.X, o.Y - at.Y) * 180f / MathF.PI;
+                bearing = (bearing + 360f) % 360f;
+                Assert.True(Hrot.AI.Behaviors.Brains.SectorSplit.Norm(bearing - ea.LeftBearing) <= 2f * PlatoonAttackBehavior.SupportArcHalfDegrees + 0.1f, "it faces the objective");
+            }
+            p.ReportSet(p.Charlie);   // the reserve's WAIT is posted (its SquadDefend's Set) …
+            p.Ticks(2);
+            int defends = p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend);
+            p.ReportSet(p.Bravo);     // … then the base of fire is up ⇒ the approach
+            p.Ticks(4);
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement) > 0, "the approach replaces the wait");
+            // ⭐ the wait's Set is not "the reserve's bound arrived": it BOUNDS to its point, it is not sent to walk there and defend it
+            Assert.Equal(defends, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
+            Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(x => x.Entity.Equals(p.Charlie)).IntentId);
+        }
+
         [Fact]
         public void CE2277_AnAreaWithABuildingAndAnOpenPost_ClearsTheBuildingFirst_ThenAttacksTheOpenPost()
         {
@@ -4149,9 +4204,12 @@ namespace Hrot.SimHost.Tests
             p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
             p.ReportSet(p.Bravo); p.Ticks(4);   // the base of fire is up ⇒ the approach
             Assert.True(p.OrdersTo(p.Charlie, BehaviorNames.BoundingOverwatch) > 0, "the reserve bounds behind the assault");
-            Assert.Equal(0, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
+            // ⭐ D-12 — it waited in cover (one SquadDefend where it stood) before the base of fire was up; bounding now, no new defend
+            int waited = p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend);
+            Assert.Equal(1, waited);
+            Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(o2 => o2.Entity.Equals(p.Charlie)).IntentId);
             p.ReportSet(p.Charlie); p.Ticks(4);   // its bound arrived
-            Assert.Equal(1, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
+            Assert.Equal(waited + 1, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
         }
 
         /// <summary>⭐⭐ <c>CE-7015</c> (AQ101 §R E — the rout; AT-9 / AT-10) — the assault squad's men BREAK (3 of 4: fewer than the 2 a squad of 4 needs

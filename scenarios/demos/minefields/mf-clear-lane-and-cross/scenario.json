@@ -1,0 +1,440 @@
+{
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: the END-TO-END minefield chain (Minefields MR-19, CE-2443 / CE-4624): a Friend 'Patrol' (Man Leader + Man 1-3, under 'HQ' running SupportCommand) marches east along y 80 to (135, 80) — INSIDE 'Field D' (KG-7: no way round, the order goes through; a march to a point past the field simply goes round it, measured), an enemy anti-personnel field it does not know (x 120-140, y 65-95, a mine every 3 m). A mine goes off; the patrol halts (MineStrike) and asks for engineers; the HQ sends its 'Engineers' (a TKB 116 'Clearer', 'Sapper 3', the 'Sapper Team' of 'Sapper 1-2'): a man traces and MARKS the field (ReconMinefield), then the clearer cuts a LANE along the patrol's line (Breach / ClearLane); the patrol crosses THROUGH the lane and reaches its objective. Judge: a strike; the mark; the lane cleared and known to Friend; every patrol man inside the lane while in the field; the objective reached; no second strike. ⏳ RED at S3 (2026-11-19): the patrol is under the HQ and a commanded squad never reacts MinefieldAhead (CE-5040, behaviors); S1/S2/S9 pass, S11 breaks at 174 s (the second mine). The inside-the-lane rows are added once the chain runs past S3. Check: scripts/scenario-regression.sh mf-clear-lane-and-cross"
+  },
+  "entities": {
+    "a4624f30-0000-4000-8000-0000000000f1": {
+      "SimTransform": {
+        "Position": [
+          120,
+          65,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8830
+      },
+      "EntityInfo": {
+        "Name": "Field D",
+        "ForceId": "Hostile"
+      },
+      "Minefield": {
+        "Type": "AntiPersonnel",
+        "SpacingM": 3,
+        "OrientationDeg": 0,
+        "Seed": 4
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 20,
+            "Y": 0
+          },
+          {
+            "X": 20,
+            "Y": 30
+          },
+          {
+            "X": 0,
+            "Y": 30
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "a4624f30-0000-4000-8000-0000000002a0": {
+      "SimTransform": {
+        "Position": [
+          40,
+          40,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "HQ",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SupportCommand",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a4624f30-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          70,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Patrol",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": {
+          "Objective": [
+            135,
+            80,
+            0
+          ],
+          "Shape": 0,
+          "Spacing": 4,
+          "DangerAreas": true
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000002a0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f30-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          70,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a4624f30-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          66,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f30-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          62,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f30-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          58,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f30-0000-4000-8000-0000000002b0": {
+      "SimTransform": {
+        "Position": [
+          60,
+          60,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Engineers",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000002a0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f30-0000-4000-8000-0000000002b1": {
+      "SimTransform": {
+        "Position": [
+          78,
+          60,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 116
+      },
+      "EntityInfo": {
+        "Name": "Clearer",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000002b0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f30-0000-4000-8000-0000000002b2": {
+      "SimTransform": {
+        "Position": [
+          60,
+          64,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Sapper 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000002b0",
+        "Designation": "Rifleman"
+      }
+    },
+    "a4624f30-0000-4000-8000-0000000002c0": {
+      "SimTransform": {
+        "Position": [
+          57,
+          62,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Sapper Team",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000002b0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f30-0000-4000-8000-0000000002c1": {
+      "SimTransform": {
+        "Position": [
+          58,
+          62,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Sapper 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000002c0",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a4624f30-0000-4000-8000-0000000002c2": {
+      "SimTransform": {
+        "Position": [
+          56,
+          62,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Sapper 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f30-0000-4000-8000-0000000002c0",
+        "Designation": "Rifleman"
+      }
+    }
+  }
+}

@@ -490,7 +490,7 @@ namespace Hrot.SimHost.Tests
         public unsafe void CE2240_AProtester_GoesToTheRingAndShowsIt_OnlyPanicEndsIt_AndHisArmsComeDown()
         {
             var w = new World();
-            Assert.True(w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Gesture>(), "the gesture needs its component on this node");
+            Assert.True(w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>(), "the gesture needs its component on this node");
             w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0]}");
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.Equal("Protest", w.State());

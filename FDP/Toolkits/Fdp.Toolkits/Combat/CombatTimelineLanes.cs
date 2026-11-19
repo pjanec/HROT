@@ -1,3 +1,4 @@
+using Fdp.Toolkit.Creatures;
 using System.Collections.Generic;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Contracts;
@@ -21,7 +22,7 @@ namespace Fdp.Toolkit.Combat
     /// seen state included — the director's <c>health</c> / <c>gesture</c> cues read them):</para>
     /// <list type="bullet">
     /// <item><c>state.health</c> — <see cref="Health"/>: Subject = the unit; Value = <c>Current</c>; X = <c>Max</c> (an entry when either changes);</item>
-    /// <item><c>state.gesture</c> — <see cref="Gesture"/>: Subject = the unit; Value = the <see cref="GestureKind"/> number. The component being
+    /// <item><c>state.gesture</c> — <see cref="Demeanour"/> (CE-4628 §10c: the gesture is its <c>Kind</c>): Subject = the unit; Value = the <see cref="GestureKind"/> number. The component being
     ///   removed emits Value 0 = <c>None</c> (absent = None).</item>
     /// </list>
     /// </summary>
@@ -42,8 +43,8 @@ namespace Fdp.Toolkit.Combat
         {
             new(HealthState, new ValueChangePredicateDto { ComponentType = typeof(Health) },
                 new ResultProjectionDto { SourceComponent = typeof(Health), ValuePath = nameof(Health.Current), XPath = nameof(Health.Max) }),
-            new(GestureState, new ValueChangePredicateDto { ComponentType = typeof(Gesture) },
-                new ResultProjectionDto { SourceComponent = typeof(Gesture), ValuePath = nameof(Gesture.Kind) }),
+            new(GestureState, new ValueChangePredicateDto { ComponentType = typeof(Demeanour) },
+                new ResultProjectionDto { SourceComponent = typeof(Demeanour), ValuePath = nameof(Demeanour.Kind) }),
             new(Shot,
                 new TransientEventPredicateDto { EventType = typeof(WeaponFireNotification), AnyOccurrence = false,
                     PropertyPath = nameof(WeaponFireNotification.Refusal), Operator = SearchOperator.Equals, TargetValue = nameof(FireRefusal.None) },

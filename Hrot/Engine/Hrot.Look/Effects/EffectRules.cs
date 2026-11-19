@@ -91,7 +91,7 @@ public static class EffectRules
     /// A shot (<see cref="WeaponFireNotification"/>): a muzzle flash ATTACHED to the shooter's weapon (VE-J) — none for a refused shot, a decoy release, a
     /// throw (CE-3248), a bomb leaving its rack (CE-1094) or a silent weapon (an arrow, a bolt — CE-4649 BW-9); then what the shot throws besides
     /// (<see cref="FiringBlasts.BlastOf"/>): a backblast behind a recoilless tube, a ground blast round a howitzer, a missile's launch smoke (CE-4618).
-    /// ⛔ No tracer (LR-4): a tracer is a real, replicated round.
+    /// ⛔ No tracer (LR-4): a tracer is a real, replicated round. ⭐ CE-4635: ⛔ nothing at all for a flamethrower mount's fuel shot — the jet is its look.
     /// </summary>
     public static int ForShot(in WeaponFireNotification fire, EntityRepository world, ITkbDatabase? tkb, List<EffectSpec> into)
     {
@@ -100,6 +100,9 @@ public static class EffectRules
         if (fire.Shooter == Entity.Null || !world.IsAlive(fire.Shooter) || !world.HasComponent<SimTransform>(fire.Shooter)) return 0;
         if (PersonHands.Threw(world, in fire)) return 0;   // ⭐ CE-3248 — a THROW is no gunshot: no flash, no blast
         var mount = CombatTkb.MountOf(world, fire.Shooter, fire.WeaponIndex);
+        // ⭐ CE-4635 (flame weapons §8 U-5) — a FLAMETHROWER's fuel shot (600 a minute, a normal fired notification, no round) makes no flash and no blast: the JET is its look
+        //   (EffectLayer draws it from FlameJets.TryGet) — otherwise it would flash like a rifle ten times a second under its own flames.
+        if (mount?.Category == WeaponCategory.Flamethrower) return 0;
         long fired = fire.AmmoGuid != 0 ? fire.AmmoGuid : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;   // ⭐ CE-1115 — the round actually fired
         float damage = mount?.DamagePerHit ?? 0f;
         var set = EffectTkbCatalog.EffectsFor(tkb, fired, damage);

@@ -2,6 +2,7 @@ using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Squad.Command;
+using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.AI.Behaviors.Brains;
 using Hrot.Map.Definitions.Behavior;
 using Xunit;
@@ -525,5 +526,43 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(first, repo.GetComponentRO<WeaponChannel>(w.Man).ActionInstanceId);
             Assert.Null(w.Finished);
         }
-}
+        /// <summary>
+        /// ⭐⭐ D-11 B (CE-4666, user-approved 2026-11-19; Assault Under Fire §9.1b) — the base of fire's men are PLACED by the squad's own post plan
+        /// (<see cref="DefencePlan"/>, facing the reported posts), not held on ONE point: its cover ask answers four points and each man is ordered
+        /// to a DIFFERENT one of them, his post set (<c>CombatPosture</c> with <c>Post</c>). Until the plan answers he heads for the support point.
+        /// ✅ Red-proof: phase 0 back to <c>Hold(…, p.Position)</c> ⇒ every man's objective is the support point ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D11B_TheBaseOfFire_TakesPostsFromTheSquadsOwnPlan_NotOnePoint()
+        {
+            var s = new Squad(4);
+            var support = new Vector3(6f, 60f, 0f);
+            s.Order(SupportByFireJson(support, new Vector3(0f, 180f, 0f), new Vector3(20f, 185f, 0f)), BehaviorNames.SupportByFire);
+            s.Tick(); s.Tick(); s.Tick();
+            foreach (var m in s.Members) Assert.Equal(support, PostureObjective(s, m));   // the plan not answered yet: to the point
+
+            var cover = new[] { support + new Vector3(-9f, 4f, 0f), support + new Vector3(-3f, 5f, 0f), support + new Vector3(3f, 5f, 0f), support + new Vector3(9f, 4f, 0f) };
+            for (int k = 0; k < 80; k++)
+            {
+                var c = EqsChildSensor.Find(s.Repo, s.Commander, SquadDefendPlay.CoverSite);
+                if (!c.IsNull && !s.Repo.GetComponentRO<EqsCognitiveBuffer>(c).IsReady) AnswerAll(s, c, cover);
+                foreach (int site in new[] { SquadDefendPlay.WindowSite, SquadDefendPlay.RoofSite })
+                {
+                    var a = EqsChildSensor.Find(s.Repo, s.Commander, site);
+                    if (!a.IsNull && !s.Repo.GetComponentRO<EqsCognitiveBuffer>(a).IsReady) AnswerAll(s, a);
+                }
+                s.Pause(0.25);
+                s.Tick();
+            }
+            var objectives = s.Members.Select(m => PostureObjective(s, m)).ToArray();
+            Assert.All(objectives, o => Assert.Contains(o, cover));
+            Assert.Equal(objectives.Length, objectives.Distinct().Count());   // no two men on one point
+        }
+
+        /// <summary>The objective of the last <c>CombatPosture</c> order to <paramref name="m"/>.</summary>
+        private static Vector3 PostureObjective(Squad s, Fdp.Core.Entity m)
+            => System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
+                   s.Orders.Last(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture).JsonParams,
+                   Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!.Advance.Objective;
+    }
 }

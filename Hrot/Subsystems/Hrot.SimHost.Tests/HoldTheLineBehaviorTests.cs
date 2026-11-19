@@ -61,7 +61,7 @@ namespace Hrot.SimHost.Tests
                     () => { if (!Repo.IsComponentTypeRegistered<EntityInfo>()) Repo.RegisterComponent<EntityInfo>(); },
                     () => { if (!Repo.IsComponentTypeRegistered<TargetMemory>()) Repo.RegisterComponent<TargetMemory>(); },
                     () => { if (!Repo.IsComponentTypeRegistered<EffectState>()) Repo.RegisterComponent<EffectState>(); },
-                    () => { if (!Repo.IsComponentTypeRegistered<Gesture>()) Repo.RegisterComponent<Gesture>(); },
+                    () => { if (!Repo.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) Repo.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>(); },
                     () => { if (!Repo.Bus.IsRegistered<DamageAssessedEvent>()) Repo.Bus.Register<DamageAssessedEvent>(); },
                 }) reg();
                 var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);

@@ -174,8 +174,6 @@ namespace Hrot.Map.Common.Translators
             yield return new Hrot.Network.NED.SimHost.ContactBreachEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.ContactBreachIngressTranslator(participant, entityMap, localNodeId);
             // ⭐ CE-3224 (civilians B-6) — a person's gesture (Brain → every node).
-            yield return new EntityGestureEgressTranslator(participant);
-            yield return new EntityGestureIngressTranslator(participant, entityMap);
             // ⭐ CE-4617 (B-1, RS-10) — a radar's emission (Brain → every node): the radar sensor, the warning receiver, the direction finding read it.
             yield return new EntityRadarEmissionEgressTranslator(participant);
             yield return new EntityRadarEmissionIngressTranslator(participant, entityMap);

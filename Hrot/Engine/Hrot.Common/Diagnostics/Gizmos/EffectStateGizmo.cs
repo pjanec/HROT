@@ -73,7 +73,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
     /// entities that HAVE its component, so the effect gizmo never sees a protester with no effect. It draws only when there is no
     /// <see cref="EffectState"/> — otherwise <see cref="EffectStateGizmo"/> already draws the line (never two lines under one man).
     /// </summary>
-    [GizmoProjector(typeof(Gesture))]
+    [GizmoProjector(typeof(Fdp.Toolkit.Creatures.Demeanour))]
     public sealed class GestureGizmo : IStatelessGizmo
     {
         private readonly EffectStateGizmo _line = new();

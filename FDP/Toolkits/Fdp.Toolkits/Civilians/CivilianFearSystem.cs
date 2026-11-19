@@ -198,9 +198,6 @@ namespace Fdp.Toolkit.Civilians
                             0f, Animals.AnimalFear.BoltSeconds);
                     }
                 }
-                // ⭐⭐ CE-4628 (designs/animals/DESIGN_Animals.md §10a) — how the animal SEEMS to every node: its fear in quarters on the replicated Mood (the face /
-                //   look's record; the decision band stays on AnimalState), written only when a quarter changes. An animal has no civilian mode and no anger.
-                Moods.Set(repo, a, CivilianMode.None, f.Value, 0f);
             }
         }
 

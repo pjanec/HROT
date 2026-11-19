@@ -13,6 +13,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Perception.Survey;
 using Fdp.Toolkit.Squad.Command;
+using Fdp.Toolkit.Combat;
 using Fhsm.Compiler;
 using Fhsm.Compiler.Graph;
 using Fhsm.Kernel.Attributes;
@@ -181,6 +182,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const int ApproachMinMen = 2;
         public const float FlankDegrees = 70f, SupportArcHalfDegrees = 25f, SupportRangeMetres = 220f;
         public const float SupportPostRadius = 25f, ConsolidateRadius = 60f;
+        /// <summary>⭐ D-12 (CE-4666, user-approved 2026-11-19) — how far round where it stands a squad WAITING for the base of fire looks for its covered posts (m).</summary>
+        public const float WaitRadius = 15f;
         public const float ElementFreshSeconds = 120f;
         /// <summary>⭐ <c>CE-2436</c> AU-1 — a reported element this close to the objective is one of its posts (m); the SHIFT puts fire this far
         /// beyond it (the depth) and to its flanks (m).</summary>
@@ -582,28 +585,49 @@ namespace Hrot.AI.Behaviors.Brains
                 // ⭐⭐ CE-4669 — the RESERVE that has reached its point (its bound Set) waits there DEFENDING, never on a finished order: its order
                 //   "stood" (Stands names the run, not the task) ⇒ 📐 live pc-defend-house: Blue Squad 3's BoundingOverwatch ended Success at
                 //   160 s and the squad sat with no task to the end (`doing = nothing`). Re-sending an unchanged SquadDefend is a no-op below.
-                bool reserveArrived = p.Role[slot] == PlatoonAttackPlan.Reserve && p.Spent[slot] == 0
+                // ⭐ D-12 — a slot a phase change just dirtied has not been ordered its bound yet: a Set it reports is its PREVIOUS order's (the
+                //   wait's SquadDefend, AT-14) — 📌 live (pc-corridor-fight): read as "the bound arrived", the reserve was sent to defend its far
+                //   point and WALKED there in a knot across the open instead of bounding
+                bool reserveArrived = p.Role[slot] == PlatoonAttackPlan.Reserve && p.Spent[slot] == 0 && p.Dirty[slot] == 0
                     && (p.Phase == PlatoonAttackPlan.PhaseApproach || p.Phase == PlatoonAttackPlan.PhaseAssault)
                     && CommandPictureOps.ProgressOf(world, self, slot) == ProgressKind.Set;
                 if (reserveArrived) p.Dirty[slot] = 1;
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;
                 p.Dirty[slot] = 0;
-                if (!OrderFor(ref p, slot, json, out var behaviour, out var order, out var kind, out var neutral, reserveArrived)) continue;
+                var standsAt = MenCentre(world, squad);   // ⭐ D-12 — where a waiting squad takes cover: where its MEN stand
+                if (!OrderFor(ref p, slot, json, out var behaviour, out var order, out var kind, out var neutral, reserveArrived, standsAt)) continue;
                 // ⭐ CE-2346 (R-2066 D) — a phase change re-dirties every slot; the support's SquadDefend is the same order in the next
                 //   phase, and re-sending it restarted the squad from "move to the point" (measured: men walked back round the berm)
                 // ⭐ agg-behaviors R-8305 / R-8315 — every arm is routed by kind with the TWO payloads (a stochastic squad gets Order(kind, neutral); a physical one
                 //   exactly the play's own json); SquadRecover (elsewhere) stays Assign — no stochastic row
                 if (CommandOrders.StillRoutedRunning(world, self, squad, kind, neutral, behaviour, order)) continue;
                 CommandOrders.Route(world, self, squad, kind, neutral, behaviour, order, newOrder: true);
-                if (behaviour == BehaviorNames.SquadDefend || behaviour == BehaviorNames.SupportByFire) Sector(ref p, slot, world, squad);   // AU-1: the base of fire keeps its sector (DA-27)
+                if (behaviour == BehaviorNames.SquadDefend || behaviour == BehaviorNames.SupportByFire) Sector(ref p, slot, world, squad, standsAt);   // AU-1: the base of fire keeps its sector (DA-27) · D-12 a waiting squad faces the objective
                 ws.Orders++;
             }
             Lift(ref p, world, self, n);   // ⭐ AU-1 — after the orders: the assault's new order has restarted its progress row
             return NodeStatus.Running;
         }
 
+        /// <summary>⭐ D-12 — where a squad's live men stand (their mean), never the squad entity's own transform: 📌 live (`pc-corridor-fight`) that
+        /// one stays where the squad was authored, so a wait ordered "where it stands" on the attack's second objective marched the squad 120 m
+        /// back across the open. No live man ⇒ <see cref="StaffComposerSystem.CentreOf"/>.</summary>
+        private static Vector3 MenCentre(EntityRepository world, Entity squad)
+        {
+            if (!world.HasComponent<UnitRoster>(squad)) return StaffComposerSystem.CentreOf(world, squad);
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(squad);
+            var sum = Vector3.Zero; int n = 0;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = CommandPictureOps.Subordinate(world, squad, i);
+                if (m.IsNull || !world.IsAlive(m) || !Injury.IsInTheFight(world, m) || !world.HasComponent<SimTransform>(m)) continue;
+                sum += world.GetComponentRO<SimTransform>(m).Position; n++;
+            }
+            return n > 0 ? sum / n : StaffComposerSystem.CentreOf(world, squad);
+        }
+
         /// <summary>The order a slot of <paramref name="slot"/>'s role gets in the plan's phase (false = none: it keeps what it has).</summary>
-        private static unsafe bool OrderFor(ref PlatoonAttackPlan p, int slot, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral, bool reserveArrived = false)
+        private static unsafe bool OrderFor(ref PlatoonAttackPlan p, int slot, JsonSerializerOptions json, out string behaviour, out string order, out OrderKind kind, out string neutral, bool reserveArrived = false, Vector3 standsAt = default)
         {
             behaviour = order = neutral = "";
             kind = 0;
@@ -638,7 +662,12 @@ namespace Hrot.AI.Behaviors.Brains
                         }
                         return true;
                     }
-                    if (p.Phase == PlatoonAttackPlan.PhaseSupport) return false;   // the assault and the reserve wait for the base of fire
+                    // ⭐⭐ D-12 (CE-4666, user-approved 2026-11-19) — the assault and the reserve WAIT for the base of fire IN COVER where they stand: a
+                    //   SquadDefend there (the consolidation's order, AT-8), its sector on the objective, so each man takes a covered post; AT-5's
+                    //   approach replaces it at the support's Set. 📌 Live (pc-corridor-fight): with no order both squads stood idle in the open ~90 s.
+                    //   ⛔ Was: return false (no order: they kept whatever the platoon's approach left them doing)
+                    if (p.Phase == PlatoonAttackPlan.PhaseSupport)
+                        return Defend(standsAt, WaitRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);
                     if (reserveArrived && role == PlatoonAttackPlan.Reserve)   // ⭐ CE-4669 — at its point: it holds there, ready to relieve
                         return Defend(p.ReserveAt, SupportPostRadius, p.Speed, json, out behaviour, out order, out kind, out neutral);
                     // ⭐⭐ CE-2436 AU-2 (A-7) — in contact the assault CLOSES by fire and movement (rushes between cover, its own half covering,
@@ -707,19 +736,21 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>AT-4 — the support's sector: the objective ± <see cref="SupportArcHalfDegrees"/> from its point; every other order none.</summary>
-        private static unsafe void Sector(ref PlatoonAttackPlan p, int slot, EntityRepository world, Entity squad)
+        private static unsafe void Sector(ref PlatoonAttackPlan p, int slot, EntityRepository world, Entity squad, Vector3 standsAt)
         {
             if (!world.Bus.IsRegistered<SetEngagementAreaEvent>()) return;
-            if (p.Role[slot] != PlatoonAttackPlan.Support || p.Phase == PlatoonAttackPlan.PhaseConsolidate)
+            bool waiting = p.Phase == PlatoonAttackPlan.PhaseSupport && p.Role[slot] != PlatoonAttackPlan.Support;   // ⭐ D-12 — faces the objective from where it waits
+            if ((p.Role[slot] != PlatoonAttackPlan.Support && !waiting) || p.Phase == PlatoonAttackPlan.PhaseConsolidate)
             {
                 EngagementAreas.WithdrawSuperior(world, squad);
                 return;
             }
             var o = p.Objective(Math.Min(p.Current, p.Objectives - 1));
-            float bearing = SectorSplit.Norm(MathF.Atan2(o.X - p.SupportAt.X, o.Y - p.SupportAt.Y) * (180f / MathF.PI));
+            var from = waiting ? standsAt : p.SupportAt;
+            float bearing = SectorSplit.Norm(MathF.Atan2(o.X - from.X, o.Y - from.Y) * (180f / MathF.PI));
             world.Bus.Publish(new SetEngagementAreaEvent
             {
-                Entity = squad, Origin = BehaviorOrigin.Superior, ArcSet = 1, ArcOrigin = p.SupportAt,
+                Entity = squad, Origin = BehaviorOrigin.Superior, ArcSet = 1, ArcOrigin = from,
                 LeftBearing = SectorSplit.Norm(bearing - SupportArcHalfDegrees), RightBearing = SectorSplit.Norm(bearing + SupportArcHalfDegrees),
                 MaxRange = SupportRangeMetres,
             });

@@ -215,6 +215,10 @@ namespace Hrot.AI.Behaviors.Brains
             if (s.Broken == 0)
             {
                 if (s.Level < breakAt) return false;
+                // ⭐ D-11 A (CE-4666, user-approved 2026-11-19) — a man MOVING TO HIS ORDERED POST takes the near misses as "go to cover": his
+                //   post is his cover, so the break waits until he is there or his move has stalled (his level stays — he breaks on arrival
+                //   if it is still over the line)
+                if (HeadingToPost(world, e)) return false;
                 s.Broken = 1;
                 s.CalmSince = (SimInstant)0;
                 edge = SensorChange.StressBreak;
@@ -257,7 +261,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
             var dto = new Hrot.Map.Definitions.Behavior.BreakParamsJsonDto();
-            if ((Flees(world, e) && Flee(world, e, out var to)) || Retreat(world, e, out to)) { dto.HasRetreat = true; dto.Retreat = to; }   // ⭐ CE-2376 (DS-3)
+            if ((Flees(world, e) && Flee(world, e, out var to)) || PostRetreat(world, e, out to) || Retreat(world, e, out to)) { dto.HasRetreat = true; dto.Retreat = to; }   // ⭐ CE-2376 (DS-3) · D-11 A
             SopActions.React(world, e, Hrot.Map.Definitions.Behavior.BehaviorNames.Break, ReactionUrgency.Break, in dto);
         }
 
@@ -316,6 +320,43 @@ namespace Hrot.AI.Behaviors.Brains
             if (!UnderFire.CoverNear(world, e, at, FleeMetres, FleeGainMetres, out var cover, out _)) return false;
             if (Flat(cover - threat).Length() < Flat(at - threat).Length() + FleeGainMetres) return false;
             to = cover;
+            return true;
+        }
+
+        /// <summary>⭐ D-11 A — a moving man under this (m/s) has STALLED: his move no longer carries him to his post.</summary>
+        public const float StalledMps = 0.3f;
+
+        private static readonly int s_combatPosture = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.CombatPosture);
+
+        /// <summary>⭐ D-11 A — his ordered post: he runs a superior's <c>CombatPosture</c> (the squad's post order, <c>SquadManeuverRunner.Hold</c>)
+        /// and its move is active — the move's destination is the post. Own components only (safe in a parallel batch).</summary>
+        public static unsafe bool OrderedPost(EntityRepository world, Entity e, out Vector3 post, out bool running)
+        {
+            post = default; running = false;
+            if (!world.HasComponent<BehaviorState>(e) || !world.HasComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e)) return false;
+            ref readonly var task = ref world.GetComponentRO<BehaviorState>(e);
+            if (task.Origin != BehaviorOrigin.Superior || task.ActiveBehaviorHash != s_combatPosture) return false;
+            ref readonly var channel = ref world.GetComponentRO<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
+            if (channel.ActiveAction != Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo) return false;
+            fixed (byte* p = channel.Params) post = ((Fdp.Toolkit.Navigation.MoveToParams*)p)->Destination;
+            running = channel.Status == Fbt.NodeStatus.Running;
+            return true;
+        }
+
+        /// <summary>⭐ D-11 A — on his way to his ordered post and still getting there (not arrived, not stalled).</summary>
+        public static bool HeadingToPost(EntityRepository world, Entity e)
+        {
+            if (!OrderedPost(world, e, out _, out bool running) || !running) return false;
+            return Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, e, out _, out var v) && v.X * v.X + v.Y * v.Y >= StalledMps * StalledMps;
+        }
+
+        /// <summary>⭐ D-11 A — a broken man's retreat point is FIRST his own ordered post, when it is behind cover and he is not on it already.</summary>
+        public static bool PostRetreat(EntityRepository world, Entity e, out Vector3 to)
+        {
+            to = default;
+            if (!OrderedPost(world, e, out var post, out _) || !world.HasComponent<SimTransform>(e)) return false;
+            if (Flat(post - world.GetComponentRO<SimTransform>(e).Position).Length() < RetreatGainMetres || !InCover(world, e, post)) return false;
+            to = post;
             return true;
         }
 
@@ -465,7 +506,7 @@ namespace Hrot.AI.Behaviors.Brains
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
                 .Unmanaged<Fdp.Toolkit.Replication.Components.TkbIdentity>()
                 .Unmanaged<StanceIntent>()
-                .Unmanaged<Fdp.Toolkit.Combat.Gesture>();   // a man's surrender / hands-up gesture (written by his brain, not here)
+                .Unmanaged<Fdp.Toolkit.Creatures.Demeanour>();   // a man's surrender / hands-up gesture (written by his brain, not here)
             public EntityRepository Repo;
             public double Now;
             public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx)
