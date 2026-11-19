@@ -25,6 +25,7 @@ namespace Hrot.Map.Common.Replication.Egress
         //   destruction, a wipe or (as an unregister) a hand-over.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityScenarioClock> _instances;
 
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.ScenarioClock };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityScenarioClock>();
@@ -95,8 +96,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtScenarioClock;
         private readonly DdsReader<EntityScenarioClock>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("sample held until vehicle/target is known here; applied then removed")]
         private readonly Dictionary<int, EntityScenarioClock> _pending = new();
         private int _worldEpoch;   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the pending samples (they named the old world)
+        [Fdp.Core.WorldDerived("scratch list cleared at end of every Flush")]
         private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityScenarioClock>();

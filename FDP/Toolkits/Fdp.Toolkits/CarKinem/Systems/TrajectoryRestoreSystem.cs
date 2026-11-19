@@ -38,6 +38,7 @@ namespace CarKinem.Systems
         }
 
         // ⭐ CE-3337 — the ONE resume protocol (Fdp.Toolkit.Replay.ResumableCounter), shared with the behaviour run tokens
+        [Fdp.Core.ProtocolCache("protocol — the world carries a recorded copy and the counter RESUMES from it on a restore's first step (CE-3318/CE-3337, restore design §1m); that resume IS the re-derive")]
         private readonly Fdp.Toolkit.Replay.ResumableCounter<NavigationHandleMark> _handles = new(
             () => NavigationHandleAllocator.Last, NavigationHandleAllocator.ResumeAt,
             m => (m.Last, m.At), (last, at) => new NavigationHandleMark { Last = last, At = (SimInstant)at });
@@ -85,6 +86,7 @@ namespace CarKinem.Systems
             _highestRestored = highest;
         }
 
+        [Fdp.Core.WorldDerived("the highest live handle the last world replacement found (CE-3318); scratch for the pending resume")]
         private int _highestRestored;
 
         /// <summary>Registers the trajectory <paramref name="trace"/> holds whole, under <paramref name="id"/>; false when it cannot.</summary>

@@ -34,6 +34,7 @@ public sealed class TrafficShadowFollowSystem : IEcsModuleSystem
     /// ⛔ Before: a refused hand-over held for ever (CE-9020, measured on <c>cv-mode-1-to-2</c>).</summary>
     public const double RefusedHoldSeconds = 8.0;
 
+    [Fdp.Core.WorldDerived("scratch cleared and refilled each Execute from TrafficFrame")]
     private readonly Dictionary<string, TrafficCarPose> _shadows = new(StringComparer.Ordinal);
 
     public static string ShadowIdOf(int networkId) => ShadowPrefix + networkId.ToString(System.Globalization.CultureInfo.InvariantCulture);

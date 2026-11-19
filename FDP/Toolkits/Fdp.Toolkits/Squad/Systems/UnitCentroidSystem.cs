@@ -29,7 +29,9 @@ namespace Fdp.Toolkit.Squad.Systems
     public sealed class UnitCentroidSystem : IEcsModuleSystem
     {
         private EntityQuery? _units;
+        [Fdp.Core.FrameScratch("entity-index to pass stamp: valid only for the current _pass, grown never shrunk")]
         private int[] _placed = Array.Empty<int>();   // entity index → the pass that placed it (grown, never shrunk)
+        [Fdp.Core.FrameScratch("pass counter that invalidates _placed each run")]
         private int _pass;
 
         /// <summary>Echelons below a unit placed first, at most this deep (a malformed cycle stops here).</summary>

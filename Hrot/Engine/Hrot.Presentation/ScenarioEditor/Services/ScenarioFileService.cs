@@ -28,6 +28,7 @@ namespace Hrot.ScenarioEditor.Services;
 /// <para>⚠ It used to carry a third operation, <c>LoadScenario</c> — a direct file→repo load that bypassed
 /// the genesis pipeline. ⛔ Removed `2026-08-24` (HN-037 Part B); see the note where it stood.</para>
 /// </summary>
+[Fdp.Core.NotState("editor file service; serializer/bus injected")]
 public sealed class ScenarioFileService
 {
     private static readonly string[] AcceptedSubsystemTypes =

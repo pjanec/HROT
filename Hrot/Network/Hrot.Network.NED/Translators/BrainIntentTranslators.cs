@@ -34,6 +34,7 @@ namespace Hrot.Network.Translators
         //   unregister) a hand-over.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityBrainIntent> _instances;
         private readonly BehaviorRegistry _registry;
+        [Fdp.Core.ProtocolCache("last-sent intent signature per entity for egress change detection")]
         private readonly Dictionary<int, Signature> _lastSignature = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityBrainIntent>();
@@ -137,6 +138,7 @@ namespace Hrot.Network.Translators
     {
         private readonly DdsReader<EntityBrainIntent>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("intent JSON held until its unit is known here; epoch-cleared")]
         private readonly Dictionary<int, string> _held = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 

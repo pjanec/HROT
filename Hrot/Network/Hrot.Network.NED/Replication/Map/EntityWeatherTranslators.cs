@@ -23,6 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
         private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(WeatherConditions));
 
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.WeatherConditions };
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over.
@@ -132,8 +133,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtWeather;
         private readonly DdsReader<EntityWeather>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("sample held until vehicle/target is known here; applied then removed")]
         private readonly Dictionary<int, EntityWeather> _pending = new();
         private int _worldEpoch;   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the pending samples (they named the old world)
+        [Fdp.Core.WorldDerived("scratch list cleared at end of every Flush")]
         private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeather>();

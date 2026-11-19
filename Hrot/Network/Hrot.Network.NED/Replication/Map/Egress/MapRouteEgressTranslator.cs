@@ -41,6 +41,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclo
     /// Tracks the last-published <see cref="RoutePlan.Version"/> per entity so
     /// we can skip entities whose route has not changed since the previous tick.
     /// </summary>
+    [Fdp.Core.ProtocolCache("last-published route version per entity; empty republishes route")]
     private readonly Dictionary<Entity, int> _publishedVersions = new();
 
     public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<MapRoute>();
@@ -50,6 +51,7 @@ public class MapRouteEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclo
     public TranslatorDirection Direction => TranslatorDirection.Egress;
 
     // Targets: RoutePlan (HrotComponentIds.RoutePlan = 168)
+    [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
     private static readonly IReadOnlyList<int> _targetIds = new[] { (int)Hrot.Map.Definitions.HrotComponentIds.RoutePlan };
     public IReadOnlyList<int> TargetComponentIds => _targetIds;
 

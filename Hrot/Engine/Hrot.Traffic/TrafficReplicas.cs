@@ -27,6 +27,7 @@ namespace Hrot.Traffic;
 /// <para>⭐ An ANCHOR is an HROT body — <c>SimTransform</c> + <c>PhysicsCollider</c> on the default route — so a map graphic never pulls
 /// cars in, and a replica never anchors another.</para>
 /// </remarks>
+[Fdp.Core.ExternalState("the traffic node's SUMO-id -> entity pairing; restorable only with SUMO's own state")]
 public sealed class TrafficReplicas
 {
     /// <summary>R-4041 — the vicinity radius.</summary>

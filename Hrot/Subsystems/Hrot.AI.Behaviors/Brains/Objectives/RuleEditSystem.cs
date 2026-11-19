@@ -20,6 +20,7 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     {
         private sealed class Log { }
         private readonly BehaviorIngressSystem _ingress;
+        [Fdp.Core.FrameScratch("this run's rule edits: cleared and refilled from this frame's world")]
         private readonly List<Entity> _pending = new();
 
         public RuleEditSystem(BehaviorIngressSystem ingress) => _ingress = ingress;

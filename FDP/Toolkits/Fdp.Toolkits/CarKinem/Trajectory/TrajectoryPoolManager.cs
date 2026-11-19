@@ -10,6 +10,7 @@ namespace CarKinem.Trajectory
     /// Stores all custom trajectories in the simulation.
     /// Thread-safe for reads (immutable after creation).
     /// </summary>
+    [Fdp.Core.WorldDerived("R-3039 S2 (§7b/§7c; was C): a per-process cache re-derived at a world replacement — routes from their RoutePlan (RouteTrajectorySyncSystem), solved paths from each mover's exact PathTrace (TrajectoryRestoreSystem)")]
     public class TrajectoryPoolManager : IDisposable
     {
         private readonly Dictionary<int, CustomTrajectory> _trajectories = new();

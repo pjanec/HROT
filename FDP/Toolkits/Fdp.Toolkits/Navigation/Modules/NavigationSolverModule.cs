@@ -127,6 +127,7 @@ namespace Fdp.Toolkit.Navigation.Modules
             => _solver ??= new PathfindingSolverSystem(_roadNetwork, _trajectoryPool, _navmesh, _volumetric, _roadNetworkHolder);
 
         // ⭐ macros S3a ⑤ (SR-180…SR-182) — the placement solver: ONE for the module's life, ticked beside the path solver with the module's navmesh.
+        [Fdp.Core.WorldDerived("lazily created PlacementSolverSystem (its own fields classified separately)")]
         private PlacementSolverSystem? _placement;
         private PlacementSolverSystem Placement() => _placement ??= new PlacementSolverSystem(_navmesh);
 

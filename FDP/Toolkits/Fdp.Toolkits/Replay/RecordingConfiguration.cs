@@ -8,6 +8,7 @@ namespace Fdp.Toolkit.Replay
     /// <see cref="EpisodeRecorderModule"/>.  Passed at construction time so that
     /// <c>AsyncRecorder</c> is decoupled from any global state.
     /// </summary>
+    [Fdp.Core.NotState("init-only recording options")]
     public sealed class RecordingConfiguration
     {
         /// <summary>

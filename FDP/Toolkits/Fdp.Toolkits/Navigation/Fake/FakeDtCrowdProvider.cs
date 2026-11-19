@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// Processing order is deterministic (sorted by entity Index, ascending).
     /// Separation avoids NaN via <c>SafeNormalize</c> (zero vector stays zero).
     /// </summary>
+    [Fdp.Core.NotState("test fake: NavigationFakesModule is built by no production host (grep)")]
     public sealed class FakeDtCrowdProvider : IDtCrowdProvider, IFakeDtCrowdProviderTestApi
     {
         // ── Separation constants (DD-Fake-Nav §4.3) ──────────────────────────────

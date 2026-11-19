@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
     [TickMode(TickPolicy.EveryFrame)]
     public sealed class SpawnLevelSystem : IEcsModuleSystem
     {
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _waiting = new();
 
         public void Execute(ISimulationView view, float deltaTime)

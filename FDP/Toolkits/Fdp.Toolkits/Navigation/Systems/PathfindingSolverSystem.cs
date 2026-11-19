@@ -28,6 +28,7 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class PathfindingSolverSystem : IEcsModuleSystem
     {
         /// <summary>
@@ -49,6 +50,7 @@ namespace Fdp.Toolkit.Navigation.Systems
         /// </para>
         /// 📄 docs/DESIGN_Terrain_Zones_And_Assets.md §5.4 (R2).
         /// </summary>
+        [Fdp.Core.WorldDerived("road network resolved every Execute from singleton/holder")]
         private RoadNetworkBlob                 _activeRoadNetwork;
 
         /// <summary>
@@ -72,7 +74,9 @@ namespace Fdp.Toolkit.Navigation.Systems
         /// <summary>⭐ CE-3128 — the ground route planner (reused buffers: one per solver, R-220). CE-2059's "the route ends at
         /// the requested point" is its egress leg.</summary>
         private readonly RoutePlanner _planner = new();
+        [Fdp.Core.WorldDerived("scratch reused per request")]
         private readonly List<Vector3> _roundedPoints = new();      // ⭐ CE-3029 — CornerRounding's output, reused per request
+        [Fdp.Core.WorldDerived("scratch reused per request")]
         private readonly List<byte> _roundedTraversals = new();
 
         /// <summary>

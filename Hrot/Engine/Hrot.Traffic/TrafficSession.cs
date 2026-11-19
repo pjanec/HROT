@@ -30,6 +30,7 @@ public sealed record TrafficServeOptions(Func<int> NextNetworkId, DdsParticipant
 /// <para>⛔ <b>Threads.</b> <see cref="StepTo"/> runs on the stepping module's thread; <see cref="Source"/> is pumped and read on the main
 /// thread. <see cref="Dispose"/> and <see cref="StepTo"/> share a gate.</para>
 /// </remarks>
+[Fdp.Core.ExternalState("wraps one running SUMO LiveCitySim engine")]
 public sealed class TrafficSession : IDisposable
 {
     /// <summary>The most SUMO steps one call catches up (a long hitch is not replayed in one go; the rest follows next tick).</summary>

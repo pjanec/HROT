@@ -17,6 +17,7 @@ namespace Fdp.Toolkit.Behavior.Events
     /// <para>A static shared source, on the <c>AiBehaviorLogTarget.SharedInstance</c> precedent: hosts register it with
     /// their <c>MessageLogRegistry</c> (idempotent).</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("diagnostic message log with de-dup memory; no simulation effect")]
     public sealed class BehaviorFaultLog : IMessageLogSource
     {
         /// <summary>One fault, wherever it was seen: the entity (its network id, or <c>-(index+1)</c> on a node without

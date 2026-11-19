@@ -31,6 +31,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the instances it deletes on a destruction or a wipe.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<MapVisualOverlay> _instances;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.WorldDerived("log-once trace set; no effect on simulation")]
         private readonly HashSet<int> _tracedNetIds = new();
         private readonly NodeId _localNodeId;
 
@@ -41,6 +42,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         // Targets: EditablePolyline (117)
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly IReadOnlyList<int> _targetIds =
             new int[] { GlobalComponentIds.EditablePolyline };
         public IReadOnlyList<int> TargetComponentIds => _targetIds;

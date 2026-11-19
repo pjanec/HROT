@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Behavior.Modules
     ///
     /// <para>Belongs to the <em>Brain</em> tier of the Brain/Muscle decomposition (MOD1 §3.2.3).</para>
     /// </summary>
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class CognitiveRuntimeModule
     {
         private readonly BehaviorRegistry _registry;

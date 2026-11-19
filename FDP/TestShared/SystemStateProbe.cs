@@ -117,7 +117,7 @@ namespace Fdp.TestShared
             var classified = new List<(Hit, Row)>();
             foreach (var h in hits)
             {
-                Row? row = h.Attributed ?? Match(h.Key, exact, globs, used);   // ⭐ R-4297 — the code's own word first
+                Row? row = h.Attributed ?? Match(h.Key, exact, globs, used) ?? ShapeRule(h.Key);   // ⭐ R-4297 — the code's own word first, then a ledger row, then a shape rule
                 if (row == null && h.Kind == "object") row = Match(h.TypeKey, exact, globs, used);
                 if (row == null) { unclassified.Add(h); continue; }
                 classified.Add((h, row));
@@ -125,6 +125,19 @@ namespace Fdp.TestShared
             }
             var unused = rows.Select(r => r.Key).Where(k => !used.Contains(k)).Distinct().ToList();
             return new Result(owners, hits, unclassified, unused, pending) { Classified = classified };
+        }
+
+        /// <summary>
+        /// ⭐ R-4297 — the shape rules (were §3's globs): fields classified by their NAME across the tree, not one by one — the <c>WorldEpoch</c> seen-count
+        /// (<c>_epoch</c> / <c>_worldEpoch</c>, the CE-3294 reset mechanism itself) and an auto-property counter <c>…Count</c> read by diagnostics and tests.
+        /// </summary>
+        public static Row? ShapeRule(string key)
+        {
+            string field = key[(key.LastIndexOf('.') + 1)..];
+            if (field is "_epoch" or "_worldEpoch") return new Row(key, "A", "the WorldEpoch seen-count - the world-boundary reset mechanism itself") { Attribute = "shape" };
+            if (field.StartsWith("<", StringComparison.Ordinal) && field.EndsWith("Count>k__BackingField", StringComparison.Ordinal))
+                return new Row(key, "A", "a diagnostic counter read by diagnostics and tests") { Attribute = "shape" };
+            return null;
         }
 
         private static Row? Match(string key, Dictionary<string, Row> exact, List<(Row Row, Regex Re)> globs, HashSet<string> used)
@@ -168,6 +181,9 @@ namespace Fdp.TestShared
             if (t.IsValueType) return f.IsInitOnly ? null : "scalar";
             if (t.IsInterface) return null;
             if (t.FullName is "Fdp.Core.EntityQuery" or "Fdp.Core.EntityRepository") return null;   // the world itself, and a view of it
+            // ⭐ R-4297 — a shape rule (like §3's globs): a DDS endpoint (reader, writer, participant) is the transport, not state — the ledger carried
+            //   one K row per instantiation (159); an external generic cannot carry our attribute
+            if (t.Namespace == "CycloneDDS.Runtime") return null;
             return "object";
         }
 

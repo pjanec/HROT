@@ -52,6 +52,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     ///
     /// Default capacity: 32 entries across all entities (configurable via constructor).
     /// </summary>
+    [Fdp.Core.WorldDerived("LRU cache of path details ingested from muscle registry; refillable")]
     public sealed class BrainPathRegistry : IPathRegistry, IFakeBrainPathRegistryTestApi
     {
         private readonly int _maxEntries;

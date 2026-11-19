@@ -148,6 +148,7 @@ namespace Fdp.Toolkit.Terrain
         public static readonly long DoorStateKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DoorStateDescriptorOrdinal, 0);
 
         /// <summary>Commands this system applied (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public long Applied { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

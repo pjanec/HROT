@@ -251,6 +251,7 @@ namespace Hrot.Core.Tkb
         private readonly bool _gateOnAuthority;
         private EntityQuery? _units;
         private EntityRepository? _queriesFor;
+        [Fdp.Core.WorldDerived("role to TKB type memo built from the TKB (Build) on demand")]
         private readonly Dictionary<SlotRole, TkbTypeId> _roles = new();
 
         public StochasticUnitFillSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;

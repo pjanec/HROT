@@ -33,8 +33,10 @@ namespace Hrot.Map.Common.Replication.Egress
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityObjectiveStatus> _instances;
+        [Fdp.Core.ProtocolCache("sim time of the last send per net id: progress refresh throttle of published samples")]
         private readonly Dictionary<int, double> _sentAt = new();   // sim time of the last send: the progress-only refresh throttle (the instances hold the sample)
 
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.ObjectiveStatus, GlobalComponentIds.ObjectiveLinks };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityObjectiveStatus>();
@@ -147,7 +149,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtObjectiveStatus;
         private readonly DdsReader<EntityObjectiveStatus>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("received samples waiting for their entity to exist (pending ingress), applied then removed")]
         private readonly Dictionary<int, EntityObjectiveStatus> _pending = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("ids applied this pass: cleared at the end of each ingress pass")]
         private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityObjectiveStatus>();
@@ -169,6 +174,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _pending.Clear(); }   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the samples waiting for their entity (they named the old world)
             if (_reader is not null)
             {
                 using var loan = _reader.Take();

@@ -57,6 +57,7 @@ namespace Hrot.ScenarioEditor.Map
         private readonly Action<string>? _report;
 
         /// <summary>Latched so the message appears on the transition, not once per frame.</summary>
+        [Fdp.Core.WorldDerived("diagnostic warn-once latch")]
         private bool _reportedSilent;
         private readonly Fdp.Toolkit.Diagnostics.Gizmos.IGizmoViewFilter? _viewFilter;
 
@@ -66,6 +67,7 @@ namespace Hrot.ScenarioEditor.Map
         /// </summary>
         internal const int GraceFrames = 120;
 
+        [Fdp.Core.WorldDerived("diagnostic grace-frame counter")]
         private int _silentFrames;
 
         /// <param name="isEnabled">

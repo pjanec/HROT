@@ -11,11 +11,14 @@ namespace Fdp.ModuleHost.Scheduling
     /// The replay handler flips this flag during PrepareReplay / FinalizeReplay / PrepareLive.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class TogglableSimulationGroup : ISystemGroup
     {
+        [Fdp.Core.NotState("built once in ctor from composition-root system list")]
         private readonly IEcsModuleSystem[] _innerSystems;
 
         /// <inheritdoc />
+        [field: Fdp.Core.WorldDerived("execution gate re-driven by debug/replay controller; not sim memory")]
         public bool Enabled { get; set; } = true;
 
         /// <inheritdoc />

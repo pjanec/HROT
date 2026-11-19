@@ -63,6 +63,7 @@ namespace Fdp.Toolkit.Perception.Signatures
             public float EngineOnSeconds;
         }
 
+        [Fdp.Core.SimulationMemory("per-entity heat track: Moving, StillSince, EngineOnSeconds, CrewChangedAt timers drive HeatSource state")]
         private readonly Dictionary<ulong, Track> _tracks = new();
         private EntityQuery? _query;
         private EntityRepository? _queryRepo;

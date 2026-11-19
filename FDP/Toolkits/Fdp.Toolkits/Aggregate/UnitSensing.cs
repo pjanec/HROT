@@ -92,19 +92,27 @@ namespace Fdp.Toolkit.Aggregate
         private readonly bool _gateOnAuthority;
         private EntityQuery? _units;
         private EntityRepository? _queriesFor;
+        [Fdp.Core.FrameScratch("this run's observing units: refilled from index 0 for the parallel job")]
         internal Entity[] _observers = new Entity[32];
+        [Fdp.Core.FrameScratch("this run's units: the count reset to 0 each run, refilled")]
         internal Entity[] _all = new Entity[32];
+        [Fdp.Core.FrameScratch("count reset to 0 at 127 each run")]
         private int _allCount;
         // ⭐ CE-8018 (N-3) — the PHYSICAL bodies a stochastic observer may see, gathered serially (the phase reads none of their components)
+        [Fdp.Core.FrameScratch("physical target array refilled from 0 (_physicalCount reset at 302)")]
         internal PhysicalTarget[] _physical = new PhysicalTarget[64];
+        [Fdp.Core.FrameScratch("count reset to 0 at 302 each run")]
         private int _physicalCount;
         private EntityQuery? _bodies;
 
         /// <summary>⭐ N-3 — one physical body as a stochastic observer sees it: where, which side, how big (the signature), whether a vehicle.</summary>
         internal struct PhysicalTarget { public Entity Entity; public Vector3 At; public ForceId Force; public float Signature; public bool Vehicle; }
+        [Fdp.Core.WorldDerived("step-gate timestamp derived from sim time")]
         private SimInstant _lastStep = (SimInstant)(-1.0);
         // ⭐ CE-8009 — the naked eye's reach (the personal soldiers' TKB VisionRange; 0 = no cap), resolved serially, once per database
+        [Fdp.Core.WorldDerived("eye reach derived from the TKB, recomputed when the TKB changes")]
         private float _eyeReach;
+        [Fdp.Core.NotState("static readonly menu item object")]
         private object? _eyeReachFor;
 
         public StochasticUnitSensorSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;

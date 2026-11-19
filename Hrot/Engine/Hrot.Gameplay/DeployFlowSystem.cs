@@ -51,6 +51,7 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
     public const string KilledObserving = "killed — observing";
     private const long ServerCheckMs = 1_000;
 
+    [Fdp.Core.WorldDerived("static per-world registry of the flow system: filled at construction")]
     private static readonly ConditionalWeakTable<EntityRepository, DeployFlowSystem> PerWorld = new();
 
     /// <summary>The flow composed on <paramref name="world"/> (the screen's and the HTTP route's lookup); null when this node has none.</summary>
@@ -60,17 +61,28 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
     private readonly EntityRepository _world;
     private readonly NetworkEntityMap _map;
     private readonly int _station;
+    [Fdp.Core.NotState("injected DeployFlowEnvironment dependency")]
     private readonly DeployFlowEnvironment _env;
     private readonly Func<long> _now;
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private readonly Dictionary<int, DeployOffer> _offers = new();
+    [Fdp.Core.WorldDerived("sorted snapshot of _offers rebuilt when _offersDirty")]
     private List<DeployOffer> _offerList = new();
+    [Fdp.Core.WorldDerived("dirty flag for the sorted offers snapshot")]
     private bool _offersDirty;
+    [Fdp.Core.WorldDerived("polled whether a deploy server exists, refreshed every ServerCheckMs")]
     private bool _serverExists;
+    [Fdp.Core.WorldDerived("wall-clock throttle for the server existence poll")]
     private long _nextServerCheck;
+    [Fdp.Core.SessionState("this station's request id: never reused, an answer to an old one must not match")]
     private string _requestId = "";
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private int _pendingUnit;
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private bool _pendingObserve;
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private long _deadline;
+    [Fdp.Core.SessionState("local station choice to stay observer: client session flow state, not world")]
     private bool _explicitObserver;
 
     public DeployFlowSystem(GameplayWire wire, EntityRepository world, NetworkEntityMap map, int station, DeployFlowEnvironment env)
@@ -88,15 +100,19 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
     public SlotLookup? Slots { get; set; }
 
     private Fdp.Toolkit.Time.ISimClock? _clock;
+    [Fdp.Core.WorldDerived("sim time copied from the clock each frame (189) for display")]
     private double _simNow, _respawnAt;
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private bool _slotSeenPlaying;
 
+    [field: Fdp.Core.SessionState("deploy flow state machine (Waiting/Choosing/Requesting/Playing) of this station session")]
     public DeployFlowState State { get; private set; } = DeployFlowState.Waiting;
 
     /// <summary>⭐ S2 — when a Dead slot returns to Choosing (sim s); 0 = never (the Player observes for good); meaningless outside Dead.</summary>
     public double RespawnAtSim => State == DeployFlowState.Dead ? _respawnAt : 0.0;
 
     /// <summary>Why the flow is Waiting (empty when the gate is closed — the loading screen speaks then), or the last refusal / timeout while Choosing.</summary>
+    [Fdp.Core.WorldDerived("display text for the flow reason")]
     private string _reason = "";
 
     public string Reason
@@ -111,10 +127,13 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
         private set => _reason = value;
     }
 
+    [Fdp.Core.WorldDerived("seconds cache for the death message text")]
     private int _lastSecs = -1;
+    [Fdp.Core.WorldDerived("cached death message text")]
     private string _deadText = "";
 
     /// <summary>The last refusal ("WrongSide", "HeldByAnotherStation (held by station 7)", …) or timeout text; cleared by the next request.</summary>
+    [field: Fdp.Core.WorldDerived("last refusal text kept for the UI")]
     public string LastRefusal { get; private set; } = "";
 
     /// <summary>The last <see cref="DeployStatusTopic"/> answer's unit; 0 none.</summary>
@@ -166,8 +185,10 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
     }
 
     /// <summary>The kit and spawn area of the LAST request sent (S3) — what the Player's screen / HTTP asked for; the rails read them.</summary>
+    [field: Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     public byte RequestedKit { get; private set; }
 
+    [field: Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     public int RequestedAreaNetId { get; private set; }
 
     private bool Send(ForceId side, int unit, bool observe, byte kit = 0, int areaNetId = 0)
@@ -301,8 +322,11 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
         if (now >= _deadline) BackToChoosing(NoAnswer);
     }
 
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private bool _possessSent;
+    [Fdp.Core.WorldDerived("last possess refusal text for display/diagnostics")]
     private string _possessRefusal = "";
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private long _nextPossessTry;
 
     /// <summary>

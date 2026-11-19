@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Behavior.TacticalOrderMapper
     /// Phase 6 of the Tactical Intent workstream.
     /// </para>
     /// </summary>
+    [Fdp.Core.NotState("mapper table registered at startup")]
     public sealed class TacticalIntentMapperRegistry
     {
         private readonly Dictionary<string, ITacticalOrderMapper> _mappers = new();

@@ -37,6 +37,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         // NavigationStatus ECS component ID = NavigationContractsComponentIds.NavigationStatus = 68
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly IReadOnlyList<int> _targetIds = new int[] { Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationStatus };
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 
@@ -45,6 +46,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // Keyed by Entity; value is the last-published (IntentId, Result, Phase).
         // ProgressS is omitted from the key — it is included unconditionally
         // in the publish payload but does not trigger a new publish on its own.
+        [Fdp.Core.ProtocolCache("last-sent status per entity for egress change detection")]
         private readonly Dictionary<Entity, (uint IntentId, EcsNavResult Result, NavigationPhase Phase)> _lastPublished = new();
 
         // Heartbeat: republish ProgressS every 5 s even when nothing has changed,

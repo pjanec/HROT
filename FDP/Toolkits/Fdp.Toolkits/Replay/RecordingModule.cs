@@ -21,10 +21,12 @@ namespace Fdp.Toolkit.Replay
     /// </para>
     /// </summary>
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class RecordingModule : IReviewSuspendable, IEcsModule, IDisposable
     {
         private readonly RecordingConfiguration _config;
         private AsyncRecorder? _recorder;
+        [Fdp.Core.WorldDerived("the module's handle on its own recorder system, to route checkpoint requests; not the world")]
         private RecorderTickSystem? _tick;
 
         /// <inheritdoc/>

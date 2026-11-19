@@ -24,6 +24,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class MontageQueueAdvanceSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;

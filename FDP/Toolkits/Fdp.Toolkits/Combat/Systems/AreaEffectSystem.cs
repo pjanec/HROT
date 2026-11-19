@@ -35,16 +35,25 @@ namespace Fdp.Toolkit.Combat.Systems
     public sealed class AreaEffectSystem : IEcsModuleSystem
     {
         private readonly ColliderOcclusion _occlusion = new();
+        [Fdp.Core.WorldDerived("scratch list refilled per use")]
         private readonly List<TerrainWorld.FireCrossing> _crossings = new();   // BreachDoors — the stand-in's door list (not on the seam yet)
+        [Fdp.Core.WorldDerived("scratch trace results refilled per use")]
         private readonly List<TraceCrossing> _traces = new();                   // ⭐ CE-1035 Q1 — exposure, through IWorldQuery
+        [Fdp.Core.WorldDerived("scratch refilled per target")]
         private readonly List<Vector3> _points = new(3);
+        [Fdp.Core.FrameScratch("buildings near a burst: cleared at 591 before each use")]
         private readonly List<int> _buildings = new();                           // ⭐ CE-4391 S-2 — the buildings near a burst (the collapse test)
+        [Fdp.Core.FrameScratch("buildings collapsed in this burst: cleared at 558 before each use")]
         private readonly List<int> _collapsedNow = new();
+        [Fdp.Core.FrameScratch("panels near a burst: cleared at 561 before each use")]
         private readonly List<int> _panels = new();                              // ⭐ CE-4391 — BreachWalls: the building panels near a burst
+        [Fdp.Core.WorldDerived("scratch array refilled per target")]
         private readonly float[] _shares = new float[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts];       // ⭐ CE-3212
+        [Fdp.Core.WorldDerived("scratch array cleared per target")]
         private readonly float[] _partDamage = new float[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts];   // ⭐ CE-3212
 
         /// <summary>Detonations this system assessed (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Assessed { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -477,6 +486,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 record.TreesFelled++;
             }
         }
+        [Fdp.Core.FrameScratch("trees near a burst: cleared at 475 before each use")]
         private readonly List<int> _trees = new();
 
         /// <summary>
@@ -521,6 +531,7 @@ namespace Fdp.Toolkit.Combat.Systems
         /// makes no pit at the wall's foot. 📐 Before: an 8 kg charge on House A's wall made the passage AND a 1.6 m × 0.7 m crater in front of it, and the
         /// breachers stood in the pit and never climbed onto the floor (bd-destruction).
         /// </summary>
+        [Fdp.Core.FrameScratch("wall-contact flag reset at 545 at the start of each burst and read in the same call")]
         private bool _spentOnWall;
 
         /// <summary>The burst's horizontal distance to the panel's nearer face (0 when it is inside the wall's thickness).</summary>

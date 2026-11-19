@@ -37,13 +37,19 @@ namespace Fdp.Toolkit.Terrain
     {
         public const int PendingTimeoutTicks = 3600;
 
+        [field: Fdp.Core.WorldDerived("diagnostic counter of items written (Applied)")]
         public long Applied { get; private set; }
+        [field: Fdp.Core.WorldDerived("diagnostic counter of creation requests (Requested)")]
         public long Requested { get; private set; }
         public int PendingCount => _pending.Count;
 
         private sealed class Pending { public TKey Key; public int Age; public readonly List<TItem> Later = new(); }
+        [Fdp.Core.ProtocolCache("keys waiting on an entity-creation request, with items queued: request in flight (Pending)")]
         private readonly Dictionary<TKey, Pending> _pending = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("keys resolved this drain: cleared at the top of DrainPending")]
         private readonly List<TKey> _done = new();
+        [Fdp.Core.FrameScratch("items of this tick: cleared in Execute before BeforeItems/ReadItems")]
         private readonly List<TItem> _items = new();
         private EntityQuery? _query;
         private EntityRepository? _queryRepo;
@@ -65,6 +71,7 @@ namespace Fdp.Toolkit.Terrain
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pending.Clear();   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the record entities asked for (the requests died with the world)
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<TRecord>() || !ShouldRun(repo)) return;
             if (_pending.Count > 0) DrainPending(repo);

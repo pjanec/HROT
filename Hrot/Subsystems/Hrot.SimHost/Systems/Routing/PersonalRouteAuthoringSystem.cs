@@ -42,6 +42,7 @@ namespace Hrot.SimHost.Systems.Routing;
 /// </summary>
 [UpdateInPhase(SystemPhase.Input)]
 [TickMode(TickPolicy.EveryFrame)]
+[Fdp.Core.NotState("a system/module, classified on its own")]
 public sealed class PersonalRouteAuthoringSystem : IEcsModuleSystem
 {
     // Follow-trajectory commands are deferred by one frame so that RouteTrajectorySyncSystem (BeforeSync) has time to compile the

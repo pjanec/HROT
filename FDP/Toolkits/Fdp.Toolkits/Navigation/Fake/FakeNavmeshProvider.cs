@@ -50,6 +50,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// Walkability queries use (X, Y) ground-plane point-in-polygon (Z-up: Z is elevation) (winding number algorithm).
     /// Pathfinding uses Dijkstra over polygon adjacency lists and off-mesh links.
     /// </summary>
+    [Fdp.Core.NotState("layers/map fixed at construction or load")]
     public sealed class FakeNavmeshProvider : INavmeshProvider, IFakeNavmeshProviderTestApi
     {
         private readonly List<FakeNavLayer> _layers;

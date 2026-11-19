@@ -20,6 +20,7 @@ namespace Hrot.SimHost.Modules
     /// so it runs on the Brain tier where the root HSM slot (<c>O7c</c>-④) resides.
     /// </para>
     /// </summary>
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class CombatModule
     {
         /// <summary>Systems that run in the Input phase.</summary>

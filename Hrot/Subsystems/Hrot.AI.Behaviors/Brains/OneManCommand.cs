@@ -77,11 +77,13 @@ namespace Hrot.AI.Behaviors.Brains
     {
         public const double GiveUpSeconds = 20.0;
         private readonly bool _gateOnAuthority;
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _done = new();
 
         public OneManCommandSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
         /// <summary>Squads assigned since construction (a rail / diagnostics probe).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public int Assigned { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

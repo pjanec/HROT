@@ -25,6 +25,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPartDamage>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtPartDamage;
         // ⭐ CE-3420 (X-5) — declared: the Damage.* attributes write PartDamage, and the descriptor map must know this topic carries it
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { Fdp.Core.GlobalComponentIds.PartDamage };
         public IReadOnlyList<int> TargetComponentIds => s_targetIds;
         public long ReceivedSampleCount { get; private set; }

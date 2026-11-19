@@ -12,6 +12,7 @@ namespace Fdp.ModuleHost.Scheduling
     /// Schedules system execution using topological sorting of dependencies.
     /// Systems execute in deterministic order based on Fdp.Core [UpdateAfter]/[UpdateBefore] attributes.
     /// </summary>
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class SystemScheduler : ISystemRegistry
     {
         private readonly Dictionary<SystemPhase, List<IEcsModuleSystem>> _systemsByPhase = new();

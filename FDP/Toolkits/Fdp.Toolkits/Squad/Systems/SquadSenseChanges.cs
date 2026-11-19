@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Squad.Systems
     /// another node (written where the squad is driven; the counts are seconds long).
     /// 📄 docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §14a.
     /// </summary>
+    [Fdp.Core.NotState("R-3039 S1 (was C): holds nothing between frames — its memory is SquadMemberSense on the man and SquadUnitSense on the commander")]
     public sealed class SquadSenseChanges
     {
         /// <summary>SC-3 — a seen contact this close to a man's arc origin, outside his arc, flanks him (m).</summary>

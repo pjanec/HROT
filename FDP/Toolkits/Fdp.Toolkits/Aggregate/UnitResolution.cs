@@ -151,10 +151,14 @@ namespace Fdp.Toolkit.Aggregate
         private readonly bool _gateOnAuthority;
         private EntityQuery? _units, _people;
         private EntityRepository? _queriesFor;
+        [Fdp.Core.WorldDerived("step-gate timestamp derived from sim time")]
         private SimInstant _last = (SimInstant)(-1.0);
+        [Fdp.Core.FrameScratch("enemy list: cleared at 213 each step and filled from the world")]
         private readonly List<(Vector3 At, ForceId Force)> _enemies = new();
+        [Fdp.Core.FrameScratch("fallback post positions recomputed by FallbackPosts before each use")]
         private Vector3[] _posts = new Vector3[UnitSlotTable.Capacity];
         // ⭐ CE-8013 ④ — per step: every entity a PHYSICAL sensor holds as acquired → the forces of those observers (bit per ForceId)
+        [Fdp.Core.FrameScratch("who-saw-whom map: cleared at 237 each step")]
         private readonly Dictionary<long, uint> _seenBy = new();
 
         /// <summary>The policy in force (agg-behaviors' <c>ResolutionPolicy</c> plugs in here); default SV-9's fixed bands.</summary>
@@ -169,7 +173,9 @@ namespace Fdp.Toolkit.Aggregate
         /// </summary>
         public Func<EntityRepository, Entity, AggregateResolution, string?>? SwitchBlocked { get; init; }
         // ⭐ X2-D — the last reason each unit waited for (logged once per change, at Debug); a unit is added on its first block only (rare)
+        [Fdp.Core.WorldDerived("last blocked-reason per unit for log-once/throttle of the status text")]
         private readonly Dictionary<Entity, string> _blockedWhy = new();
+        private int _worldEpoch;
 
         /// <summary>⭐ X2-D — does <see cref="SwitchBlocked"/> hold the automatic switch of <paramref name="unit"/> to <paramref name="target"/>?</summary>
         private bool Blocked(EntityRepository repo, Entity unit, AggregateResolution target)
@@ -197,6 +203,7 @@ namespace Fdp.Toolkit.Aggregate
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AggregateUnit>() || !repo.IsComponentTypeRegistered<EntityInfo>()) return;
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(repo, ref _worldEpoch)) _blockedWhy.Clear();   // ⭐ R-4297 ② (CE-1980) — a world replacement (a reload reuses the handles, a restore) forgets the last logged reason per unit
             SimInstant now = repo.HasSingleton<GlobalTime>() ? (SimInstant)repo.GetSingleton<GlobalTime>().TotalTime : SimInstant.Zero;
             if ((double)now - (double)_last < StepSeconds - 1e-6) return;
             _last = now;

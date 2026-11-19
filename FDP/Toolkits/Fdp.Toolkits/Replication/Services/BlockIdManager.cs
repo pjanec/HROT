@@ -7,6 +7,7 @@ namespace Fdp.Toolkit.Replication.Services
 {
     [ComponentId(GlobalComponentIds.BlockIdManager)]
     [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay)]   // ⭐ CE-3299 D7 — declared: a service / session object, not world state (D7)
+    [Fdp.Core.NotState("no production host constructs it (only tests; `IdAllocationMonitorSystem` reads one only if present) — the live allocators are owned by Deterministic Network Ids §4d (R-3039 S2, §7a; was C)")]
     public class BlockIdManager : INetworkIdAllocator, IRestorableIdAllocator
     {
         private readonly Queue<int> _localPool = new();

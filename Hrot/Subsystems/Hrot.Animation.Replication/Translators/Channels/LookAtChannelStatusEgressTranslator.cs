@@ -21,6 +21,7 @@ internal sealed class LookAtChannelStatusEgressTranslator : INetworkTranslator
 
     private readonly IAnimDdsWriter<DdsLookAtChannelStatus> _writer;
     private readonly NetworkEntityMap _entityMap;
+    [Fdp.Core.ProtocolCache("last-published value for egress change detection; empty republishes")]
     private readonly Dictionary<Entity, (NodeStatus, uint)> _lastPublished = new();
     private int _worldEpoch;
 

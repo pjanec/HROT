@@ -45,6 +45,7 @@ namespace Fdp.Toolkit.Physics.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class RaycastSolverSystem : IEcsModuleSystem, Fdp.Core.Jobs.FdpWorkerPool.IBatchWork
     {
         /// <summary>
@@ -65,15 +66,18 @@ namespace Fdp.Toolkit.Physics.Systems
         /// parts (tier ② the pose's bounding sphere, tier ③ the oriented boxes), not by his circle and stance band. On by default; off only
         /// to measure the old path (the crowd benchmark) — ⛔ never a production switch.
         /// </summary>
+        [field: Fdp.Core.NotState("feature toggle property, never written by system")]
         public bool PersonParts { get; set; } = true;
 
         /// <summary>⭐ <c>CE-3209</c> (HL-2 tier ①) — the cell walk along the segment. On by default; off only to measure the old midpoint disc
         /// (½ length + 5 m, 64 candidates) in the crowd benchmark — ⛔ never a production switch.</summary>
+        [field: Fdp.Core.NotState("feature toggle property, never written by system")]
         public bool CellWalk { get; set; } = true;
 
         /// <summary>⭐⭐ <c>CE-3211</c> (hit location §9) — a ROUND meets a ground VEHICLE by its parts (its kit's boxes, the turret and gun
         /// posed by <c>TurretPose</c>), not by its circle and height band. On by default; off only to measure the old path — ⛔ never a
         /// production switch.</summary>
+        [field: Fdp.Core.NotState("feature toggle property, never written by system")]
         public bool VehicleParts { get; set; } = true;
 
         /// <summary>⭐ <c>CE-3209</c> — rounds whose tier-② sphere test rejected a person (so no part was tested). Diagnostics and rails.</summary>
@@ -89,6 +93,7 @@ namespace Fdp.Toolkit.Physics.Systems
         /// <summary>The broad phase's candidate buffer per cast (tier ①).</summary>
         public const int MaxCandidates = 512;
 
+        [Fdp.Core.WorldDerived("diagnostic counter")]
         private long _sphereRejects, _partTests, _candidateOverflows;
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -163,9 +168,13 @@ namespace Fdp.Toolkit.Physics.Systems
 
         // ── POC 4 J-2: one tick's casts, batch i = cast i (FdpWorkerPool.IBatchWork) ──
         private EntityRepository? _repo;
+        [Fdp.Core.WorldDerived("scratch — the grid singleton copied at the top of Execute for the parallel job (exp/perf)")]
         private SpatialGridData _gridData;
+        [Fdp.Core.FrameScratch("scratch — built at the top of Execute, nulled in its finally")]
         private Dictionary<Entity, Entity>? _turretOf;
+        [Fdp.Core.WorldDerived("scratch — this frame's requests copied for the parallel job (exp/perf)")]
         private RaycastRequestEvent[] _reqs = Array.Empty<RaycastRequestEvent>();
+        [Fdp.Core.WorldDerived("scratch — this frame's hits, written by the job, published the same frame (exp/perf)")]
         private RaycastHit[] _results = Array.Empty<RaycastHit>();
 
         void Fdp.Core.Jobs.FdpWorkerPool.IBatchWork.RunBatch(int i)

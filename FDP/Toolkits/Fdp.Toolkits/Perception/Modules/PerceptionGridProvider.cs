@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Perception.Modules
     /// well would create a second way to reach the same memory, which is the duplication this work removes.
     /// (Note <c>SpatialGridData</c> is a different singleton, owned by <c>SpatialHashSystem</c>.)</para>
     /// </remarks>
+    [Fdp.Core.WorldDerived("spatial hash grid memory refilled each tick by LocalGridBuilderSystem")]
     public sealed class PerceptionGridProvider : IDisposable
     {
         private bool _disposed;

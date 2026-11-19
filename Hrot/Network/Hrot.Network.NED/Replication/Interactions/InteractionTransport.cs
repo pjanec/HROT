@@ -339,6 +339,7 @@ namespace Hrot.Map.Common.Replication.Interactions
 
         private readonly IDdsWriter<EntityInteractionRequest> _writer;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.NotState("stateless codec list (delegates only), fixed in ctor")]
         private readonly IReadOnlyList<IInteractionCodec> _codecs;
         private readonly OutgoingSink _sink;
 
@@ -389,6 +390,7 @@ namespace Hrot.Map.Common.Replication.Interactions
 
         private readonly DdsReader<EntityInteractionRequest>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.NotState("kind-to-codec lookup filled once in ctor from stateless codecs")]
         private readonly Dictionary<EInteractionKind, IInteractionCodec> _byKind = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityInteractionRequest>();

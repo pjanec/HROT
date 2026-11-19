@@ -46,7 +46,9 @@ namespace Hrot.SimHost.Systems
         // ⭐ CE-3241 (found by the CE-3222 perf gate) — the sensors by wire key, built ONCE per frame that has results. Was a scan
         //   of every EqsSensor (resolving its key) per result event: O(events × sensors), both growing with the crowd —
         //   📐 5.6 ms/frame at 100 civilians, 39.2 at 300 (SimHost, --mode all). First match wins, as the old scan's break did.
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly System.Collections.Generic.Dictionary<int, Entity> _byIndex = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly System.Collections.Generic.Dictionary<(long Net, int Index), Entity> _byKey = new();
 
         /// <inheritdoc/>

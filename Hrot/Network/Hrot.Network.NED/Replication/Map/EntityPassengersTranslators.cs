@@ -110,8 +110,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtPassengerBuffer;
         private readonly DdsReader<EntityPassengers>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("sample held until vehicle/target is known here; applied then removed")]
         private readonly Dictionary<int, EntityPassengers> _pending = new();
         private int _worldEpoch;   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the pending samples (they named the old world)
+        [Fdp.Core.WorldDerived("scratch list cleared at end of every Flush")]
         private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPassengers>();

@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         public const float SoundLingerSeconds = 0.5f;
 
         // ⭐ CE-3315 — the world restores this system has numbered on from (WorldEpoch.RestoresOf)
+        [Fdp.Core.WorldDerived("the world restores already numbered on from (CE-3315); a watcher of `WorldEpoch.RestoresOf`, like `_epoch`")]
         private int _restoresSeen;
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -132,6 +133,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         // ⭐ AQ104 E ③ (Sensing §8.8) — a door whose replicated state changed since this node last heard it made a sound at its doorway:
         //   a short Movement sound (a man's doing — class Footsteps, High band), carried by DoorSounds.Carry, of the side of the man who
         //   stands at it. The first sight of a door only records its state (a load, a late join: no bang).
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each door pass and filled from this frame's world (AQ104 E ③)")]
         private readonly System.Collections.Generic.List<(Entity Door, Fdp.Toolkit.Terrain.TerrainDoorState State)> _doorsSeen = new();   // this frame's scratch
 
         private void HearDoors(EntityRepository repo, SoundEmissionRing ring)

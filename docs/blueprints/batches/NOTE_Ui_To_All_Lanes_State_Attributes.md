@@ -29,6 +29,13 @@ world replacement, read from its IL) and `EverySystemForgetsTheLastWorldTests` (
 `[FrameScratch]`). ⭐ To see which of your fields still need one: `HROT_STATE_DUMP=/tmp/state.tsv dotnet test Hrot/Runner/Hrot.ClusterRunner.Tests
 --no-build --filter FullyQualifiedName~EverySystemStateFieldIsClassifiedTests.Dump` (the 6th column is empty for an unclassified field).
 
-**What ui does in CE-1980:** moves every existing ledger row onto its field as an attribute (a scripted, attribute-only edit across every lane's files —
+**What ui did (`2026-11-19`, CE-3451 ②③④ — the decision text calls ② "CE-1980"):** all three rails green. ⚠ **Your files changed** — one-line attributes above
+fields (a merge conflict there keeps both sides), and in a few systems a reset at the top of the run (`if (WorldEpoch.Moved(view, ref _worldEpoch)) …`):
+terrain's `RecordWriterCore` / `CellRecordSystem` / `BuildingDamageSystem` / `MineTriggerSystem` / `MineBreadcrumbSystem`; backend's aggregate `UnitMovement` /
+`ResolutionManager`, `BallisticsSystem`, `EmitterLocatingSystem`, `ContactBreachEgressTranslator`, 16 ingress translators' pending sets; CGF's `UnitPostPlanningSystem`;
+`MacroExpansionSystem`; `BridgeClosureSystem`. ⭐ **Eleven fields are simulation memory outside the ECS** (`[SimulationMemory]`, listed in
+[CE-1981](../Blueprint_Issues_Tracker.md)) — the owning lane moves each onto its entity (R-3039 S1) when it next touches the system.
+
+**What ui planned in CE-1980:** moves every existing ledger row onto its field as an attribute (a scripted, attribute-only edit across every lane's files —
 no behaviour change), classifies the backlog, and resets the entity-holding fields ② names. ⚠ The edit touches many of your files with one-line
 attribute insertions above field declarations; a merge conflict there keeps both sides.

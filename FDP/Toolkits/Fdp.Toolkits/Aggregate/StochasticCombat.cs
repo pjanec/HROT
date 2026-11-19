@@ -61,12 +61,18 @@ namespace Fdp.Toolkit.Aggregate
         private readonly bool _gateOnAuthority;
         private EntityQuery? _units;
         private EntityRepository? _queriesFor;
+        [Fdp.Core.FrameScratch("this run's firing units: refilled from index 0 for the parallel job")]
         private Entity[] _firers = new Entity[32];
+        [Fdp.Core.WorldDerived("step-gate timestamp (Due) derived from sim time")]
         private SimInstant _last = (SimInstant)(-1.0);
         // ⭐ CE-8008 — the table THIS phase built, the held types and the soldier map it was built over (a table someone else installed is left alone)
+        [Fdp.Core.WorldDerived("built killer/victim table cache, rebuilt when stale")]
         private KillerVictimTable? _mine;
+        [Fdp.Core.WorldDerived("types the table was built over: cache validity set")]
         private readonly HashSet<TkbTypeId> _builtOver = new();
+        [Fdp.Core.NotState("static readonly menu item object")]
         private object? _personalAt;
+        [Fdp.Core.WorldDerived("flag: a table build was already tried")]
         private bool _tried;
 
         public StochasticFirePhase(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
@@ -269,8 +275,11 @@ namespace Fdp.Toolkit.Aggregate
         private readonly bool _gateOnAuthority;
         private EntityQuery? _units;
         private EntityRepository? _queriesFor;
+        [Fdp.Core.FrameScratch("this run's units taking losses: refilled from index 0 for the parallel job")]
         private Entity[] _victims = new Entity[32];
+        [Fdp.Core.FrameScratch("this run's units: refilled from index 0, read only below this run's count")]
         private Entity[] _all = new Entity[32];
+        [Fdp.Core.WorldDerived("step-gate timestamp (Due) derived from sim time")]
         private SimInstant _last = (SimInstant)(-1.0);
 
         public StochasticLossPhase(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;

@@ -57,6 +57,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <c>dtEntityInfo</c> dirty, an entity RENAME is applied locally and never republished</b> — the
         /// exact <c>AX-015</c> failure.</para>
         /// </summary>
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly IReadOnlyList<int> _targetIds = new[]
         {
             GlobalComponentIds.EntityInfo,

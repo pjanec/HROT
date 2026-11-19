@@ -21,8 +21,10 @@ internal sealed class AnimationChannelIntentEgressTranslator : INetworkTranslato
 
     private readonly IAnimDdsWriter<DdsAnimationChannelIntent> _writer;
     private readonly NetworkEntityMap _entityMap;
+    [Fdp.Core.ProtocolCache("last-published value for egress change detection; empty republishes")]
     private readonly Dictionary<Entity, uint> _lastPublishedActionInstanceId = new();
     // Tracks the ActionParams blob per entity (4 x ulong covers the 32-byte fixed array).
+    [Fdp.Core.ProtocolCache("last-published value for egress change detection; empty republishes")]
     private readonly Dictionary<Entity, (ulong p0, ulong p1, ulong p2, ulong p3)> _lastPublishedActionParams = new();
     private int _worldEpoch;
 

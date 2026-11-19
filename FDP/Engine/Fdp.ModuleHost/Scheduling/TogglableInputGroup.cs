@@ -14,9 +14,11 @@ namespace Fdp.ModuleHost.Scheduling
     [UpdateInPhase(SystemPhase.Input)]
     public sealed class TogglableInputGroup : ISystemGroup
     {
+        [Fdp.Core.NotState("built once in ctor from composition-root system list")]
         private readonly IEcsModuleSystem[] _innerSystems;
 
         /// <inheritdoc />
+        [field: Fdp.Core.WorldDerived("execution gate re-driven by debug/replay controller; not sim memory")]
         public bool Enabled { get; set; } = true;
 
         /// <inheritdoc />

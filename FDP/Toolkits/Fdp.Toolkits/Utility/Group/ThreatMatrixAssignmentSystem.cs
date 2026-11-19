@@ -24,6 +24,7 @@ namespace Fdp.Toolkit.Utility
     /// walks subordinates only), deduplicated, at most 16; heard (anonymous) contacts are never assignable.
     /// 📄 docs/DESIGN_Utility_AI_Demo_Scenarios.md §11. Called by <c>SquadCoordinationSystem</c> after each merge.</para>
     /// </summary>
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class ThreatMatrixAssignmentSystem
     {
         private readonly int _decisionId;

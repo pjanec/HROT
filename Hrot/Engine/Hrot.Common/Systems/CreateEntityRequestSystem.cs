@@ -92,6 +92,7 @@ namespace Hrot.Common.Systems
 
         // Pre-validated requests waiting to be converted into SpawnEntityCommands.
         // Capacity pre-allocated to absorb large bursts without resizing.
+        [Fdp.Core.ProtocolCache("accepted requests (already InProgress-acked) awaiting time-sliced spawn; requester handshake")]
         private readonly Queue<PendingRequest> _pendingQueue = new(capacity: MaxRequestsPerTick * 4);
         private int _worldEpoch;
 

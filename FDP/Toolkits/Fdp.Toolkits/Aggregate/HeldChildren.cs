@@ -25,7 +25,9 @@ namespace Fdp.Toolkit.Aggregate
 
         private readonly EntityLifecycleModule _elm;
         private readonly EntityRepository _world;
+        [Fdp.Core.ProtocolCache("entities held in construction waiting for their release ack to the lifecycle module (ELM ack bookkeeping)")]
         private readonly HashSet<Entity> _pending = new();
+        [Fdp.Core.FrameScratch("entities to release: cleared at 59 each pass")]
         private readonly List<Entity> _release = new();
         private int _epoch;
 

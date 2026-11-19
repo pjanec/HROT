@@ -46,6 +46,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <summary>⭐ CE-1113 (§6v AD-V6) — the highest a burst may be above the ground and still scorch it (m).</summary>
     public const float DecalMaxBurstHeight = Hrot.Look.Effects.EffectRules.DecalMaxBurstHeight;   // ⭐ CE-4671 LK-S1 — the rule's
 
+    [Fdp.Core.FrameScratch("scratch — rebuilt from the query on every housekeeping pass")]
     private readonly List<(double BornAt, Entity Entity)> _decals = new();
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
@@ -61,6 +62,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     internal bool RecordsHits => Hrot.Common.Infrastructure.HudFeatures.RecordsHitFeedback(FeatureGate?.Invoke());
 
     /// <summary>Effects made in the last tick, by kind — the rail's counter.</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
     public int Spawned { get; private set; }
 
     /// <summary>
@@ -83,6 +85,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     }
 
     /// <summary>⭐ CE-4600 — barriers broken / bumped open whose dust was spawned (a rail).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of contact-break effects")]
     public int ContactBreaks { get; private set; }
 
     /// <summary>
@@ -107,6 +110,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     }
 
     /// <summary>⭐ CE-5034 — panes heard shattering this frame (a rail).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of broken-window effects, reset at 121")]
     public int WindowsBroken { get; private set; }
 
     /// <summary>
@@ -216,6 +220,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     }
 
     /// <summary>⭐ <c>CE-1194</c> — landings drawn as dust only in the last tick (the rail's counter).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostics counter")]
     public int InertLandings { get; private set; }
 
     /// <summary>⭐ <c>CE-1194</c> — a thrown inert item (moved to the shared rule, CE-4671 LK-S1: <see cref="Hrot.Look.Effects.EffectRules.IsInertHandItem"/>).</summary>
@@ -231,6 +236,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     public static Quaternion MarkRotation(Vector3 normal) => Hrot.Look.Effects.EffectRules.MarkRotation(normal);
 
     /// <summary>Impact marks made in the last tick — the rail's counter (CE-1129).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostics counter")]
     public int ImpactsDrawn { get; private set; }
 
     /// <summary>
@@ -310,6 +316,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     private static Vector3 AimPointOf(ISimulationView view, Entity shooter)
         => view is EntityRepository world && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, shooter, out var p) ? p : Vector3.Zero;
 
+    [Fdp.Core.FrameScratch("effect specs list: cleared before each rule output (103,172,195,212)")]
     private readonly List<Hrot.Look.Effects.EffectSpec> _specs = new();   // ⭐ CE-4671 LK-S1 — the rule's output, reused (0 B steady)
 
     /// <summary>⭐ CE-4671 LK-S1 — an effect entity for every spec the shared rule gave, in its order (the order effects were always made).</summary>
@@ -374,14 +381,18 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 [TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class WreckSpawnSystem : IEcsModuleSystem
 {
+    [Fdp.Core.WorldDerived("visual edge memory (first seen never burns); designed to drop on replay/world change")]
     private readonly Dictionary<Entity, bool> _wasDestroyed = new();
+    [Fdp.Core.WorldDerived("scratch cleared before each pass")]
     private readonly HashSet<Entity> _seen = new();
+    [Fdp.Core.WorldDerived("scratch cleared before each use")]
     private readonly List<Entity> _gone = new();
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
     private int _epoch;   // ⭐ CE-3294 — the world _wasDestroyed describes
 
     /// <summary>Effect entities made in the last tick — the rail's counter.</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
     public int Spawned { get; private set; }
 
     public void Execute(ISimulationView view, float deltaTime)

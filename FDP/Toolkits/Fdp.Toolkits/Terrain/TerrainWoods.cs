@@ -12,6 +12,7 @@ namespace Fdp.Toolkit.Terrain
     /// <para>The individual trees inside a wood are NOT objects (T-1, T-4) — the grid is the wood. Exact edges are ± one cell (R-4190 Q-V8).
     /// Allocation-free queries (R-220); built once per world.</para>
     /// </summary>
+    [Fdp.Core.NotState("the woods grid rasterised once from the static terrain")]
     public sealed class TerrainWoods
     {
         /// <summary>The cell edge (m) — the clustering grid of R-4190 T-2.</summary>

@@ -12,6 +12,7 @@ namespace Hrot.Traffic;
 // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): a per-node traffic network cache — never copied into a merged view.
 [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
 [ComponentId(GlobalComponentIds.TrafficNetCache)]
+[Fdp.Core.WorldDerived("parsed SUMO net cached from file, NoScenario/NoReplay")]
 public sealed class TrafficNetCache
 {
     public TrafficNetCache(string file, string path, NetworkModel model, string netHash, SumoNetPlacement placement,

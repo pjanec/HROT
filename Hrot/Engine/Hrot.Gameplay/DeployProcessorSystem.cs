@@ -61,21 +61,34 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
     private readonly GameplayWire _wire;
     private readonly NetworkEntityMap _map;
     private readonly int _local;
+    [Fdp.Core.NotState("injected server election dependency")]
     private readonly DeployServerElection? _election;
     private readonly Func<long> _nowMs;
+    [Fdp.Core.SessionState("the deploy server's join ledger per station: every unit id is checked against the live world before use; cleaned when a station leaves")]
     private readonly List<Slot> _slots = new();
+    [Fdp.Core.SessionState("the deploy server's join ledger per station: every unit id is checked against the live world before use; cleaned when a station leaves")]
     private readonly Dictionary<int, Offered> _offered = new();
+    [Fdp.Core.FrameScratch("key list: cleared at 422/508 before each use")]
     private readonly List<int> _scratch = new();
+    [Fdp.Core.SessionState("the deploy server's join ledger per station: every unit id is checked against the live world before use; cleaned when a station leaves")]
     private readonly List<PendingSpawn> _pending = new();
+    [Fdp.Core.SessionState("the deploy server's join ledger per station: every unit id is checked against the live world before use; cleaned when a station leaves")]
     private readonly HashSet<int> _answered = new();   // the stations whose DeployStatusTopic this server wrote (deleted when they leave)
+    [Fdp.Core.SessionState("the deploy server's join ledger per station: every unit id is checked against the live world before use; cleaned when a station leaves")]
     private readonly List<(int Role, int Unit)> _spawned = new();   // the men THIS server made, per role (the count a role's Max is checked against)
     private readonly RoleSpawner? _spawner;
+    [Fdp.Core.NotState("Random created at construction/injected; unseeded, picks a spawn point")]
     private readonly Random _rng;
+    [Fdp.Core.SessionState("a monotonic spawn counter: never reset, a reused number would collide")]
     private readonly Dictionary<int, int> _spawnCounter = new();
+    [Fdp.Core.FrameScratch("person types list: cleared at 280 before each use")]
     private readonly List<long> _persons = new();   // scratch: the person TKB types present on a side
     private ISimClock? _clock;
+    [Fdp.Core.SessionState("result of the deploy server election: cluster role of this node")]
     private bool _isServer;
+    [Fdp.Core.WorldDerived("wall-clock throttle for the next election check")]
     private long _nextElectionMs, _nextOfferMs;
+    [Fdp.Core.WorldDerived("dirty flag asking for an offers re-publish")]
     private bool _offersDirty;
 
     /// <param name="wire">This node's gameplay wire.</param>

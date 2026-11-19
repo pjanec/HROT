@@ -5,6 +5,7 @@ namespace Fdp.Toolkit.Blueprints;
 /// Atomic staging+commit protocol ensures tick systems always see a consistent snapshot.
 /// Per Runtime DD §2.
 /// </summary>
+[Fdp.Core.NotState("compiled blueprint definitions, atomic snapshot swapped on commit/hot-reload")]
 public sealed class BlueprintRegistry
 {
     // Single field read is atomic for reference types; Interlocked.Exchange ensures

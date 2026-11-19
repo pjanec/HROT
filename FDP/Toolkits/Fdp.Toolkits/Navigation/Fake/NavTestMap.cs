@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// Consumed by <see cref="FakeNavmeshProvider"/>, <see cref="FakeVolumetricPathProvider"/>,
     /// and loaded from JSON by <see cref="NavTestMapLoader"/>.
     /// </summary>
+    [Fdp.Core.NotState("declarative test map data")]
     public sealed class NavTestMap
     {
         /// <summary>Nav layers in the map.</summary>

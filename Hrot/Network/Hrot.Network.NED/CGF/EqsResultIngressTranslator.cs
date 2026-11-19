@@ -24,6 +24,7 @@ namespace Hrot.Network.NED.CGF
         private readonly NetworkEntityMap _entityMap;
         // Dictionary-cached reverse lookup: (ParentNetworkId, LocalChildIndex) -> Brain-side entity.
         // Populated lazily on first miss by a one-shot scan of PartMetadata entities.
+        [Fdp.Core.WorldDerived("cache of child sensor entity; revalidated by IsChildSensor on every hit")]
         internal readonly Dictionary<(int ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsResultTopic>();

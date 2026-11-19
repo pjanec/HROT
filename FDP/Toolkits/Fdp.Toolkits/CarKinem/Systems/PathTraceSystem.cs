@@ -19,6 +19,7 @@ namespace CarKinem.Systems
     public sealed class PathTraceSystem : IEcsModuleSystem
     {
         private readonly TrajectoryPoolManager _pool;
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<(Entity Entity, PathTrace Trace, bool Add)> _writes = new();
 
         public PathTraceSystem(TrajectoryPoolManager pool) => _pool = pool;

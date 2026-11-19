@@ -23,6 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
         //   destruction, a wipe or (as an unregister) a hand-over.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityUtterance> _instances;
 
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.Utterance };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityUtterance>();

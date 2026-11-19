@@ -30,6 +30,7 @@ namespace Hrot.ScenarioEditor.Systems;
 /// Replaces the selection logic formerly in
 /// <c>Hrot.ScenarioEditor.Tools.StandardInteractionTool</c> (Phase 5 eradication).
 /// </summary>
+[Fdp.Core.NotState("a system/module, classified on its own")]
 public sealed class SelectionInteractionSystem
 {
     private readonly Func<EntityRepository> _worldOf;

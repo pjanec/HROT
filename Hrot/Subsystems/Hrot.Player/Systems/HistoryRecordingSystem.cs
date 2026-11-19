@@ -32,6 +32,7 @@ namespace Hrot.Player.Systems;
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
 [TickMode(TickPolicy.WhenTimeAdvances)]
+[Fdp.Core.NotState("a system/module, classified on its own")]
 public class HistoryRecordingSystem : IEcsModuleSystem
 {
     /// <inheritdoc/>

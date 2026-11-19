@@ -30,6 +30,7 @@ namespace Fdp.Toolkit.Replication.Utilities
     /// <para>⛔ Not for a translator with a HEARTBEAT (GeoSpatial, NavigationStatus — H2) or one that writes its own input each visit (H7).
     /// <see cref="Enabled"/> = false restores the full scan everywhere. ⭐ No allocation per frame.</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("which entities this frame's egress scan visits, from the world's versions and dirty marks; a new world rescans everything")]
     public sealed unsafe class EgressVisitGate
     {
         /// <summary>Off ⇒ every translator scans everything (today's behaviour): the A/B switch and the kill switch.</summary>

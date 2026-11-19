@@ -23,7 +23,9 @@ namespace Hrot.Map.Common.Replication.Egress
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityDescent> _instances;
+        [Fdp.Core.WorldDerived("scratch cleared at top of each scan")]
         private readonly HashSet<int> _seen = new();
+        [Fdp.Core.WorldDerived("scratch cleared and refilled each scan")]
         private readonly List<int> _gone = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDescent>();

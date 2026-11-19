@@ -21,6 +21,7 @@ internal sealed class AnimationMontageQueueStateEgressTranslator : INetworkTrans
 
     private readonly IAnimDdsWriter<DdsMontageQueueState> _writer;
     private readonly NetworkEntityMap _entityMap;
+    [Fdp.Core.ProtocolCache("last-published value for egress change detection; empty republishes")]
     private readonly Dictionary<Entity, (byte, bool)> _lastPublished = new();
     private int _worldEpoch;
 

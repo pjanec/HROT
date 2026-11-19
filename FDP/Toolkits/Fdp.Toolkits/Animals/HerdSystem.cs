@@ -49,9 +49,13 @@ namespace Fdp.Toolkit.Animals
             public Entity Afraid;   // the most frightened member
         }
 
+        [Fdp.Core.FrameScratch("per-herd sums of this run: cleared at the top of each run")]
         private readonly Dictionary<Entity, Acc> _acc = new();   // grown once, cleared every frame (0 B in the steady state)
+        [Fdp.Core.FrameScratch("this run's herd members: refilled from index 0")]
         private Entity[] _members = new Entity[64];
+        [Fdp.Core.WorldDerived("is-night memo refreshed every NightLookSeconds from sim time")]
         private bool _night;
+        [Fdp.Core.WorldDerived("next time to re-evaluate night: cache refresh schedule")]
         private double _nextNightLook = double.NegativeInfinity;
 
         /// <summary>The last night verdict (a rail reads it).</summary>
@@ -131,6 +135,7 @@ namespace Fdp.Toolkit.Animals
             }
         }
 
+        [Fdp.Core.FrameScratch("this run's animals with no herd: cleared and refilled from this frame's world")]
         private readonly List<Entity> _unlinked = new();
 
         /// <summary>

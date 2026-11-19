@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Navigation.Systems
         private readonly IPathRegistry _registry;
 
         // Scratch buffer reused each tick to avoid per-frame heap allocation.
+        [Fdp.Core.WorldDerived("fixed scratch buffer")]
         private readonly NavWaypoint[] _waypointScratch = new NavWaypoint[8];
 
         public CorridorPreviewSystem(IPathRegistry registry)

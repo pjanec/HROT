@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class BehaviorIngressSystem : IEcsModuleSystem
     {
         private readonly BehaviorRegistry _registry;
@@ -64,6 +65,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// ⛔ <c>Execute</c> is not re-entrant (Input phase, one thread), which is what makes per-system
         /// scratch state safe here.</para>
         /// </summary>
+        [Fdp.Core.WorldDerived("grow-only scratch buffer")]
         private byte[] _shadow = Array.Empty<byte>();
 
         /// <summary>
@@ -92,6 +94,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             return _shadow.AsSpan(0, need);
         }
 
+        [Fdp.Core.ProtocolCache("protocol — the world carries a recorded copy and the counter RESUMES from it on a restore's first step (CE-3318/CE-3337, restore design §1m); that resume IS the re-derive")]
         private readonly Fdp.Toolkit.Replay.ResumableCounter<RunTokenMark> _runTokens = new(
             () => RunTokens.Last, RunTokens.ResumeAt, m => (m.Last, m.At), (last, at) => new RunTokenMark { Last = last, At = (SimInstant)at });
 
@@ -1280,9 +1283,11 @@ namespace Fdp.Toolkit.Behavior.Systems
         }
 
         /// <summary>Entities started BY NAME in the current <c>Execute</c> → the behaviour started (<c>CE-451</c>).</summary>
+        [Fdp.Core.WorldDerived("per-frame table cleared at top")]
         private readonly Dictionary<int, int> _startedByNameThisFrame = new();
 
         /// <summary>⭐ CE-4306 (F5) — why the last <see cref="Admit"/> / <see cref="Start"/> said no, for the order's refusal text (<see cref="BrainRefusalText"/>). Set where they return false; reset per assignment.</summary>
+        [Fdp.Core.FrameScratch("refusal cause set per request (125) and read when the same request is refused")]
         private BrainRefusal _lastRefusal;
 
         /// <summary>

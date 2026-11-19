@@ -32,6 +32,7 @@ namespace Hrot.Core.Animals
         /// <summary>The most animals one area asks for (an authoring slip of 60 000 cows stops here).</summary>
         public const int MaxPerArea = 300;
 
+        [Fdp.Core.FrameScratch("this run's owned animal areas: cleared and refilled from this frame's world")]
         private readonly List<Entity> _due = new();
 
         public void Execute(ISimulationView view, float deltaTime)

@@ -63,6 +63,7 @@ namespace Hrot.Map.Common.Systems
 
         private readonly NetworkEntityMap                    _entityMap;
         private JsonAttributeCompiler?                       _jsonCompiler;
+        [Fdp.Core.NotState("dispatch table immutable after Build; mutable state lives in per-call context")]
         private BinaryInterpreter<EntityAttributeChange>?               _binaryInterpreter;
         private readonly NodeId                              _localNodeId;
 

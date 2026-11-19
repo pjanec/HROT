@@ -41,6 +41,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
     /// <see cref="NetworkEntityMap"/> when the sample arrived.
     /// Key: DDS EntityId (network ID); Value: the pending sample.
     /// </summary>
+    [Fdp.Core.ProtocolCache("route samples deferred until entity is registered; epoch-cleared")]
     private readonly Dictionary<int, MapRoute> _pendingRoutes = new();
 
     /// <summary>
@@ -49,6 +50,7 @@ public class MapRouteIngressTranslator : IDescriptorTranslator, IDiscardableIngr
     /// that the retry loop only inspects newly-arrived entities rather than scanning
     /// the entire <see cref="_pendingRoutes"/> dictionary on every tick.
     /// </summary>
+    [Fdp.Core.WorldDerived("registration-event set drained and cleared every poll")]
     private readonly HashSet<int> _recentlyRegistered = new();
     private int _worldEpoch;   // ⭐ CE-2101 — deferred samples belong to ONE world (WorldEpoch)
 

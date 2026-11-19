@@ -53,8 +53,10 @@ namespace Hrot.CGF.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class TacticalIntentResolutionSystem : IEcsModuleSystem
     {
+        [Fdp.Core.NotState("static NLog logger")]
         private static readonly Logger s_aiLog = LogManager.GetLogger("AI.Behavior.TacticalIntent");
 
         private readonly TacticalIntentMapperRegistry _mapperRegistry;

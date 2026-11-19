@@ -35,6 +35,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // ⭐ CE-483 (egress half, W2): the progress last SENT per net id. A reliable descriptor is published once and then
         // only when dirtied, and the only MarkDirty of this ordinal is the operator-command path — MissionDirectorSystem
         // advancing, recording an outcome or halting dirtied nothing, so the wire never saw a phase change.
+        [Fdp.Core.ProtocolCache("last-sent mission progress for egress change detection; empty republishes")]
         private readonly Dictionary<long, (ulong Outcomes, int Head)> _lastSentProgress = new();
         private int _worldEpoch;
 

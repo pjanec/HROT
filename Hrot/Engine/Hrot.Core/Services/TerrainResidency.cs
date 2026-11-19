@@ -34,6 +34,7 @@ namespace Hrot.Map.Common.Services;
 /// <para>📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.1c, <c>L5</c> ·
 /// <c>docs/DESIGN_Terrain_Zones_And_Assets.md</c> §2.1d, §2.1e ①–③.</para>
 /// </summary>
+[Fdp.Core.WorldDerived("loaded terrain plus obstacle bake derived from StaticObstacle entities, rebaked on signature change")]
 public sealed class TerrainResidency
 {
     /// <summary>Everything a prepare built, waiting for a commit to publish it.</summary>

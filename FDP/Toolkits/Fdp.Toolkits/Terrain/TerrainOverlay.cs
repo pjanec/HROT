@@ -59,6 +59,7 @@ namespace Fdp.Toolkit.Terrain
     public sealed record OverlayBridge(string Key, bool Snapped, int[] Segments, string[] SumoEdges);
 
     /// <summary>⭐ T-7b — the resident overlay's bridges, published by <c>TerrainResidency</c> as a managed singleton on its commit (empty when the terrain has no overlay or the overlay no bridge) for the <c>BridgeClosureSystem</c>.</summary>
+    [Fdp.Core.NotState("the resident overlay's bridges, static terrain data published at the terrain's commit")]
     public sealed class TerrainBridges
     {
         public static readonly TerrainBridges None = new(Array.Empty<OverlayBridge>());

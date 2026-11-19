@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Orchestration
     /// <para><b>Deduplication:</b> intents with a <see cref="ExecuteNodeOpIntent.TransactionId"/>
     /// already seen for the same operation are silently dropped.</para>
     /// </summary>
+    [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): cluster-orchestration slave: seen transaction ids, pending intents, node-op handshake")]
     public sealed class ClusterSlave : IDisposable
     {
         private readonly NodeId    _nodeId;

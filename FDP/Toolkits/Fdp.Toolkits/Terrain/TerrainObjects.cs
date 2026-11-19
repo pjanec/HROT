@@ -64,6 +64,7 @@ namespace Fdp.Toolkit.Terrain
     /// singleton tables with the live world (<c>EntityRepository.SyncSingletonById</c>), so a singleton swap reaches every snapshot
     /// too. Per-entity components are the one thing a snapshot really copies.</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("door table recomputed from door entities each call")]
     public sealed class DoorStates
     {
         private readonly byte[] _states;

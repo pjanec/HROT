@@ -66,8 +66,14 @@ namespace Fdp.TestShared
             if (CallsWorldEpochMoved(type)) return true;
             for (var t = type; t != null && t != typeof(object); t = t.BaseType)
                 foreach (var m in t.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                {
+                    // ⭐ the owner's own re-derive entry point, called by its system (the ELM's OnWorldReplaced, driven by LifecycleSystem)
+                    if (m.Name is "OnWorldReplaced" or "OnWorldBoundary" or "ForgetLastWorld") return true;
+                    // ⭐ the shared shapes that follow the world themselves: the egress record (CE-4007) and the resumable counter (CE-3337, RestoresOf)
                     if (CallsPrefix(m, "Fdp.Network.Cyclone.Translators.PublishedInstances`1", "OnFrame")
+                     || CallsPrefix(m, "Fdp.Toolkit.Replay.ResumableCounter`1", "Step")
                      || CallsName(m, "OnWorldReplaced") || CallsName(m, "OnWorldBoundary") || CallsName(m, "ForgetLastWorld")) return true;
+                }
             return false;
         }
 

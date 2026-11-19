@@ -85,6 +85,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // ⭐⭐ CE-4007 (§8.3) — what this writer published (the instances it deletes on a destruction, a wipe or a hand-over). `_last` stays as the
         //   change test: it compares the component (a FixedString128), where the wire sample holds a string that would allocate each frame.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityMacroExpansionStatus> _instances;
+        [Fdp.Core.ProtocolCache("last published state per net id: egress change test, cleared on OnFrame")]
         private readonly Dictionary<int, (MacroExpansionState State, FixedString128 Reason)> _last = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMacroExpansionStatus>();
@@ -205,6 +206,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // ⭐⭐ CE-4007 (§8.3) — what this writer published (see above). `_sent` stays as the change test: it compares the FixedString32, where the
         //   wire sample holds a string that would allocate each frame.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityRefKey> _instances;
+        [Fdp.Core.ProtocolCache("last-sent sample per net id, cleared on instance OnFrame/dispose (egress change test)")]
         private readonly Dictionary<int, FixedString32> _sent = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityRefKey>();
@@ -269,7 +271,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtMacroInstance;
         private readonly DdsReader<EntityMacroInstance>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("received samples waiting for their entity to exist (waiting ingress)")]
         private readonly Dictionary<int, MacroInstance> _waiting = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("ids applied this pass: cleared at the top of each ingress pass")]
         private readonly List<int> _applied = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMacroInstance>();
@@ -290,6 +295,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _waiting.Clear(); }   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the samples waiting for their entity (they named the old world)
             if (_reader is not null)
             {
                 using var loan = _reader.Take();
@@ -330,7 +336,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtMacroExpansionStatus;
         private readonly DdsReader<EntityMacroExpansionStatus>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("received samples waiting for their entity to exist (waiting ingress)")]
         private readonly Dictionary<int, MacroExpansionStatus> _waiting = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("ids applied this pass: cleared at the top of each ingress pass")]
         private readonly List<int> _applied = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMacroExpansionStatus>();
@@ -350,6 +359,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _waiting.Clear(); }   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the samples waiting for their entity (they named the old world)
             if (_reader is not null)
             {
                 using var loan = _reader.Take();
@@ -393,7 +403,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtMacroOrigin;
         private readonly DdsReader<EntityMacroOrigin>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("received samples waiting for their entity to exist (waiting ingress)")]
         private readonly Dictionary<int, MacroOrigin> _waiting = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("ids applied this pass: cleared at the top of each ingress pass")]
         private readonly List<int> _applied = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityMacroOrigin>();
@@ -413,6 +426,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _waiting.Clear(); }   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the samples waiting for their entity (they named the old world)
             if (_reader is not null)
             {
                 using var loan = _reader.Take();
@@ -461,7 +475,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtRefKey;
         private readonly DdsReader<EntityRefKey>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("received samples waiting for their entity to exist (waiting ingress)")]
         private readonly Dictionary<int, RefKey> _waiting = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("ids applied this pass: cleared at the top of each ingress pass")]
         private readonly List<int> _applied = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityRefKey>();
@@ -481,6 +498,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _waiting.Clear(); }   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the samples waiting for their entity (they named the old world)
             if (_reader is not null)
             {
                 using var loan = _reader.Take();

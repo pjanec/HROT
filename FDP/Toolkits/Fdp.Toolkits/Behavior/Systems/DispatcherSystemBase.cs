@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Behavior.Systems
     public abstract class DispatcherSystemBase<TChannel> : IEcsModuleSystem
         where TChannel : struct
     {
+        [Fdp.Core.NotState("action executors registered at setup")]
         protected readonly IActionExecutor<TChannel>[] _executors =
             new IActionExecutor<TChannel>[BehaviorConstants.MaxActionTypes];
 

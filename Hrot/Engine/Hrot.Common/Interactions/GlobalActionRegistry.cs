@@ -12,6 +12,7 @@ namespace Hrot.Common.Interactions
     // Composition-root owned registry that maps integer action IDs (see GlobalActionIds)
     // to application-level handler callbacks.  Register all handlers before the ECS
     // kernel is initialized; the registry is immutable during runtime.
+    [Fdp.Core.NotState("action id handlers registered at setup")]
     public sealed class GlobalActionRegistry
     {
         private readonly Dictionary<int, GlobalActionHandler> _handlers = new();

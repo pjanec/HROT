@@ -116,6 +116,7 @@ namespace Hrot.SimHost.Systems
         /// <summary>⭐ <c>CE-2151</c> B-b (R-2009 B3) — boardings a scenario asked for that the rules refused: the vehicle's type declares no
         /// <c>Gen.Carrier</c> (it carries nobody) or has no free seat. ⛔ Genesis used to give such a vehicle a list (<c>EnsureBuffer</c>),
         /// which made any type a carrier the moment a save named passengers for it.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostics counter of refused boardings")]
         public int RefusedBoardings { get; private set; }
 
         private void Count(Fdp.Toolkit.Behavior.EmbarkResult result)

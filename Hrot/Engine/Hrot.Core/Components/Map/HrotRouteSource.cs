@@ -12,6 +12,7 @@ namespace Hrot.Map.Common.Components;
 /// waypoints (<see cref="RoutePlan"/>, with the air fields). Passed to <c>NavigationIntentBridgeSystem</c> and the air module by the pack
 /// that compiles routes (<c>SimHostCoreLogicPack</c>).
 /// </summary>
+[Fdp.Core.NotState("stateless adapter reading route components")]
 public sealed class HrotRouteSource : IRouteSource
 {
     public bool TryGetTrajectory(EntityRepository repo, int routeNetworkId, out int trajectoryId)

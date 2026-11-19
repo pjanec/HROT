@@ -9,6 +9,7 @@ namespace Hrot.Player.Systems;
 /// Mutated from the ImGui settings panel and read every simulation frame.
 /// Not an ECS component — owned by the application shell and injected at construction.
 /// </summary>
+[Fdp.Core.NotState("user display toggles, config")]
 public class MapUserConfig
 {
 	/// <summary>

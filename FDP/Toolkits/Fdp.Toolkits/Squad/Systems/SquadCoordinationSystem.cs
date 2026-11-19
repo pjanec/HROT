@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Squad.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class SquadCoordinationSystem : IEcsModuleSystem
     {
         private readonly bool _gateOnAuthority;
@@ -38,6 +39,7 @@ namespace Fdp.Toolkit.Squad.Systems
         private EntityQuery? _commanders;
 
         /// <summary>Minimum ticks between cadence merges (design §4, S-2: ~10 Hz at 60 tps).</summary>
+        [field: Fdp.Core.NotState("tuning property, never written by system")]
         public uint MergeIntervalTicks { get; set; } = 6;
 
         /// <param name="gateOnAuthority">⭐ the pack's P3-3b execution gate: process only commanders whose cognitive
@@ -104,17 +106,25 @@ namespace Fdp.Toolkit.Squad.Systems
 
         /// <summary>⭐ F-11 — the squads run as per-level parallel phases: the switch the brains follow (<c>HROT_PARALLEL_SIM=1</c> or the
         /// threaded node, <c>HROT_THREADED_KERNEL=3</c>). Off by default; tests set it.</summary>
+        [Fdp.Core.NotState("static switch choosing the parallel per-squad path, read from the environment/kernel gate")]
         public static bool Parallel = (Fdp.Core.Jobs.ParallelEntities.Enabled || Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds)
             && EnvVars.Read(EnvVars.HrotSerialSquads) != "1";   // ⭐ N-15 — the measuring switch: this phase alone serial
 
         private const int MaxDepth = 16;   // a command chain deeper than this is a cycle (a stale roster), not a hierarchy
+        [Fdp.Core.FrameScratch("the commanders by depth: refilled from index 0 each run, read only below this run's count")]
         private Entity[] _all = new Entity[32];
+        [Fdp.Core.FrameScratch("per-run depth of each gathered commander, filled with _all")]
         private int[] _depth = new int[32];
+        [Fdp.Core.FrameScratch("one depth level's commanders: refilled from index 0 each run for its parallel pass")]
         private Entity[] _level = new Entity[32];
+        [Fdp.Core.FrameScratch("run-stamp per entity index for set exclusivity: valid only for the current _run")]
         private int[] _stamp = new int[64];   // per entity index: the run that claimed it (exclusivity of a level's sets)
+        [Fdp.Core.FrameScratch("run counter that invalidates _stamp each Execute; no meaning outside the run")]
         private int _run;
         private EntityRepository? _phaseRepo;
+        [Fdp.Core.FrameScratch("tick copied at the phase start (line 138) and read only inside that phase")]
         private uint _phaseTick;
+        [Fdp.Core.FrameScratch("time copied at the phase start (line 138) and read only inside that phase")]
         private double _phaseNow;
 
         /// <summary>The per-level phases. False ⇒ nothing ran (a level's sets overlap): the caller walks serially.</summary>

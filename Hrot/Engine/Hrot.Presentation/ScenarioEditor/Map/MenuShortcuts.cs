@@ -39,6 +39,7 @@ namespace Hrot.ScenarioEditor.Map
         }
 
         /// <summary>Shortcuts run (diagnostics, rails).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of fired shortcuts")]
         public int Fired { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -78,6 +79,7 @@ namespace Hrot.ScenarioEditor.Map
             return items != null && ActionFor(items, key, modified) is int action ? (net, action) : null;
         }
 
+        [Fdp.Core.NotState("static serializer options")]
         private static readonly JsonSerializerOptions Options = Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
 
         /// <summary>The first ENABLED item (submenus searched too) whose shortcut is <paramref name="key"/>.</summary>

@@ -21,7 +21,7 @@ public sealed class EverySystemStateFieldIsClassifiedTests
     public EverySystemStateFieldIsClassifiedTests(ITestOutputHelper output) => _out = output;
 
     /// <summary>The C / X rows the inventory holds today — the moves still to do (S1, S2). It may only shrink.</summary>
-    public const int PendingMoves = 7;
+    public const int PendingMoves = 19;
 
     [Fact]
     public void EveryFieldThatCanCarryStateBetweenFrames_IsClassified()

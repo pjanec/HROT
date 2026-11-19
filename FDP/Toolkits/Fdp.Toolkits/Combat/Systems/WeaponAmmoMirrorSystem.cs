@@ -24,7 +24,9 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <summary>⭐ CE-4659 — shots less than this apart (s) are one burst.</summary>
         public const double BurstGapSeconds = 1.0;
 
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly Dictionary<Entity, int> _first = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<(Entity Child, int Next)> _links = new();
 
         public void Execute(ISimulationView view, float deltaTime)

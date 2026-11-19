@@ -31,6 +31,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly NetworkEntityMap _entityMap;
         private readonly NodeId _localNodeId;
         // Tracks the tick of the last scan so QueryDelta can skip unchanged chunks.
+        [Fdp.Core.ProtocolCache("egress QueryDelta cursor; reset to 0 on time-travel gives full republish")]
         private uint _lastScanTick;
         // Fine-grained per-entity change filter: stores the last-published IntentId so that
         // chunk-level false positives (multiple entities in a dirty 64KB block) are dropped
@@ -40,6 +41,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // ⭐ CE-2208 — the fingerprint is (IntentId, Flags): a FLAG change on the same command must cross too. The Brain's hold release
         //   (FlagBitReleaseHold, FollowRouteExecutor — a level, written without a new IntentId) never left the Brain node before, so on a
         //   split cluster a helicopter held its Rope / Unload / Drop stop for ever (live ua-fast-rope-roof, 2026-10-16).
+        [Fdp.Core.ProtocolCache("last-sent (IntentId,Flags) per entity for egress change detection")]
         private readonly System.Collections.Generic.Dictionary<Entity, (uint IntentId, byte Flags)> _lastPublishedIntentId
             = new System.Collections.Generic.Dictionary<Entity, (uint IntentId, byte Flags)>();
 
@@ -50,6 +52,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         // NavigationIntent ECS component ID = NavigationContractsComponentIds.NavigationIntent = 67
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly IReadOnlyList<int> _targetIds = new int[] { Fdp.Toolkit.Navigation.NavigationContractsComponentIds.NavigationIntent };
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 

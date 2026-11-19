@@ -75,9 +75,11 @@ namespace Fdp.Toolkit.Behavior.Systems
         public MissionDirectorSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
 
         /// <summary>⭐ <c>CE-483</c>: how each entity's run ended this frame (entity index ⇒ outcome).</summary>
+        [Fdp.Core.WorldDerived("per-frame table cleared at top")]
         private readonly Dictionary<int, BehaviorOutcome> _outcomeThisFrame = new();
 
         /// <summary>⭐ <c>CE-4298</c> — each task's compiled then / give-up (D3).</summary>
+        [Fdp.Core.WorldDerived("cache of compiled plan conditions per entity, rebuilt from the task components (Generation)")]
         private readonly PlanConditionCache _conditions = new();
 
         public unsafe void Execute(ISimulationView view, float deltaTime)

@@ -20,6 +20,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityRadarEmission> _instances;
 
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.RadarEmission };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityRadarEmission>();

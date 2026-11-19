@@ -54,6 +54,7 @@ namespace Hrot.Common.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class EntityRequestFinalizationSystem : IEcsModuleSystem
     {
         private struct PendingRequest
@@ -62,6 +63,7 @@ namespace Hrot.Common.Systems
             public RequestKind Kind;
         }
 
+        [Fdp.Core.ProtocolCache("pending phase-2 ack tracking for create/delete requests")]
         private readonly Dictionary<int, PendingRequest> _tracked   = new();
         private int _worldEpoch;
         private readonly IEntityAckSink                    _ackSink;
