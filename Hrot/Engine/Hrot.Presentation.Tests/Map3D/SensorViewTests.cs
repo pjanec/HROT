@@ -2,6 +2,7 @@ using System.Text.Json;
 using Fdp.Toolkit.Input;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
+using Fdp.Toolkit.Vis2D.Components;
 using Fdp.Toolkit.Vis3D;
 using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.UI.Common.Map3D;
@@ -49,7 +50,6 @@ public sealed class SensorViewTests
     {
         var (view, _) = Make();
         view.SetMode(SceneSensor.NightVision);
-        var gizmo = typeof(LayerControlGizmo);
         string json = SensorViewMenu.Json(view.MenuState, view.CycleKey);
         Assert.Contains("\"shortcut\":\"F4\"", json);
         using var doc = JsonDocument.Parse("[" + json + "]");

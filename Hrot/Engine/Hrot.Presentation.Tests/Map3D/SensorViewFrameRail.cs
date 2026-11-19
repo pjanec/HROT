@@ -93,7 +93,7 @@ public sealed class SensorViewFrameRail
     }
 
     /// <summary>⭐ NV-1 — the grain grows as the light falls: the frame-to-frame difference of a static scene under starlight is many times the full moon's
-    /// (noise σ ∝ 1/√lux), and with the noise off both are ~0. 🔴 Red-proof: <c>SensorView.Apply</c>'s σ held at its floor (0.02) ⇒ the ratio collapses to ~1.</summary>
+    /// (noise σ ∝ 1/√lux), and with the noise off both are ~0.</summary>
     [SkippableFact]
     public void NV1_TheGrainGrowsAsTheLightFalls()
     {
@@ -115,8 +115,8 @@ public sealed class SensorViewFrameRail
 
     /// <summary>⭐ NV-2 — a fire is SEEN, never LIGHTING: under night vision its core saturates (≥ 0.9) and its halo brightens the pixels just outside it,
     /// while a region far from it is unchanged (the noise and the automatic gain off, so only the fire differs). And the scene around peaks below the bloom
-    /// (a lit surface never blooms). 🔴 Red-proof: <c>SceneSensors.Emissive</c> returning the colour unchanged ⇒ the orange core stays below the threshold
-    /// and the halo ring does not brighten.</summary>
+    /// (a lit surface never blooms). 🔴 Seen red while building (`2026-11-19`): with the hot puffs drawn translucent the core read 0.83 and the ring did
+    /// not brighten; with the halo's sampler unbound the ring moved +0.02 only.</summary>
     [SkippableFact]
     public void NV2_AFire_SaturatesAndBlooms_AndLightsNothingAroundIt()
     {
@@ -153,7 +153,8 @@ public sealed class SensorViewFrameRail
     }
 
     /// <summary>⭐ NV-3 — the automatic gain: a big fire in view pulls the rest of the picture down (the tube's average), and with the automatic gain
-    /// off it does not. 🔴 Red-proof: the final pass' <c>abc</c> held at 1 ⇒ the far region keeps its brightness with the fire in view.</summary>
+    /// off it does not. 🔴 Seen red while building (`2026-11-19`): with the mean read through mipmaps, then through a chain of ODD sizes (5×3 → 2×1 sampled
+    /// past the fires), the far region stayed exactly 0.194 → 0.194.</summary>
     [SkippableFact]
     public void NV3_ABrightSourceInView_PullsTheAutomaticGainDown()
     {
@@ -164,6 +165,7 @@ public sealed class SensorViewFrameRail
         n.S.Look(new Vector3(n.S.Spot.X, n.S.Spot.Y, n.S.Ground), 70f, 0.6f, -0.5f);
         n.Light(FullMoon);
         var before = n.Screen();
+        float meanBefore = n.View.Post.ProbeMean();
         n.Fire(new Vector2(0f, 0f), 12f);
         n.Fire(new Vector2(18f, 6f), 12f);
         n.Light(FullMoon);
@@ -171,7 +173,7 @@ public sealed class SensorViewFrameRail
         n.Shot("nv-gain.png");
         Assert.True(n.S.Effects.Drawn > 0, "the fires are drawn");
         float farBefore = MeanIn(before, 20, before.H * 3 / 4, before.W / 4, before.H - 20), farAfter = MeanIn(after, 20, after.H * 3 / 4, after.W / 4, after.H - 20);
-        _out.WriteLine($"far region with automatic gain: {farBefore:0.000} → {farAfter:0.000}");
+        _out.WriteLine($"far region with automatic gain: {farBefore:0.000} → {farAfter:0.000}; the picture's mean {meanBefore:0.000} → {n.View.Post.ProbeMean():0.000}");
         Assert.True(farAfter < farBefore * 0.9f, $"the gain dims the rest: {farBefore:0.000} → {farAfter:0.000}");
     }
 

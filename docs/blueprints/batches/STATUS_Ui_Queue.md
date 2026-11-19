@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-working — CE-1984 the sensor views SV-1 (shared post-process + night vision + the moon), user-approved `2026-11-19` (R-1056; design `docs/designs/sensor-view/DESIGN_Sensor_View.md`); then CE-1985 thermal (last: the flame roar DONE `2026-11-19`).
+working — CE-1985 the thermal view (SV-2), then CE-1990 scene lights and CE-1991 the cigarette ember (R-1057, user-approved `2026-11-19`); last: CE-1984 night vision + CE-1989 F4 DONE `2026-11-19`.
 
 ## 2. The queue (in order)
 

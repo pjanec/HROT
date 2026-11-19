@@ -30,10 +30,21 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>False when the programs did not compile (logged once): the view then stays normal.</summary>
         public bool Available => !_failed;
 
+        /// <summary>A rail's probe: the picture's mean luminance as the last frame's 1×1 target holds it (a GPU read-back — allocates; never per frame).</summary>
+        public float ProbeMean()
+        {
+            if (_chain.Length == 0 || _chain[^1].Id == 0) return float.NaN;
+            var img = Raylib.LoadImageFromTexture(_chain[^1].Texture);
+            var c = Raylib.GetImageColor(img, 0, 0);
+            Raylib.UnloadImage(img);
+            return c.A / 255f;
+        }
+
         /// <summary>Frames processed (a rail; telemetry).</summary>
         public int Frames { get; private set; }
 
         private RenderTexture2D _scene, _q1, _q2;
+        private RenderTexture2D[] _chain = Array.Empty<RenderTexture2D>();   // the halving chain to 1×1: the picture's mean
         private Shader _bright, _blur, _final;
         private IntPtr _window;
         private bool _failed, _loaded;
@@ -74,13 +85,27 @@ namespace Fdp.Toolkit.Vis3D
             Raylib.EndShaderMode();
             Raylib.EndTextureMode();
             // ② the halo: horizontal into q2, vertical back into q1
-            Blur(_q1, _q2, new Vector2(1f, 0f), qw, qh);
-            Blur(_q2, _q1, new Vector2(0f, 1f), qw, qh);
+            // the halo: two rounds (a tube's bloom is wide), horizontal into q2, vertical back into q1
+            for (int round = 0; round < 2; round++)
+            {
+                Blur(_q1, _q2, new Vector2(1f + round, 0f), qw, qh);
+                Blur(_q2, _q1, new Vector2(0f, 1f + round), qw, qh);
+            }
+            // the mean: halve q1 down to 1×1, each step a bilinear 2×2 average (robust on every driver — mipmaps were not)
+            var from = _q1;
+            for (int i = 0; i < _chain.Length; i++)
+            {
+                var to = _chain[i];
+                Raylib.BeginTextureMode(to);
+                Raylib.DrawTexturePro(from.Texture, new Rectangle(0, 0, from.Texture.Width, -from.Texture.Height),
+                                      new Rectangle(0, 0, to.Texture.Width, to.Texture.Height), Vector2.Zero, 0f, Color.White);
+                Raylib.EndTextureMode();
+                from = to;
+            }
             Rlgl.DrawRenderBatchActive();
             Rlgl.EnableColorBlend();
             var halo = _q1.Texture;
-            Raylib.GenTextureMipmaps(ref halo);   // the last level = the picture's mean (the automatic gain)
-            Raylib.SetTextureFilter(halo, TextureFilter.Trilinear);
+            var mean = _chain.Length > 0 ? _chain[^1].Texture : halo;
 
             // back to the frame's own target (the window, or the hidden-window mode's)
             Fdp.Presentation.Raylib.HiddenWindow.Resume();
@@ -101,8 +126,11 @@ namespace Fdp.Toolkit.Vis3D
             // draw can trigger, and the sampler then reads an empty unit (measured: no halo, a constant automatic gain)
             Rlgl.ActiveTextureSlot(1);
             Rlgl.EnableTexture(halo.Id);
+            Rlgl.ActiveTextureSlot(2);
+            Rlgl.EnableTexture(mean.Id);
             Rlgl.ActiveTextureSlot(0);
             SetInt(_final, _fHalo, 1);
+            SetInt(_final, _fMip, 2);
             SetInt(_final, _fMode, (int)s.Mode);
             SetInt(_final, _fPalette, s.Palette);
             SetFloat(_final, _fGain, s.Gain);
@@ -112,9 +140,10 @@ namespace Fdp.Toolkit.Vis3D
             SetInt(_final, _fFlags, (s.Halo ? 1 : 0) | (s.Vignette ? 2 : 0));
             SetVec2(_final, _fSize, new Vector2(w, h));
             SetFloat(_final, _fTarget, s.TargetMean);
-            SetFloat(_final, _fMip, MathF.Floor(MathF.Log2(MathF.Max(qw, qh))));
             Raylib.DrawTexturePro(_scene.Texture, new Rectangle(0, 0, w, -h), new Rectangle(0, 0, w, h), Vector2.Zero, 0f, Color.White);
             Raylib.EndShaderMode();   // flushes the batch with unit 1 still bound
+            Rlgl.ActiveTextureSlot(2);
+            Rlgl.DisableTexture();
             Rlgl.ActiveTextureSlot(1);
             Rlgl.DisableTexture();
             Rlgl.ActiveTextureSlot(0);
@@ -137,17 +166,35 @@ namespace Fdp.Toolkit.Vis3D
         {
             if (!Raylib.IsWindowReady()) return _loaded = false;
             var window = (IntPtr)Raylib.GetWindowHandle();
-            if (window != _window) { _window = window; _failed = false; _shadersReady = false; _scene = _q1 = _q2 = default; }
+            if (window != _window) { _window = window; _failed = false; _shadersReady = false; _scene = _q1 = _q2 = default; _chain = Array.Empty<RenderTexture2D>(); }
             if (_failed) return _loaded = false;
             if (!_shadersReady && !LoadShaders()) { _failed = true; return _loaded = false; }
             if (_scene.Id == 0 || _scene.Texture.Width != w || _scene.Texture.Height != h)
             {
-                if (_scene.Id != 0) { Raylib.UnloadRenderTexture(_scene); Raylib.UnloadRenderTexture(_q1); Raylib.UnloadRenderTexture(_q2); }
+                if (_scene.Id != 0)
+                {
+                    Raylib.UnloadRenderTexture(_scene); Raylib.UnloadRenderTexture(_q1); Raylib.UnloadRenderTexture(_q2);
+                    foreach (var c in _chain) Raylib.UnloadRenderTexture(c);
+                }
                 _scene = Raylib.LoadRenderTexture(w, h);
                 _q1 = Raylib.LoadRenderTexture(Math.Max(4, w / 4), Math.Max(4, h / 4));
                 _q2 = Raylib.LoadRenderTexture(Math.Max(4, w / 4), Math.Max(4, h / 4));
                 Raylib.SetTextureFilter(_scene.Texture, TextureFilter.Bilinear);
                 Raylib.SetTextureFilter(_q2.Texture, TextureFilter.Bilinear);
+                Raylib.SetTextureFilter(_q1.Texture, TextureFilter.Bilinear);
+                var sizes = new System.Collections.Generic.List<RenderTexture2D>();
+                // first to the largest power of two at or under the quarter target (every source texel still feeds a sample), then exact halvings:
+                // ⚠ halving an ODD size with bilinear SAMPLES instead of averaging (measured: 5×3 → 2×1 missed a fire in the middle entirely)
+                int cw = 1 << (int)MathF.Floor(MathF.Log2(_q1.Texture.Width)), ch = 1 << (int)MathF.Floor(MathF.Log2(_q1.Texture.Height));
+                while (true)
+                {
+                    var c = Raylib.LoadRenderTexture(cw, ch);
+                    Raylib.SetTextureFilter(c.Texture, TextureFilter.Bilinear);
+                    sizes.Add(c);
+                    if (cw == 1 && ch == 1) break;
+                    cw = Math.Max(1, cw / 2); ch = Math.Max(1, ch / 2);
+                }
+                _chain = sizes.ToArray();
             }
             return _loaded = true;
         }
@@ -177,7 +224,7 @@ namespace Fdp.Toolkit.Vis3D
             _fFlags = Raylib.GetShaderLocation(_final, "flags");
             _fSize = Raylib.GetShaderLocation(_final, "size");
             _fTarget = Raylib.GetShaderLocation(_final, "targetMean");
-            _fMip = Raylib.GetShaderLocation(_final, "meanLevel");
+            _fMip = Raylib.GetShaderLocation(_final, "meanTex");
             return _shadersReady = true;
         }
 
@@ -214,7 +261,9 @@ void main()
     vec3 c = texture(texture0, fragTexCoord).rgb;
     float lum = dot(c, NV_RESPONSE);
     float bright = max(max(c.r, max(c.g, c.b)) - 0.88, 0.0) / 0.12;
-    finalColor = vec4(vec3(bright), lum);
+    // the light the tube's automatic gain feels: a self-luminous source is far brighter than the 8-bit scene can hold (a flash ~10³× the
+    // moonlit ground), so its saturated pixels count ×10; stored /11 to stay in 0..1 (the final pass multiplies back)
+    finalColor = vec4(vec3(bright), (lum + 10.0 * bright) / 11.0);
 }";
 
         private const string BlurFragment = @"#version 330
@@ -243,7 +292,7 @@ uniform float lines;       // the sensor's lines, 0 = full resolution
 uniform int flags;         // 1 halo, 2 vignette
 uniform vec2 size;         // the target, pixels
 uniform float targetMean;  // the automatic gain's target mean luminance
-uniform float meanLevel;   // the halo target's last mip level
+uniform sampler2D meanTex; // 1×1: the picture's mean luminance in alpha
 out vec4 finalColor;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -279,9 +328,9 @@ void main()
         float nir = max(c.g - max(c.r, c.b), 0.0) * 1.2;
         float lum = dot(c, NV_RESPONSE) + nir;
         // the automatic gain: the picture's mean (the halo target's last mip) brought toward the target — a flash in view pulls the rest down
-        float mean = textureLod(halo, vec2(0.5), meanLevel).a;
+        float mean = texture(meanTex, vec2(0.5)).a * 11.0;
         float abc = targetMean > 0.0 ? clamp(targetMean / max(mean, 0.01), 0.25, 6.0) : 1.0;   // off: unity gain
-        v = lum * abc * gain + h.r * 0.9;
+        v = lum * abc * gain + h.r * 1.4;
     }
     else v = c.r;   // thermal (CE-1985): the scene pass writes the heat
     if (noise > 0.0)
