@@ -52,6 +52,9 @@ public struct RenderContext
     /// </summary>
     public SceneSensor Sensor;
 
+    /// <summary>⭐ <c>CE-1985</c> — the air's °C at the view under the thermal pass (what a draw's <see cref="SceneSensors.Heat"/> is relative to); 15 elsewhere.</summary>
+    public float AirC;
+
     /// <summary><see cref="ViewSize"/>, or — for a context built by hand (a rail) with none — the window's size; zero with no window.</summary>
     public readonly Vector2 TargetSize =>
         ViewSize.X > 0f && ViewSize.Y > 0f ? ViewSize
@@ -157,8 +160,18 @@ public static class SceneSensors
 {
     /// <summary>The colour a self-luminous thing is drawn in: itself on the normal view; under night vision white and OPAQUE (a lamp,
     /// a flame, a flash saturates the tube and blooms in the post pass, whatever its colour — the tube sees red and near-infrared best).</summary>
-    public static Raylib_cs.Color Emissive(this in RenderContext ctx, Raylib_cs.Color c)
-        => ctx.Sensor == SceneSensor.NightVision && c.A > 0 ? new Raylib_cs.Color((byte)255, (byte)255, (byte)255, (byte)255) : c;   // opaque: a translucent glow blended on the dark never reaches the bloom
+    public static Raylib_cs.Color Emissive(this in RenderContext ctx, Raylib_cs.Color c, float hotC = 600f)
+        => ctx.Sensor switch
+        {
+            SceneSensor.NightVision when c.A > 0 => new Raylib_cs.Color((byte)255, (byte)255, (byte)255, (byte)255),   // opaque: a translucent glow blended on the dark never reaches the bloom
+            SceneSensor.Thermal when c.A > 0 => Fdp.Toolkit.Vis3D.LitShader.EncodeC(hotC, (byte)255),               // ⭐ CE-1985 — hot (a lamp passes its lens' °C)
+            _ => c,
+        };
+
+    /// <summary>⭐ <c>CE-1985</c> (DESIGN_Sensor_View §5c) — a draw that is not self-luminous (smoke, a decal, a cloud) under the thermal pass: its °C as the
+    /// pass' linear code, at its own opacity (the code is linear, so a translucent draw mixes temperatures correctly). Itself on every other view.</summary>
+    public static Raylib_cs.Color Heat(this in RenderContext ctx, Raylib_cs.Color c, float celsius)
+        => ctx.Sensor == SceneSensor.Thermal ? Fdp.Toolkit.Vis3D.LitShader.EncodeC(celsius, c.A) : c;
 }
 
 /// <summary>
@@ -170,6 +183,8 @@ public interface IScenePostProcess
 {
     /// <summary>The sensor the scene is drawn for; <see cref="SceneSensor.None"/> = no post-process this frame.</summary>
     SceneSensor Sensor { get; }
+    /// <summary>⭐ <c>CE-1985</c> — the air's °C at the view (the thermal pass' reference; <see cref="RenderContext.AirC"/>).</summary>
+    float AirC { get; }
     /// <summary>Binds the scene's target, <paramref name="size"/> pixels.</summary>
     void BeginScene(Vector2 size);
     /// <summary>Unbinds it and draws the processed picture to the screen.</summary>

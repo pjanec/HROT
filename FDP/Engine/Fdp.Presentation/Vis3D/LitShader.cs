@@ -140,6 +140,18 @@ uniform float fogStart;
 uniform float ambient;
 uniform float sunLight;
 uniform float groundDetail;
+// ⭐ CE-1985 (docs/designs/sensor-view/DESIGN_Sensor_View.md §5c) — the THERMAL scene pass: the fragment writes its apparent temperature (°C) as a
+// LINEAR 16-bit code (R high, G low) instead of a colour
+uniform int thermal;           // 1 = the thermal pass
+uniform int thermalSource;     // 0 = by class (the terrain: its material code; any other draw: drawClass) · 1 = the colour carries the °C (encoded)
+uniform int drawClass;         // the class of a non-terrain draw (default concrete)
+uniform float classFlat[16];   // a horizontal surface's true °C, per class
+uniform float classGain[16];   // °C per unit of sun facing beyond a horizontal one
+uniform float classEps[16];    // emissivity
+uniform int codeClass[32];     // material codes 224..255 → class
+uniform float skyC;            // the sky's apparent °C (what a low-ε surface reflects)
+uniform float airC;            // the air's °C (what the fog fades toward)
+uniform float sunSin;          // sin(sun elevation), 0 below the horizon
 out vec4 finalColor;
 ";
 
@@ -239,12 +251,33 @@ vec3 materialDetail(vec3 albedo, float code, vec3 world, vec3 n, float dist)
     else c = mix(albedo, tiles(albedo, uv), clamp(1.0 - dist / 160.0, 0.0, 1.0));                        // 240 a drawn pitched roof (CE-4377): rows read further than bricks
     return mix(albedo, c, groundDetail);
 }
+vec4 encodeC(float c)
+{
+    float x = clamp((c + 40.0) / 160.0, 0.0, 1.0) * 255.0;
+    return vec4(floor(x) / 255.0, fract(x), 0.0, 1.0);
+}
+float decodeC(vec3 rgb) { return (rgb.r * 255.0 + rgb.g) / 255.0 * 160.0 - 40.0; }
 void main()
 {
     vec3 n = normalize(fragNormal);
     if (!gl_FrontFacing) n = -n;
     float diffuse = max(dot(n, -sunDir), 0.0);
     vec4 base = fragColor * colDiffuse;
+    if (thermal == 1)
+    {
+        float c;
+        if (thermalSource == 1) c = decodeC(base.rgb);
+        else
+        {
+            int cls = groundDetail > 0.0 ? codeClass[clamp(int(floor(base.a * 255.0 + 0.5)) - 224, 0, 31)] : drawClass;
+            float surfaceC = classFlat[cls] + classGain[cls] * (diffuse - sunSin);
+            c = classEps[cls] * surfaceC + (1.0 - classEps[cls]) * skyC;
+        }
+        float fd = max(length(viewPos - fragPos) - fogStart, 0.0) * fogDensity;
+        float seen = clamp(exp(-fd * fd), 0.0, 1.0);
+        finalColor = encodeC(mix(airC, c, seen));   // thermal sees through the night, not through the fog
+        return;
+    }
     vec3 albedo = surface(base.rgb, localUnit, localMetres, normalize(localNormal));
     albedo = materialDetail(albedo, floor(base.a * 255.0 + 0.5), fragPos, n, length(viewPos - fragPos));
     vec3 lit = albedo * (ambient + sunLight * diffuse);
@@ -433,6 +466,7 @@ void main()
                 Raylib.SetShaderValue(s, Raylib.GetShaderLocation(s, "colDiffuse"), Vector4.One, ShaderUniformDataType.Vec4);
                 SetAtmosphere(s, _iSunDir, _iFogColor, _iAmbient, _iSunLight);
                 SetFrame(s, _iViewPos, _iFogDensity, _iFogStart);
+                ApplyThermal(s);   // ⭐ CE-1985
                 return s;
             }
         }
@@ -451,6 +485,93 @@ void main()
         /// While it is on, the vertex colour's ALPHA is read as the material code (<c>TerrainLayer3D.MaterialCode</c>) and the output is
         /// opaque. ⚠ It holds until set again — the terrain layer sets it for its draw and puts it back to 0.</summary>
         public void SetGroundDetail(float amount) => Raylib.SetShaderValue(Shader, _groundDetail, amount, ShaderUniformDataType.Float);
+
+        // ── ⭐ CE-1985 (DESIGN_Sensor_View §5c) — the thermal pass ───────────────────────────────────────────────────────────────────────
+        /// <summary>The number of thermal classes the shader holds (<c>ThermalClassId</c>; the rest of 16 unused).</summary>
+        public const int ThermalClasses = 16;
+        private readonly float[] _tFlat = new float[ThermalClasses], _tGain = new float[ThermalClasses], _tEps = new float[ThermalClasses];
+        private readonly int[] _tCode = new int[32];
+        private bool _tOn; private float _tSky, _tAir, _tSunSin; private int _tSource, _tClass;
+
+        /// <summary>Per frame, by the sensor view: the thermal pass on or off, and the classes' °C (a horizontal surface), sun gain and emissivity,
+        /// the material code → class table (codes 224..255), the sky's and the air's °C and the sun's sine. Copied — the caller's buffers are its own.
+        /// ⭐ Both programs get the same values (the instanced one when it is built).</summary>
+        public void SetThermal(bool on, ReadOnlySpan<float> flatC, ReadOnlySpan<float> gainC, ReadOnlySpan<float> eps, ReadOnlySpan<int> codeClass,
+                               float skyC, float airC, float sunSin)
+        {
+            _tOn = on;
+            if (on)
+            {
+                flatC.Slice(0, Math.Min(flatC.Length, ThermalClasses)).CopyTo(_tFlat);
+                gainC.Slice(0, Math.Min(gainC.Length, ThermalClasses)).CopyTo(_tGain);
+                eps.Slice(0, Math.Min(eps.Length, ThermalClasses)).CopyTo(_tEps);
+                codeClass.Slice(0, Math.Min(codeClass.Length, 32)).CopyTo(_tCode);
+                _tSky = skyC; _tAir = airC; _tSunSin = sunSin;
+            }
+            ApplyThermal(Shader);
+            if (_instancedBuilt && InstancedIsValid) ApplyThermal(_instanced);
+        }
+
+        /// <summary>What the NEXT lit draws are, in the thermal pass: <paramref name="source"/> 0 = by class (the terrain by its material code, any
+        /// other draw <paramref name="drawClass"/>), 1 = the colour carries the °C (<see cref="EncodeC"/>). ⚠ It holds until set again — a layer that
+        /// sets it puts back <c>(0, the default class)</c> after its draw.</summary>
+        public void SetThermalSource(int source, int drawClass)
+        {
+            if (source == _tSource && drawClass == _tClass) return;
+            _tSource = source; _tClass = drawClass;
+            ApplySource(Shader);
+            if (_instancedBuilt && InstancedIsValid) ApplySource(_instanced);
+        }
+
+        /// <summary>The thermal uniforms' locations of one program (looked up once: a lookup marshals its name — it would allocate every frame).</summary>
+        private sealed class ThermalLocs
+        {
+            public readonly int On, Flat, Gain, Eps, Code, Sky, Air, SunSin, Source, Class;
+            public ThermalLocs(Shader s)
+            {
+                On = Raylib.GetShaderLocation(s, "thermal"); Flat = Raylib.GetShaderLocation(s, "classFlat"); Gain = Raylib.GetShaderLocation(s, "classGain");
+                Eps = Raylib.GetShaderLocation(s, "classEps"); Code = Raylib.GetShaderLocation(s, "codeClass"); Sky = Raylib.GetShaderLocation(s, "skyC");
+                Air = Raylib.GetShaderLocation(s, "airC"); SunSin = Raylib.GetShaderLocation(s, "sunSin");
+                Source = Raylib.GetShaderLocation(s, "thermalSource"); Class = Raylib.GetShaderLocation(s, "drawClass");
+            }
+        }
+        private ThermalLocs? _tLocs, _tiLocs;
+
+        private unsafe void ApplyThermal(Shader s)
+        {
+            var l = s.Id == Shader.Id ? (_tLocs ??= new ThermalLocs(s)) : (_tiLocs ??= new ThermalLocs(s));
+            int on = _tOn ? 1 : 0;
+            Raylib.SetShaderValue(s, l.On, &on, ShaderUniformDataType.Int);   // ⭐ the pointer overloads: 0 B per frame (the generic ones allocate)
+            if (!_tOn) return;
+            fixed (float* f = _tFlat) Raylib.SetShaderValueV(s, l.Flat, f, ShaderUniformDataType.Float, ThermalClasses);
+            fixed (float* g = _tGain) Raylib.SetShaderValueV(s, l.Gain, g, ShaderUniformDataType.Float, ThermalClasses);
+            fixed (float* e = _tEps) Raylib.SetShaderValueV(s, l.Eps, e, ShaderUniformDataType.Float, ThermalClasses);
+            fixed (int* c = _tCode) Raylib.SetShaderValueV(s, l.Code, c, ShaderUniformDataType.Int, 32);
+            float sky = _tSky, air = _tAir, sun = _tSunSin;
+            Raylib.SetShaderValue(s, l.Sky, &sky, ShaderUniformDataType.Float);
+            Raylib.SetShaderValue(s, l.Air, &air, ShaderUniformDataType.Float);
+            Raylib.SetShaderValue(s, l.SunSin, &sun, ShaderUniformDataType.Float);
+            ApplySource(s);
+        }
+
+        private unsafe void ApplySource(Shader s)
+        {
+            var l = s.Id == Shader.Id ? (_tLocs ??= new ThermalLocs(s)) : (_tiLocs ??= new ThermalLocs(s));
+            int src = _tSource, cls = _tClass;
+            Raylib.SetShaderValue(s, l.Source, &src, ShaderUniformDataType.Int);
+            Raylib.SetShaderValue(s, l.Class, &cls, ShaderUniformDataType.Int);
+        }
+
+        /// <summary>⭐ CE-1985 — a °C as the thermal pass' linear code (R high, G low, B 0): what a draw whose colour carries its temperature sends.</summary>
+        public static Color EncodeC(float celsius, byte alpha = 255)
+        {
+            float x = Math.Clamp((celsius + 40f) / 160f, 0f, 1f) * 255f;
+            float hi = MathF.Floor(x);
+            return new Color((byte)hi, (byte)MathF.Min(255f, MathF.Round((x - hi) * 255f)), (byte)0, alpha);
+        }
+
+        /// <summary>The inverse of <see cref="EncodeC"/>.</summary>
+        public static float DecodeC(Color c) => (c.R + c.G / 255f) / 255f * 160f - 40f;
 
         /// <summary>⭐ <c>CE-1196</c> — the same for the <see cref="Flat"/> program.</summary>
         public void SetFlatDepthBias(float ndc) => Raylib.SetShaderValue(Flat, _flatDepthBias, ndc, ShaderUniformDataType.Float);

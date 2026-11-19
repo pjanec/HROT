@@ -129,7 +129,7 @@ namespace Fdp.Toolkit.Vis2D
             {
                 var size = Raylib.IsWindowReady() ? new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()) : Vector2.Zero;
                 post!.BeginScene(size);
-                var sctx = DrawLayers3D(sceneOnly: false, sensor: sensor);
+                var sctx = DrawLayers3D(sceneOnly: false, sensor: sensor, airC: post.AirC);
                 post.EndScene(size);
                 DrawOverlays(sctx, sceneOnly: false);
                 return;
@@ -173,9 +173,10 @@ namespace Fdp.Toolkit.Vis2D
             }
         }
 
-        private RenderContext NewContext(bool film, Vector2? targetSize = null, SceneSensor sensor = SceneSensor.None) => new()
+        private RenderContext NewContext(bool film, Vector2? targetSize = null, SceneSensor sensor = SceneSensor.None, float airC = 15f) => new()
         {
             Sensor            = sensor,   // ⭐ CE-1984
+            AirC              = airC,     // ⭐ CE-1985
             ViewSize          = targetSize ?? (Raylib.IsWindowReady() ? new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()) : Vector2.Zero),   // ⭐ CE-1383
             Zoom              = Camera.Zoom,
             MouseWorldPos     = Camera.ScreenToWorld(GetMousePosition()),
@@ -204,10 +205,10 @@ namespace Fdp.Toolkit.Vis2D
         }
 
         /// <summary>The 3-D layer pass both <see cref="Draw"/> and <see cref="DrawScene"/> run (one loop).</summary>
-        private RenderContext DrawLayers3D(bool sceneOnly, Vector2? targetSize = null, SceneSensor sensor = SceneSensor.None)
+        private RenderContext DrawLayers3D(bool sceneOnly, Vector2? targetSize = null, SceneSensor sensor = SceneSensor.None, float airC = 15f)
         {
             Camera.BeginMode();
-            var ctx = NewContext(sceneOnly, targetSize, sensor);
+            var ctx = NewContext(sceneOnly, targetSize, sensor, airC);
             int without = 0;
             foreach (var layer in _layers)
             {

@@ -163,11 +163,37 @@ adds the sun-facing term; the expensive part (the sun's daily path) runs once pe
 ⭐ `ThermalScene` (`Fdp.Toolkits/Perception/Signatures/ThermalScene.cs`): `ClassTemperatures(in WeatherSample, double now, Span<float> flat, Span<float> gain)`,
 `UnitC(in ThermalState, in HeatSource, …)` — pure, allocation-free, unit-tested; the shader and the body layer only read it.
 
-### 5c. The heat image
+### 5c. The heat image *(refined `2026-11-19` after measuring the draw paths — supersedes "opaque draws only" and "the class index in the same alpha")*
 
-°C → 16 bits over −40…+100 °C in R (high) and G (low) — opaque draws only (fires drawn opaque, saturated) ⇒ no blending corrupts the code. ⚠ The material
-code in the terrain alpha covers the 11 PATTERN codes (240–250, `LitShader.cs:221`); the rest of the ground needs its thermal class per vertex in thermal mode
-— measured in SV-2 step 1 (`TerrainLayer3D.MaterialCode`), the class index carried in the same alpha while thermal is on.
+⭐ **The code is LINEAR**: x = (T + 40)/160 · 255, R = ⌊x⌋/255, G = frac(x), B = 0 — decode T = (R·255 + G)/255 · 160 − 40. ⇒ bilinear filtering, the
+sensor's soft taps and alpha blending all mix temperatures correctly (a translucent smoke over warm ground reads in between), so draws need NOT be opaque.
+0.0025 °C a step over −40…+120 °C.
+
+| what draws | how it says its temperature in thermal mode | 📐 measured |
+|---|---|---|
+| the terrain (`groundDetail > 0`) | its material code (alpha) → a thermal class through a code→class table (uniform); the pattern codes 240–250 + **new codes below 240 for the classes that had none** (asphalt, metal, glass, sand, snow, soil-wet; unknown → concrete). ⛔ Water and every unknown material shared code 255 | `TerrainLayer3D.CodeFor` / `CodeOf` (`_ => 255`); codes < 239.5 draw no pattern (`LitShader.materialDetail`), so the normal view does not change |
+| any OTHER lit draw (roads, buildings outside the terrain mesh, props) | a per-draw class uniform (`LitShader.SetThermalClass`), default **concrete** — a draw nobody adapted reads as plausible background, never garbage | the SUMO roads are drawn by `TrafficLayer3D`, not the terrain |
+| bodies (units, vehicles) | their instance / draw colour carries the °C, encoded by `EntityBodyLayer3D` from `ThermalScene.Unit` (`thermalSource = colour`) | the body batch's instance colour (`LitShader` instanced program) |
+| self-luminous and effect draws (raylib's default shader: lamps, fire puffs, flashes, tracers, smoke, decals) | `ctx.Heat(colour, °C)` at the site — the encoded colour at the draw's own alpha (smoke: air temperature, half see-through) | the same sites `ctx.Emissive` adapted in SV-1 |
+| the sky and the cloud decks | the atmosphere's sky colours ARE the encoded sky temperature in thermal (`SensorView.Apply`); the clouds drawn at the cloud base's temperature | `MapCamera3D.BeginMode` draws the gradient from the atmosphere |
+| ⚠ 3-D gizmos (rings, lines) | not adapted: they read as whatever their colour decodes to — a debug overlay inside the scene pass | accepted for v1; the screen-space labels and cards are drawn after the post, unaffected |
+
+The post's final pass decodes T, applies the gain (`level`, `span`: auto from the class and unit temperatures in view, computed on the CPU — D-8), the
+palette, the sensor resolution and the noise; its bright pass uses "T above the span's top" for the halo round fires.
+
+### 5d. As built — SV-2 part 1 *(CE-1985, ui + the Sonnet worker, `2026-11-19`)*
+
+| piece | as built |
+|---|---|
+| the model | `Perception/Signatures/ThermalScene.cs` (commit `7a7a6db76`): `ThermalClassId` (13 + `PaintedMetal`, ε 0.9), `DayForcing.Of` (the sun's day sampled 24× → mean + first harmonic; `SolarOffsetHours` instead of a stale "now" hour), `ClassTemperatures`, `SkyC`, `Apparent`, `Unit`; the §5a table unchanged; tuned: sun gain **0.04 K per W/m²**, night cooling **3 K**, wind 0.15, rain 0.4. ⚠ Two changes to §5a's formula, both needed by the rails: the sun term never falls below `Fmean·(1 − A(τ))` (the first harmonic alone went negative at night and made asphalt colder than grass), and the night cooling is damped by HALF the pin (`NightPinShare` 0.5 — wet grass stays the coldest ground on a clear night). Rails `ThermalSceneTests` (8): noon asphalt 33.5 > grass 21.7 > water 20.5, hull 36.1; 03:00 clear water 14.4, asphalt 10.0, grass 7.3, hull 4.75, glass −11.0 < brick 10.2; overcast halves the asphalt–grass gap; a man 29.2 °C at night; 0 B. Red-proved: τ → 0 fails TH-1/2/3 |
+| one gathering | `UnitThermalDrivers.Of` (`Perception/Sensors/ThermalPerception.cs`): `HeatOf` moved onto it unchanged — the AI sensor and the view read ONE gathering of speed, death time, barrel and fire |
+| the shader | `LitShader` thermal branch: by class (terrain: `TerrainLayer3D.ThermalClassTable`, codes 224..255; any other lit draw: a class uniform, default concrete) or the colour as °C; ε reflects `SkyC`; the fog fades to the air's °C; the code `EncodeC`/`DecodeC` (linear); uniforms set with the pointer overloads (0 B) |
+| terrain codes | `apron` 239 asphalt · metal sheets 238 · glass 237 · unknown 232 concrete (was 255 = water's) |
+| bodies | `EntityBodyLayer3D`: every instance of the body batch carries a °C in the thermal pass (`Submit`), the unit's from `SensorView.UnitHeat`; the engine's hot end is a SLAB over the hull's front / rear third (⛔ per-part: a hull is one long box — only a wheel lit) |
+| effects | hot parts `ctx.Emissive` (600 °C), soot +80 K, smoke +5 K, dust +20 K, marks +3 K over the air (`ctx.Heat`) |
+| the view | `SensorView.ApplyThermal`: the forcing once per sim day and place, the class °C each frame, auto gain from the coldest class to max(warmest + 2, clothing + 4) °C (fixed −10…50 °C when off), 480 sensor lines, sky = `SkyC`, no clouds or sun disc; legend *"THERMAL - lo .. hi C - air C - palette"* |
+| rails | `SensorViewFrameRail` TH-4 (a running engine's hot end 1.00 vs parked 0.60, ground 0.13; clear-night sky −17 °C vs air 8 °C), fire saturates (1.00, far unchanged), ALLOC (= normal frame; 🔴 seen red: `SimClock.Of` allocated a clock per unit per frame — now `TotalTimeOf`) |
+| ⏳ still open in CE-1985 | TH-5 ground heat marks drawn in thermal · the hover readout · the selected observer's outlines · roads (`TrafficLayer3D`) at asphalt (they read concrete) |
 
 ## 6. UML
 

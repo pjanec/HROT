@@ -27,6 +27,9 @@ namespace Fdp.Toolkit.Vis3D
         /// <inheritdoc/>
         public SceneSensor Sensor => Available ? Settings.Mode : SceneSensor.None;
 
+        /// <inheritdoc/>
+        public float AirC => Settings.AirC;
+
         /// <summary>False when the programs did not compile (logged once): the view then stays normal.</summary>
         public bool Available => !_failed;
 
@@ -49,7 +52,8 @@ namespace Fdp.Toolkit.Vis3D
         private IntPtr _window;
         private bool _failed, _loaded;
         private int _frame;
-        private int _blurDir, _blurTexel;
+        private int _blurDir, _blurTexel, _bMode, _bLevel, _bSpan;
+        private int _fLevel, _fSpan;
         private int _fHalo, _fMode, _fPalette, _fGain, _fNoise, _fSeed, _fLines, _fFlags, _fSize, _fTarget, _fMip;
 
         private const int GlReadFramebuffer = 0x8CA8, GlDrawFramebuffer = 0x8CA9, GlDepthBufferBit = 0x100;
@@ -81,6 +85,9 @@ namespace Fdp.Toolkit.Vis3D
             Raylib.BeginTextureMode(_q1);
             Raylib.ClearBackground(Color.Black);
             Raylib.BeginShaderMode(_bright);
+            SetInt(_bright, _bMode, (int)Settings.Mode);
+            SetFloat(_bright, _bLevel, Settings.LevelC);
+            SetFloat(_bright, _bSpan, MathF.Max(0.5f, Settings.SpanC));
             Raylib.DrawTexturePro(_scene.Texture, new Rectangle(0, 0, w, -h), new Rectangle(0, 0, qw, qh), Vector2.Zero, 0f, Color.White);
             Raylib.EndShaderMode();
             Raylib.EndTextureMode();
@@ -140,6 +147,8 @@ namespace Fdp.Toolkit.Vis3D
             SetInt(_final, _fFlags, (s.Halo ? 1 : 0) | (s.Vignette ? 2 : 0));
             SetVec2(_final, _fSize, new Vector2(w, h));
             SetFloat(_final, _fTarget, s.TargetMean);
+            SetFloat(_final, _fLevel, s.LevelC);
+            SetFloat(_final, _fSpan, MathF.Max(0.5f, s.SpanC));
             Raylib.DrawTexturePro(_scene.Texture, new Rectangle(0, 0, w, -h), new Rectangle(0, 0, w, h), Vector2.Zero, 0f, Color.White);
             Raylib.EndShaderMode();   // flushes the batch with unit 1 still bound
             Rlgl.ActiveTextureSlot(2);
@@ -213,6 +222,11 @@ namespace Fdp.Toolkit.Vis3D
                 return false;
             }
             _blurDir = Raylib.GetShaderLocation(_blur, "dir");
+            _bMode = Raylib.GetShaderLocation(_bright, "mode");
+            _bLevel = Raylib.GetShaderLocation(_bright, "levelC");
+            _bSpan = Raylib.GetShaderLocation(_bright, "spanC");
+            _fLevel = Raylib.GetShaderLocation(_final, "levelC");
+            _fSpan = Raylib.GetShaderLocation(_final, "spanC");
             _blurTexel = Raylib.GetShaderLocation(_blur, "texel");
             _fHalo = Raylib.GetShaderLocation(_final, "halo");
             _fMode = Raylib.GetShaderLocation(_final, "mode");
@@ -255,12 +269,20 @@ void main()
         // pass and the final pass.
         private const string Response = "const vec3 NV_RESPONSE = vec3(0.50, 0.40, 0.10);\n";
 
-        private const string BrightFragment = "#version 330\nin vec2 fragTexCoord;\nuniform sampler2D texture0;\nout vec4 finalColor;\n" + Response + @"
+        private const string Decode = "float decodeC(vec3 rgb) { return (rgb.r * 255.0 + rgb.g) / 255.0 * 160.0 - 40.0; }\n";
+
+        private const string BrightFragment = "#version 330\nin vec2 fragTexCoord;\nuniform sampler2D texture0;\nuniform int mode;\nuniform float levelC;\nuniform float spanC;\nout vec4 finalColor;\n" + Response + Decode + @"
 void main()
 {
     vec3 c = texture(texture0, fragTexCoord).rgb;
     float lum = dot(c, NV_RESPONSE);
     float bright = max(max(c.r, max(c.g, c.b)) - 0.88, 0.0) / 0.12;
+    if (mode == 2)   // thermal: the picture's value, and what is hotter than the span's top (a fire) blooms
+    {
+        float v = (decodeC(c) - levelC) / spanC;
+        lum = clamp(v, 0.0, 1.0);
+        bright = clamp(v - 1.0, 0.0, 1.0);
+    }
     // the light the tube's automatic gain feels: a self-luminous source is far brighter than the 8-bit scene can hold (a flash ~10³× the
     // moonlit ground), so its saturated pixels count ×10; stored /11 to stay in 0..1 (the final pass multiplies back)
     finalColor = vec4(vec3(bright), (lum + 10.0 * bright) / 11.0);
@@ -282,7 +304,7 @@ void main()
     finalColor = sum;
 }";
 
-        private const string FinalFragment = "#version 330\nin vec2 fragTexCoord;\nuniform sampler2D texture0;\nuniform sampler2D halo;\n" + Response + @"
+        private const string FinalFragment = "#version 330\nin vec2 fragTexCoord;\nuniform sampler2D texture0;\nuniform sampler2D halo;\nuniform float levelC;\nuniform float spanC;\n" + Response + Decode + @"
 uniform int mode;          // 1 night vision, 2 thermal
 uniform int palette;       // NV: 0 green P43, 1 white P45 · thermal: 0 white-hot, 1 black-hot, 2 ironbow
 uniform float gain;        // the host's gain (night vision: < 1 below the tube's floor)
@@ -332,7 +354,7 @@ void main()
         float abc = targetMean > 0.0 ? clamp(targetMean / max(mean, 0.01), 0.25, 6.0) : 1.0;   // off: unity gain
         v = lum * abc * gain + h.r * 1.4;
     }
-    else v = c.r;   // thermal (CE-1985): the scene pass writes the heat
+    else v = (decodeC(c) - levelC) / spanC + h.r * 0.8;   // ⭐ CE-1985 — thermal: the scene pass wrote the °C; the gain is the CPU's level / span
     if (noise > 0.0)
     {
         vec2 g = floor(uv * cell);
@@ -371,5 +393,7 @@ void main()
         public bool Vignette;
         /// <summary>The automatic gain's target mean luminance.</summary>
         public float TargetMean;
+        /// <summary>⭐ CE-1985 — thermal: the air's °C at the view, and the gain: the °C shown black (<see cref="LevelC"/>) and the range up to white.</summary>
+        public float AirC, LevelC, SpanC;
     }
 }
