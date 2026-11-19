@@ -24,6 +24,8 @@ def main():
     ap.add_argument("--merge", action="store_true", help="soldiers: merge each body's parts into one mesh")
     ap.add_argument("--fire", type=float, default=0.0, help="soldiers: each fires bursts at this many rounds/s (UHrotShotRenderer)")
     ap.add_argument("--all-niagara", action="store_true", help="--fire: the old way (every extra spawned per shot), for comparison")
+    ap.add_argument("--play", action="store_true", help="after the last step: measure again in Simulate, the people shown then hidden")
+    ap.add_argument("--play-variants", default=None, help="--play: comma list of always,rendered,uro,single — measured in one session")
     ap.add_argument("--impact-rate", type=float, default=None, help="--fire: impacts per second (UHrotShotRenderer.ImpactPerSecond)")
     ap.add_argument("--max-lights", type=int, default=None, help="--fire: flash lights at once")
     ap.add_argument("--only", choices=("smoke", "shell", "impact"), default=None, help="--fire: only this near extra (what each costs)")
@@ -38,7 +40,7 @@ def main():
            "views": [views[k] for k in ("street", "village-aerial") if k in views], "shots": fwd(a.shots),
            "out": fwd(os.path.join(folder, "crowd-result.json")), "measureSeconds": 10, "settleSeconds": 15, "minFreeGb": a.min_free_gb,
            "people": a.people, "merge": a.merge, "fire": a.fire, "allNiagara": a.all_niagara,
-           "impactPerSecond": a.impact_rate, "maxLights": a.max_lights,
+           "impactPerSecond": a.impact_rate, "play": a.play, "playVariants": a.play_variants.split(",") if a.play_variants else None, "maxLights": a.max_lights,
            **({"nearSmoke": a.only == "smoke", "nearShell": a.only == "shell", "impacts": a.only == "impact"} if a.only else {})}
     jp = os.path.join(folder, "crowd-job.json"); json.dump(job, open(jp, "w"), indent=1)
     if os.path.exists(job["out"]): os.remove(job["out"])

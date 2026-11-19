@@ -213,6 +213,10 @@ bool UHrotPersonState::ApplyAnimation()
 		&& M->GetAnimInstance()->IsA<UHrotPersonAnimInstance>()) return false;
 	M->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 	M->SetAnimInstanceClass(UHrotPersonAnimInstance::StaticClass());
+	// ⭐ a person off-screen does not animate (measured, 200 soldiers in play: always-tick +23 ms, tick-when-rendered +8–10 ms);
+	// distant people may update less often (URO). A contact sheet that poses people explicitly sets its own option.
+	M->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+	M->bEnableUpdateRateOptimizations = true;
 	return true;
 }
 
@@ -248,8 +252,27 @@ int32 UHrotPersonState::MergeBodyParts()
 	}
 	Leader->SetSkeletalMeshAsset(Merged);
 	ApplyAnimation();   // a new mesh re-initialises the anim instance
-	for (USkeletalMeshComponent* P : Parts) { P->SetVisibility(false); P->SetComponentTickEnabled(false); }
+	for (USkeletalMeshComponent* P : Parts) P->SetVisibility(false);
+	QuietOwner();
 	return Parts.Num();
+}
+
+int32 UHrotPersonState::QuietOwner()
+{
+	AActor* Owner = GetOwner();
+	if (!Owner) return 0;
+	Owner->SetActorTickEnabled(false);
+	USkeletalMeshComponent* Leader = FindLeader();
+	const UMeshComponent* WeaponComp = GetWeaponComponent();
+	TArray<USkeletalMeshComponent*> Meshes;
+	Owner->GetComponents<USkeletalMeshComponent>(Meshes);
+	int32 N = 0;
+	for (USkeletalMeshComponent* M : Meshes)
+	{
+		if (M == Leader || M == WeaponComp) continue;
+		if (!M->GetSkinnedAsset() || !M->IsVisible()) { M->SetComponentTickEnabled(false); ++N; }
+	}
+	return N;
 }
 
 UMeshComponent* UHrotPersonState::GetWeaponComponent() const
@@ -286,7 +309,7 @@ UMeshComponent* UHrotPersonState::ApplyWeapon()
 			K->SetAnimationMode(EAnimationMode::AnimationSingleNode);   // the weapon's own bones stay in their reference pose
 			// ⭐ its sockets ride on its bones (Lyra's Muzzle is on "Barrel"): bones never refreshed ⇒ the muzzle read beside the grip,
 			// pointing sideways (measured, live fire) — a weapon has a handful of bones, always refreshed
-			K->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+			K->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
 			C = K;
 		}
 		C->SetMobility(EComponentMobility::Movable);
@@ -299,7 +322,7 @@ UMeshComponent* UHrotPersonState::ApplyWeapon()
 	{
 		USkeletalMeshComponent* K = CastChecked<USkeletalMeshComponent>(C);
 		K->SetSkeletalMeshAsset(SK);
-		K->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // also on a copy made in play
+		K->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;   // also on a copy made in play
 		K->RefreshBoneTransforms();
 	}
 	C->SetVisibility(true);
@@ -319,6 +342,7 @@ void UHrotPersonState::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	ApplyAnimation();
 	ApplyWeapon();   // a body Blueprint rebuilt in play keeps the weapon in the hand
+	QuietOwner();    // play copies the components with their ticks on: the hidden parts and the actor stop here
 	bAppliedInPlay = true;
 	SetComponentTickEnabled(false);   // once: nothing per frame
 }

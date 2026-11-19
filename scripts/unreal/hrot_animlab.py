@@ -78,7 +78,7 @@ def attach_weapon(w, sk):
 
 def person(g, spec, x, y, row):
     """One state-driven person (hrot_person.PersonKit.make): base (stance + gait), upper (weapon + state), action, aim, weapon."""
-    made = S["kit"].make(spec.get("body"), (x, y, 0), float(spec.get("facing", 140)), f"{g['name']}_{spec['label']}", spec)
+    made = S["kit"].make(spec.get("body"), (x, y, 0), float(spec.get("facing", 140)), f"{g['name']}_{spec['label']}", spec, always_tick=True)
     if made is None:
         row.append({"want": spec["label"], "found": None}); return
     row.append({"want": spec["label"], "found": spec["label"]})

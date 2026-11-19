@@ -159,7 +159,7 @@ class PersonKit:
         state.apply_weapon()
 
     # ---- one person ------------------------------------------------------------------------------------------------------------
-    def make(self, body, loc, facing=0.0, label=None, state=None, folder=None):
+    def make(self, body, loc, facing=0.0, label=None, state=None, folder=None, always_tick=False):
         """Spawns a state-driven person at `loc` (feet), its mesh facing `facing` (yaw of +Y), with `state`:
         {"base", "upper", "action", "actionTime", "yaw", "pitch", "weapon", "timeOffset"} (clip NAMES, regex). → (actor, state, leader),
         or None when a clip is missing (the caller reports what).
@@ -188,7 +188,10 @@ class PersonKit:
         leader.set_animation_mode(unreal.AnimationMode.ANIMATION_BLUEPRINT)
         leader.set_anim_instance_class(unreal.HrotPersonAnimInstance.static_class())
         leader.set_update_animation_in_editor(True)
-        leader.set_editor_property("visibility_based_anim_tick_option", unreal.VisibilityBasedAnimTickOption.ALWAYS_TICK_POSE_AND_REFRESH_BONES)
+        # the product default is "only when rendered" (UHrotPersonState::ApplyAnimation, measured −15 ms for 200 soldiers); a
+        # contact sheet (the anim lab) passes always_tick=True: it shows rows one at a time and poses people off-screen
+        T = unreal.VisibilityBasedAnimTickOption
+        leader.set_editor_property("visibility_based_anim_tick_option", T.ALWAYS_TICK_POSE_AND_REFRESH_BONES if always_tick else T.ONLY_TICK_POSE_WHEN_RENDERED)
         ps = unreal.HrotTerrainLibrary.add_person_state(p)   # the STATE on the actor (persists)
         if ps is None: raise RuntimeError("cannot add HrotPersonState to " + str(label))
         setattr(ps, "base_anim", clips.get("base"))

@@ -178,7 +178,59 @@ def plan():
     for n in JOB["steps"]:
         q.append({"spawn": n})
         q += [{"view": v, "count": n} for v in JOB["views"]]
+    if JOB.get("play") and JOB.get("playVariants"):   # ⭐ what the soldiers' UPDATE costs: settings switched live, one Simulate session
+        street = [v for v in JOB["views"] if v["name"] == "street"] or JOB["views"][:1]
+        q.append({"play": "start"})
+        for var in JOB["playVariants"]:
+            q.append({"variant": var})
+            q += [{"view": v, "count": JOB["steps"][-1], "mode": "play: " + var} for v in street]
+        q.append({"play": "stop"})
+    elif JOB.get("play"):   # ⭐ PLAY MODE (Simulate): the engine runs as in the image generator; soldiers shown, then hidden (still animating)
+        q.append({"play": "start"})
+        q += [{"view": v, "count": JOB["steps"][-1], "mode": "play"} for v in JOB["views"]]
+        q.append({"hide": True})
+        q += [{"view": v, "count": JOB["steps"][-1], "mode": "play, hidden"} for v in JOB["views"]]
+        q.append({"play": "stop"})
     S["queue"] = q
+
+
+def apply_variant(var):
+    """always: tick + refresh bones even off-screen (the lab setting) · rendered: only when rendered · uro: + update-rate optimisation
+    (distant people update less often) · single: the engine's plain single-clip animation instead of UHrotPersonAnimInstance"""
+    T = unreal.VisibilityBasedAnimTickOption
+    opt = T.ALWAYS_TICK_POSE_AND_REFRESH_BONES if var == "always" else T.ONLY_TICK_POSE_WHEN_RENDERED
+    unreal.SystemLibrary.execute_console_command(None, "a.URO.ForceAnimRate " + ("8" if var == "uro8" else "0"))
+    n = 0
+    for a in S.get("play_crowd", []):
+        st = a.get_component_by_class(unreal.HrotPersonState)
+        lead = st.find_leader() if st else None
+        if not lead: continue
+        # ⚠ setattr, never set_editor_property: the edit notification REBUILDS the person (measured: its parts ticked again, +8 ms)
+        setattr(lead, "visibility_based_anim_tick_option", opt)
+        setattr(lead, "enable_update_rate_optimizations", var in ("uro", "uro8", "single"))
+        w = st.get_weapon_component()
+        if isinstance(w, unreal.SkeletalMeshComponent): setattr(w, "visibility_based_anim_tick_option", opt)
+        if var == "notick":   # nothing on the soldier ticks at all (the per-actor overhead, isolated)
+            if n == 0:
+                ticking = [f"{c.get_name()}({c.get_class().get_name()})" for c in a.get_components_by_class(unreal.ActorComponent) if c.is_component_tick_enabled()]
+                log(f"ticking on one soldier: actor tick {a.is_actor_tick_enabled()}; components {ticking}")
+            a.set_actor_tick_enabled(False)
+            for c in a.get_components_by_class(unreal.ActorComponent): c.set_component_tick_enabled(False)
+            a.set_actor_hidden_in_game(True)
+        if var == "hiddenquiet":   # neither drawn nor animated: what remains is the per-actor overhead
+            a.set_actor_hidden_in_game(True)
+        if var == "frozen":   # no animation at all: what remains is skinning, drawing, per-actor overhead
+            lead.set_component_tick_enabled(False)
+            if w: w.set_component_tick_enabled(False)
+        if var == "single":
+            clip = st.get_editor_property("base_anim")
+            lead.set_animation_mode(unreal.AnimationMode.ANIMATION_SINGLE_NODE); lead.play_animation(clip, True)
+        n += 1
+    log(f"play variant '{var}' on {n} people")
+
+
+def game_world():
+    return unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
 
 
 def measure_tick(dt):
@@ -190,6 +242,23 @@ def measure_tick(dt):
         return True
     if "spawn" in ph:
         spawn_up_to(ph["spawn"]); S["queue"].pop(0); return True
+    if "play" in ph:
+        if ph["play"] == "start":
+            if "t" not in ph:
+                LES().editor_play_simulate(); ph["t"] = time.time() + 8; return True
+            if time.time() < ph["t"]: return True
+            w = game_world()
+            S["play_crowd"] = [a for a in unreal.GameplayStatics.get_all_actors_of_class(w, unreal.Actor) if a.get_actor_label().startswith("Person_")] if w else []
+            log(f"play: Simulate running, {len(S['play_crowd'])} people in the game world")
+        else:
+            LES().editor_request_end_play(); log("play: ended")
+        S["queue"].pop(0); return True
+    if "variant" in ph:
+        apply_variant(ph["variant"]); S["queue"].pop(0); return True
+    if "hide" in ph:
+        for a in S.get("play_crowd", []): a.set_actor_hidden_in_game(True)
+        log(f"play: {len(S.get('play_crowd', []))} people hidden (still animating)")
+        S["queue"].pop(0); return True
     now = time.time()
     if "start" not in ph:
         camera(ph["view"])
@@ -199,7 +268,7 @@ def measure_tick(dt):
     if now < ph["settle_until"] + JOB.get("measureSeconds", 10):
         ph["dts"].append(dt); return True
     d = sorted(ph["dts"])
-    m = {"view": ph["view"]["name"], "people": ph["count"], "frames": len(d),
+    m = {"view": ph["view"]["name"], "people": ph["count"], "mode": ph.get("mode", "editor"), "frames": len(d),
          "msMean": round(1000 * sum(d) / max(len(d), 1), 2), "msMedian": round(1000 * d[len(d) // 2], 2) if d else None,
          "ms95": round(1000 * d[int(len(d) * 0.95)], 2) if d else None, "editorGB": round(proc_gb(), 2)}
     if S.get("fire_start") and S.get("crowd"):
@@ -209,10 +278,11 @@ def measure_tick(dt):
         S["fire_start"] = (time.time(), r.test_rounds_fired)
     R["measure"].append(m)
     json.dump(R, open(JOB["out"], "w", encoding="utf-8"), indent=1)   # partial results survive a stop
-    log(f"{m['view']} with {m['people']} people: {m['msMean']} ms mean, {m['ms95']} ms p95, editor {m['editorGB']} GB"
+    log(f"[{m['mode']}] {m['view']} with {m['people']} people: {m['msMean']} ms mean, {m['ms95']} ms p95, editor {m['editorGB']} GB"
         + (f"; {m['roundsPerSecond']} rounds/s, {m['liveFlashes']} flashes / {m['liveTracers']} tracers live" if 'roundsPerSecond' in m else ""))
     if ph["count"]:
-        path = os.path.join(JOB["shots"], f"crowd-{ph['count']}-{ph['view']['name']}.png").replace("\\", "/")
+        tag = ph.get("mode", "editor").replace(": ", "-").replace(", ", "-").replace(" ", "-")
+        path = os.path.join(JOB["shots"], f"crowd-{ph['count']}-{ph['view']['name']}-{tag}.png").replace("\\", "/")
         if os.path.exists(path): os.remove(path)
         unreal.AutomationLibrary.take_high_res_screenshot(1920, 1080, path)
         R["shots"].append(path)
