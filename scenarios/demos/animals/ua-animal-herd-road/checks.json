@@ -17,9 +17,9 @@
       "name": "the herd is on the lane",
       "on": "field",
       "who": "*Herd ",
-      "path": "AnimalState.Species",
+      "path": "TkbIdentity.TkbType",
       "op": "==",
-      "value": "Cattle",
+      "value": 700,
       "quantifier": "atLeast:4",
       "before": "the convoy panics the herd"
     },
@@ -27,9 +27,9 @@
       "name": "the convoy panics the herd",
       "on": "field",
       "who": "*Herd ",
-      "path": "AnimalState.FearBand",
+      "path": "Fear.Value",
       "op": ">=",
-      "value": 3,
+      "value": 0.75,
       "quantifier": "atLeast:3"
     },
     {

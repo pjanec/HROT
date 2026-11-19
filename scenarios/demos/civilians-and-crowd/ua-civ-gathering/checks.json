@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-5 (CE-2237) onlookers gather round a hurt man at (200,200). From the header's Judge (0)-(4): the Casualty is a Casualty, all onlookers are in Gather, all twelve arrive within 11 m (one near expectation each - near is any-of), none within 2.5 m (a ring, not a pile), a crowd of >= 8 (CrowdId != 0 - 'one crowd' needs equal ids, not comparable across units). NOT expressed: (2) 'mean distance < 15 m within 60 s' (a mean over units). The take has no cues.",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CV-5 (CE-2237) onlookers gather round a hurt man at (200,200). From the header's Judge (0)-(4): the Casualty is a Casualty, all onlookers are in Gather, all twelve arrive within 11 m (one near expectation each - near is any-of), none within 2.5 m (a ring, not a pile), a crowd of >= 8 (GroupMember.Group != null - 'one crowd' needs equal ids, not comparable across units). NOT expressed: (2) 'mean distance < 15 m within 60 s' (a mean over units). The take has no cues.",
   "runFor": 90,
   "golden": {
     "every": 10
@@ -24,12 +24,12 @@
       "after": "the hurt civilian is a Casualty"
     },
     {
-      "name": "a crowd holds at least eight of them (CrowdId set)",
+      "name": "a crowd holds at least eight of them (GroupMember.Group set)",
       "on": "field",
       "who": "*Onlooker",
-      "path": "CivilianState.CrowdId",
+      "path": "GroupMember.Group",
       "op": "!=",
-      "value": 0,
+      "value": "null",
       "quantifier": "atLeast:8"
     },
     {

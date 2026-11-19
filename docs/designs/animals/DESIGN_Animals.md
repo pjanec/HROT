@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: BUILT (backend + ui, `2026-11-16`) · ⭐ §4b AN-20 and §4c AN-21 BUILT (backend `2026-11-17`; as built §9b) — the looks are ui's
+build-state: BUILT (backend + ui, `2026-11-16`) · ⭐ §10 shared creature components BUILT (ui `2026-11-19`; as built §10b) · ⭐ §4b AN-20 and §4c AN-21 BUILT (backend `2026-11-17`; as built §9b) — the looks are ui's
 current-answer: §4 decisions (with §8's AR rows superseding) · §4a the fixed ids · §5 UML · ⭐ §6 the TASKS per lane and the shared contract (§6.1) · §8 the review
 stale-below: nothing
 known-rot: none
@@ -637,4 +637,19 @@ sequenceDiagram
 | the `Demeanour` → `Mood` translator | `SharedTranslatorPack` (unchanged) | every node | the ownership group stays Brain |
 | the `AnimalState` translator | unchanged; the wire drops `FearBand` and `Species` | every node | its wire type is its own (R-4295) |
 
+### 10b. ⭐ As built — the shared creature components *(ui worker, `2026-11-19`; ⭐ AS-BUILT folded here, obligation ⑤; the §10a plan above stands except where this says otherwise)*
+
+| as built | detail |
+|---|---|
+| ✅ the shared file | `FDP/Toolkits/Fdp.Toolkits/Creatures/CreatureComponents.cs`, namespace `Fdp.Toolkit.Creatures`: `Fear` (130), `Home` (134, was `AnimalHome`), `GroupMember` (133, was `HerdMember`; field `Herd` → `Group`), `Group` (**139**, NEW) + `GroupKind`, `Mood` (435, was `Demeanour`) + `Moods` (was `Demeanours`). Renames by Roslyn over stdio (a preview diff read for each); the constants `GlobalComponentIds.Home` / `.GroupMember` / `.Mood` follow. `AnimalTasks` (**163**, NEW) stays in `Fdp.Toolkit.Animals` |
+| ⚠ id 139 | the header of `GlobalComponentIds.cs` listed 139 as reserved for agg-behaviors (R-4276); no branch declares it (measured `2026-11-19`) and the plan took it — the header now says so; the lead confirms with agg-behaviors before the merge |
+| ✅ `CivilianMind` | `Ensure` / `SetMode` add the WHOLE mind in one call, each part with its final value: `CivilianState`, `Fear` (calm), `Home` (Centre = where he stands, no radius, no tether), `GroupMember` (no group). 📐 A deviation: `Ensure` on a unit that has `CivilianState` but lacks a shared part COMPLETES it (a partial mind is never left to a silent default); a part whose type is not registered on the node is skipped. `HasHome` / `Home` left `CivilianState` — the wander reads `Home.Centre` |
+| ✅ `CivilianState` | keeps `Anger, Attitude, Mode, Focus, HasFocus, Instigator, HostileActAt, ForceSeenUntil` (id 399) |
+| ✅ one fear system | `CivilianFearSystem` writes `Fear` for both kinds; an animal is told by `AnimalState` (a civilian also has `Fear`), its flight-zone schedule / intruder / handler / quarry / bolt are `AnimalTasks`. `FearBand` is no longer written (Mood is the lead's). `AnimalFear.PanicBandFear = 0.75` is band 3's own edge: `Band` and `PanicBreaks` share it |
+| ✅ species | `AnimalSpeciesOf.TryOf(world, e, out s)` / `TryOf(view, db, e, out s)`: the TKB type's `AnimalTemperamentDto.Species`, a per-type table built on the first ask. 📐 The table is **per TKB database instance** (a `ConditionalWeakTable` of `ConcurrentDictionary<long,int>`), not one global array: two databases (a test's, a node's) may give one type id two meanings; a memo of immutable data, so safe from the parallel phases. Readers moved: `MineTriggerSystem`, `BirdFlightModel`, `CivilianFearSystem` (×2), `HerdSystem.LinkToAreas`, `Animals.MayEngage`, `SoundSources` (an animal with no TKB type is skipped) |
+| ✅ groups | the herd entity carries `HerdState{NextGrazing, Mode, Species}` + `Group{Kind=Herd, Count, Centre, Lead}` (`AnimalAreaSystem` adds both; `HerdSystem` writes the header; `BrainReads` declares `Group`). A crowd entity carries `Crowd{MeanFear, MeanAnger, Focus, HasFocus, FormedAt}` + `Group{Kind=Crowd, Count, Centre, Lead=Null}`; `CrowdSystem` keeps its vote **per entity**, ties to the older crowd (`FormedAt`, then the entity index), writes a member's `GroupMember.Group` only on a change, and no longer exposes `EntityOf(id)` (the entity is the id) |
+| ✅ wire | `EntityAnimalState` keeps `FearBand` / `Species` (R-4295) — written 0, ignored on ingress; `EntityDemeanour` unchanged (`Mood`) |
+| ✅ attributes | the CE-4024 fright attributes (`Fear`, `FrightFrom.*`) now write the shared `Fear` (JSON path, binary installer, reader, vocabulary); the binary arm still applies only to a unit that already has `CivilianState` |
+| ✅ text paths | `checks.json`: `CivilianState.Fear` → `Fear.Value`, `CivilianState.HeardAt` → `Fear.HeardAt`, `CivilianState.CrowdId != 0` → `GroupMember.Group != "null"` (the dump writes a held entity as `"[i, vN]"`, none as `"null"`); animals: `AnimalState.FearBand >= 3 / 2` → `Fear.Value >= 0.75 / 0.4`, `AnimalState.Species == Cattle` → `TkbIdentity.TkbType == 700`. ⚠ `Fear` is brain-local: those animal rows read where the brains run (the editor tier) until the lead writes `Mood`. `VisibleState.Paths` `Demeanour` → `Mood`. Goldens NOT re-captured (the lead's). The composition snapshots' `Demeanour` row → `Creatures.Mood`; the scripts that read `CivilianState.Fear/HeardAt/CrowdId` merge `Fear` / `GroupMember` back under the old keys |
+| ⛔ HISTORY | §10 / §10a above name `HerdMember`, `AnimalHome`, `Demeanour`, `CivilianState.CrowdId` — those are the PRE-build names |
 

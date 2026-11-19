@@ -26,9 +26,9 @@
       "name": "the birdsong stops",
       "on": "field",
       "who": "Orchard birds",
-      "path": "AnimalState.FearBand",
+      "path": "Fear.Value",
       "op": ">=",
-      "value": 2,
+      "value": 0.4,
       "after": "the flock lifts off"
     },
     {

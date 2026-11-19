@@ -30,9 +30,9 @@
       "name": "the herd panics",
       "on": "field",
       "who": "*Pasture ",
-      "path": "AnimalState.FearBand",
+      "path": "Fear.Value",
       "op": ">=",
-      "value": 3,
+      "value": 0.75,
       "quantifier": "atLeast:3",
       "after": "the firefight starts"
     },

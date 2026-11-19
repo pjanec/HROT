@@ -14,7 +14,7 @@
       "name": "the gunfire frightens Ordered",
       "on": "field",
       "who": "Ordered",
-      "path": "CivilianState.Fear",
+      "path": "Fear.Value",
       "op": ">",
       "value": 0.3
     },
@@ -22,7 +22,7 @@
       "name": "the gunfire frightens Inert civilian",
       "on": "field",
       "who": "Inert civilian",
-      "path": "CivilianState.Fear",
+      "path": "Fear.Value",
       "op": ">",
       "value": 0.3
     },
