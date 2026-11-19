@@ -243,6 +243,7 @@ Queries: `search_graph name_pattern=".*(VisualFamily|ShapeKit|BirdKit|HorseKit|A
 | **C** | ⭐ as built: dark red — the TKB's own `#7A1F1F` wins (the default colour is the same red); the mockup's green body is superseded | the TKB is the truth |
 | **M** | ⭐ the 2-D symbol: FontAwesome `dragon` (U+F6D5) in the unit's colour, in the card's icon cell | the fun pack's style · ⛔ the helicopter glyph |
 | **S** | ⭐ sounds by `SoundSources` from sim state: the wingbeat whoosh on each down-stroke (the W phase), the roar on the breath's start / take-off / a Health drop / seeded in flight, the dying roar; synthesized placeholders (`SoundSynth`) until a file is named | the note · ⛔ the rotor fallback |
+| **S as built** *(`2026-11-19`, user: "Those sounds as in the design")* | ⭐ `SoundSources.Dragons` — a type whose own acoustic MOVING class is `Roar` (the TKB says so; never a type id): a **whoosh** (`DragonWhoosh` 7358, 400 m) at each down-stroke start of `DragonPoses`' sim-time beat, only while `DragonPoses.BeatTarget` says it beats (the look's own rule — the drawn blend is visual only); a **roar** (`DragonRoar` 7359, the TKB's 1.5 km) on take-off, a `Health` drop, a new breath (`FlameJets` burst) and a closed-form count in flight (about every 20 s, phase from its id), never two inside 3 s; a **dying roar** (`DragonDeathRoar` 7360) once. Synthesized placeholders (`SoundSynthesizer.DragonWhoosh` / `BeastRoar`) until a file is named. Its moving loop: none (the `Roar` class names no loop — gliding is silent, as the note asks: wind only) | ⛔ a roar LOOP · ⛔ the rotor fallback |
 
 ### 8.3 UML
 
@@ -275,7 +276,7 @@ classDiagram
   EntityBodyLayer3D --> TurretParts : the neck and head
   PossessionStation --> SeatSwitch : the eye
   SeatSwitch --> EntityBodyLayer3D : SwayOf(carrier)
-  SoundSources --> DragonPoses : the down-stroke
+  SoundSources --> DragonPoses : the down-stroke + BeatTarget
 ```
 *What the picture shows that prose hid:* nothing new draws the dragon — it is one more family through the same classifier, kit table, motion tracker and articulation the
 AH-64 and the horse use; the only new code is the dragon's pose curves (one pure class both the look and the sound read, so a whoosh lands on the drawn down-stroke).
@@ -302,6 +303,7 @@ sequenceDiagram
 | D-POSE | the neck yaws about its base with the aim, the head also nods, the body never turns |
 | D-WINGS | `DragonPoses` + `MotionTracker`: beats at 1 Hz slow / climbing, glides still at speed, no wing landed (legs walk), tucked in flight, frozen when paused; 0 B |
 | D-HEAVE | the bob: ±`HeaveM` opposite the wing stroke, steady gliding, none landed, held when paused, 0 B; in the frame rail the rider's eye on the drawn body minus the sim seat = the dragon's drawn bob |
+| AUDIO | `AudioTests.Dragon`: a whoosh per down-stroke while beating (on the stroke), none gliding / landed, no rotor; roars on take-off / hit / breath, the 3 s quiet window, one death roar; ~5 idle roars in 100 s aloft, none landed; the clips audible, whoosh < roar < death |
 | D-BREATH | the drawn mouth = `Muzzle.Posed` (the jet's origin) within 0.35 m over a grid of every aim the TKB allows |
 | D-FAMILY | type 411 classifies as `VisualFamily.Dragon`, its kit is the dragon's (not the AH-64's) |
 | D-FRAME | `DragonModelRail` — the mockup's states on a real frame (`dragon-*.png` to `HROT_RAIL_SHOTS`): landed with rider + pillion astride, bare landed, breathing (neck turned, head down), flying (two beat phases differ), gliding (still), dead |
