@@ -512,6 +512,36 @@ graph TD
 | the kinematics pass a jumper over a low barrier; the arc is the presentation's (ui AU-3 "the jump's tucked legs") | sim height stays on the ground; a jump arc in the sim would need a vertical state no animal has |
 | ⏳ the cat's SILL hop is NOT in AB-6 v1 | a sill is no navmesh polygon (a window ledge), so an off-mesh link has no far end; it is a perch for the brain — filed (L-A25) |
 
+
+### 10c. ⭐ `Mood` + `Gesture` → ONE replicated `Demeanour` *(user `2026-11-19`: "folding into gesture makes sense" · "yes, go with Demeanour"; `build-state: BUILDING`)*
+
+🔒 User: *"Do we need the mood for civilians? Isn't there a component where those things like the face could be added because that component is already
+replicated?"* — ⭐ yes: `Gesture` (CE-3224, `dtGesture` 143, Brain group) is already how a person visibly appears to others, and its own doc calls its idle
+kinds "his MOOD shown". The two records merge; the name is `Demeanour` (*"outward behaviour or bearing"* — the gesture he makes AND how he seems).
+
+```mermaid
+classDiagram
+    direction LR
+    class Demeanour { <<REPLICATED, id 435, dtDemeanour 153>> GestureKind Kind; CivilianMode Mode; byte Fear; byte Anger }
+    class Gestures { <<the gesture half's one writer>> Set(unit, kind) writes Kind only; Of(view, unit) }
+    class Demeanours { <<the mood half's one writer>> SetMood(unit, mode, fear, anger) writes Mode/Fear/Anger only, on a quarter change; Of(view, unit) }
+    class CrowdSystem { WriteMoods }
+    class Behaviours { the HSMs, escalation, idle }
+    Behaviours --> Gestures
+    CrowdSystem --> Demeanours
+    Gestures --> Demeanour : Kind
+    Demeanours --> Demeanour : Mode, Fear, Anger
+```
+
+*What it shows:* one replicated record, two writers that never touch each other's fields — the behaviour (parallel brain phase) writes the gesture, the
+serial crowd pass writes the mood; both on the brain node. Each ADDS the record with its final value when missing (the parallel rule).
+
+| | |
+|---|---|
+| retired | the `Gesture` component (id 143 constant kept as a BURNED note — a recording skips it), its wire `dtGesture` and translators; the `Mood` name |
+| kept | id 435, the wire `dtDemeanour` (153) + its translators, gaining `Kind`; the `Gestures` helper (the gesture half's API — its ~45 callers unchanged) |
+| readers | `Gesture.Kind` readers read `Demeanour.Kind`; the face, the mood dot, the mind gizmo read the mood half; the scenario `gesture` cue reads `Demeanour.Kind` |
+
 ## ⛔ HISTORY — the first slices (before the review), replaced by §6 — ⛔ do not quote
 
 ## 6. Slices *(each gated by the review §8 before it is built)*
