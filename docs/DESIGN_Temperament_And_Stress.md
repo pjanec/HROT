@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-19 (TS-6 CE-3462 D-6 — a cornered low-resolve man surrenders at once) · 2026-11-18
+updated: 2026-11-19 (§7.7 D-11 A — the break waits for his post) · 2026-11-19 (TS-6 CE-3462 D-6 — a cornered low-resolve man surrenders at once) · 2026-11-18
 build-state: BUILT 2026-10-24 — TS-A (CE-2269; TS-2 re-based on a TRAINED standard, R-2076, §7.4), TS-B (CE-2270), TS-C (CE-2271, as MODIFIERS — R-2075) and TS-D (CE-2272) (§7); the §6 demos §7.5 (ts-aggression and ts-three-defenders pass; ts-house-defenders waits on BC-5) APPROVED 2026-10-18 (R-2034), TS-6 and TS-8 included; traits MERGED into the existing CombatTemperament the same day (see HISTORY)
 current-answer: §1–§3 the diagrams · §4 decisions · §5 slices · §6 demos · ⭐ §7 AS BUILT (where it differs from §4, §7 wins)
 stale-below: ⛔ HISTORY — the first draft's NEW `Temperament` component with Aggression and Discipline; do not quote it.
@@ -309,6 +309,28 @@ squad's under-fire sense and a civilian's fear. ⚠ One edge per BURST per perso
 NOT the ring: 2 × that reaches 40–70 m for a mortar bomb; 2 × the blast injury radius (`Z_injury · W^⅓`) is ~10–15 m. Every person in
 the ring, either side (fire is fire); not the man the round struck (that is a hit), not a hull or equipment. Rail
 `AreaEffectSystemTests.CE4584_ABurst_IsANearMiss_Within2xItsInjuryRadius_AndFrightensACivilianTheSameWay`.
+
+### 7.7 D-11 A — a man moving to his ordered post breaks only there, or once his move stalls *(CE-4666, user-approved `2026-11-19`; behaviors, BUILT)*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Calm
+  Calm --> HeadingToPost: level at his break line, a superior's CombatPosture move running and carrying him
+  HeadingToPost --> Broken: arrived (the move answered) or stalled (under 0.3 m/s)
+  Calm --> Broken: level at his break line, no post move
+  HeadingToPost --> Calm: level back under the line
+  Broken --> [*]
+```
+*What the picture shows that prose hid:* the break is DEFERRED, never cancelled — his level is untouched, so a man still over his line on
+arrival breaks at his post, which is cover.
+
+| piece | as built |
+|---|---|
+| the deferral | `StressModel.JudgeCompute`: at his line, `HeadingToPost` ⇒ not judged broken. His post = the destination of his move while he runs a SUPERIOR's `CombatPosture` (`OrderedPost` — the squad's post order is `SquadManeuverRunner.Hold`); still getting there = the move `Running` and his speed ≥ `StalledMps` (0.3 m/s). Own components only (the parallel step) |
+| the retreat | `StressModel.PostRetreat`, tried before the cover search: a broken man's retreat point is first his ordered post when it is ≥ 3 m away and in cover (`InCover`) |
+| ⛔ not | a reaction's or his own SOP's move (only a superior's post order); an assault's `AdvanceTo` (not a post) |
+| rail | `StressSystemTests.D11A_AManMovingToHisOrderedPost_BreaksOnlyWhenThereOrStalled` (red-proved) |
+| 📌 why | `pc-corridor-fight`: Red's men broke at 11–15 s under fire from 160 m, 4–8 m short of covered posts, and lay in the open grass the whole first minute |
 
 ## ⛔ HISTORY
 

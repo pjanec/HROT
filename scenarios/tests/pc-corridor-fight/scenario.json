@@ -3,7 +3,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "wide-corridor",
-    "description": "What: CE-4672 (HANDOFF_Coordinator_To_Terrain_Street_Fight_Scenario + its STEER): the real-1 street fight rebuilt on wide-corridor — a straight OPEN grass corridor 30 m wide (y 185..215, centreline y 200) between detached two-storey family houses (enterable, front doors on the corridor; brick garden walls, fences and hedges at its edges). 'Red Platoon' (Hostile) runs PlatoonDefend with each line squad's post ON the centreline ('Red Squad 1' at x 400, 'Red Squad 2' at x 440, SearchRadius 10 — the report's setup; the nearest cover is ~14.5 m from a post, CE-4673) and 'Red Reserve' 40 m behind (x 480); 'Blue Platoon' (Friend, under 'Blue HQ') runs PlatoonAttack on (420,200) from 160 m down the corridor (x 240, three squads abreast). Behaviours unchanged, nothing scripted. Judge: the chain (Red defends, Blue attacks, both sides fire, no friendly hits) and what a REALISTIC fight looks like: Red's line is in cover (a cover point within 3 m) within its first minute; no Blue squad stands wholly in the open after 90 s; no squad stands bunched (every man within 2 m of the squad's centre) after 30 s; a dead man runs no behaviour. The realism rows are RED where the fight is still wrong — behaviors' targets (CE-4666…CE-4669); NOTE_Terrain_To_Behaviors_Corridor_Fight names them."
+    "description": "What: CE-4672 (HANDOFF_Coordinator_To_Terrain_Street_Fight_Scenario + its STEER): the real-1 street fight rebuilt on wide-corridor — a straight OPEN grass corridor 30 m wide (y 185..215, centreline y 200) between detached two-storey family houses (enterable, front doors on the corridor; brick garden walls, fences and hedges at its edges). 'Red Platoon' (Hostile) runs PlatoonDefend with each line squad's post ON the centreline ('Red Squad 1' at x 400, 'Red Squad 2' at x 440, SearchRadius 25 (was 10, the report's setup — at 10 the centreline posts find no cover: D-11, 2026-11-19); the nearest cover is ~14.5 m from a post, CE-4673) and 'Red Reserve' 40 m behind (x 480); 'Blue Platoon' (Friend, under 'Blue HQ') runs PlatoonAttack on (420,200) from 160 m down the corridor (x 240, three squads abreast). Behaviours unchanged, nothing scripted. Judge: the chain (Red defends, Blue attacks, both sides fire, no friendly hits) and what a REALISTIC fight looks like: Red's line is in cover (a cover point within 3 m) within its first minute; no Blue squad stands wholly in the open after 90 s; no squad stands bunched (every man within 2 m of the squad's centre) after 30 s; a dead man runs no behaviour. The realism rows are RED where the fight is still wrong — behaviors' targets (CE-4666…CE-4669); NOTE_Terrain_To_Behaviors_Corridor_Fight names them."
   },
   "entities": {
     "c4672000-0000-4000-8000-000000000100": {
@@ -47,7 +47,7 @@
                 200,
                 0
               ],
-              "SearchRadius": 10
+              "SearchRadius": 25
             },
             {
               "Squad": 2,
@@ -56,7 +56,7 @@
                 200,
                 0
               ],
-              "SearchRadius": 10
+              "SearchRadius": 25
             },
             {
               "Squad": 3,
@@ -66,7 +66,7 @@
                 200,
                 0
               ],
-              "SearchRadius": 10
+              "SearchRadius": 25
             }
           ]
         },

@@ -6,9 +6,26 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-12 · CE-4666 — while the base of fire gets SET, the assault and reserve squads have NO order: they stand idle in the open *(2026-11-19)*
+
+**Measured** (`pc-corridor-fight`, behaviors `88e055e88`, with D-11 and Red's `SearchRadius` 25): every Red and base-of-fire row now passes; the two
+red rows are Blue Squads 1 and 3 *"never wholly in the open after 90 s"*. 📐 Probe: at 60 s both squads' task is **nothing** — every man standing
+where the platoon's approach left him (x ≈ 236–242, the open corridor), until the support reports Set (~90 s) and `BoundingOverwatch` starts.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the support phase orders only the support squad | ✅ PlatoonAttack's `ASupport` (AT-4: the support `SquadDefend`s / `SupportByFire`); the assault's first order is AT-5's approach, after support Set | ⛔ searched Defend & Attack §8f (AT-1…AT-13) and Assault Under Fire §9: no row says what the assault and reserve do while they wait |
+| a waiting element takes cover | ✅ `SquadDefend` already posts a squad on cover round a point (`DefencePlan`) | ✅ doctrine (ATP 3-21.8): the assault element waits in a COVERED attack position while the support element sets |
+
+**DECIDED `2026-11-19` (user: "approved"): ①.** **🛠 BUILT `2026-11-19` (behaviors): `PlatoonAttack.OrderFor` in `ASupport` gives the assault and the reserve `SquadDefend` at their centre (`WaitRadius` 15 m), `Sector` draws their arc from there on the objective; Defend & Attack §8f AT-14. Rail `SquadManeuverTests.D12_*` red-proved; `CE4669_*` now counts relative to the wait order; squad + stress suites 380 / 0.** **My lean: ① in `ASupport`, the assault and reserve squads each `SquadDefend` where they stand** (their centre, `SearchRadius` 15, facing the
+objective) — the same order consolidation uses (AT-8), so each man takes a covered post; AT-5's approach replaces it at support Set (the
+one order writer, AT-12). Blast radius: every `PlatoonAttack` (its goldens move: the waiting squads now take cover instead of standing).
+- ② a fixed `TakeCover` per man: no shared sector, the men pick cover independently — a second way to post a squad (ruling 9).
+- ③ leave it and relax the check's window (*"after 120 s"*): hides the idle wait the check exists to catch.
+
 ## D-11 · CE-4666 — the street fight (`pc-corridor-fight`): Red's line breaks before it reaches its cover; Blue's base of fire bunches on one point. Two calls *(2026-11-19)*
 
-**DECIDED `2026-11-19` (user, via coordinator: "approved"): A ① — a man MOVING TO HIS ORDERED POST takes near misses as "go to cover" (his post is his cover); the break waits until he is there or his move has stalled; a broken man's retreat point is first his own post when it is behind cover · B ① — `SupportByFire`'s phase 0 places its men with the squad's own post planner (`SquadDefend`'s `DefencePlan`: a line across the line of fire at the support point, a cover search per post, a sector each) and fires from the posts. Defence and attack goldens move (a real behaviour change) — report the diff shape; `pc-corridor-fight` is the judge.**
+**🛠 BUILT `2026-11-19` (behaviors): A — `StressModel.HeadingToPost` defers the break while a superior's `CombatPosture` move carries him to his post (stalled < 0.3 m/s or arrived ⇒ he breaks), `PostRetreat` first; B — `SupportByFire` phase 0 posts its men with `DefencePlan` over a `SupportCrew` facing the reported posts (`IDefenceCrew.Facing`). Rails red-proved; scenarios being measured.** **DECIDED `2026-11-19` (user, via coordinator: "approved"): A ① — a man MOVING TO HIS ORDERED POST takes near misses as "go to cover" (his post is his cover); the break waits until he is there or his move has stalled; a broken man's retreat point is first his own post when it is behind cover · B ① — `SupportByFire`'s phase 0 places its men with the squad's own post planner (`SquadDefend`'s `DefencePlan`: a line across the line of fire at the support point, a cover search per post, a sector each) and fires from the posts. Defence and attack goldens move (a real behaviour change) — report the diff shape; `pc-corridor-fight` is the judge.**
 
 **Measured (terrain's `pc-corridor-fight`, CE-4672, stepped; reproduces terrain's verdicts):**
 1. Red's posts ON the corridor's centreline with `SearchRadius` 10 find no cover (terrain: the nearest is 13.5–16 m). With 25 the defence plan DOES post the men at the corridor's edge, on cover: (399, 185) · (385, 185) · (404, 181).

@@ -43,6 +43,9 @@ namespace Hrot.AI.Behaviors.Brains
         Entity Origin();
         /// <summary>The tier the window way is chosen by (D-2b, D-2j, D-2l).</summary>
         ProficiencyTier MedianTier();
+        /// <summary>⭐ D-11 B — the point the posts FACE (a sector plan: the window / roof / cover asks and the gun fan aim at it); false ⇒ an
+        /// all-round plan. A defence's is its engagement area (<see cref="EngagementAreas.TryAllowPoint"/>); a base of fire's, its reported posts.</summary>
+        bool Facing(out Vector3 at);
     }
 
     /// <summary>⭐ <c>CE-8303</c> (DP3-A) — the PHYSICAL squad's crew: its roster, exactly what <see cref="SquadDefendPlay"/> read before the
@@ -65,6 +68,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
         public bool Support(int i) => SquadRoles.CarriesSupportWeapon(SquadRoles.Of(_ctx.World, in _ctx.Roster, i));
         public Entity Origin() => SquadManeuverRunner.FirstLive(in _ctx);
+        public bool Facing(out Vector3 at) => EngagementAreas.TryAllowPoint(_ctx.World, _ctx.Commander, out at);
 
         /// <summary>⭐ D-2b (DA-6, DA-16, DA-42) — the squad's median live man's tier.</summary>
         public ProficiencyTier MedianTier()
@@ -117,6 +121,7 @@ namespace Hrot.AI.Behaviors.Brains
         public bool Support(int i) => _slots.Slots[i].Role == Fdp.Toolkit.Aggregate.SlotRole.MachineGunner;
         public Entity Origin() => _unit;
         public ProficiencyTier MedianTier() => ProficiencyOf.Tier(_world, _unit);
+        public bool Facing(out Vector3 at) => EngagementAreas.TryAllowPoint(_world, _unit, out at);
 
     }
 
@@ -142,7 +147,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool Step<TCrew>(ref DefencePosts posts, ref DefenceAsk ask, in TCrew crew, in AuthoredPosts authored, Vector3 position, float radius)
             where TCrew : struct, IDefenceCrew
         {
-            bool hasEa = EngagementAreas.TryAllowPoint(crew.World, crew.Carrier, out var ea);
+            bool hasEa = crew.Facing(out var ea);   // ⭐ D-11 B — the crew says where its posts face
             var from = crew.Origin();
             if (from.IsNull) return false;
             if (posts.AuthoredPlaced == 0)
