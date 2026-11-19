@@ -4,9 +4,8 @@
   "golden": {
     "every": 10
   },
-  "anchors": [
-    {
-      "name": "tow",
+  "anchors": {
+    "tow": {
       "on": "shot",
       "by": "Shooter",
       "at": "Tank",
@@ -14,7 +13,7 @@
         "weaponIndex": 1
       }
     }
-  ],
+  },
   "expect": [
     {
       "name": "the Bradley launches a TOW at the tank",
