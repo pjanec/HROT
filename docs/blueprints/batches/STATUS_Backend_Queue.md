@@ -10,7 +10,7 @@ Handoff: [`HANDOFF_Coordinator_To_Backend_Bug_Queue.md`](HANDOFF_Coordinator_To_
 Self-wake-up: ✅ the scheduled task `backend self-wake-up` (hourly, :58), created `2026-11-18 08:58 UTC`; its message is the §1a text verbatim (updated 12:04). ⛔ NEVER deleted (R-4292): on an empty queue it takes new HANDOFF/STEER/NOTE files addressed to backend and DECIDED answers in `DECISIONS_Backend.md` (a DECIDED answer is new work), else writes "idle — waiting for a handoff".
 
 ## 1. Now
-NEXT: CE-4670 VA-S1 waits for ui's `Hrot.Look` (LK-S1) ⇒ the T2 rows: **CE-2440**. ⭐ `2026-11-18`: ui's `Hrot.Look` EXISTS (NOTE_Ui_To_Backend_Hrot_Look_Exists) ⇒ VA-S1 ✅, CE-2450 ✅, then CE-2440 (not reproduced, `2026-11-19`), then **CE-3445**.
+NEXT: CE-4670 VA-S1 waits for ui's `Hrot.Look` (LK-S1) ⇒ the T2 rows: **CE-2440**. ⭐ `2026-11-18`: ui's `Hrot.Look` EXISTS (NOTE_Ui_To_Backend_Hrot_Look_Exists) ⇒ VA-S1 ✅, CE-2450 ✅, then CE-2440 (not reproduced, `2026-11-19`), then **CE-3445**, CE-2448, CE-3449, then (user `2026-11-19`) VA-S4 / VA-S5 / VA-S6 and CE-4674, then CE-3425 / CE-4395 / CE-3460 / CE-167. CE-4665 is parked — not backend's.
 
 ## 2. The queue (in order)
 | row | state | sha | rail | scenario |
@@ -39,6 +39,10 @@ NEXT: CE-4670 VA-S1 waits for ui's `Hrot.Look` (LK-S1) ⇒ the T2 rows: **CE-244
 | CE-2438 T2 paused-preview + run-to does not repeat | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-2448 T2 cp-vbied golden does not repeat | TODO | | | |
 | CE-3449 T2 five goldens differ from t = 0 | TODO | | | |
+| CE-4670 VA-S4 rotors and engines — derived, no new component ([handoff](HANDOFF_Coordinator_To_Backend_Vehicle_Appearance_2.md)) | TODO | | | |
+| CE-4670 VA-S5 smoke dischargers — the mount; NOTE to behaviors when it works | TODO | | | |
+| CE-4670 VA-S6 the remaining DIS rows (lights, openings, kill kind, detonation result) | TODO | | | |
+| CE-4674 a move failed for an unreachable target re-plans once when the navmesh version changes ([handoff](HANDOFF_Coordinator_To_Backend_Path_Retry.md)) | TODO | | | |
 | CE-3424 T2 scale-1: 1 of 12 movers moved | ➡ MOVED to terrain (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-3425 T2 scale-1 frame cost | TODO | | | |
 | CE-4395 T2 the brain's cost at 1 000 men | TODO | | | |
