@@ -282,6 +282,11 @@ path that does NOT pass through it is the film capture (red, dashed): a film fra
 
 ## 7. How it is judged — the machine checks *(R-4277)*
 
+⭐ **As built `2026-11-19` (ui):** `sv-night-and-heat` BUILT on basic-desert (no road / pond / house there — those are the FRAME rails' business): an idling tank, a
+parked cold one, a crewed HMMWV with its lamps on, a standing man, a hostile T-72 a friendly M1 kills (its hull burns), and a tank that idles 75 s and drives off (its heat
+mark, the cell record's network id 1013, measured — the M1's rounds take ids before it). Everything but the target is Neutral, so the M1 shoots only it. 9 expect rows +
+the golden (re-run: *same*); red-proof: the parked tank authored Idle ⇒ *"the parked tank never warms"* fails. The views themselves are judged by `SensorViewFrameRail` (§5d, §5e).
+
 ⭐ A view changes no simulation ⇒ its judge is the **frame rails** (`xvfb-run -a`, region brightness read back from a rendered frame) over one scene,
 `scenarios/demos/sensing-and-weather/sv-night-and-heat` (the mockup's scene: road, field, pond, house, trees, an idling tank, a parked cold tank, a car with its
 lamps on, a man, a burning wreck, a ground heat mark), whose `checks.json` pins the SIM half (the tank idles, the car's lamps on at night, the wreck burns).
