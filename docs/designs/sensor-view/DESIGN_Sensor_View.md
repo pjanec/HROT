@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-19
 build-state: READY-TO-BUILD
-current-answer: §3 the decisions · §4 night vision · §5 thermal · §6 UML · §8 slices · §9 light sources (seen + cheap lighting) · §10 the F4 cycle
+current-answer: §3 the decisions · §4 night vision · §5 thermal (as built §5d + §5e) · §6 UML · §8 slices · §9 light sources (seen + cheap lighting) · §10 the F4 cycle
 stale-below: nothing yet
 known-rot: D-4's "they light nothing" is SUPERSEDED by R-1057 (§9): sources may light their surroundings, cheaply, except in thermal
 known-conflict: none
@@ -194,7 +194,24 @@ palette, the sensor resolution and the noise; its bright pass uses "T above the 
 | effects | hot parts `ctx.Emissive` (600 °C), soot +80 K, smoke +5 K, dust +20 K, marks +3 K over the air (`ctx.Heat`) |
 | the view | `SensorView.ApplyThermal`: the forcing once per sim day and place, the class °C each frame, auto gain from the coldest class to max(warmest + 2, clothing + 4) °C (fixed −10…50 °C when off), 480 sensor lines, sky = `SkyC`, no clouds or sun disc; legend *"THERMAL - lo .. hi C - air C - palette"* |
 | rails | `SensorViewFrameRail` TH-4 (a running engine's hot end 1.00 vs parked 0.60, ground 0.13; clear-night sky −17 °C vs air 8 °C), fire saturates (1.00, far unchanged), ALLOC (= normal frame; 🔴 seen red: `SimClock.Of` allocated a clock per unit per frame — now `TotalTimeOf`) |
-| ⏳ still open in CE-1985 | TH-5 ground heat marks drawn in thermal · the hover readout · the selected observer's outlines · roads (`TrafficLayer3D`) at asphalt (they read concrete) |
+| ⏳ still open in CE-1985 | ⛔ SUPERSEDED by §5e (part 2 built them all) — was: TH-5 marks · hover readout · observer outlines · roads at asphalt |
+
+### 5e. As built — SV-2 part 2 *(CE-1985, ui, `2026-11-19`)*
+
+| piece | as built |
+|---|---|
+| TH-5 ground heat marks | `EffectLayer.DrawHeatMarks3D` (thermal pass only): every mark's rise = `ThermalDriversOps.MarkWarmth` × K (stand 15, burned area 30, body imprint 6), drawn ADDITIVELY in the linear code (`LitShader.EncodeDeltaK`) ⇒ it reads **the surface under it + the rise** on grass, soil or asphalt alike, with no class lookup (⚠ the low byte has no carry: < 0.63 K lost when it overflows). A stand's hot third (`HotEnd`) gets the rest of the rise on top; depth WRITES are off while marks draw (📐 measured: the hot third lies exactly on its stand, and a written depth rejected it — front = rear). The scorch decal of a burned area is not drawn in thermal — its warmth is this pass's. Marks are read from the state resolve's query, weather by `WeatherField.GlobalOf`, 0 B |
+| the spot meter (D-10 hover readout) | `SensorPostProcess.ProbePixel` → after the scene pass the texel under it is copied into a **1×1 target** and read back (`Probed`, `HasProbed`): the °C the scene was drawn at, before gain, palette and noise. One pixel's stall, raylib's native image ⇒ 0 managed bytes, so it runs every thermal frame while the pointer is over the map. `SensorView.Update` sets it from `Pointer` (wired in `AttachMapLayers`: null while a panel holds the mouse); `DrawOverlay` draws a ring and *"23.4 C"* beside the pointer (text rebuilt per 0.1 K), `SpotC` holds it |
+| ⭐ the unit readout (mockup row C's tooltip) | over a UNIT (the 3-D pick, entities only, resolved by `NetworkIdResolver.ResolveNetworkId`) the spot meter gives way to three lines, as the mockup draws them: *"name - 36.1 C (front 74 C)"* · *"engine running for 30 min - barrel 41 C - no fire"* (the drivers the AI's sensor reads: `UnitThermalDrivers.Of`) · *"signature 0.52 >= observer 0.30: SEEN (outlined)"* (or *not seen*, *beyond the observer's N m thermal range*, *select a unit with a thermal sensor to compare*) — compared against the same eye the outlines used this frame. Rebuilt only when a shown value changes (0.1 K, a minute, 0.01 of signature) |
+| the observer's outlines (D-10) | the PRIMARY-selected unit's thermal sensor — on the unit, or its first thermal sensor PART (`SensorTag` + `PartMetadata` parent, how a TKB unit carries sensors) — through `ThermalPerception.TryEyeOf` (MinSignature, weather-capped range, crossover contrast); every `ThermalState` unit within range whose `ThermalPerception.SignatureOf` `Reaches` the minimum gets corner brackets round its projected body box (`EntityBodyLayer3D.TryGetBox`), drawn after the post. ⭐ **The rule is the AI sensor's own**: `SignatureOf` / `Reaches` were extracted from `SignatureFilterTest`, which now calls them (⛔ no copy in the view). ⚠ Range and signature only — no field of view, no line of sight: *"hot enough for this sensor"*, not *"seen now"* |
+| roads at asphalt | `TrafficLayer3D`: in the thermal pass the SUMO road mesh draws as class **asphalt**, its ambient ground as **grass**, then the default class back (sidewalks, markings and crosswalks ride the road mesh — asphalt too, accepted) |
+| rails | `SensorViewFrameRail` TH-5 (stand ⇒ warmer, hot end warmest, gone once cold, far ground unchanged) · the spot meter (on a stand's hot end it reads the bare ground + exactly `MarkWarmth` × 15, ± one code step — the probe and the additive code checked against each other; near the top it reads the cold sky — a mirrored probe would read ground) · the outlines + readout (a running truck bracketed, its readout *engine running for 30 min … SEEN (outlined)*; the same truck parked two hours not bracketed) · TH-1 roads (a road pixel reads asphalt's apparent °C, not concrete's) · ALLOC unchanged |
+
+| ⛔ deviation from §6 — and why | |
+|---|---|
+| no `SensorLegendLayer`: the legend, the spot meter and the outlines are `SensorView.DrawOverlay` | one layer already owns the mode and the post; a second layer would only read it back. §6's class diagram is updated |
+| over the ground the hover readout is the SCENE's °C at the pixel (a GPU read of one texel), not a CPU model of what is under the pointer | it answers what the picture shows, including marks, smoke and every draw nobody adapted; D-8's "no read-back" is about the GAIN, which still reads none. Over a unit it is the mockup's tooltip, computed (the drivers cannot be read from pixels) |
+| the readout's text says "C", not "°C"; separators are " - " | the map's overlays draw with raylib's default font, which has neither "°" nor "·" (the legend strip already does the same, SV-1) |
 
 ## 6. UML
 
@@ -206,7 +223,8 @@ classDiagram
   class SensorPostProcess { <<NEW, FDP Vis3D>> RenderTexture scene; Shader post; Settings; one ¼-size target for the halo }
   class LitShader { <<existing>> +SetSensor(mode, uniforms) }
   class SensorView { <<NEW, Hrot.Presentation Map3D>> Mode; Settings; Update(world, sample); Gain; Legend }
-  class SensorLegendLayer { <<NEW, IMapLayer>> DrawOverlay: legend, hover readout, outlines }
+  class SensorView_Overlay { <<AS-BUILT: SensorView.DrawOverlay>> legend · spot meter (Post.ProbePixel → Probed) · observer outlines }
+  class ThermalPerception { <<existing, the AI sensor>> SignatureOf() Reaches() TryEyeOf() — extracted, shared }
   class WeatherSkyLayer { <<existing>> _sample }
   class EntityBodyLayer3D { <<existing>> _lightsNow; +unit colour in sensor mode }
   class EffectLayer { <<existing>> resolved fires · jets · flashes }
@@ -225,7 +243,9 @@ classDiagram
   ThermalScene --> ThermalDriversOps
   EntityBodyLayer3D --> SensorView : reads the mode
   EffectLayer --> SensorView : reads the mode
-  SensorLegendLayer --> SensorView
+  SensorView_Overlay --> SensorView
+  SensorView_Overlay --> ThermalPerception : the outlines' rule (one rule)
+  SensorView_Overlay --> SensorPostProcess : the 1×1 probe
 ```
 *What the picture shows that prose hid:* FDP owns only the generic seam (`IScenePostProcess`, the post shader) and the shader switch; everything that knows
 about weather, units, lamps and fires is on the Hrot side, reading data that already exists — the only new state is the view's mode and settings.
@@ -248,7 +268,7 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-  AML["AttachMapLayers (every 3-D map host: editor, player, IG, replay)"] -->|registers| SV2["SensorView + SensorLegendLayer"]
+  AML["AttachMapLayers (every 3-D map host: editor, player, IG, replay)"] -->|registers| SV2["SensorView (legend, spot meter, outlines)"]
   AML -->|sets| PPS["canvas.PostProcess = SensorPostProcess"]
   MENU["View ▸ Sensor View (shared action registry)"] -->|event| SV2
   HTTP["GET/POST /view/sensor"] --> SV2

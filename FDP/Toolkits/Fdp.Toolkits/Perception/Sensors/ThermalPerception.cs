@@ -37,6 +37,34 @@ namespace Fdp.Toolkit.Perception.Sensors
         public static void Register(EqsTemplateRegistry registry, SpatialHashGrid grid, ILosStrategy sight)
             => registry.Register(AssetGuid, Template(grid, sight), "Thermal");
 
+        /// <summary>
+        /// ⭐ <c>CE-1985</c> (docs/designs/sensor-view/DESIGN_Sensor_View.md D-10) — THE thermal detection rule, shared by the sensor's
+        /// <see cref="SignatureFilterTest"/> and the 3-D map's thermal view (its outlines of what the selected observer can see): a target's signature, 0..1 —
+        /// its passive base dimmed by the crossover <paramref name="contrast"/> (<see cref="PerceptionWeather.BaseContrast"/>) plus its heat
+        /// (<see cref="HeatOf"/>) over the rest. ⛔ One rule, never a copy in the view.
+        /// </summary>
+        public static float SignatureOf(ISimulationView view, Entity target, in ThermalState ts, float contrast, double now, bool sources = true, bool fires = true)
+            => ts.BaseSignature * contrast + SignatureFilterTest.HeatOf(view, target, in ts, now, sources, fires) * (1f - ts.BaseSignature);
+
+        /// <summary>Whether a <paramref name="signature"/> reaches a sensor's <paramref name="minSignature"/> (a zero signature never does).</summary>
+        public static bool Reaches(float signature, float minSignature) => signature >= minSignature && signature > 0f;
+
+        /// <summary>⭐ <c>CE-1985</c> — what a thermal <paramref name="sensor"/> (a unit's sensor part, or the unit itself) looks with: its <c>MinSignature</c>, its range
+        /// (weather-capped at <paramref name="unit"/>, as <see cref="Optics"/>) and the crossover contrast there. False when it is not a thermal sensor.</summary>
+        public static bool TryEyeOf(ISimulationView view, Entity sensor, Entity unit, out float minSignature, out float range, out float contrast)
+        {
+            minSignature = 0f; range = 0f; contrast = 1f;
+            if (!view.HasManagedComponent<SensorCapability>(sensor) || view.GetManagedComponentRO<SensorCapability>(sensor).Current.Thermal is not { } th) return false;
+            minSignature = th.MinSignature;
+            range = th.Range;
+            if (PerceptionWeather.TrySample(view, unit, out var weather))
+            {
+                range = PerceptionWeather.ThermalRange(range, in weather);
+                contrast = PerceptionWeather.BaseContrast(in weather);
+            }
+            return range > 0f;
+        }
+
         /// <summary>The (range, FOV cosine) a thermal sensor looks with — its current thermal parameters.</summary>
         internal static bool Optics(ISimulationView view, Entity sensor, Entity unit, out float range, out float fovCos)
         {
@@ -84,8 +112,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                 if (view.IsAlive(target) && view.HasComponent<ThermalState>(target))
                 {
                     ref readonly var ts = ref view.GetComponentRO<ThermalState>(target);
-                    float signature = ts.BaseSignature * contrast + HeatOf(view, target, in ts, now, sources, fires) * (1f - ts.BaseSignature);
-                    hot = signature >= min && signature > 0f;
+                    hot = ThermalPerception.Reaches(ThermalPerception.SignatureOf(view, target, in ts, contrast, now, sources, fires), min);
                 }
                 if (!hot) c.EntityId = -1;
             }

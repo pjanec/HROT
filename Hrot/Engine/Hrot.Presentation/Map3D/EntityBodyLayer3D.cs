@@ -2307,6 +2307,17 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// by its reference point (ground centre, or the TKB box offset for a CG-referenced body). False for a unit (no body).
     /// </summary>
     public bool TryGetBox(EntityRepository world, Entity e, ITkbDatabase? tkb, out Vector3 centre, out Quaternion rotation, out Vector3 half)
+        => TryGetBoxCore(world, e, tkb, out centre, out rotation, out half);
+
+    /// <summary>⭐ CE-1985 — the TKB type name of what this layer draws for <paramref name="e"/> (e.g. a hover readout's fallback when the unit has no name); null when unknown.</summary>
+    public string? TypeNameOf(EntityRepository world, Entity e)
+        => world.HasComponent<TkbIdentity>(e) && _tkb() is { } tkb && tkb.TryGetByType((long)world.GetComponentRO<TkbIdentity>(e).TkbType, out var t) ? t.Name : null;
+
+    /// <summary>⭐ CE-1985 — <see cref="TryGetBox"/> with the TKB this layer draws from (a screen-space overlay outlining a body, e.g. the thermal view's).</summary>
+    public bool TryGetBox(EntityRepository world, Entity e, out Vector3 centre, out Quaternion rotation, out Vector3 half)
+        => TryGetBoxCore(world, e, _tkb(), out centre, out rotation, out half);
+
+    private bool TryGetBoxCore(EntityRepository world, Entity e, ITkbDatabase? tkb, out Vector3 centre, out Quaternion rotation, out Vector3 half)
     {
         centre = default; rotation = Quaternion.Identity; half = default;
         if (!world.HasComponent<TkbIdentity>(e) || !world.HasComponent<SimTransform>(e)) return false;

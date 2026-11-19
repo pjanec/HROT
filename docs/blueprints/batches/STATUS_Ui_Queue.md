@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-working — CE-1985 the thermal view (SV-2), then CE-1990 scene lights and CE-1991 the cigarette ember (R-1057, user-approved `2026-11-19`); last: CE-1984 night vision + CE-1989 F4 DONE `2026-11-19`.
+working — CE-1985 the thermal view (SV-2): part 2 BUILT `2026-11-19` (heat marks TH-5, the spot meter + unit readout, the observer's outlines, roads as asphalt — DESIGN_Sensor_View §5e); left: the `sv-night-and-heat` scenario. Then CE-1990 scene lights and CE-1991 the cigarette ember (R-1057, user-approved `2026-11-19`); last: CE-1984 night vision + CE-1989 F4 DONE `2026-11-19`.
 
 ## 2. The queue (in order)
 

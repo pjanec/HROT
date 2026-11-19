@@ -96,8 +96,25 @@ public sealed class SensorView : IMapLayer
     public string Name => "Sensor view";
     public int LayerBitIndex => -1;
 
+    // ── ⭐ CE-1985 (D-10) — the debugging aids of the thermal view: the spot meter under the pointer, the selected observer's outlines ──────────────
+
+    /// <summary>The map pointer in the canvas' pixels, or null when the pointer is not over the map (a panel holds it). Wired by <c>AttachMapLayers</c>.</summary>
+    public Func<Vector2?>? Pointer { get; set; }
+    /// <summary>The world the outlines read (the selected observer, the targets). Wired by <c>AttachMapLayers</c>.</summary>
+    public Func<EntityRepository?>? World { get; set; }
+    /// <summary>The body layer whose boxes the outlines frame (what a 3-D click hits). Wired by <c>AttachMapLayers</c>.</summary>
+    public EntityBodyLayer3D? Bodies { get; set; }
+
+    /// <summary>The °C the scene was drawn at under the pointer the last thermal frame (the spot meter); NaN when none.</summary>
+    public float SpotC { get; private set; } = float.NaN;
+    /// <summary>The selected observer the outlines were drawn for the last frame (<see cref="Entity.Null"/>: none, or it has no thermal sensor).</summary>
+    public Entity Observer { get; private set; } = Entity.Null;
+    /// <summary>Units outlined the last frame: their signature reaches the observer's <c>MinSignature</c> within its thermal range.</summary>
+    public int OutlinesDrawn { get; private set; }
+
     public void Update(float dt)
     {
+        Post.ProbePixel = Mode == SceneSensor.Thermal && Pointer?.Invoke() is { } p ? p : null;   // ⭐ CE-1985 — the spot meter, read back by the next frame's post
         if (_keys.Pressed(SensorViewKeys.Next)) Next();   // ⭐ CE-1989 — F4, on the map and in first person
         if (_bus == null) return;
         foreach (ref readonly var e in _bus.Read<SensorViewMenuEvent>())
@@ -286,6 +303,209 @@ public sealed class SensorView : IMapLayer
         Raylib.DrawRectangle(x, y, w, fs + 12, new Color((byte)16, (byte)16, (byte)20, (byte)225));
         Raylib.DrawRectangleLines(x, y, w, fs + 12, new Color((byte)58, (byte)58, (byte)68, (byte)255));
         Raylib.DrawText(_legend, x + 12, y + 6, fs, new Color((byte)200, (byte)200, (byte)208, (byte)255));
+        if (Mode == SceneSensor.Thermal)
+        {
+            DrawOutlines();
+            DrawSpotMeter();
+        }
+        else { SpotC = float.NaN; OutlinesDrawn = 0; Observer = Entity.Null; }
+    }
+
+    private string _spot = "";
+    private int _kSpot = int.MinValue;
+    private Fdp.Core.EntityQuery? _selQuery, _heatQuery, _sensorQuery;
+    private EntityRepository? _queryWorld;
+
+    /// <summary>Outline colour: the observer can see this unit by its heat.</summary>
+    public static readonly Color OutlineColour = new((byte)255, (byte)170, (byte)40, (byte)255);
+
+    /// <summary>⭐ CE-1985 (D-10) — the spot meter: the °C the scene was drawn at under the pointer (before gain, palette and noise), beside the pointer.
+    /// The text is rebuilt only when the tenth of a degree changes (0 B per steady frame).</summary>
+    private void DrawSpotMeter()
+    {
+        SpotC = Post.HasProbed ? LitShader.DecodeC(Post.Probed) : float.NaN;
+        HoveredUnit = Entity.Null;
+        if (Pointer?.Invoke() is not { } p) return;
+        if (DrawUnitReadout(p)) return;   // over a unit: its temperature and WHY (the mockup's C row)
+        if (float.IsNaN(SpotC)) return;
+        int k = (int)MathF.Round(SpotC * 10f);
+        if (k != _kSpot) { _kSpot = k; _spot = (k / 10f).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " C"; }
+        int fs = 14, w = Raylib.MeasureText(_spot, fs) + 10;
+        int x = (int)p.X + 14, y = (int)p.Y + 12;
+        Raylib.DrawRectangle(x, y, w, fs + 6, new Color((byte)16, (byte)16, (byte)20, (byte)225));
+        Raylib.DrawText(_spot, x + 5, y + 3, fs, new Color((byte)240, (byte)240, (byte)240, (byte)255));
+        Raylib.DrawCircleLines((int)p.X, (int)p.Y, 4f, new Color((byte)240, (byte)240, (byte)240, (byte)255));
+    }
+
+    /// <summary>The unit under the pointer the last thermal frame (its readout was drawn); <see cref="Entity.Null"/> otherwise.</summary>
+    public Entity HoveredUnit { get; private set; } = Entity.Null;
+    /// <summary>The unit readout's three lines as last drawn (rails; rebuilt only when a shown value changes).</summary>
+    public string ReadoutName => _r1;
+    public string ReadoutDrivers => _r2;
+    public string ReadoutSignature => _r3;
+    private string _r1 = "", _r2 = "", _r3 = "";
+    /// <summary>Where the unit readout was drawn the last frame (screen pixels; rails).</summary>
+    public Rectangle ReadoutBox { get; private set; }
+    private int _kReadout = int.MinValue;
+
+    /// <summary>
+    /// ⭐ CE-1985 (D-10; mockup <c>docs/UX/sensor-view.svg</c> row C — the hover readout) — over a unit with thermal data: its name, its surface °C and its hot
+    /// end's (front / rear), the DRIVERS the AI's sensor reads (the engine or body state and for how long, the barrel, a fire), and its signature against the
+    /// selected observer's threshold — SEEN (outlined) or not, or beyond its range. The unit is the 3-D pick under the pointer (entities only). The text is
+    /// rebuilt only when a shown value changes (a tenth of a degree, a minute, a hundredth of signature) — 0 B in a steady frame.
+    /// </summary>
+    private bool DrawUnitReadout(Vector2 p)
+    {
+        if (World?.Invoke() is not { } world || !world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.ThermalState>()) return false;
+        var hit = _view.Camera3D.Pick(p, PickFilter.Entities);
+        if (hit.Kind != PickKind.Entity || hit.NetworkId <= 0) return false;
+        var e = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveNetworkId(world, hit.NetworkId);
+        if (e.IsNull || !world.HasComponent<Fdp.Toolkit.Perception.Signatures.ThermalState>(e)) return false;
+        HoveredUnit = e;
+        ref readonly var ts = ref world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(e);
+        double now = Fdp.Toolkit.Time.SimClock.TotalTimeOf(world);
+        var (bodyC, hotC, hotSign) = UnitHeat(world, e);
+        var d = Fdp.Toolkit.Perception.Sensors.UnitThermalDrivers.Of(world, e, in ts, now,
+            world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.HeatSource>(), world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>());
+        bool observed = !_eyeObserver.IsNull && _eyeObserver == Observer;
+        float contrast = observed ? _eyeContrast
+            : Fdp.Toolkit.Perception.Sensors.PerceptionWeather.TrySample(world, e, out var w) ? Fdp.Toolkit.Perception.Sensors.PerceptionWeather.BaseContrast(in w) : 1f;
+        float sig = Fdp.Toolkit.Perception.Sensors.ThermalPerception.SignatureOf(world, e, in ts, contrast, now);
+        bool inRange = observed && world.HasComponent<SimTransform>(e)
+                       && Vector3.DistanceSquared(world.GetComponentRO<SimTransform>(e).Position, _eyeAt) <= _eyeRange * _eyeRange;
+        int minutes = d.HasSource ? (int)((now - d.Source.Since.Seconds) / 60.0) : -1;
+        int key = HashCode.Combine(e.Index, (int)MathF.Round(bodyC * 10f), (int)MathF.Round(hotC), hotSign,
+                                   HashCode.Combine(d.HasSource ? (int)d.Source.State : -1, minutes, (int)MathF.Round(d.Barrel01 * 120f), d.Fire01 > 0f),
+                                   (int)MathF.Round(sig * 100f), observed ? _eyeObserver.Index : -1, HashCode.Combine(inRange, (int)MathF.Round(_eyeMin * 100f)));
+        if (key != _kReadout)
+        {
+            _kReadout = key;
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            string name = Fdp.Toolkit.Squad.Command.CommandReportText.UnitName(world, e) is { Length: > 0 } n ? n
+                        : Bodies?.TypeNameOf(world, e) is { Length: > 0 } tn ? tn : "#" + e.Index.ToString(inv);   // the scenario's name, else its type (the mockup's "T-72")
+            _r1 = $"{name}  -  {bodyC.ToString("0.0", inv)} C" + (hotSign != 0 ? $"  ({(hotSign > 0 ? "front" : "rear")} {hotC.ToString("0", inv)} C)" : "");
+            string source = !d.HasSource ? "no heat source"
+                : d.Source.State switch
+                {
+                    Fdp.Toolkit.Perception.Signatures.HeatSourceState.Off => "engine off",
+                    Fdp.Toolkit.Perception.Signatures.HeatSourceState.Idle => "engine idle",
+                    Fdp.Toolkit.Perception.Signatures.HeatSourceState.Running => "engine running",
+                    Fdp.Toolkit.Perception.Signatures.HeatSourceState.Dead => "destroyed",
+                    Fdp.Toolkit.Perception.Signatures.HeatSourceState.Standing => "standing",
+                    Fdp.Toolkit.Perception.Signatures.HeatSourceState.Moving => "moving",
+                    _ => "no state yet",
+                } + (minutes >= 0 && d.Source.State != Fdp.Toolkit.Perception.Signatures.HeatSourceState.None ? $" for {minutes.ToString(inv)} min" : "");
+            string barrel = d.Barrel01 > 0.005f ? $"barrel {(bodyC + d.Barrel01 * 120f).ToString("0", inv)} C" : "barrel cold";
+            _r2 = $"{source}  -  {barrel}  -  {(d.Fire01 > 0f ? "BURNING" : "no fire")}";
+            _r3 = !observed ? $"signature {sig.ToString("0.00", inv)}  -  select a unit with a thermal sensor to compare"
+                : !inRange ? $"signature {sig.ToString("0.00", inv)}: beyond the observer's {_eyeRange.ToString("0", inv)} m thermal range"
+                : Fdp.Toolkit.Perception.Sensors.ThermalPerception.Reaches(sig, _eyeMin)
+                    ? $"signature {sig.ToString("0.00", inv)} >= observer {_eyeMin.ToString("0.00", inv)}: SEEN (outlined)"
+                    : $"signature {sig.ToString("0.00", inv)} < observer {_eyeMin.ToString("0.00", inv)}: not seen";
+        }
+        int fs = 14, lh = fs + 4;
+        int wd = Math.Max(Raylib.MeasureText(_r1, fs), Math.Max(Raylib.MeasureText(_r2, fs), Raylib.MeasureText(_r3, fs))) + 16;
+        int x = (int)p.X + 14, y = (int)p.Y + 12;
+        var vp = _view.Camera3D.Viewport;
+        if (x + wd > vp.X) x = Math.Max(0, (int)p.X - 14 - wd);
+        if (y + 3 * lh + 10 > vp.Y) y = Math.Max(0, (int)p.Y - 12 - 3 * lh - 10);
+        Raylib.DrawRectangle(x, y, wd, 3 * lh + 10, new Color((byte)16, (byte)16, (byte)20, (byte)235));
+        Raylib.DrawRectangleLines(x, y, wd, 3 * lh + 10, new Color((byte)58, (byte)58, (byte)68, (byte)255));
+        Raylib.DrawText(_r1, x + 8, y + 5, fs, new Color((byte)240, (byte)240, (byte)240, (byte)255));
+        Raylib.DrawText(_r2, x + 8, y + 5 + lh, fs, new Color((byte)190, (byte)190, (byte)200, (byte)255));
+        Raylib.DrawText(_r3, x + 8, y + 5 + 2 * lh, fs, observed && inRange && Fdp.Toolkit.Perception.Sensors.ThermalPerception.Reaches(sig, _eyeMin) ? OutlineColour
+                                                     : new Color((byte)190, (byte)190, (byte)200, (byte)255));
+        ReadoutBox = new Rectangle(x, y, wd, 3 * lh + 10);
+        return true;
+    }
+
+    private Entity _eyeObserver = Entity.Null;
+    private float _eyeMin, _eyeRange, _eyeContrast = 1f;
+    private Vector3 _eyeAt;
+
+    /// <summary>
+    /// ⭐ CE-1985 (D-10) — the units the PRIMARY-selected unit's thermal sensor can see by their heat: within its (weather-capped) thermal range and with a
+    /// signature reaching its <c>MinSignature</c> — the AI sensor's own rule (<see cref="Fdp.Toolkit.Perception.Sensors.ThermalPerception.SignatureOf"/>,
+    /// ⛔ never a copy). Corner brackets round each one's projected body box, drawn after the post (sharp). ⚠ Range and signature only — no field of view,
+    /// no line of sight (the sensor's other tests): it answers "hot enough for this sensor", not "seen now". 0 B per frame (queries built per world).
+    /// </summary>
+    private void DrawOutlines()
+    {
+        OutlinesDrawn = 0; Observer = Entity.Null; _eyeObserver = Entity.Null;
+        if (World?.Invoke() is not { } world || Bodies == null) return;
+        if (!ReferenceEquals(world, _queryWorld))
+        {
+            _queryWorld = world;
+            _selQuery = world.IsComponentTypeRegistered<Hrot.Map.Common.Components.SelectionState>()
+                ? world.Query().With<Hrot.Map.Common.Components.SelectionState>().Build() : null;
+            _heatQuery = world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.ThermalState>()
+                ? world.Query().With<Fdp.Toolkit.Perception.Signatures.ThermalState>().With<SimTransform>().Build() : null;
+            _sensorQuery = world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.SensorTag>() && world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.PartMetadata>()
+                ? world.Query().With<Fdp.Toolkit.Perception.Components.SensorTag>().With<Fdp.Toolkit.Replication.Components.PartMetadata>().Build() : null;
+        }
+        if (_selQuery == null || _heatQuery == null) return;
+        Entity observer = Entity.Null;
+        foreach (var e in _selQuery)
+            if (world.GetComponentRO<Hrot.Map.Common.Components.SelectionState>(e).IsPrimarySelection) { observer = e; break; }
+        if (observer.IsNull || !world.HasComponent<SimTransform>(observer) || !TryThermalEye(world, observer, out float min, out float range, out float contrast)) return;
+        Observer = observer;
+        var eye = world.GetComponentRO<SimTransform>(observer).Position;
+        _eyeObserver = observer; _eyeMin = min; _eyeRange = range; _eyeContrast = contrast; _eyeAt = eye;   // the unit readout compares against the same eye
+        double now = Fdp.Toolkit.Time.SimClock.TotalTimeOf(world);
+        bool sources = world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.HeatSource>();
+        bool fires = world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>();
+        var cam = _view.Camera3D;
+        foreach (var e in _heatQuery)
+        {
+            if (e == observer) continue;
+            if (Vector3.DistanceSquared(world.GetComponentRO<SimTransform>(e).Position, eye) > range * range) continue;
+            ref readonly var ts = ref world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.ThermalState>(e);
+            float sig = Fdp.Toolkit.Perception.Sensors.ThermalPerception.SignatureOf(world, e, in ts, contrast, now, sources, fires);
+            if (!Fdp.Toolkit.Perception.Sensors.ThermalPerception.Reaches(sig, min)) continue;
+            if (!Bodies.TryGetBox(world, e, out var c, out var r, out var h)) continue;
+            if (!ScreenBox(cam, c, r, h * 1.1f, out var lo, out var hi)) continue;
+            Brackets(lo, hi, OutlineColour);
+            OutlinesDrawn++;
+        }
+    }
+
+    /// <summary>The observer's thermal sensor: on the unit itself, or the first of its sensor PARTS (a <c>SensorTag</c> whose <c>PartMetadata</c> parent is the unit —
+    /// how a TKB unit carries its sensors) that is a thermal one.</summary>
+    private bool TryThermalEye(EntityRepository world, Entity unit, out float min, out float range, out float contrast)
+    {
+        if (Fdp.Toolkit.Perception.Sensors.ThermalPerception.TryEyeOf(world, unit, unit, out min, out range, out contrast)) return true;
+        if (_sensorQuery != null)
+            foreach (var s in _sensorQuery)
+                if (world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(s).ParentEntity == unit
+                    && Fdp.Toolkit.Perception.Sensors.ThermalPerception.TryEyeOf(world, s, unit, out min, out range, out contrast)) return true;
+        return false;
+    }
+
+    /// <summary>The screen rectangle round an oriented box's eight corners; false when any corner is behind the camera.</summary>
+    private static bool ScreenBox(MapCamera3D cam, Vector3 centre, Quaternion rotation, Vector3 half, out Vector2 lo, out Vector2 hi)
+    {
+        lo = new Vector2(float.MaxValue); hi = new Vector2(float.MinValue);
+        for (int i = 0; i < 8; i++)
+        {
+            var corner = new Vector3((i & 1) == 0 ? -half.X : half.X, (i & 2) == 0 ? -half.Y : half.Y, (i & 4) == 0 ? -half.Z : half.Z);
+            var s = cam.WorldToScreen(centre + Vector3.Transform(corner, rotation));
+            if (s.X < -1e5f) return false;
+            lo = Vector2.Min(lo, s); hi = Vector2.Max(hi, s);
+        }
+        return true;
+    }
+
+    /// <summary>Four corner brackets round a screen rectangle (at least 10 px a side).</summary>
+    private static void Brackets(Vector2 lo, Vector2 hi, Color c)
+    {
+        var mid = (lo + hi) / 2f;
+        var half = Vector2.Max((hi - lo) / 2f, new Vector2(5f));
+        lo = mid - half; hi = mid + half;
+        float l = MathF.Max(4f, MathF.Min(half.X, half.Y) * 0.6f);
+        Raylib.DrawLineEx(lo, lo + new Vector2(l, 0), 2f, c); Raylib.DrawLineEx(lo, lo + new Vector2(0, l), 2f, c);
+        Raylib.DrawLineEx(new Vector2(hi.X, lo.Y), new Vector2(hi.X - l, lo.Y), 2f, c); Raylib.DrawLineEx(new Vector2(hi.X, lo.Y), new Vector2(hi.X, lo.Y + l), 2f, c);
+        Raylib.DrawLineEx(new Vector2(lo.X, hi.Y), new Vector2(lo.X + l, hi.Y), 2f, c); Raylib.DrawLineEx(new Vector2(lo.X, hi.Y), new Vector2(lo.X, hi.Y - l), 2f, c);
+        Raylib.DrawLineEx(hi, hi - new Vector2(l, 0), 2f, c); Raylib.DrawLineEx(hi, hi - new Vector2(0, l), 2f, c);
     }
 
     private string ThermalLegend()
