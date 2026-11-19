@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-18 (coordinator: §1b data for external renderers — thermal drivers, vehicle appearance, the shared look library; §8 glass windows and removing a baked building; §9 vehicle damage / hatches / lights; §16 fixed today and in progress) · 2026-11-17 (backend: §16 bows, birds, the rabbit hunt, the warrior built; outfit data built) · 2026-11-17 (behaviors: a civilian stops on the signal; §3a / §9 firing seats engage on their own) · 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-19 (coordinator: §1b sensor views + the AI thermal sensor on °C; §12a flame weapons; §9 rotors and smoke dischargers; §3 the civilian mood seen everywhere; §6 the corridor street fight; §9b the engineers answer; §16 the dragon) · 2026-11-18 (coordinator: §1b data for external renderers — thermal drivers, vehicle appearance, the shared look library; §8 glass windows and removing a baked building; §9 vehicle damage / hatches / lights; §16 fixed today and in progress) · 2026-11-17 (backend: §16 bows, birds, the rabbit hunt, the warrior built; outfit data built) · 2026-11-17 (behaviors: a civilian stops on the signal; §3a / §9 firing seats engage on their own) · 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -107,8 +107,24 @@ replicated to every node, renderer-agnostic — and HROT's own map reads the sam
   person is dressed, how a vehicle looks; our map and any gateway call the same functions, so every renderer shows the same picture
   ([§7 of the same design](designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md), CE-4671)
 - ✅ **The DIS mapping is written down** for a gateway — damage, fire, engine, lifeform health ([NED_DDS_Protocol](reference/NED_DDS_Protocol.md))
-- ⏳ queued: rotors spinning up and down, smoke dischargers (and a tank that pops smoke when a missile is fired at it), the lights / hatches /
-  effect rows of the DIS mapping; our map drawing the hatches and lights (ui)
+- ✅ *(2026-11-19)* **Rotors, engines, smoke dischargers, the full DIS mapping** — rotor and engine speed derived from the engine state; a tank's
+  smoke dischargers fire a fan of screening grenades (smoke that blocks sight and infrared); the gateway table now covers lights, hatches, the kill
+  kind and the effect → DIS detonation-result codes; our map draws the hatches and lights (CE-4670)
+- ✅ *(2026-11-19)* **Night vision and a thermal view in our own map** — `F4` cycles normal · night vision · thermal: night vision on the moon and
+  light sources (a cigarette's ember shows), a thermal picture solved from the same thermal drivers (warm engines, the patch a tank left, roads as
+  asphalt), the observer's outlines. ▶ ✅ `sv-night-and-heat` · ✅ `th-vehicle-left-warm-spot` (CE-1984, CE-1985, CE-1989)
+- ✅ *(2026-11-19)* **The AI thermal sensor sees by temperature contrast** (°C against its background, not an abstract heat number) — same
+  results at 1, 4 and 8 threads (CE-1987, R-1058)
+- ⏳ "pop smoke" when a missile is fired at a vehicle (behaviors, after the dischargers)
+
+## 1c. Flame weapons *(added `2026-11-19` — [DESIGN_Flame_Weapons](designs/weapons/DESIGN_Flame_Weapons.md), CE-4635, CE-4637)*
+
+- ✅ **The flamethrower** — a man-portable or vehicle-mounted jet: one ignition rule sets men, soft vehicles, roofs and grass alight; burning
+  hurts in steps; the flame is heard as one roar; the jet is thrown into a bunker or a room. ▶ ✅ `fl-flamethrower-cone` · ✅ `fl-clear-the-bunker`
+- ✅ **Rules of engagement hold it** — allowed for military forces by default, off in a police / civil scenario, never fired with a neutral in the
+  flame. ▶ ✅ `fl-roe-holds`
+- ✅ **Napalm** — a strike lays a burning ellipse on the ground that burns out and leaves a scorched mark. ▶ ✅ `fl-napalm-strike` · `fl-napalm-treeline`
+- ✅ **Buildings burn** — a timber house catches and burns. ▶ `fl-timber-house`
 
 ## 2. The world
 
@@ -653,4 +669,15 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 - 🚧 *(2026-11-18, top priority — behaviors)* **Infantry stop moving after a scenario reload** (the crowd's slots were never released, CE-4665) and
   **the street fight fought in the open** — squads bunched and standing in the street, suppressing with no ammo, dead men still acting
   (CE-4666…CE-4669); decided: a sound heard through your own window is where to LOOK, not an enemy there (D-8), the base of fire's two exits (D-7)
+- ✅ *(2026-11-19)* **The civilian's mood is seen on every node** — fear and anger travel as one mood shared with animals (the face, the mood
+  dot, an animal's alert look); civilians and animals now keep fear, home and group in the SAME components (CE-4628, CE-2250)
+- 🚧 *(2026-11-19)* **The street fight on open ground** — the new `wide-corridor` terrain and `pc-corridor-fight` (a platoon attack across a
+  ~30 m corridor between houses) judge it: a man going to his post under fire now reaches cover before he breaks, the base of fire spreads into
+  covered posts, a man without a post keeps 5 m from the next, a squad on the move spreads across its line; the 26 scenarios those plays touch
+  re-checked with no new failure (D-11…D-13, CE-4666)
+- 🚧 *(2026-11-19)* **Minefields: the engineers answer** — an HQ sends engineers to a squad halted by a minefield; they trace and mark it and the
+  clearer cuts a lane (▶ ✅ `mf-engineers-answer`; ⏳ `mf-clear-lane-and-cross` — the whole chain — and `mf-knowledge-survives`, waiting on the
+  replay seek fix CE-5041)
+- 🎉 *(2026-11-19, the fun pack)* **The dragon** — it flies, lands, roars and breathes fire (the flame weapons' jet on a neck turret); its look is
+  built; its attack pattern (strafing passes, hovering at a building) awaits approval ([DESIGN_Dragon](designs/fun/DESIGN_Dragon.md), CE-4634)
 
