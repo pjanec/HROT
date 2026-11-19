@@ -92,6 +92,10 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ <c>CE-4649</c> (bows BW-12, docs/designs/weapons/DESIGN_Bows_And_Crossbows.md) — an ARCHER (a bow, 20 arrows) and a CROSSBOWMAN (15 bolts): the insurgent
         /// template (a soldier brain, no armour) in everyday clothes, with the weapon of <see cref="Bow"/> / <see cref="Crossbow"/>. Silent: no shot sound (BW-9).</summary>
         public const int TkbArcher = 2013, TkbCrossbowman = 2014;
+        /// <summary>⭐ <c>CE-4635</c> FL-1 (R-3111) — the man-portable flamethrower man (2022 free on every lane, <c>2026-11-19</c>). ⛔ A permanent wire value.</summary>
+        public const int TkbFlamethrowerSoldier = 2022;
+        /// <summary>⭐ CE-4635 — his fuel as rounds: 10 a second (a fuel shot every 0.1 s keeps the jet lit, FlameJets.LitSeconds 0.25) for ~9 s of flame.</summary>
+        public const int FlameShotsPerMinute = 600, FlameFuelShots = 90;
         /// <summary>⭐ <c>CE-4649</c> (BW-11) — the ARCHERY TARGET prop: a straw boss on a stand (a thin box with an <see cref="ArcheryTargetDto"/> scoring face).</summary>
         public const int TkbArcheryTarget = 2015;
 
@@ -308,6 +312,28 @@ namespace Hrot.Core.Tkb
                     Rifle() /* ⭐ CE-4146 — the ONE rifle (it carries Category SmallArms; the inline copies did not, so their barrel heat was a tank gun's) */,
                     new WeaponMountDto { InitialAmmunition = GrenadeCount, MuzzleVelocity = GrenadeThrowSpeed, Range = GrenadeRange, AmmoGuid = MunitionTkbCatalog.TkbM67Grenade, Category = WeaponCategory.Grenade, Loadout = FragAndSmoke(GrenadeCount) },   // ⭐ CE-2278 — + smoke (entry 1)   // ⭐ WL-4 (W-5) — the category the weapon brain reads
                     Pistol(),   // ⭐ CE-3231 (B-9) — his sidearm, mount 2 AFTER the grenades (PI-2: the grenade stays mount 1; the hands go to 3)
+                } });
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms, RpgBurstRange));
+                t.AddDescriptor(BuildMannequinAnimationDef());
+                tkb.Register(t);
+            }
+
+            // ⭐ CE-4635 FL-1 (R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md F-6) — FlamethrowerSoldier (2022): the InfantrySoldier with a man-portable
+            //   FLAMETHROWER as his ONLY mount (so an order to fire uses it — mount 0, the one FlameJets reads); its fuel is the flame munition
+            {
+                var t = new TkbTemplate("FlamethrowerSoldier", TkbFlamethrowerSoldier);
+                Master(t, "FlamethrowerSoldier", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, AvoidanceRadius = VehicleParametersDto.CloseOrderAvoidanceRadius, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)
+                t.AddDescriptor(new BehaviorProfileDto { DefaultSop = SoldierSop, SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+                t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
+                t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
+                t.AddDescriptor(new WeaponSuiteDto { Mounts =
+                {
+                    new WeaponMountDto { Category = WeaponCategory.Flamethrower, AmmoGuid = MunitionTkbCatalog.TkbFlameFuel, InitialAmmunition = FlameFuelShots,
+                                         RateOfFire = FlameShotsPerMinute, Range = MunitionTkbCatalog.FlameReachM, MuzzleVelocity = 40f },
                 } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
                 t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms, RpgBurstRange));

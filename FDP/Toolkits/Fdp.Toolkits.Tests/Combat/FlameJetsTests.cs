@@ -67,6 +67,16 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(new Vector3(40, 5, 0), (Vector3)jet.AimPoint);
         }
 
+        /// <summary>📌 Measured in the editor (`fl-flamethrower-cone`): a mount with no loadout leaves <c>WeaponAmmo.Load0</c> at 0 — the mount's OWN round. The jet reads
+        /// the mount's munition then. 🔴 Red-proof: drop the fallback ⇒ no jet.</summary>
+        [Fact]
+        public void AMountWithNoLoadout_ReadsItsOwnMunition()
+        {
+            var u = Unit(FlameTank, ammo: 0, lastShot: 100.0, burstStart: 99.0);
+            Assert.True(FlameJets.TryGet(_w, u, 100.1, out var jet));
+            Assert.Equal(60f, jet.RangeM);
+        }
+
         [Fact]
         public void TheJet_GoesOut_WhenNoFuelWasSpentLately_AndNeverLightsForAnotherWeaponOrBeforeTheFirstShot()
         {
@@ -88,7 +98,7 @@ namespace Fdp.Toolkit.Tests.Combat
             long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
             Assert.True(lit);
             Assert.Equal(victim, jet.Target);
-            Assert.Equal(new Vector3(25, -3, 0), (Vector3)jet.AimPoint);
+            Assert.Equal(new Vector3(25, -3, FlameJets.TargetMiddleM), (Vector3)jet.AimPoint);   // its middle, not its feet
             Assert.Equal(0L, bytes);
         }
 

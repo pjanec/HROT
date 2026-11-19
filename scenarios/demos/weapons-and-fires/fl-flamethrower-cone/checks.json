@@ -1,0 +1,74 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4635 FL-1 (flame weapons \u00a77): the flamethrower's jet lights what its cone reaches with a clear line, nothing else.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the flamer spends fuel (a burst, no round)",
+      "on": "field",
+      "who": "Flamer",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 90,
+      "before": 10
+    },
+    {
+      "name": "the Target is set alight",
+      "on": "field",
+      "who": "Target",
+      "path": "EffectState.BurningUntil",
+      "op": ">",
+      "value": 0,
+      "before": 10
+    },
+    {
+      "name": "the Target burns",
+      "on": "field",
+      "who": "Target",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "after": "the Target is set alight"
+    },
+    {
+      "name": "the Target dies in the fire",
+      "on": "field",
+      "who": "Target",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 30
+    },
+    {
+      "name": "the Car in the cone catches fire",
+      "on": "field",
+      "who": "Car",
+      "path": "FireState.Count",
+      "op": ">=",
+      "value": 1,
+      "before": 15
+    },
+    {
+      "name": "Hidden behind the car never burns",
+      "never": {
+        "on": "field",
+        "who": "Hidden",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "Aside, off the cone, never burns",
+      "never": {
+        "on": "field",
+        "who": "Aside",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    }
+  ]
+}

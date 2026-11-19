@@ -1,0 +1,205 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: a man-portable flamethrower burns what its jet reaches and nothing else (CE-4635 FL-1, R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md \u00a77). On basic-desert 'Flamer' (a FlamethrowerSoldier, friend, ordered FireAtTarget) fires east at 'Target', an unarmed hostile holding 20 m away. Behind the target on the same line stands an empty civilian 'Car' (30 m) and behind the car 'Hidden' (36 m); 'Aside' stands 12 m off the line. Judge: no round flies \u2014 the flamer's fuel falls; the Target is set alight (EffectState.BurningUntil) after ~0.3 s of flame, burns and dies; the Car inside the cone catches fire (FireState) after ~1.5 s of it; 'Hidden' never burns (the car's body stops the flame); 'Aside' never burns (outside the 6\u00b0 cone)."
+ },
+ "entities": {
+  "c4635000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     300,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2022
+   },
+   "EntityInfo": {
+    "Name": "Flamer",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Behavior": {
+    "Name": "FireAtTarget",
+    "Params": {
+     "targetNetworkId": "c4635000-0000-4000-8000-000000000002"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "c4635000-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     320,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Target",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "c4635000-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     336,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Hidden",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "c4635000-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     320,
+     312,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Aside",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "c4635000-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     330,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 1002
+   },
+   "EntityInfo": {
+    "Name": "Car",
+    "ForceId": "Neutral"
+   },
+   "Health": {
+    "Current": 500,
+    "Max": 500
+   }
+  }
+ }
+}

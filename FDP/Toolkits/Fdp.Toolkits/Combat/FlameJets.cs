@@ -18,6 +18,8 @@ namespace Fdp.Toolkit.Combat
     {
         /// <summary>A jet stays lit this long after its last fuel shot (s) — a flamethrower spends fuel every few frames while it fires.</summary>
         public const double LitSeconds = 0.25;
+        /// <summary>A jet at a unit is aimed at its middle, this far above its position (m) — a man's chest; not its feet.</summary>
+        public const float TargetMiddleM = 1f;
 
         /// <summary>A unit's flame jet as every node sees it.</summary>
         public readonly struct Jet
@@ -26,7 +28,7 @@ namespace Fdp.Toolkit.Combat
             public readonly int Mount;
             /// <summary>What the jet is aimed at; <see cref="Entity.Null"/> ⇒ <see cref="AimPoint"/>.</summary>
             public readonly Entity Target;
-            /// <summary>The aimed world point (the target's position when there is one, as of this read).</summary>
+            /// <summary>The aimed world point (the target's middle — its position + <see cref="TargetMiddleM"/> — when there is one, as of this read).</summary>
             public readonly WorldPoint AimPoint;
             /// <summary>The jet's reach (m) — it stops short where a wall stops it (the flame system's cone law).</summary>
             public readonly float RangeM;
@@ -58,11 +60,14 @@ namespace Fdp.Toolkit.Combat
             ref readonly var ammo = ref world.GetComponentRO<WeaponAmmo>(unit);
             double last = ammo.LastShotAtOf(mount);
             if (!(now - last >= 0.0 && now - last < LitSeconds)) return false;   // never fired (−∞), or out
-            if (CombatTkb.MountOf(world, unit, mount) is not { Category: WeaponCategory.Flamethrower }) return false;
-            if (CombatTkb.WarheadOf(world, ammo.LoadedOf(mount)) is not { Kind: WarheadKind.Incendiary, FlameRangeM: > 0f } w) return false;
+            if (CombatTkb.MountOf(world, unit, mount) is not { Category: WeaponCategory.Flamethrower } dto) return false;
+            // the LOADED munition; 0 = the mount's own round (a mount with no loadout — 📌 measured: the flamethrower soldier's Load0 stays 0)
+            long loaded = ammo.LoadedOf(mount);
+            var warhead = loaded != 0 ? CombatTkb.WarheadOf(world, loaded) : CombatTkb.WarheadOf(world, dto);
+            if (warhead is not { Kind: WarheadKind.Incendiary, FlameRangeM: > 0f } w) return false;
             var aim = posture.Point;
             if (!posture.Target.IsNull && world.IsAlive(posture.Target) && world.HasComponent<SimTransform>(posture.Target))
-                aim = (WorldPoint)world.GetComponentRO<SimTransform>(posture.Target).Position;
+                aim = (WorldPoint)(world.GetComponentRO<SimTransform>(posture.Target).Position + new System.Numerics.Vector3(0f, 0f, TargetMiddleM));
             jet = new Jet(mount, posture.Target, aim, w.FlameRangeM, w.FlameHalfAngleDeg * (MathF.PI / 180f),
                 w.FlameIntensity > 0f ? MathF.Min(w.FlameIntensity, 1f) : 1f, ammo.BurstStartedAtOf(mount), w.BurnSeconds);
             return true;
