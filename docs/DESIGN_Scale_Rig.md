@@ -2,6 +2,7 @@
 state: LIVE
 build-state: BUILT (L-2, CE-4364) — baselines below; L-4 adds its findings to §5
 updated: 2026-11-10 (§7.8 N-2 budget kept, egress by translator, replica probe · §7.7 P-1 parallel EQS built, the worker sweep · §7.6 C-1 + G-1 built and re-measured · §7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
+stale-below: ⚠ every baseline dated before 2026-11-14 (§4, the scale-1 tables in §5, the §5.4 cost rows) was measured SERIAL — before the parallel programme merged (`e4af862f6`, 2026-11-14) — and as the ONE-SIDE march (`--sides 1`); history, not a comparison. ⭐ The current baseline is the 2026-11-19 two-side table in §5.4 (parallel simulation ON, threaded node off on these headless nodes)
 current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost) · ⭐ §7 on a physical many-core machine (2026-11-10, LATEST: the EQS cadence, the GC-bound bake, the frame split; §7.6 C-1 + G-1 built; §7.7 P-1 built)
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: the showcase scenario sized to this rig's budget (R-4192), measured with it
@@ -117,7 +118,7 @@ python3 scripts/scale-rig.py --terrain scale-1 --men 1000 --vehicles 50 --aircra
 HROT_SCALE_RIG=1 dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter Category=Scale
 ```
 
-## 4. Baselines *(Release, this cloud VM: 4 cores, 15 GB; orchestrator + cgf + simhost on the one VM; `--sides 1`; warm-up 20 s, measured 30 s sim; real-time factor 1.0 in every run)*
+## 4. Baselines — ⛔ HISTORY: serial, one side (before the 2026-11-14 parallel merge); the current baseline is §5.4's 2026-11-19 table *(Release, this cloud VM: 4 cores, 15 GB; orchestrator + cgf + simhost on the one VM; `--sides 1`; warm-up 20 s, measured 30 s sim; real-time factor 1.0 in every run)*
 
 | terrain | load | cgf work / garbage / peak | simhost work / garbage / peak | top cost (ms) | top garbage (B / frame) | movers moved |
 |---|---|---|---|---|---|---|
@@ -230,6 +231,8 @@ heights 500–900 m — a stuck man's best reachable polygon lies ~3 m from his 
 up to 6 m east / 2 m north of a random ROAD point (`scale-rig.py` `scenario()`), on the slope beside the road), and why the brain (CGF) holds intent 19 while the muscle (SimHost) still runs intent 15 (the re-orders do not reach it).
 
 ### 5.4 Still over budget — each a row with its numbers *(the biggest first)*
+
+⛔ **The rows directly below are 2026-11-10 (serial, one side) — history; the 2026-11-19 two-side table after them is the current baseline.**
 
 | cost at 1 000 men (cgf / simhost) | owner | row |
 |---|---|---|
