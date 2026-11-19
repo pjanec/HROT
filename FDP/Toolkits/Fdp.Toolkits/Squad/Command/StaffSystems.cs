@@ -212,6 +212,10 @@ namespace Fdp.Toolkit.Squad.Command
             for (int i = 0; i < squad.Contacts.Count && n < live.Length; i++)
             {
                 if (!SquadContacts.IsEnemy(repo, in pool[i])) continue;   // ⭐ CE-2353 — the one squad "enemy"
+                // ⭐ CE-4666 (D-8, user-approved) — heard only FROM an opening or a corner: where to LOOK, not where the enemy IS. 📌 Measured in
+                //   pc-defend-house: a shot 125 m off, heard through the reserve's own window, was SPOTted AT its post, and the platoon turned its
+                //   line to face that "flank" (DA-60), away from the attack
+                if ((pool[i].Flags & SquadContact.HeardThroughFlag) != 0) continue;
                 live[n++] = i;
             }
             var sum = Vector3.Zero;

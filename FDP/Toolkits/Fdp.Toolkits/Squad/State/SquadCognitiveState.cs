@@ -124,6 +124,10 @@ namespace Fdp.Toolkit.Squad
         /// <summary>⭐ <c>CE-3063</c> ② — the <see cref="Flags"/> bit of a HEARD contact (its <see cref="EntityId"/> is a member's
         /// synthetic negative serial, never an entity). The low byte of <see cref="Flags"/> is the modality set.</summary>
         public const ushort AnonymousFlag = 0x8000;
+
+        /// <summary>⭐ <c>CE-4666</c> (D-8) — the <see cref="Flags"/> bit of a heard contact every member heard only FROM an opening or a corner
+        /// (<c>TargetMemory.IsHeardThroughAnOpening</c>): where to look, not where the enemy is — the SPOT leaves it out of an element's position.</summary>
+        public const ushort HeardThroughFlag = 0x4000;
     }
 
     /// <summary>

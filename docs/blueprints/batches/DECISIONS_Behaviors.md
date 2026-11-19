@@ -8,7 +8,7 @@ current-answer: the whole file
 
 ## D-8 · CE-4666 — a shot heard through our own window becomes an ENEMY at our window: SPOT → flank → the line faces away. Where should it stop? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — the ear keeps AQ106 F; the memory slot and the squad pool carry "heard through an opening"; `ComposeSpot` leaves such contacts out of an element's position (where to LOOK, not where the enemy IS); the man's own reactions unchanged. ALSO: a squad turned by `Supplement` is turned back when its flank element goes stale**
+**✅ BUILT `2026-11-19` (behaviors): both halves — the via mark ear → event/wire → memory (`Anonymous` 2) → pool (`HeardThroughFlag`) → `ComposeSpot` skips it (Sensing §8.6c), and a turned squad turns back when its flank goes stale (DA-60 as built). `pc-defend-house`: Red's line opens fire at 32.9 s stepped (was 143 s).** **DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — the ear keeps AQ106 F; the memory slot and the squad pool carry "heard through an opening"; `ComposeSpot` leaves such contacts out of an element's position (where to LOOK, not where the enemy IS); the man's own reactions unchanged. ALSO: a squad turned by `Supplement` is turned back when its flank element goes stale**
 
 **Measured (`pc-defend-house`, editor, live probes):**
 1. Blue fires from ~125 m south.

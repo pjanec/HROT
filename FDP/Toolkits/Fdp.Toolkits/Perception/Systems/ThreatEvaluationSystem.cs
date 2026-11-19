@@ -245,7 +245,7 @@ namespace Fdp.Toolkit.Perception.Systems
             {
                 foreach (var h in heardHere)
                     TargetMemory.HearContact(ref mem, h.X, h.Y, h.Z, h.Radius, h.SourceClass,
-                                             PerceptionConstants.HeardBoostPerContact, tick);
+                                             PerceptionConstants.HeardBoostPerContact, tick, h.Via);   // ⭐ CE-4666 (D-8)
                 changed = true;
             }
 

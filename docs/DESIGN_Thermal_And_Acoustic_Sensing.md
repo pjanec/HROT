@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-25 (§8.8 AQ104 E ② ③ / AQ105 D — walls and slabs halve a high sound, door sounds and the voice from replicated state) · 2026-10-22 (§8.3a CE-3315 — cursors and seeds are timeline PLACES; the world carries the count, so a restored world goes on hearing) · 2026-10-22 (§8.3 CE-3301 — the ring is created with the solver, so a first load hears as a reload does) · 2026-10-22 (§8.7 CE-2349 — the M1 and the Bradley carry a thermal sight; listed eyes read the receptor) · 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
+updated: 2026-11-19 (§8.6c CE-4666 D-8 — a sound heard through an opening is no SPOT position) · 2026-10-25 (§8.8 AQ104 E ② ③ / AQ105 D — walls and slabs halve a high sound, door sounds and the voice from replicated state) · 2026-10-22 (§8.3a CE-3315 — cursors and seeds are timeline PLACES; the world carries the count, so a restored world goes on hearing) · 2026-10-22 (§8.3 CE-3301 — the ring is created with the solver, so a first load hears as a reload does) · 2026-10-22 (§8.7 CE-2349 — the M1 and the Bradley carry a thermal sight; listed eyes read the receptor) · 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
 current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
@@ -879,6 +879,25 @@ sequenceDiagram
 
 **Rejected:** dropping bursts from hearing (loses E-2's alert and the hide) · a class check in each of the ~10 readers without one
 predicate (ten copies of one rule) · `OfClass(Explosion) = 0` (it is also the class value a heard ENTITY can carry; the predicate is the slot's).
+
+#### 8.6c `CE-4666` (D-8) — a sound heard THROUGH AN OPENING says where to LOOK, not where the enemy IS *(behaviors, `2026-11-19`; user-approved D-8; build-state: BUILT)*
+
+📐 **The defect, measured in `pc-defend-house`.** AQ106 F places a heard sound at the last opening on its way. Blue's rifles 125 m off were
+therefore heard AT each Red man's own window. Anonymous counts as an enemy (`SquadContacts.IsEnemy`), so the reserve SPOTted an Individual at its
+own post. The platoon read that point as a flank (DA-60) and turned its line squads to face north, while the attack came from the south.
+
+| ⭐ the rule (the burst's shape, §8.6b) | where |
+|---|---|
+| the ear marks an answer heard FROM an opening or a corner (`SoundRoute.Via != Straight`) | `AcousticPerception` `ViaMask` = `Flags` bit 7, scoped to the acoustic template (it runs no tests; on a line-of-sight template bit 7 is `FireClearBit`, so it is never marked meaningful) |
+| the event and the wire carry it | `SoundContactEvent.Via`, DDS `AudioTargetDetected.Via` (egress / ingress translators) |
+| the memory keeps it in `Anonymous` (1 heard straight · 2 heard only through an opening — no new field); one straight hearing fused in makes it 1 | `TargetMemory.HearContact(…, via)`, `IsHeardThroughAnOpening` |
+| the squad pool carries `HeardThroughFlag` (0x4000); one straight hearing fused in clears it | `SquadPerceptionMergeSystem.MergeHeard` |
+| ⭐ the SPOT leaves it out of an element's position | `StaffComposerSystem.ComposeSpot` |
+| ⛔ unchanged: the man's own reactions (look, take cover, a hunter's last-known point) | — |
+
+Rails: `AcousticHearingTests.AQ106_ASoundRoundTheCorner_IsHeard_FromTheDoorway` (the bit) + `CE4666_ASoundHeardStraight_HasNoViaBit`,
+`SquadPerceptionMergeSystemTests.CE4666_AShotHeardThroughAnOpening_IsMarkedSo_UntilHeardStraight`,
+`SquadManeuverTests.CE4666_AContactHeardOnlyThroughAnOpening_IsNoElement_HeardStraightItIs`.
 
 ### 8.7 `CE-2349` — the M1 and the Bradley carry a THERMAL sight *(behaviors, `2026-10-22`; cross-lane: `Hrot.Core`'s TKB catalog; build-state: MACHINERY BUILT, CARRIAGE WITHDRAWN)*
 

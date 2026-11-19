@@ -37,5 +37,9 @@ namespace Fdp.Toolkit.Perception.Events
         /// <summary>⭐ <c>CE-3283</c> — the TKB type that made it (the weapon for a shot, the munition for a burst), when the ear could tell (a
         /// Veteran or better); 0 otherwise. What made it, never who — the anonymity rule holds (§6 D).</summary>
         public long Signature;
+
+        /// <summary>⭐ <c>CE-4666</c> (D-8) — 1 when it was heard FROM an opening or a corner on its way (AQ106 F / K): the point is where it
+        /// came in, never where its source is; 0 = heard straight.</summary>
+        public byte Via;
     }
 }

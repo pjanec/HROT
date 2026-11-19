@@ -52,6 +52,12 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// <summary>⭐ <c>CE-3283</c> (Q95 A; Sensing §8.4) — the flag bits an answer's <c>SoundFamily</c> is written in (bits 13–15, the last free
         /// ones) — set only when the listener's ear can tell it (a Regular or better).</summary>
         public const short FamilyShift = 13;
+        /// <summary>⭐ <c>CE-4666</c> (D-8, user-approved) — the flag bit of an answer heard FROM an opening or a corner on its way (AQ106 F / K), not
+        /// from the source: its point says where to LOOK, never where the enemy IS. ⚠ Bit 7 means THIS only on the acoustic template, which runs no
+        /// EQS tests (the low byte is the tests'): on a line-of-sight template bit 7 is <c>CheapLineOfSightTest.FireClearBit</c>. Hence it is never
+        /// marked in <c>FlagsMeaningful</c> (a fire-clear reader keys on that) — read only by <c>SensorMemoryStage.HearAll</c>. 📌 CE-4039 is the
+        /// precedent for a shared bit going wrong.</summary>
+        public const short ViaMask = 1 << 7;
         public const short FamilyMask = unchecked((short)(0x7 << 13));
 
         /// <summary>⭐ <c>CE-3283</c> — what a listener's ear can tell a sound by, from his proficiency (Q95 A): below Regular the class only, a
@@ -335,6 +341,9 @@ namespace Fdp.Toolkit.Perception.Sensors
             var verdict = Judge(in ears, where, carries, sourceClass);
             if (verdict.Reason != HearingReason.Heard) return;
             Answer(candidates, ref n, verdict.Distance, verdict.Route.HeardFrom, ears.PerMeter, kind, sourceClass, source, ears.Listener, seed);
+            // ⭐ CE-4666 (D-8) — heard through an opening or round a corner: the point is the way in, not the source
+            if (verdict.Route.Via != SoundVia.Straight)
+                candidates[n - 1].Flags |= AcousticPerception.ViaMask;
             // ⭐ CE-3283 (Q95 A) — what THIS ear can tell, decided here, once: downstream carries only that (anonymity by construction, §6 D)
             ref var answer = ref candidates[n - 1];
             if (ears.Identifies >= 1 && family != 0)
