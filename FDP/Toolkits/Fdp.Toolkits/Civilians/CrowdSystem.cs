@@ -184,16 +184,16 @@ namespace Fdp.Toolkit.Civilians
 
         // ⭐⭐ CE-2250 / CE-4628 (docs/DESIGN_Civilians_And_Crowd_Control.md §5o; designs/animals/DESIGN_Animals.md §10a) — how each civilian SEEMS to every node:
         //   his mode, fear and anger in quarters, on the replicated Mood (the face and the mood dot read it, CE-1177). Last, after anger and fear settled this frame;
-        //   written only when a quarter or the mode changes (Moods.Set).
+        //   written only when a quarter or the mode changes (Demeanours.SetMood).
         private void WriteMoods(EntityRepository repo)
         {
-            if (!repo.IsComponentTypeRegistered<Mood>()) return;
+            if (!repo.IsComponentTypeRegistered<Demeanour>()) return;
             for (int i = 0; i < _civs.Count; i++)
             {
                 var e = _civs[i];
                 if (!repo.IsAlive(e)) continue;
                 ref readonly var mind = ref repo.GetComponentRO<CivilianState>(e);
-                Moods.Set(repo, e, mind.Mode, repo.GetComponentRO<Fear>(e).Value, mind.Anger);
+                Demeanours.SetMood(repo, e, mind.Mode, repo.GetComponentRO<Fear>(e).Value, mind.Anger);
             }
         }
 

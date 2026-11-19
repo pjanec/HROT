@@ -30,5 +30,13 @@ namespace Fdp.Toolkit.Time
 
         /// <summary>Reads the clock of <paramref name="world"/> directly.</summary>
         public static ISimClock Of(EntityRepository? world) => new WorldSimClock(world);
+
+        /// <summary>
+        /// ⭐ CE-4635 (a cross-lane edit, ui) — the world's <see cref="ISimClock.TotalTime"/> WITHOUT the 24 B box <see cref="Of(EntityRepository?)"/> costs (the struct clock is
+        /// returned as an interface): what a per-frame reader (a renderer's draw pass, R-2084) asks. 0 with no repository or no <c>GlobalTime</c> yet — the same answer as
+        /// the clock's. <see cref="WorldSimClock.TotalTime"/> reads through this, so there is one owner of the rule.
+        /// </summary>
+        public static double TotalTimeOf(EntityRepository? world)
+            => world != null && world.HasSingletonUnmanaged<GlobalTime>() ? world.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0.0;
     }
 }

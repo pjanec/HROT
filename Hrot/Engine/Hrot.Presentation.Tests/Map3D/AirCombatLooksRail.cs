@@ -458,14 +458,15 @@ public sealed class AirCombatLooksRail
         scene.Look(at, 70f, MathF.PI * 0.5f + 0.6f, 0.0f); scene.Render(); int living = scene.Bodies.PartsDrawn;
         scene.World.SetComponent(jet, new Health { Current = 0f, Max = 400f });
         Tick();
-        var fx = scene.Effects.Resolve();
+        var fx = new List<Hrot.UI.Common.Effects.EffectLayer.Resolved>(); scene.Effects.ResolveStateInto(fx);   // ⭐ CE-4635 — the flames are drawn from the hull's FireState
         Assert.Contains(fx, r => r.Look.Kind == EffectKind.Fire); Assert.Contains(fx, r => r.Look.Kind == EffectKind.Smoke);
         var fire = fx.First(r => r.Look.Kind == EffectKind.Fire).At;
         Assert.True(Vector3.Distance(fire, at) < 6f, $"the fire is ON the jet: {fire} vs {at}");
         scene.Render(); Assert.Equal(living - 1 - 16, scene.Bodies.PartsDrawn);                      // the wreck: the afterburner's flame is out (1) and its missiles and rails are gone (4 pylons + 4 × 3)
         // it falls 150 m: the fire went with it
         scene.World.SetComponent(jet, new SimTransform { Position = at - new Vector3(60f, 0f, 150f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f) });
-        var down = scene.Effects.Resolve().First(r => r.Look.Kind == EffectKind.Fire).At;
+        fx.Clear(); scene.Effects.ResolveStateInto(fx);
+        var down = fx.First(r => r.Look.Kind == EffectKind.Fire).At;
         Assert.True(down.Z < fire.Z - 140f && Vector3.Distance(down, scene.Where(jet)) < 6f, $"the fire follows the falling jet: {down}");
         scene.Look(scene.Where(jet), 70f, MathF.PI * 0.5f + 0.6f, 0.0f); scene.Shot(shots, "aircombat-dead-jet-falling.png");
     }

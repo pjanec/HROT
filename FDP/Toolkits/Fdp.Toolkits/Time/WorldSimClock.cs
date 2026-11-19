@@ -35,7 +35,7 @@ namespace Fdp.Toolkit.Time
         public bool IsHalted => !Current.IsAdvancing;
 
         /// <inheritdoc />
-        public double TotalTime => Current.TotalTime;
+        public double TotalTime => SimClock.TotalTimeOf(_world);
 
         /// <inheritdoc />
         public float TimeScale => Current.TimeScale;

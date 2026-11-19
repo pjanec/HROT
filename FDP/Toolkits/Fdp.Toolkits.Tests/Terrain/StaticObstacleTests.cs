@@ -395,6 +395,31 @@ public sealed class StaticObstacleTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-3425</c> — the sight with its vehicles' boxes is built ONCE per thread per tick: a second ask in the same tick is the same
+    /// sight and allocates nothing (📐 scale-1, 1 000 men: every EQS batch rebuilt it, ~385 KB / frame on SimHost); a new tick builds it
+    /// again, so a car that moved hides from its new place.
+    /// </summary>
+    [Fact]
+    public void CE3425_TheSight_IsBuiltOncePerTick_AndSeesTheCarWhereItIsAfterTheNextTick()
+    {
+        using var repo = VehicleWorld();
+        var car = Vehicle(repo, 30, 30);
+        var first = EqsTerrainSight.Sight(repo, null)!;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        var again = EqsTerrainSight.Sight(repo, null)!;
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Same(first, again);
+        Assert.Equal(0L, bytes);
+
+        repo.GetComponentRW<SimTransform>(car).Position = new Vector3(60, 30, 0);
+        repo.Tick();
+        var moved = EqsTerrainSight.Sight(repo, null)!;
+        Assert.NotSame(first, moved);
+        Assert.True(moved.HasLineOfSight(new Vector3(30, 20, 1.0f), new Vector3(30, 40, 1.0f)), "the car left");
+        Assert.False(moved.HasLineOfSight(new Vector3(60, 20, 1.0f), new Vector3(60, 40, 1.0f)), "it hides where it is now");
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>P7a_R11</c> (O5 ②) — the cover generator adds points round a STANDING vehicle (all four sides, stance by its 1.5 m height:
     /// stand), none round a moving one, none round a static obstacle's collider (that one is terrain already, R-243).
     /// </summary>

@@ -26,7 +26,7 @@ namespace Fdp.Core.Tests
         // the attribute however written: [ComponentId(…)], [Fdp.Core.ComponentId(…)], [ComponentIdAttribute(…)], or beside another in one bracket
         private static readonly Regex Attribute = new(@"^\s*\[[^\]]*?(?:Fdp\.Core\.)?ComponentId(?:Attribute)?\(\s*(?<arg>[^)]*?)\s*\)", RegexOptions.Multiline | RegexOptions.CultureInvariant);
         private static readonly Regex Named = new(@"^(Fdp\.Core\.)?GlobalComponentIds\.(?<name>\w+)$", RegexOptions.CultureInvariant);
-        private static readonly Regex Exempt = new(@"(/[^/]*Tests?[^/]*/|Tests\.cs$|/[^/]*Bench[^/]*/|/Examples/|/TestShared/|/obj/|/bin/|/\.git/)", RegexOptions.CultureInvariant);
+        private static readonly Regex Exempt = new(@"(/[^/]*Tests?[^/]*/|Tests\.cs$|/[^/]*Bench[^/]*/|/Examples/|/TestShared/|/obj/|/bin/|/\.git/|/\.claude/)", RegexOptions.CultureInvariant);   // ⭐ ui (CE-4628 merge): /.claude/ holds agents' git WORKTREES — whole second copies of the tree; read as production they doubled every id
 
         private static string Root()
         {

@@ -42,6 +42,10 @@ namespace Hrot.Core.Tkb
         /// <c>Effect.Set.MuzzleFlash</c>, anchored to the muzzle like every flash) and the puff of smoke it leaves there (<c>FiringBlast.Launch</c>, ui).</summary>
         public const long MissileLaunchFlash = 7173, MissileLaunchSmoke = 7174;
 
+        /// <summary>⭐ CE-4635 (docs/designs/weapons/DESIGN_Flame_Weapons.md §8 U-5) — a flamethrower's JET: drawn from STATE (<c>FlameJets.TryGet</c>), never spawned
+        /// as an effect entity; this type only carries its look (colour, the muzzle-end size in metres).</summary>
+        public const long FlameJet = 7175;
+
         /// <summary>The calibre classes the default effect set is chosen by, from a round's damage per hit (or, ⭐ CE-1231, its explosive).</summary>
         public enum CalibreClass : byte { Small, Medium, Large, Huge }
 
@@ -142,6 +146,7 @@ namespace Hrot.Core.Tkb
                 [Flare]             = ("Decoy flare",         V(EffectKind.Flare, 5f, 2.2f, "#FFE9A8", 1.0f)),           // ⭐ CE-1115 — its life is the expendable's
                 [MissileLaunchFlash] = ("Missile launch flash", V(EffectKind.MuzzleFlash, 0.6f, 2.0f, "#FFC470", 0.3f)),   // ⭐ CE-4618 — the booster's flash, bigger than a tank gun's
                 [MissileLaunchSmoke] = ("Missile launch smoke", V(EffectKind.Smoke, 5f, 1.1f, "#D4D2CCB8", 2f)),          // ⭐ CE-4618 — the puff left at the mouth
+                [FlameJet]          = ("Flame jet",           V(EffectKind.FlameJet, 0.25f, 1.0f, "#FF8A2A", 0f)),         // ⭐ CE-4635 — state-driven: Duration is the jet's lit window, Size its muzzle-end width
                 [ChaffCloud]        = ("Chaff cloud",         V(EffectKind.Chaff, 8f, 15f, "#8A8A84C8", 3f)),
             };
 

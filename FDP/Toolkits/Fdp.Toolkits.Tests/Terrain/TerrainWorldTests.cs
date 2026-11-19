@@ -180,6 +180,23 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Throws<ArgumentException>(() => TerrainMaterialLibrary.Parse("{\"surfaceThermalClasses\":{\"open\":\"lava\"},\"materials\":{}}", "t"));
         }
 
+        /// <summary>⭐ CE-4635 / CE-4637 (R-3111, flame weapons F-7) — what burns, and how long, by data: a material's own <c>burnSeconds</c> wins, else its
+        /// thermal class (wood long, grass / dense vegetation briefly, the rest not at all); a negative value fails the load. 🔴 Red-proof: the class
+        /// table dropped ⇒ the wooden material reads 0.</summary>
+        [Fact]
+        public void CE4635_ABurnTime_ComesFromTheMaterial_ElseFromItsThermalClass()
+        {
+            var lib = TerrainMaterialLibrary.Parse("{\"materials\":{\"plank\":{\"thermalClass\":\"wood\"},\"hay\":{\"thermalClass\":\"grass\",\"burnSeconds\":45}," +
+                                                   "\"stone\":{\"thermalClass\":\"brick\"}}}", "t");
+            Assert.True(lib.TryGet("plank", out var plank));
+            Assert.True(lib.TryGet("hay", out var hay));
+            Assert.True(lib.TryGet("stone", out var stone));
+            Assert.Equal(TerrainBurn.WoodSeconds, plank!.BurnSeconds);
+            Assert.Equal(45f, hay!.BurnSeconds);
+            Assert.Equal(0f, stone!.BurnSeconds);
+            Assert.Throws<ArgumentException>(() => TerrainMaterialLibrary.Parse("{\"materials\":{\"x\":{\"burnSeconds\":-1}}}", "t"));
+        }
+
         [Fact]
         public void Mesh_EveryHorizontalTriangleFacesUp_AndWallsAreVertical()
         {

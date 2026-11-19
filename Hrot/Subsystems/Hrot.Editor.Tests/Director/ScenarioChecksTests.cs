@@ -341,6 +341,48 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2443</c> (Minefields MF-10) — <c>is: "Lane"</c>: the COUNT of cleared lanes the side holds on the field (its lane records; default <c>&gt;= 1</c>) —
+    /// a marked field reads every cell known-mined, so the lane is in the side's knowledge as a lane record, never as cell levels.
+    /// 🔴 Red-proof: count every side's lanes ⇒ "Hostile holds no lane" fails.
+    /// </summary>
+    [Fact]
+    public void CE2443_TheKnowledgeCue_Lane_CountsTheSidesClearedLanes()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "Friend holds a lane", "on": "knowledge", "who": "Field A", "side": "Friend", "is": "Lane"},
+                {"name": "Friend holds one lane", "on": "knowledge", "who": "Field A", "side": "Friend", "is": "Lane", "op": "==", "value": 1},
+                {"name": "Hostile holds no lane", "on": "knowledge", "who": "Field A", "side": "Hostile", "is": "Lane", "op": "==", "value": 0}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>(); world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldKnowledge>(); world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldLanes>();
+        world.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
+        var guid = Guid.NewGuid();
+        var field = world.CreateEntity();
+        world.AddComponent(field, new SimTransform { Position = new Vector3(500f, 200f, 0f), Rotation = Quaternion.Identity });
+        world.AddComponent(field, new Fdp.Toolkit.Terrain.Minefield { Type = Fdp.Toolkit.Terrain.MineType.AntiPersonnel, SpacingM = 4f });
+        world.AddComponent(field, new NetworkIdentity { Value = 77 });
+        world.AddComponent(field, new Fdp.Toolkit.Scenario.EntityGuid(guid));
+        world.SetManagedComponent(field, new Hrot.Map.Common.Components.EditablePolyline
+        {
+            Points = new[] { new Vector2(0f, 0f), new Vector2(40f, 0f), new Vector2(40f, 40f), new Vector2(0f, 40f) },
+        });
+        var lanes = new Fdp.Toolkit.Terrain.MinefieldLanes { Field = guid };
+        Assert.True(lanes.TryAdd(new Fdp.Toolkit.Terrain.LaneItem(guid, new Vector2(490f, 220f), new Vector2(550f, 220f), 4.5f, (byte)((int)ForceId.Friend + 1))));
+        world.AddComponent(world.CreateEntity(), lanes);
+        var w = new FakeWorld { World = world };
+        w.U.Ids["Field A"] = 77;
+        var book = new ConditionBook(checks, w, 0);
+        book.Finish(1);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["Friend holds a lane"].Ok);
+        Assert.True(v["Friend holds one lane"].Ok);
+        Assert.True(v["Hostile holds no lane"].Ok);
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-5033</c> (glass windows, docs/DESIGN_Glass_Windows.md §7) — the <c>window</c> cue reads a building's glazed window as every reader of the world does
     /// (<c>DoorStates.Windows</c>): the one nearest a point (or any of the building's) is <c>intact</c>, <c>cracked</c> (at least <c>n</c> hits) or <c>broken</c>.
     /// The grammar names a window cue with no building or an unknown state. 🔴 Red-proof: judge "broken" by <c>Hits &gt;= 1</c> ⇒ the cracked window reads broken.
@@ -440,6 +482,33 @@ public sealed class ScenarioChecksTests
         Assert.Contains(bad, p => p.Contains("a cover cue needs m", StringComparison.Ordinal));
         Assert.Contains(bad, p => p.Contains("a bunched cue needs m", StringComparison.Ordinal));
         Assert.Contains(bad, p => p.Contains("dead belongs to a field cue", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2443</c> — <c>also</c> on a field cue: every extra condition holds on the SAME unit ("a man inside the field's x-span AND above the lane's band");
+    /// a man who meets one condition and another man the other does not make it hold. 🔴 Red-proof: judge <c>also</c> on ANY unit ⇒ the split pair holds ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE2443_Also_AllConditionsOnTheSameUnit()
+    {
+        var checks = Parse("""
+            { "runFor": 5, "expect": [
+                {"name": "a man in the field above the lane", "on": "field", "who": "*Man", "path": "SimTransform.Position.1", "op": ">", "value": 83,
+                 "also": [{"path": "SimTransform.Position.0", "op": ">", "value": 120}, {"path": "SimTransform.Position.0", "op": "<", "value": 140}]}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        JsonObject At(double x, double y) => new() { ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, y, 0) } };
+        var split = new FakeWorld();
+        split.U.Ids["Man A"] = 1; split.Comps[1] = At(100, 90);   // above the band, but outside the field
+        split.U.Ids["Man B"] = 2; split.Comps[2] = At(130, 80);   // in the field, but inside the lane
+        var b1 = new ConditionBook(checks, split, 0); b1.Observe(1); b1.Finish(5);
+        Assert.False(b1.Verdicts().Single().Ok);
+        var one = new FakeWorld();
+        one.U.Ids["Man C"] = 3; one.Comps[3] = At(130, 90);       // in the field AND above the band
+        var b2 = new ConditionBook(checks, one, 0); b2.Observe(1); b2.Finish(5);
+        Assert.True(b2.Verdicts().Single().Ok);
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "near", "who": "A", "point": [0,0], "also": [{"path": "a", "op": "==", "value": 1}]}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("also belongs to a field cue", StringComparison.Ordinal));
     }
 
     /// <summary>

@@ -952,20 +952,7 @@ namespace Hrot.NED.Descriptors
         public double IrritatedUntil;
         public double KnockedDownUntil;
         public byte Cowering;   // ⭐ ui finding F-3 (civilians design §7.6) — appended: 1 while the behaviour has the person cower
-    }
-
-    // ⭐ CE-3224 (civilians B-6, CV-13) — a person's gesture, the brain owner → every node. Reliable + TransientLocal + KeepLast 1,
-    //   like EntityEffectState: a late joiner must see who has his hands up.
-    //   ⭐ CE-2368 / CE-1308 (AQ103 I, People Display §7d) — Kind 1..6 are ACTS (poses: hands up, a fist, a sign, a wave, a throw, a
-    //   warning); 7..10 are IDLE MOODS (smoking, shifting weight, a stretch, looking about) — for an IG, idle ANIMATIONS to blend in and
-    //   out on the man's own clock, never poses to snap to; 0 ends either at once.
-    [DdsTopic]
-    [DdsIdlFile("hrot-sim-desc")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
-    public partial struct EntityGesture
-    {
-        [DdsKey] public int EntityId;
-        public byte Kind;
+        public double BurningUntil;   // ⭐ CE-4635 (R-3111, flame weapons F-4) — appended: until when the person is on fire
     }
 
     // ⭐ CE-4617 (B-1, RS-10; docs/designs/air-attack/DESIGN_Radar_SAM.md) — a radar's EMISSION, the carrier's brain owner → every node: the radar
@@ -1243,12 +1230,14 @@ namespace Hrot.NED.Descriptors
     }
 
     // ⭐ CE-3265 (G2, §7.18) — how a civilian seems: his mode, fear and anger in quarters, his brain's owner → every node.
+    //   ⭐ CE-4628 §10c — and the GESTURE he makes (Kind: 1..6 acts, 7..10 idle moods, 0 none — the retired EntityGesture's byte).
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
     public partial struct EntityDemeanour
     {
         [DdsKey] public int EntityId;
+        public byte Kind;
         public byte Mode;
         public byte Fear;
         public byte Anger;

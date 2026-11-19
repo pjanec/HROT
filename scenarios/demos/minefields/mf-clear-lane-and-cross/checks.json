@@ -1,0 +1,84 @@
+{
+  "$doc": "DRAFT — stage rows to learn the chain's timing",
+  "runFor": 2000,
+  "golden": false,
+  "anchors": {
+    "strike": {
+      "on": "blast"
+    }
+  },
+  "expect": [
+    {
+      "name": "S1 a mine goes off",
+      "on": "blast"
+    },
+    {
+      "name": "S2 the patrol reacts MineStrike",
+      "on": "task",
+      "who": "Patrol",
+      "is": "MineStrike"
+    },
+    {
+      "name": "S3 the patrol asks: MinefieldAhead",
+      "on": "task",
+      "who": "Patrol",
+      "is": "MinefieldAhead"
+    },
+    {
+      "name": "S4 a sapper runs ReconMinefield",
+      "on": "task",
+      "who": "*Sapper",
+      "is": "ReconMinefield"
+    },
+    {
+      "name": "S5 Friend has Field D marked",
+      "on": "knowledge",
+      "who": "Field D",
+      "side": "Friend",
+      "is": "Marked"
+    },
+    {
+      "name": "S6 the Engineers run Breach",
+      "on": "task",
+      "who": "Engineers",
+      "is": "Breach"
+    },
+    {
+      "name": "S7 the Clearer runs ClearLane",
+      "on": "task",
+      "who": "Clearer",
+      "is": "ClearLane"
+    },
+    {
+      "name": "S8 Friend holds the cleared lane",
+      "on": "knowledge",
+      "who": "Field D",
+      "side": "Friend",
+      "is": "Lane"
+    },
+    {
+      "name": "S9 the patrol marches again",
+      "on": "task",
+      "who": "Patrol",
+      "is": "SquadMarch",
+      "after": "strike+30"
+    },
+    {
+      "name": "S10 a patrol man reaches the objective",
+      "on": "near",
+      "who": "*Man",
+      "point": [
+        135,
+        80
+      ],
+      "within": 3
+    },
+    {
+      "name": "S11 no second mine",
+      "never": {
+        "on": "blast",
+        "n": 2
+      }
+    }
+  ]
+}

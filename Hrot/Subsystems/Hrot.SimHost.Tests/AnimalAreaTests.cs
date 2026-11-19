@@ -145,7 +145,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(w.IsComponentTypeRegistered<GroupMember>());
             Assert.True(w.IsComponentTypeRegistered<Group>());          // ⭐ CE-4628 — the shared creature components
             Assert.True(w.IsComponentTypeRegistered<AnimalTasks>());
-            Assert.True(w.IsComponentTypeRegistered<Mood>());
+            Assert.True(w.IsComponentTypeRegistered<Demeanour>());
             Assert.True(w.IsComponentTypeRegistered<Home>());
         }
 

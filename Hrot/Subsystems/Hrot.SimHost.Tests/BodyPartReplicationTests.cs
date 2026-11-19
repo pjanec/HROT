@@ -23,7 +23,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<PartDamage>();
             w.RegisterComponent<HitMarks>();
             w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
-            w.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            w.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             w.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();   // ⭐ CE-4617
             w.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();   // ⭐ CE-3238
             w.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
@@ -96,7 +96,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3219_F3_EffectState_WithCowering_ReachesTheOtherNode()
         {
-            var effects = new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)12.5, IrritatedUntil = (SimInstant)3, KnockedDownUntil = (SimInstant)7.25, Cowering = 1 };
+            var effects = new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)12.5, IrritatedUntil = (SimInstant)3, KnockedDownUntil = (SimInstant)7.25, Cowering = 1, BurningUntil = (SimInstant)9.5 };   // ⭐ CE-4635 — the burning man rides along
             var sample = EntityEffectStateEgressTranslator.ToSample(44, effects);
 
             var (node, unit, map) = Node(44);
@@ -110,6 +110,7 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44, effects with { Cowering = 0 }));
+            Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44, effects with { BurningUntil = (SimInstant)0 }));   // ⭐ CE-4635 — burning out is a change
         }
 
         /// <summary>⭐ <c>CE-4617</c> (B-1, RS-10) — a radar's emission reaches the other node with its tracked target as THAT node's entity (by network
@@ -148,25 +149,31 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(sample, Hrot.Map.Common.Replication.Egress.EntityRadarEmissionEgressTranslator.ToSample(sender, 46, default));
         }
 
-        /// <summary>⭐ <c>CE-3224</c> (civilians B-6, §7.7) — a person's gesture reaches the other node, and going back to None is
-        /// published too (a protester lowering his fist is a change).</summary>
+        /// <summary>
+        /// ⭐ <c>CE-3224</c> / <c>CE-4628</c> §10c rail (2) — the ONE demeanour record reaches the other node whole: the gesture (<c>Kind</c>) AND the mood (Mode, Fear,
+        /// Anger) cross the wire (egress → ingress), and a change of the gesture alone — back to None included — is a different sample (a protester lowering his fist
+        /// is a change). 🔴 Red-proof: the egress or the ingress dropping <c>Kind</c> ⇒ red.
+        /// </summary>
         [Fact]
-        public void CE3224_Gesture_ReachesTheOtherNode_AndNoneIsAChange()
+        public void CE4628_TheDemeanour_ReachesTheOtherNode_KindModeFearAndAnger()
         {
-            var raised = new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.FistRaised };
-            var sample = EntityGestureEgressTranslator.ToSample(45, raised);
+            var sent = new Fdp.Toolkit.Creatures.Demeanour { Kind = Fdp.Toolkit.Combat.GestureKind.FistRaised, Mode = Fdp.Toolkit.Civilians.CivilianMode.Riot, Fear = 2, Anger = 3 };
+            var sample = Hrot.Map.Common.Replication.Egress.EntityDemeanourEgressTranslator.ToSample(45, sent);
 
             var (node, unit, map) = Node(45);
             using (node)
             {
-                var ingress = new EntityGestureIngressTranslator(participant: null, map);
+                var ingress = new Hrot.Map.Common.Replication.Ingress.EntityDemeanourIngressTranslator(participant: null, map);
                 using var cmd = new EntityCommandBuffer();
                 ingress.Apply(in sample, cmd, node);
                 cmd.Playback(node);
                 Assert.Equal(Fdp.Toolkit.Combat.GestureKind.FistRaised, Fdp.Toolkit.Combat.Gestures.Of(node, unit));
+                Assert.True(Fdp.Toolkit.Creatures.Demeanours.Of(node, unit, out var got));
+                Assert.Equal((sent.Kind, sent.Mode, sent.Fear, sent.Anger), (got.Kind, got.Mode, got.Fear, got.Anger));
             }
 
-            Assert.NotEqual(sample, EntityGestureEgressTranslator.ToSample(45, default));
+            var lowered = sent; lowered.Kind = Fdp.Toolkit.Combat.GestureKind.None;
+            Assert.NotEqual(sample, Hrot.Map.Common.Replication.Egress.EntityDemeanourEgressTranslator.ToSample(45, lowered));
         }
 
         /// <summary>⭐ <c>CE-3238</c> (civilians B-16, §7.16 HA-1) — a man's hostile act reaches the other node with its kind and its time, and

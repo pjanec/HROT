@@ -22,6 +22,10 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// <summary>How long a shot or a detonation can still be heard (s) — covers a sensor deferred by the solver's budget.</summary>
         public const float SoundLingerSeconds = 0.5f;
 
+        /// <summary>⭐ <c>CE-4635</c> — a flame burst is one continuous roar: it goes into the ring once per this many seconds while the fuel shots go on
+        /// (10 a second), never once per shot.</summary>
+        public const float FlameRoarSeconds = 1f;
+
         // ⭐ CE-3315 — the world restores this system has numbered on from (WorldEpoch.RestoresOf)
         [Fdp.Core.WorldDerived("the world restores already numbered on from (CE-3315); a watcher of `WorldEpoch.RestoresOf`, like `_epoch`")]
         private int _restoresSeen;
@@ -81,6 +85,7 @@ namespace Fdp.Toolkit.Perception.Signatures
                     a.CurrentMovingRange = a.MovingAudibleRange;
                 a.ShotTimeLeft       = MathF.Max(0f, a.ShotTimeLeft - deltaTime);
                 a.DetonationTimeLeft = MathF.Max(0f, a.DetonationTimeLeft - deltaTime);
+                a.RoarTimeLeft       = MathF.Max(0f, a.RoarTimeLeft - deltaTime);
             }
 
             if (repo.Bus.IsRegistered<WeaponFireNotification>())
@@ -99,6 +104,12 @@ namespace Fdp.Toolkit.Perception.Signatures
                     var p = repo.GetComponentRO<SimTransform>(shot.Shooter).Position;
                     a.ShotTimeLeft = SoundLingerSeconds;
                     a.ShotX = p.X; a.ShotY = p.Y; a.ShotZ = p.Z;
+                    // ⭐ CE-4635 (ui NOTE flamethrower sound) — a fuel shot is part of one ROAR: heard once a second while the burst lasts
+                    if (Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, shot.Shooter, shot.WeaponIndex) is { Category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower })
+                    {
+                        if (a.RoarTimeLeft > 0f) continue;
+                        a.RoarTimeLeft = FlameRoarSeconds;
+                    }
                     if (a.FiringAudibleRange > 0f)
                         ring.Append(Emission(repo, shot.Shooter, SoundKind.Shot, a.FiringClass, p, a.FiringAudibleRange, ring.Now, TypeOf(repo, shot.Shooter), a.Family));
                 }

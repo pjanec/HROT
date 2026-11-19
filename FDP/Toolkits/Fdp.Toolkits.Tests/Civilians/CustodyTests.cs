@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Tests.Civilians
             _world.RegisterComponent<IsEmbarkedTag>();
             _world.RegisterComponent<ActorCapabilityState>();
             _world.RegisterComponent<WeaponPosture>();
-            _world.RegisterComponent<Gesture>();
+            _world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             _world.RegisterComponent<Custody>();
             _world.RegisterEvent<CustodyEvent>();
             _world.SetSingleton(new GlobalTime());

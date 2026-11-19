@@ -408,10 +408,11 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
-        /// <summary>⭐ CE-4666 — a heard class that is weapon fire (small arms, a heavy weapon, an explosion): never the heard-close term.</summary>
+        /// <summary>⭐ CE-4666 — a heard class that is weapon fire (small arms, a heavy weapon, an explosion, a flame roar): never the heard-close term.</summary>
         public static bool IsFireClass(byte sourceClass)
             => sourceClass is (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon
-                           or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Explosion;
+                           or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Explosion
+                           or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Flame;   // ⭐ CE-4635 — a flamethrower's roar is weapon fire
 
         internal static bool Ensure(EntityRepository world, Entity e, double now)
         {
@@ -505,7 +506,7 @@ namespace Hrot.AI.Behaviors.Brains
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
                 .Unmanaged<Fdp.Toolkit.Replication.Components.TkbIdentity>()
                 .Unmanaged<StanceIntent>()
-                .Unmanaged<Fdp.Toolkit.Combat.Gesture>();   // a man's surrender / hands-up gesture (written by his brain, not here)
+                .Unmanaged<Fdp.Toolkit.Creatures.Demeanour>();   // a man's surrender / hands-up gesture (written by his brain, not here)
             public EntityRepository Repo;
             public double Now;
             public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx)

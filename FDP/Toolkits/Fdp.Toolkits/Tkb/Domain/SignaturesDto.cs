@@ -208,5 +208,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Rotor         = 7,
         /// <summary>⭐ CE-4623 AB-8 (Animals AR-7) — an animal's ALARM or a bark: heard by everyone, a fright to other animals (never to a civilian).</summary>
         Animal        = 8,
+        /// <summary>⭐ <c>CE-4635</c> (DESIGN_Flame_Weapons §6) — a flamethrower's ROAR: weapon fire, heard once a second for as long as the burst lasts,
+        /// at a shorter range than a rifle.</summary>
+        Flame         = 9,
     }
 }

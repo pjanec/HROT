@@ -16,7 +16,7 @@
       "never": {
         "on": "field",
         "who": "Enemy Soldier",
-        "path": "Gesture.Kind",
+        "path": "Demeanour.Kind",
         "op": "!=",
         "value": "HandsUp"
       },
@@ -27,7 +27,7 @@
       "name": "his hands come down 15-25 s after",
       "on": "field",
       "who": "Enemy Soldier",
-      "path": "Gesture.Kind",
+      "path": "Demeanour.Kind",
       "op": "!=",
       "value": "HandsUp",
       "after": "he raises his hands+15",
