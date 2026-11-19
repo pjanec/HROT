@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-18
 tracker: CE-5026 (row) · slices CE-5032…CE-5034
-build-state: BUILDING — GW-1 and GW-2 BUILT `2026-11-18` (as-built folded into D-2, D-3, D-7, D-8 and §4); GW-3 (the look, ui) and the two scenarios to build — ✅ D-1…D-10 APPROVED by the user `2026-11-18` ("approved", R-5068; D-10 the user's own rule); mockup docs/UX/glass-windows.svg
+build-state: BUILDING — GW-1, GW-2 and GW-3 BUILT `2026-11-18/19` (as-built folded into D-2, D-3, D-7, D-8, §4, §5) — ✅ D-1…D-10 APPROVED by the user `2026-11-18` ("approved", R-5068; D-10 the user's own rule); mockup docs/UX/glass-windows.svg
 current-answer: §0 the user's rulings · §1 inventory · §2 the proven solution · §3 decisions · §4 UML · §5 the look · §6 slices · §7 acceptance
 stale-below: nothing
 known-rot: none
@@ -200,77 +200,25 @@ graph TD
 ⛔ The mockup specifies only the pane, its cracks and its shatter; the house and the map are context, unchanged. No UI panel changes (the
 window state is not authored; the building damage's existing views list it).
 
+### 5a. As built — GW-3 *(terrain, `2026-11-19`)*
+
+| design said | as built — and why |
+|---|---|
+| panes and cracks "in the chunk build" (§4.1 `TerrainChunkMesh`) | ⭐ their own translucent PASS, `GlassLayer3D`, after the terrain and the bodies: depth test on (a wall in front hides the glass), depth write off (the room and a man behind show through). 📐 The chunk mesh draws OPAQUE and its vertex alpha already carries the shader's pattern code (`TerrainLayer3D.MaterialCode`), so a pane there could not be see-through. The cloud deck's shape |
+| the shard burst as a separate `GlassShatterEffect` | inside the same layer: it notices a pane turning broken in its view (`WindowTable`), throws 26 shards (1.4 s, gravity); a pane already broken when it first looks bursts nothing (a late joiner) |
+| the mockup's dark frame round each pane | ⛔ not drawn — the opening's bare cut in the wall frames it (the wall mesh is unchanged); the rest is as the mockup: the pale-blue pane at 0.45, the sheen, a crack star per kept hit (dot, seven radial lines, two dashed rings, both faces), three shards left in a broken frame |
+| the glass sound's playback (§6 GW-3) | ⭐ *(ui, `2026-11-19`)* not the layer's — a layer is per view, so two 3-D views would each play it. The barrier-crash route: `EffectSpawnSystem.TrackWindows` (once per world, every map host) turns each `WindowBrokenEvent` (raised where the window was decided, carried to every node by event id 5112) into `SoundEvents.Glass`, played as the built-in sound type `SoundTkbCatalog.Glass` 7356 (`SoundSynth.Glass`: a crack, then tinkling; 150 m, the AI's hearing range). ⚠ Like the crash, not played in a replay (the spawner is off there) |
+| a breach or a collapse takes the pane (D-10) | `GlassLayer3D.LookOf` — the one rule the layer and its rail read: collapsed ⇒ gone; a breach over the pane's centre ⇒ gone; broken ⇒ the hole |
+
+Frames: `HROT_RAIL_SHOTS=<dir> xvfb-run -a dotnet test Hrot/Engine/Hrot.Presentation.Tests --filter GlassFrameRail` (`glass-1-south-intact-cracked`, `glass-2-east-broken`, `glass-3-the-burst`).
+
 ## 6. Slices *(proposed)*
 
 | slice | lane | builds | rails |
 |---|---|---|---|
 | **GW-1** ([CE-5032](blueprints/Blueprint_Issues_Tracker.md)) the pane | terrain | ✅ BUILT `2026-11-18`: `TerrainOpening.Glazed` (default true for a window); `TerrainWorld.PaneLeaves` / `Panes` / `QueryLeaves` (D-2 as built); the spatial index covers the panes | ✅ `GlassPaneTests`: a glazed window's trace crosses a 1 cm `glass` pane; sight unchanged; sound −20 dB; a gap, a door, `glazed: false` have none; no hull, no shadow, no decal; a breach over the window or a collapse takes it, a breach beside does not; the index finds it |
 | **GW-2** ([CE-5033](blueprints/Blueprint_Issues_Tracker.md)) the state + rules | terrain | ✅ BUILT `2026-11-18` (rails `WindowDamageTests`, `EntityWindowDamageTranslatorTests`, `SoundPathsTests.CE5033_*`; ✅ both scenarios §7 PASS, judged by the new `window` cue — DESIGN_Scenario_Regression §3) — `WindowDamage` (component + `dtWindowDamage` translators + the `"windows"` save field) on the damage entity; `glass.json` (pressure and fragment radii); the window portal's closed / open by its pane in `SoundPaths.ThroughOpenings`; `WindowHitEvent` from `BallisticsSystem` / `AreaEffectSystem`; `BuildingDamageSystem` rules D-4, D-9; `PaneBroken` skip | 2 rounds ⇒ 2 cracks at their (u, v), the 3rd ⇒ broken and skipped; a muzzle at 1 m ⇒ broken on the first; a bomb breaks panes within its pressure radius, a grenade within its fragment radius only with a clear line; a broken window lets a shot outside be heard inside louder (an open portal); a window change triggers NO navmesh rebake; a breach over a window removes its pane and marks it broken (D-10); a collapse removes every pane; a replica receives the same entries byte for byte; save → load keeps them |
-| **GW-3** ([CE-5034](blueprints/Blueprint_Issues_Tracker.md)) the look | ui | panes and cracks in the chunk build from the table; the shatter burst + the glass sound's playback | frame rails against the mockup (R-4146) |
-
-### 6a. GW-3 as designed by ui *(CE-5034, `2026-11-19`; drawn before the build)*
-
-⚠ **Deviation from §6's "in the chunk build", measured:** the terrain chunks draw OPAQUE — a vertex colour's alpha carries the shader's material code
-(`TerrainLayer3D.cs:186`), so a translucent pane cannot be chunk triangles, and a crack star is thin lines, not a surface. ⇒ the panes, cracks and shards are
-their own TRANSLUCENT layer, drawn after the bodies (depth test on, depth writes off — the `CloudDeckRenderer` / `CardOcclusion` pattern), rebuilt only when the
-view's `WindowTable` or `BuildingDamageTable` INSTANCE changes (both are the same instance while nothing changed, R-220). The look itself (which panes, the crack
-segments, the shards, which windows just broke) is a pure function in the shared look library (`Hrot.Look`, DESIGN_Vehicle_Appearance_State §7) — any renderer
-derives the same glass.
-
-```mermaid
-classDiagram
-  class GlassLook {
-    <<static, Hrot.Look.Terrain>>
-    +Panes(world, doors, into) int
-    +PointAt(world, panel, opening, u, v) Vector3
-    +CrackStar(world, entry, hit, into) int
-    +Shards(world, panel, opening, into) int
-    +BurstShard(origin, normal, seed, age) Vector3
-  }
-  class PaneQuad { <<struct>> Vector3 A B C D ; Vector3 Normal ; int Panel ; byte Opening }
-  class ShatterWatch { <<per renderer>> +Seen(table, world, damage, into) int }
-  class WindowTable { <<GW-2, existing>> PaneBroken / TryGet / this[i] }
-  class BuildingDamageTable { <<existing>> Collapsed(building) }
-  class GlassLayer3D { <<Hrot.Presentation, NEW>> Draw3D translucent ; local bursts }
-  class EffectSpawnSystem { <<existing, every map host>> + TrackWindows }
-  class WindowBrokenEvent { <<GW-2, existing, event id 5112>> }
-  class SoundEvents { <<existing>> + Glass(at) }
-  GlassLook --> PaneQuad
-  GlassLook --> WindowTable
-  GlassLook --> BuildingDamageTable
-  ShatterWatch --> WindowTable
-  GlassLayer3D --> GlassLook
-  GlassLayer3D --> ShatterWatch
-  EffectSpawnSystem --> WindowBrokenEvent
-  EffectSpawnSystem --> SoundEvents
-```
-*What the picture shows that prose hid:* a pane is skipped for the two reasons D-10 gives — broken in the view's `WindowTable` (a breach that overlaps a window
-marks it broken there) or its building COLLAPSED (`BuildingDamageTable.Collapsed`) — ⛔ NOT `DamagedBuildings.Keeps`, which drops every piece of a panel with
-ANY breach and would take panes a breach never touched; the burst is a renderer's own memory (`ShatterWatch`), never simulation state.
-
-```mermaid
-sequenceDiagram
-  participant L as GlassLayer3D (each frame)
-  participant D as DoorStates (the view)
-  participant G as GlassLook
-  participant W as ShatterWatch
-  L->>D: Windows, Damage (the same instances while unchanged)
-  alt an instance changed
-    L->>G: Panes, CrackStar per kept hit, Shards per broken window
-    L->>W: Seen(table) - windows that TURNED broken since the last table
-    W-->>L: new bursts (none on the first table seen - a late joiner plays none - and none for a window a breach took)
-  end
-  L->>L: draw panes and shards translucent, crack lines, live bursts by sim age
-```
-*What the picture shows that prose hid:* nothing is recomputed on a steady frame (0 B), and a burst fires on a CHANGE between two tables this renderer saw.
-
-**As built (`2026-11-19`)** — ⚠ one change from the pictures above, now drawn in them: **the glass SOUND is not the layer's.** A layer is per renderer, so two 3-D
-views of one world would each play it; ⭐ it follows the existing barrier-crash route instead — `EffectSpawnSystem.TrackWindows` (once per world, every map host)
-turns each `WindowBrokenEvent` (raised where the window was decided, carried to every node by its event id 5112) into `SoundEvents.Glass`, played as the new
-built-in sound type `SoundTkbCatalog.Glass` (7356, `SoundSynth.Glass`: a crack, then tinkling; 150 m like the AI's hearing). ⚠ Like the crash, it is not played in a
-replay (the spawner is off there); the shards still fly, since the layer sees the replayed table change. The layer reads the sim time from `GlobalTime` directly
-(`SimClock.Of` boxes — an allocation per frame). Rails: `Hrot.Look.Tests/GlassLookTests` (7) and the frame rail
-`Hrot.Presentation.Tests/Map3D/TheGlassWindowsDrawTests` (intact · cracked · shattered against the mockup, `xvfb-run -a`).
+| **GW-3** ([CE-5034](blueprints/Blueprint_Issues_Tracker.md)) the look | terrain (cross-lane into ui's `Hrot.Presentation`, as the coordinator's handoff assigned) | ✅ BUILT `2026-11-19` — `GlassLayer3D` (`Hrot.Presentation/Map3D`), registered in `MapInteractionPack` after the bodies on every map host | ✅ `GlassFrameRail.CE5034_Glass_IntactCrackedBrokenAndTheBurst` (Xvfb): the south facade intact / one crack / two cracks, the east window broken with its frame shards, the burst — counts asserted, frames checked against the mockup |
 
 ## 7. Acceptance *(R-4277)*
 
@@ -281,6 +229,11 @@ replay (the spawner is off there); the shards still fly, since the layer sees th
 | existing `bd-destruction` | unchanged breaches and collapse (`BuildingDamage` is untouched) |
 
 ## ⛔ HISTORY
+
+- **GW-3 built twice (`2026-11-19`):** ui built its own `GlassLayer3D` (+ a pure `GlassLook` in `Hrot.Look`, `ShatterWatch`) against the terrain → ui handoff,
+  unaware the coordinator had reassigned GW-3 to terrain. ⛔ Removed at the merge (one implementation per concept); terrain's layer (§5a) stands, ui's
+  sound route is kept. ⚠ Open for a later slice: moving the pane / crack geometry into the shared look library (`Hrot.Look`, DESIGN_Vehicle_Appearance_State
+  §7) so a non-raylib renderer derives the same glass.
 
 - **D-3, first lean (`2026-11-18`, superseded the same day):** the window entries APPENDED to `BuildingDamage` (40 entries, ≈ 900 B with the breaches),
   argued by "no new component id: the space is nearly full" (the header of `GlobalComponentIds.cs:35`). ⛔ Overturned: ids are free (user), and the two

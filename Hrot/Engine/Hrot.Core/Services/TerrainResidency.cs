@@ -662,6 +662,8 @@ public sealed class TerrainResidency
         var replaced = world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
         if (replaced != null) RemapDamageEntities(world, replaced, bake.World);
         world.SetSingletonManaged(bake.World);
+        // ⭐ CE-5028 (BE-2, Base Edits D-4) — the terrain's entities follow the new world: a removed building's doors and damage go, a gained door gets its entity
+        if (!ReferenceEquals(replaced, bake.World)) Hrot.Map.Common.ClusterLoad.TerrainObjectReconcile.Reconcile(world, bake.World, replacing: replaced != null);
         _navmesh?.Publish(bake.Navmesh);
         world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
             bake.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World));

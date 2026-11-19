@@ -59,6 +59,6 @@ IN PROGRESS: CE-4670 drawing (HANDOFF_Coordinator_To_Ui_Waiting_Work row 2). CE-
 
 | row | state | finding | gates | design |
 |---|---|---|---|---|
-| CE-5034 GW-3 the look of glass | DONE — a translucent GlassLayer3D from GlassLook (Hrot.Look); the sound via EffectSpawnSystem on WindowBrokenEvent (new built-in Glass 7356) | Look 20/0; Presentation glass/damage/audio/effects/pack 47/0 (3 skip) under xvfb; frames match the mockup (scratchpad, not git) | GlassLookTests (red-proved), TheGlassWindowsDrawTests | DESIGN_Glass_Windows §6a as built |
+| CE-5034 GW-3 the look of glass | DONE BY TERRAIN (the coordinator reassigned it; the ui handoff withdrawn) — ui's parallel build (5f845eeb4) REMOVED at the merge of terrain; ui's one addition kept: the breaking-glass SOUND (EffectSpawnSystem.TrackWindows → SoundEvents.Glass, built-in 7356) | GlassFrameRail + AudioTests (see the merge commit) | AudioTests.CE5034_AShatteredPane_IsHeardAsBreakingGlass_Once | DESIGN_Glass_Windows §5a (+ HISTORY) |
 | CE-4670 drawing — openings, lights, head out, light switches | IN PROGRESS | | | |
 | CE-1980 / CE-3451 ②④ (DECIDED: ② build, ③ the rule moves into code — R-4297, ④ once in the egress shape) | TODO | | | |

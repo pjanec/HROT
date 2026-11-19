@@ -126,11 +126,14 @@ public sealed class EditorToolStripsTests : IDisposable
         var (w, _) = Terrain();
         Assert.False(w.IsOpen);
         string[] Names(string id) => w.StripEntries.Single(e => e.Id == "##ts_t_" + id).Family!.Select(m => m.Label).ToArray();
-        Assert.Equal(new[] { "wood", "trees", "walls", "obstacles", "earthworks", "water", "scatter" }, w.StripEntries.Select(e => e.Id["##ts_t_".Length..]).ToArray());
+        Assert.Equal(new[] { "wood", "trees", "walls", "obstacles", "earthworks", "buildings", "water", "scatter" }, w.StripEntries.Select(e => e.Id["##ts_t_".Length..]).ToArray());   // ⭐ CE-5030 the Buildings family
+        Assert.Equal(new[] { "Remove building", "Make enterable", "Add door" }, Names("buildings"));
         Assert.Equal(new[] { "Wood", "Scrub" }, Names("wood"));
         Assert.Equal(new[] { "Tree", "Tree row", "Tree group" }, Names("trees"));   // ⭐ CE-5008 (TE-3): One · Row · Group
         Assert.Equal(new[] { "Wall", "Wall around a plot", "Fence", "Hedge" }, Names("walls"));   // ⭐ CE-5012 (TE-7) added the closed-wall pick
-        Assert.Equal(new[] { "Car", "Sandbag wall", "Concrete block", "Crate", "Barrel", "Jersey barrier", "Guard booth", "Row of obstacles…" }, Names("obstacles"));   // ⭐ CE-5008 (TE-5): the row tool is the fifth member
+        // ⭐ CE-5008 (TE-5): every obstacle type of the ONE table, then the row tool (the table grows — 📐 water- and sand-filled barrels arrived; a hard-coded list went stale)
+        Assert.Equal(TerrainToolsWindow.ObstacleMembers.Select(o => o.Label).Append("Row of obstacles…").ToArray(), Names("obstacles"));
+        Assert.Contains("Sandbag wall", Names("obstacles"));
         Assert.Contains("Level", Names("earthworks")); Assert.DoesNotContain("Crater", Names("earthworks"));   // the disabled pick is not offered
         Assert.Equal(new[] { "Water", "Bridge" }, Names("water"));
         Assert.Equal(new[] { "Street clutter", "Undergrowth" }, Names("scatter"));
@@ -153,10 +156,12 @@ public sealed class EditorToolStripsTests : IDisposable
         spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("feature:14:tree:Line"))), Times.Once);
         E("trees").Pick(2);
         spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("feature:15:tree:Area"))), Times.Once);
-        E("obstacles").Pick(7);   // the obstacle ROW: a line tool whose spec is the row's, never a terrain feature
+        E("obstacles").Pick(TerrainToolsWindow.ObstacleMembers.Count());   // the obstacle ROW (the last member): a line tool whose spec is the row's, never a terrain feature
         spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains(ObstacleRowOptions.Spec))), Times.Once);
         E("scatter").Pick(1);
         spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("undergrowth"))), Times.Once);
+        E("buildings").Pick(1);   // ⭐ CE-5030 — a building edit is ONE click (a point), its action in the spec
+        spawn.Verify(s => s.StartPlacementMode(TkbEntityTypes.TerrainFeature, It.Is<string?>(j => j != null && j.Contains("feature:16:enterable:Point"))), Times.Once);
         Assert.Equal(1, E("scatter").Selected);
     }
 

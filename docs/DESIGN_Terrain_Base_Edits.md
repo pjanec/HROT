@@ -216,6 +216,28 @@ node that loads a scenario with an edit never creates the removed building's doo
 
 Rails: `TerrainWorldMergeTests.CE5025_Without_DropsTheBuildingWithItsParts_AndASolidBlockByLabel_ReindexingTheRest`, `CE5025_AnEditRemovingABaseHouse_LeavesItsFootprintLevelledAtItsFloor`.
 
+### 6b. As built — BE-2 *(terrain, `2026-11-19`)*
+
+| design said | as built — and why |
+|---|---|
+| D-4 `TerrainObjectReconcile` on every commit | ⭐ `TerrainObjectReconcile.Reconcile` (`Hrot.Core/Services/LoadPhase`), called by `TerrainResidency.CommitObstacles` right after the new world is published (after the damage remap): an OWNED door entity whose key the world lost is destroyed; an OWNED damage entity the remap left at building −1 is destroyed (its windows with it); every door the world gained is asked for through `TerrainObjectRequests.ForDoors` — the load step's own request (closes Authoring G-3) |
+| — | ⚠ **who creates:** the node that already OWNS door entities (it made them at load), or — a world with none yet — this node. ⛔ Never on a world's FIRST commit (the load step creates the doors then: two creators would make each door twice). A door asked for is remembered per world until its entity exists (two bakes can commit before the creation system runs). ⚠ A cluster whose terrain started with NO doors would get its first new doors from every baking node — not reached today (the live overlay is the editor's, one node) |
+| — | a node destroys only what it owns; another node's orphan is left to its owner |
+
+Rail: `LiveOverlayBakeTests.CE5028_AddedHousesGainTheirDoors_ARemovedHouseTakesItsDoorAndDamage` (a real live bake: six huts' doors asked once, a removed base house's door and damage gone the same commit), red-proved (no reconcile ⇒ red).
+
+### 6c. As built — BE-3 *(terrain, `2026-11-19`)*
+
+| design said | as built — and why |
+|---|---|
+| D-6 the generator places a door on the free wall facing the nearest road, else the longest, else refuses — the importer too | ⭐ `OpeningPlacer.Place` (the importer's, and through it the editor's): a ground-floor door added when the data gave none; a ground-floor window where it goes gives way; every wall shared ⇒ `ImportReport.Doorless` + a warning. ⚠ The importer passes no road points yet ⇒ the LONGEST free wall (the road-facing choice works when a caller passes `nearestRoad`) |
+| D-6 `IUniqueBuildings.FromFootprint(footprint, storeys, doorHint)` | `FromFootprint(footprint, baseZ, height, door)` — a DEFAULT interface method (null: a host without a generator), implemented by `SynthUniqueBuildings` through `BuildingTemplateGenerator`: storeys from the height (3 m each), a window every 3.5 m on every wall per storey, the door hint as a door OPENING (the placer's own input — no second door path) |
+| D-6 placed as an overlay house `<editGuid>/0` | the edit's parts: `/0` remove, `/2` the levelled footprint, `/1` the house with its template INLINE (`"building": {…}`, the parser's own form) — no template file to register |
+| D-7 add door = regenerate with a hint | as designed: the same path, `door` passes the edit's position as the hint |
+| — | ⛔ no generator, a building not in the base, or no house fits (no stair) ⇒ the edit expands to NOTHING (the building stays) and the host warns — never a removed house with nothing in its place |
+
+Rails: `OpeningPlacerDoorRuleTests` (5), `BaseEditHouseTests` (2, the real generator), both red-proved.
+
 ## 7. Acceptance *(the scenarios — R-4277, by §6a proportionate)*
 
 | scenario | expect rows |

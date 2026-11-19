@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — terrain → ui · updated: 2026-11-18 · current-answer: the whole file
+state: WITHDRAWN `2026-11-19` — the coordinator's HANDOFF_Coordinator_To_Terrain_Glass_And_Building_Edits.md assigned GW-3 to terrain (cross-lane); terrain BUILT it (CE-5034, `GlassLayer3D`). ⇒ ui: nothing to build — an FYI that a new layer now lives in your `Hrot.Presentation/Map3D` and is added in `MapInteractionPack` · was: LIVE — terrain → ui · updated: 2026-11-18 · current-answer: the whole file
 related-designs:
   - ../../DESIGN_Glass_Windows.md — OWNS the glass (D-1…D-10), §5 the look, §6 GW-3
 -->

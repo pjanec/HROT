@@ -1,182 +1,341 @@
+using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
-using Fdp.Interfaces;
 using Fdp.Toolkit.Terrain;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis3D;
-using Hrot.Look.Terrain;
 using Raylib_cs;
 
 namespace Hrot.UI.Common.Map3D;
 
 /// <summary>
-/// ⭐⭐ CE-5034 GW-3 (📄 docs/DESIGN_Glass_Windows.md §5, §6a; mockup docs/UX/glass-windows.svg) — <b>the glass in the windows</b>, drawn on the 3-D map from the
-/// REPLICATED window and building damage, the same on every map node, a late joiner included: a translucent pane in every glazed window still standing, a crack star
-/// per kept hit (both faces), a few shards left in a broken frame, and a shard burst when this renderer SEES a window turn broken (<see cref="ShatterWatch"/>: none
-/// on the first table, none for a breach). ⭐ The look is <see cref="GlassLook"/>'s (the shared library); this layer only caches it per table instance and draws it.
-/// <para>⭐ After the opaque world (the terrain, the bodies): depth TESTED so a wall hides a pane, depth WRITE off so a pane hides nothing behind it. ⛔ Not in the
-/// terrain chunks: they draw opaque, and a window change would rebuild a chunk (§6a).</para>
+/// ⭐⭐ <c>CE-5034</c> GW-3 (📄 docs/DESIGN_Glass_Windows.md §5, mockup <c>docs/UX/glass-windows.svg</c>) — the GLASS in the windows on the 3-D map, drawn from what
+/// this host's view holds and nothing else: every glazed window's pane (<see cref="TerrainWorld.PaneLeaves"/>) near the eye as a pale-blue TRANSLUCENT sheet
+/// with a sheen (both faces), a crack star at each kept hit (<see cref="WindowTable"/>, the replicated <c>WindowDamage</c> — so a late joiner and a replay see
+/// every crack), and — once broken — the open hole with a few shards left in the frame; a breached wall's or a collapsed building's pane is gone with it (D-10).
+/// At the moment this host SEES a pane turn broken it plays a short shard burst (D-8: local, a state change — a pane already broken when the layer first looks
+/// bursts nothing, so a late joiner plays none).
+/// <para>⭐ Its own pass after the opaque terrain (the cloud deck's shape): depth TEST on (a wall in front hides the glass), depth WRITE off (the room behind
+/// shows through). ⛔ Not in the chunk mesh: the terrain draws opaque, its vertex alpha carries the shader's pattern code.</para>
+/// <para>⚠ Hot path: no allocation in the steady state — the pane grid is built once per world, the burst list is a reused buffer.</para>
 /// </summary>
 public sealed class GlassLayer3D : ISceneLayer
 {
-    /// <summary>The pane: pale blue glass, mostly see-through.</summary>
-    public static readonly Color Pane = new(150, 184, 206, 70);
+    /// <summary>The pane's tint (the mockup's #9FD7FF at 0.45).</summary>
+    public static readonly Color PaneColour = new(159, 215, 255, 115);
+    /// <summary>The sheen strip across a pane.</summary>
+    public static readonly Color SheenColour = new(255, 255, 255, 46);
+    /// <summary>A crack's lines.</summary>
+    public static readonly Color CrackColour = new(255, 255, 255, 235);
+    /// <summary>A shard (left in the frame, or flying).</summary>
+    public static readonly Color ShardColour = new(159, 215, 255, 150);
 
-    /// <summary>The pane's sheen: a lighter diagonal streak (the mockup's highlight).</summary>
-    public static readonly Color Sheen = new(225, 238, 246, 60);
-
-    /// <summary>A crack's lines and the impact dot: white.</summary>
-    public static readonly Color Crack = new(240, 246, 250, 230);
-
-    /// <summary>A shard left in the frame, and a flying one.</summary>
-    public static readonly Color Shard = new(190, 214, 230, 170);
+    /// <summary>Panes farther than this from the eye (m) are not drawn.</summary>
+    public const float DrawRadiusM = 220f;
+    /// <summary>A crack star's radius as a share of the pane's smaller side (the mockup's 0.32).</summary>
+    public const float CrackShare = 0.32f;
+    /// <summary>How long a shard burst lasts (s).</summary>
+    public const float BurstSeconds = 1.4f;
+    /// <summary>How many shards one shattered pane throws.</summary>
+    public const int ShardsPerBurst = 26;
 
     private readonly Func<EntityRepository?> _world;
-    private EntityRepository? _lastWorld;
-    private TerrainWorld? _lastTerrain;
-    private WindowTable? _lastWindows;
-    private BuildingDamageTable? _lastDamage;
-    private bool _built;
+    private readonly Func<Vector3> _eye;
 
-    private readonly List<PaneQuad> _panes = new();
-    private readonly List<GlassLine> _cracks = new();
-    private readonly List<Vector3> _dots = new();
-    private readonly List<GlassShard> _shards = new();
-    private readonly ShatterWatch _watch = new();
-    private readonly List<(int Panel, int Opening)> _broke = new();
-    private readonly List<(Vector3 Origin, Vector3 Outward, uint Seed, double At)> _bursts = new();
+    public GlassLayer3D(Func<EntityRepository?> world, Func<Vector3> eye)
+    {
+        _world = world ?? throw new ArgumentNullException(nameof(world));
+        _eye = eye ?? throw new ArgumentNullException(nameof(eye));
+    }
 
-    public GlassLayer3D(Func<EntityRepository?> world) => _world = world;
-
-    public string Name => "Glass";
+    public string Name => "Window glass (3-D)";
     public int LayerBitIndex => -1;
     public bool Has3D => true;
 
-    /// <summary>Panes / crack segments / frame shards / flying shards drawn in the last 3-D frame — the rails' counters.</summary>
+    /// <summary>Panes drawn last frame / cracks drawn / panes drawn as broken / shards in flight (rails).</summary>
     public int PanesDrawn { get; private set; }
-    /// <inheritdoc cref="PanesDrawn"/>
-    public int CrackLines => _cracks.Count;
-    /// <inheritdoc cref="PanesDrawn"/>
-    public int FrameShards => _shards.Count;
-    /// <inheritdoc cref="PanesDrawn"/>
-    public int FlyingShards { get; private set; }
-    /// <summary>Shard bursts started since this layer was made — a rail's counter.</summary>
+    public int CracksDrawn { get; private set; }
+    public int BrokenDrawn { get; private set; }
+    public int ShardsFlying => _shardCount;
+    /// <summary>Bursts started since the layer was made (rails).</summary>
     public int Bursts { get; private set; }
 
-    public void Update(float dt) { }
+    public void Update(float dt) => _dt = dt;
     public void Draw(RenderContext ctx) { }
     public bool HandleInput(Vector2 worldPos, MapMouseButton button, bool isPressed) => false;
     public Entity? PickEntity(Vector2 worldPos) => null;
 
-    /// <summary>
-    /// Bring the cached look up to the world's current tables: rebuilt only when a table INSTANCE changes (the tables stay the same object while nothing changed,
-    /// GW-2), so a steady frame does no work and allocates nothing. Returns false when there is nothing to draw. Railable without a GL context.
-    /// </summary>
-    public bool Refresh()
-    {
-        var world = _world();
-        var terrain = world != null && world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
-        if (world == null || terrain == null || terrain.PaneLeaves.Count == 0)
-        {
-            _panes.Clear(); _cracks.Clear(); _dots.Clear(); _shards.Clear(); _bursts.Clear();
-            _lastTerrain = null; _built = false;
-            return false;
-        }
-        if (!ReferenceEquals(world, _lastWorld) || !ReferenceEquals(terrain, _lastTerrain))
-        {
-            _watch.Reset(); _bursts.Clear();   // a new world: the next table is a first sight
-            _lastWorld = world; _lastTerrain = terrain; _built = false;
-        }
-        var doors = DoorStates.Of(world, terrain);
-        var windows = doors.Windows;
-        var damage = doors.Damage;
-        if (_built && ReferenceEquals(windows, _lastWindows) && ReferenceEquals(damage, _lastDamage)) return true;
-
-        _lastWindows = windows; _lastDamage = damage; _built = true;
-        _panes.Clear(); _cracks.Clear(); _dots.Clear(); _shards.Clear();
-        GlassLook.Panes(terrain, doors, _panes);
-        if (windows != null)
-            for (int i = 0; i < windows.Count; i++)
-            {
-                var w = windows[i];
-                if ((uint)w.Panel >= (uint)terrain.Panels.Count) continue;
-                int building = terrain.Panels[w.Panel].Building;
-                if (damage != null && building >= 0 && damage.Collapsed(building)) continue;
-                if (w.Broken) { GlassLook.Shards(terrain, w.Panel, w.Opening, _shards); continue; }
-                for (int hit = 0; hit < 2; hit++)
-                    if (GlassLook.CrackStar(terrain, w, hit, _cracks) > 0 && GlassLook.ImpactOf(terrain, w, hit) is { } dot) _dots.Add(dot);
-            }
-        _broke.Clear();
-        if (_watch.Seen(windows, terrain, damage, _broke) > 0)
-        {
-            double now = Now(world);
-            foreach (var (panel, opening) in _broke)
-            {
-                var q = GlassLook.Quad(terrain, panel, opening);
-                var centre = (q.A + q.C) * 0.5f;
-                // ⭐ the shards fly to the side the round LEFT by: unknown here, so OUT of the building (the street side reads best from outside)
-                _bursts.Add((centre, GlassLook.OutwardOf(terrain, panel), GlassLook.Seed(panel, opening, 3), now));
-                Bursts++;
-            }
-        }
-        return true;
-    }
+    private float _dt;
+    private TerrainWorld? _seenWorld;
+    private readonly HashSet<long> _broken = new();     // the panes this host has seen broken (a turn to broken bursts once)
+    private bool _primed;
 
     public void Draw3D(RenderContext ctx)
     {
-        PanesDrawn = 0; FlyingShards = 0;
-        if (!Refresh()) return;
-        var world = _lastWorld!;
-        double now = Now(world);
+        PanesDrawn = CracksDrawn = BrokenDrawn = 0;
+        if (_world() is not { } world || !world.HasSingletonManaged<TerrainWorld>() || world.GetSingletonManaged<TerrainWorld>() is not { PaneLeaves.Count: > 0 } terrain)
+        {
+            StepShards(_dt); DrawShards(); return;
+        }
+        if (!ReferenceEquals(terrain, _seenWorld)) { _seenWorld = terrain; _broken.Clear(); _primed = false; }
+        var view = DoorStates.Of(world, terrain);
+        var windows = view.Windows;
+        Notice(terrain, windows);
 
+        var eye = _eye();
         Rlgl.DrawRenderBatchActive();
         Rlgl.DisableDepthMask();
         Rlgl.DisableBackfaceCulling();
-        foreach (var q in _panes)
-        {
-            Quad(q.A, q.B, q.C, q.D, Pane);
-            // the sheen: a thin diagonal band across the pane
-            var s0 = Lerp(q.A, q.D, 0.55f); var s1 = Lerp(q.A, q.D, 0.75f);
-            var s2 = Lerp(q.B, q.C, 0.35f); var s3 = Lerp(q.B, q.C, 0.15f);
-            Quad(s3, s2, s1, s0, Sheen);
-            PanesDrawn++;
-        }
-        foreach (var s in _shards)
-            Raylib.DrawTriangle3D(HrotToRaylib.Position(s.A), HrotToRaylib.Position(s.B), HrotToRaylib.Position(s.C), Shard);
-        foreach (var l in _cracks)
-            Raylib.DrawLine3D(HrotToRaylib.Position(l.From), HrotToRaylib.Position(l.To), Crack);
-        foreach (var d in _dots)
-            Raylib.DrawSphereEx(HrotToRaylib.Position(d), 0.012f, 4, 6, Crack);
-        for (int b = _bursts.Count - 1; b >= 0; b--)
-        {
-            var (origin, outward, seed, at) = _bursts[b];
-            float age = (float)(now - at);
-            if (age > GlassLook.BurstSeconds || age < -1f) { _bursts.RemoveAt(b); continue; }   // over, or the clock went back (a replay jump)
-            for (int i = 0; i < GlassLook.BurstShards; i++)
+        var grid = PaneGrid.Of(terrain);
+        int c0x = (int)MathF.Floor((eye.X - DrawRadiusM) / PaneGrid.Cell), c1x = (int)MathF.Floor((eye.X + DrawRadiusM) / PaneGrid.Cell);
+        int c0y = (int)MathF.Floor((eye.Y - DrawRadiusM) / PaneGrid.Cell), c1y = (int)MathF.Floor((eye.Y + DrawRadiusM) / PaneGrid.Cell);
+        for (int cy = c0y; cy <= c1y; cy++)
+            for (int cx = c0x; cx <= c1x; cx++)
             {
-                if (GlassLook.BurstShard(origin, outward, seed, i, age) is not { } p) continue;
-                var c = HrotToRaylib.Position(p);
-                float r = 0.025f + 0.01f * (i % 3);
-                Raylib.DrawTriangle3D(c + new Vector3(-r, 0, 0), c + new Vector3(r, r * 0.6f, 0), c + new Vector3(0, -r, r * 0.5f), Shard);
-                FlyingShards++;
+                if (!grid.Cells.TryGetValue(PaneGrid.Key(cx, cy), out var list)) continue;
+                for (int k = 0; k < list.Length; k++) DrawPane(terrain, view, windows, list[k], eye);
             }
-        }
+        Rlgl.DrawRenderBatchActive();
+        StepShards(_dt);
+        DrawShards();
         Rlgl.DrawRenderBatchActive();
         Rlgl.EnableBackfaceCulling();
         Rlgl.EnableDepthMask();
     }
 
-    private static void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Color colour)
+    // ── a pane ───────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>A pane's four corners on its wall's centre plane (Hrot metres): the start's sill and head, the end's head and sill — and its unit normal.</summary>
+    public static (Vector3 A0, Vector3 A1, Vector3 B1, Vector3 B0, Vector3 Normal) Corners(TerrainPrism pane)
     {
-        var ra = HrotToRaylib.Position(a); var rb = HrotToRaylib.Position(b);
-        var rc = HrotToRaylib.Position(c); var rd = HrotToRaylib.Position(d);
-        Raylib.DrawTriangle3D(ra, rb, rc, colour);
-        Raylib.DrawTriangle3D(ra, rc, rd, colour);
+        var fp = pane.Footprint;
+        var a = (fp[0] + fp[3]) * 0.5f;
+        var b = (fp[1] + fp[2]) * 0.5f;
+        var n2 = fp[3] - fp[0];
+        float len = n2.Length();
+        var n = len > 1e-6f ? n2 / len : Vector2.UnitY;
+        return (new Vector3(a, pane.BaseZ), new Vector3(a, pane.TopZ), new Vector3(b, pane.TopZ), new Vector3(b, pane.BaseZ), new Vector3(n, 0f));
     }
 
-    // the sim clock read directly: ⛔ SimClock.Of boxes its struct (an allocation every frame)
-    private static double Now(EntityRepository world)
-        => world.HasSingletonUnmanaged<GlobalTime>() ? world.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0.0;
+    /// <summary>What a pane draws as in a view: nothing (its wall is gone), the open hole, or the glass (with the window's entry, when it was hit).</summary>
+    public enum PaneLook : byte { Gone = 0, Broken = 1, Glass = 2 }
 
-    private static Vector3 Lerp(Vector3 a, Vector3 b, float t) => a + (b - a) * t;
+    /// <summary>⭐ The one rule the layer and its rails read: pane <paramref name="index"/> of <paramref name="terrain"/> as <paramref name="view"/> holds it.</summary>
+    public static PaneLook LookOf(TerrainWorld terrain, DoorStates? view, int index, out WindowEntry entry)
+    {
+        entry = default;
+        var pane = terrain.PaneLeaves[index];
+        var (panel, opening) = terrain.Panes[index];
+        var damage = view?.Damage;
+        if (damage != null && pane.Building >= 0 && damage.Collapsed(pane.Building)) return PaneLook.Gone;
+        if (damage != null && damage.HasBreaches(panel))
+        {
+            var o = terrain.Panels[panel].Openings[opening];
+            if (damage.Opens(panel, o.At + o.Width * 0.5f, (o.SillZ + o.HeadZ) * 0.5f)) return PaneLook.Gone;   // D-10 — the glass went with the wall
+        }
+        var windows = view?.Windows;
+        if (windows != null && windows.TryGet(panel, opening, out entry)) return entry.Broken ? PaneLook.Broken : PaneLook.Glass;
+        return PaneLook.Glass;
+    }
+
+    private void DrawPane(TerrainWorld terrain, DoorStates view, WindowTable? windows, int index, Vector3 eye)
+    {
+        var pane = terrain.PaneLeaves[index];
+        var centre = new Vector3((pane.Min + pane.Max) * 0.5f, (pane.BaseZ + pane.TopZ) * 0.5f);
+        if (Vector3.DistanceSquared(centre, eye) > DrawRadiusM * DrawRadiusM) return;
+        var look = LookOf(terrain, view, index, out var entry);
+        if (look == PaneLook.Gone) return;
+        var (a0, a1, b1, b0, n) = Corners(pane);
+        if (look == PaneLook.Broken)
+        {
+            BrokenDrawn++;
+            DrawFrameShards(a0, a1, b1, b0, index);
+            return;
+        }
+        PanesDrawn++;
+        Quad(a0, a1, b1, b0, PaneColour);
+        // the sheen: a slanted strip across the pane, as the mockup's
+        var along = b0 - a0; var up = a1 - a0;
+        Quad(a0 + along * 0.07f + up * 0.06f, a0 + along * 0.26f + up * 0.94f, a0 + along * 0.35f + up * 0.94f, a0 + along * 0.16f + up * 0.06f, SheenColour);
+        if (entry.Hits > 0 && !entry.Broken)
+        {
+            float r = MathF.Min(along.Length(), up.Length()) * CrackShare;
+            Crack(a0 + along * (entry.U0 / 255f) + up * (entry.V0 / 255f), along, up, n, r, Seed(index, 0));
+            CracksDrawn++;
+            if (entry.Hits > 1)
+            {
+                Crack(a0 + along * (entry.U1 / 255f) + up * (entry.V1 / 255f), along, up, n, r, Seed(index, 1));
+                CracksDrawn++;
+            }
+        }
+    }
+
+    private static int Seed(int index, int k) => unchecked(index * 7919 + k * 104729 + 17);
+
+    /// <summary>A crack star on both faces: a white impact dot, seven radial lines, two broken rings (the mockup's).</summary>
+    private static void Crack(Vector3 at, Vector3 along, Vector3 up, Vector3 normal, float r, int seed)
+    {
+        var u = Vector3.Normalize(along); var v = Vector3.Normalize(up);
+        for (int face = -1; face <= 1; face += 2)
+        {
+            var c = at + normal * (0.006f * face);
+            Rlgl.Begin(DrawMode.Lines);
+            Rlgl.Color4ub(CrackColour.R, CrackColour.G, CrackColour.B, CrackColour.A);
+            var rr = new Lcg(seed);
+            for (int k = 0; k < 7; k++)
+            {
+                float a = k * MathF.Tau / 7f + rr.Range(-0.25f, 0.25f), l = r * rr.Range(0.7f, 1f);
+                Vertex(c); Vertex(c + (u * MathF.Cos(a) + v * MathF.Sin(a)) * l);
+            }
+            for (int ring = 1; ring <= 2; ring++)
+            {
+                float rad = r * (ring == 1 ? 0.35f : 0.6f);
+                for (int s = 0; s < 16; s += 2)   // dashed: every other segment
+                {
+                    float t0 = s * MathF.Tau / 16f, t1 = (s + 1) * MathF.Tau / 16f;
+                    Vertex(c + (u * MathF.Cos(t0) + v * MathF.Sin(t0)) * rad); Vertex(c + (u * MathF.Cos(t1) + v * MathF.Sin(t1)) * rad);
+                }
+            }
+            Rlgl.End();
+            float d = r * 0.06f;   // the impact dot
+            Quad(c - u * d - v * d, c - u * d + v * d, c + u * d + v * d, c + u * d - v * d, CrackColour);
+        }
+    }
+
+    /// <summary>A few shards left in the broken pane's frame (the mockup's three corners).</summary>
+    private static void DrawFrameShards(Vector3 a0, Vector3 a1, Vector3 b1, Vector3 b0, int index)
+    {
+        var along = b0 - a0; var up = a1 - a0;
+        float s = MathF.Min(along.Length(), up.Length()) * 0.12f;
+        var u = Vector3.Normalize(along); var v = Vector3.Normalize(up);
+        Tri(a0 + u * 0.02f + v * 0.02f, a0 + u * (0.02f + s) + v * 0.04f, a0 + u * 0.05f + v * (0.02f + s), ShardColour);
+        Tri(b0 + up - u * 0.02f - v * 0.02f, b0 + up - u * (0.02f + s) - v * 0.05f, b0 + up - u * 0.06f - v * (0.02f + s * 0.8f), ShardColour);
+        Tri(a1 - v * 0.03f + u * 0.02f, a1 - v * (0.03f + s) + u * 0.06f, a1 - v * 0.05f + u * (0.02f + s * 0.7f), ShardColour);
+    }
+
+    // ── the burst ────────────────────────────────────────────────────────────────────────────
+
+    private struct Shard { public Vector3 At, Velocity, Spin; public float Age, Size; }
+    private Shard[] _shards = new Shard[ShardsPerBurst * 4];
+    private int _shardCount;
+
+    /// <summary>The panes that turned broken since the last look: each bursts once. The first look over a world only records (a late joiner bursts nothing).</summary>
+    private void Notice(TerrainWorld terrain, WindowTable? windows)
+    {
+        if (windows == null || windows.BrokenCount == 0) { _primed = true; return; }
+        for (int i = 0; i < windows.Count; i++)
+        {
+            var w = windows[i];
+            if (!w.Broken) continue;
+            long key = ((long)w.Panel << 8) | w.Opening;
+            if (!_broken.Add(key) || !_primed) continue;
+            int pane = IndexOfPane(terrain, w.Panel, w.Opening);
+            if (pane >= 0) Burst(terrain.PaneLeaves[pane], pane);
+        }
+        _primed = true;
+    }
+
+    private static int IndexOfPane(TerrainWorld terrain, int panel, int opening)
+    {
+        var panes = terrain.Panes;
+        for (int i = 0; i < panes.Count; i++) if (panes[i].Panel == panel && panes[i].Opening == opening) return i;
+        return -1;
+    }
+
+    private void Burst(TerrainPrism pane, int index)
+    {
+        Bursts++;
+        var (a0, a1, b1, b0, n) = Corners(pane);
+        var rnd = new Lcg(Seed(index, 9));
+        if (_shardCount + ShardsPerBurst > _shards.Length) Array.Resize(ref _shards, _shards.Length * 2);   // growth only
+        for (int k = 0; k < ShardsPerBurst; k++)
+        {
+            float u = rnd.Range(0.05f, 0.95f), v = rnd.Range(0.05f, 0.95f);
+            var at = a0 + (b0 - a0) * u + (a1 - a0) * v;
+            float side = rnd.Range(0f, 1f) < 0.65f ? 1f : -1f;   // most out, some in
+            var vel = n * side * rnd.Range(1.2f, 3.2f) + new Vector3(rnd.Range(-0.8f, 0.8f), rnd.Range(-0.8f, 0.8f), rnd.Range(0f, 1.5f));
+            _shards[_shardCount++] = new Shard { At = at, Velocity = vel, Spin = Vector3.Normalize(new Vector3(rnd.Range(-1f, 1f), rnd.Range(-1f, 1f), 1f)), Size = rnd.Range(0.04f, 0.1f) };
+        }
+    }
+
+    private void StepShards(float dt)
+    {
+        if (dt <= 0f) return;
+        int keep = 0;
+        for (int i = 0; i < _shardCount; i++)
+        {
+            var s = _shards[i];
+            s.Age += dt;
+            if (s.Age >= BurstSeconds) continue;
+            s.Velocity.Z -= 9.81f * dt;
+            s.At += s.Velocity * dt;
+            _shards[keep++] = s;
+        }
+        _shardCount = keep;
+    }
+
+    private void DrawShards()
+    {
+        for (int i = 0; i < _shardCount; i++)
+        {
+            var s = _shards[i];
+            var a = Vector3.Normalize(Vector3.Cross(s.Spin, Vector3.UnitZ) + new Vector3(0.001f, 0f, 0f));
+            var b = Vector3.Normalize(Vector3.Cross(s.Spin, a));
+            byte alpha = (byte)(ShardColour.A * (1f - s.Age / BurstSeconds));
+            Tri(s.At, s.At + a * s.Size, s.At + b * s.Size * 0.7f, new Color(ShardColour.R, ShardColour.G, ShardColour.B, alpha));
+        }
+    }
+
+    // ── drawing ──────────────────────────────────────────────────────────────────────────────
+
+    private static void Vertex(Vector3 hrot) { var p = HrotToRaylib.Position(hrot); Rlgl.Vertex3f(p.X, p.Y, p.Z); }
+
+    private static void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Color colour)
+    {
+        Rlgl.Begin(DrawMode.Triangles);
+        Rlgl.Color4ub(colour.R, colour.G, colour.B, colour.A);
+        Vertex(a); Vertex(b); Vertex(c);
+        Vertex(a); Vertex(c); Vertex(d);
+        Rlgl.End();
+    }
+
+    private static void Tri(Vector3 a, Vector3 b, Vector3 c, Color colour)
+    {
+        Rlgl.Begin(DrawMode.Triangles);
+        Rlgl.Color4ub(colour.R, colour.G, colour.B, colour.A);
+        Vertex(a); Vertex(b); Vertex(c);
+        Rlgl.End();
+    }
+
+    /// <summary>A small deterministic generator (the same shards and cracks every frame and on every host).</summary>
+    private struct Lcg
+    {
+        private uint _s;
+        public Lcg(int seed) => _s = (uint)seed * 2654435761u + 1u;
+        public float Range(float lo, float hi) { _s = _s * 1664525u + 1013904223u; return lo + (hi - lo) * ((_s >> 8) / 16777216f); }
+    }
+
+    /// <summary>The panes of a world by 64 m cell (built once per world — a world is immutable).</summary>
+    public sealed class PaneGrid
+    {
+        public const float Cell = 64f;
+        public readonly Dictionary<long, int[]> Cells = new();
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TerrainWorld, PaneGrid> s_of = new();
+        public static long Key(int x, int y) => ((long)x << 32) | (uint)y;
+        public static PaneGrid Of(TerrainWorld world) => s_of.GetValue(world, static w =>
+        {
+            var g = new PaneGrid();
+            var lists = new Dictionary<long, List<int>>();
+            for (int i = 0; i < w.PaneLeaves.Count; i++)
+            {
+                var c = (w.PaneLeaves[i].Min + w.PaneLeaves[i].Max) * 0.5f;
+                long k = Key((int)MathF.Floor(c.X / Cell), (int)MathF.Floor(c.Y / Cell));
+                if (!lists.TryGetValue(k, out var l)) lists[k] = l = new List<int>();
+                l.Add(i);
+            }
+            foreach (var (k, l) in lists) g.Cells[k] = l.ToArray();
+            return g;
+        });
+    }
 }
