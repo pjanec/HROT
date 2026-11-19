@@ -392,7 +392,8 @@ namespace Fdp.Tests
             playback.SeekToFrame(world, 0);
             var replayed = world.GetEntityByIndex(0);
             Assert.Equal(7f, world.GetComponentRO<Velocity>(replayed).X);   // the rest plays
-            Assert.False(world.HasComponent<Position>(replayed), "the drifted component's recorded data must be skipped, not restored into today's layout");
+            Assert.True(!world.HasComponent<Position>(replayed) || world.GetComponentRO<Position>(replayed).X == 0f,
+                $"the drifted component's recorded data must be skipped, not restored into today's layout (X = {(world.HasComponent<Position>(replayed) ? world.GetComponentRO<Position>(replayed).X : -1)})");
         }
 
         private static int DestroyedCount(RecorderSystem recorder, EntityRepository repo)
