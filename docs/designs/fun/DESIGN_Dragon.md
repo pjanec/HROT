@@ -2,7 +2,7 @@
 state: LIVE — ✅ APPROVED 2026-11-19 (R-3112); nothing built — D-1 next; DR-8 (the attack pattern) to be DESIGNED (CE-3490)
 updated: 2026-11-19
 build-state: BUILDING — ✅ D-1 BUILT (§7); READY-TO-BUILD D-3, D-4 (ui), D-5 · DESIGN D-2 (DR-8's attack pattern, CE-3490)
-current-answer: §0 the picture · §2 decisions DR-1…DR-12 (approved R-3112) · §3 UML · §5 slices and scenarios · §7 D-1 as built
+current-answer: §0 the picture · §2 decisions DR-1…DR-12 (approved R-3112) · §3 UML · §5 slices and scenarios · §7 D-1 as built · §8 the look (ui, D-4)
 stale-below: none
 known-rot: none
 known-conflict: CE-4634's row says "the bird model scaled up" — this design leans to the ROTORCRAFT model instead (DR-1, the user's "a helicopter in disguise"); the row is updated with it
@@ -207,3 +207,89 @@ scheduled, so nothing can be unreachable on a host.
 | the catalogue | `EntityTypeCatalogTests.CE2138_*` (ui's file) gains 411 — listed as family `AttackHelicopter` until ui's `VisualFamily.Dragon` (the NOTE) — and the four earlier backend types it lacked since they were added (117 flame tank, 215 thermal observer, 410 napalm A-10, 2022 flamethrower soldier): purely additive |
 | rails | `FlameSystemTests.CE4634_TheJetLeavesTheMuzzle_*`, `CE4634_ACarriersOwnRider_*` (each red-proved: the origin back at the eye ⇒ red; the riders' test dropped ⇒ red) · `DragonTkbTests` ×3 (the type, the breath, the seats + sound) |
 | scenarios | ✅ `scenarios/fun/dragons/dr-dragon-flight` — lifts off 0.25 s, lands on the meadow 25 s (on its legs), takes off again 33 s, reaches the last point 51 s · ✅ `dr-dragon-breath` — both field men burn at 1 s, Field Man 1 dies at 10 s, the bystander, the pillion and the dragon itself (a hostile flamer on its flank) are never hurt |
+
+## 8. The look *(ui, D-4 — DR-11; CE-4634; NOTE_Backend_To_Ui_Dragon_Visuals.md; build-state: READY-TO-BUILD)*
+
+📄 **Mockup (the acceptance spec, R-4138):** [`docs/UX/dragon-look.svg`](../../UX/dragon-look.svg) — `python3 scripts/gen-dragon-mockup.py`.
+
+### 8.1 INVENTORY *(measured `2026-11-19`)*
+
+Queries: `search_graph name_pattern=".*(VisualFamily|ShapeKit|BirdKit|HorseKit|AnimalPose|WingPose|Flap|RidePose|SeatPose|MotionTracker|RotorKit|HelicopterKit).*"` → 7
+(`VisualFamily`, `ShapeKit` / `ShapeKits`, `AnimalPoses` + `Flap`, `MotionTracker`, `SeatPose`) · grep `VisualFamily.AttackHelicopter`, `SeatPose.Ride`, `IsHorse`,
+`TwinEngineFighter`. ⚠ Index coverage cannot be checked through the CLI.
+
+| piece | exists as | ⭐ the dragon reuses it as |
+|---|---|---|
+| the family key | `EntityClassTable` (DIS class per chain) → `VisualFamilies.FamilyOfClass`; 📌 the MiG-29: class `TwinEngineFighter` = `1.2.*.1.200` | class **`Dragon`** = `1.2.*.20.99` (backend's DIS, §7) → `VisualFamily.Dragon` (appended) |
+| box-part kits | `ShapeKit(KitPart[], KitPivots)`, `ShapeKits.For(family)` · roles `Turret` (azimuth) / `Gun` (elevation) — the AH-64's chin gun | the NECK on `Turret`, the HEAD + jaw on `Gun`: turret 0's pose (`TurretParts.PoseOf`) |
+| wings | `PartRole.WingLeft/Right`, flapped about `SwingPivot` by `MotionPose.Wing` (the bird's 6.5 Hz `AnimalPoses.Flap`) | the same roles; the dragon's OWN beat (§8.2 W) |
+| legs | `PartRole.QuadFront/Hind*` swung by `QuadrupedGaits.LegAngle` + `MotionPose.Tuck` | planted landed, tucked in flight |
+| the seated rider | `SeatPose.Ride`: a HORSE gives the mounted pose (`BlockFigure.Mounted` / `MountedAiming`, `EntityBodyLayer3D.cs:1332`, `IsHorse`); any other Ride carrier the motorcycle's `Riding` | **`IsMount`** = horse or dragon → the mounted pose; the motorcycle unchanged |
+| the breath | the FL-1 flame jet (`EffectLayer.ResolveStateInto` U-1, from `MuzzleOf`) | unchanged — backend's DR-5 put the muzzle at the mouth |
+| airborne / speed | `MotionTracker` (speed, climb), the flight state's `Airborne` | the wing and leg poses |
+| sounds | `SoundSources` (the rotor fallback for `Rotorcraft`, `:383`), `SoundSynth` | the dragon's own (§8.2 S) |
+
+### 8.2 Decisions *(⭐ leans — DR-11 approved R-3112; these are its details)*
+
+| # | decision | why · rejected |
+|---|---|---|
+| **K-1** | ⭐ `VisualFamily.Dragon` keyed by a DIS CLASS (`Dragon`, `1.2.*.20.99`), appended to the enum | the one classifier (R-279) · ⛔ a type-id check in the layer |
+| **K-2** | ⭐ ONE `ShapeKit` of boxes in the TKB's 20 × 26 × 6 m box: body + belly, neck (Turret), head + jaw + horns (Gun), two tail boxes + a spade, four legs (Quad roles), two wings (Wing roles) — the parts and sizes of the mockup's table | the engine draws part kits only · ⛔ a mesh |
+| **W** | ⭐ the wing angle: BEAT ±33° at **1 Hz** while climbing (> 1 m/s) or slow (< 10 m/s) airborne; GLIDE +6° still at speed; FOLDED −80° (tips down along the flanks) when landed; a smooth 1 s blend between them; the phase on sim time × the sim's pace (paused ⇒ still, a replay draws the same) | DR-11 · ⛔ the bird's 6.5 Hz |
+| **L** | ⭐ legs planted (0) when `Airborne = 0`, tucked back 70° (the quadruped's `Tuck`) in flight | DR-11 |
+| **R** | ⭐ `IsMount` (horse or dragon) gives the mounted pose to any `SeatPose.Ride` seat on it; the pillion's firing seat aims as on a horse (`MountedAiming`) | 🔒 user: *"a passenger seat like on a motorcycle"* — but astride a neck, legs round it, is the horse's pose · ⛔ the motorcycle's upright pose on a neck |
+| **D** | ⭐ dead: the body as it fell, wings spread flat (0°), legs folded, no fire (DR: fireproof) | — |
+| **M** | ⭐ the 2-D symbol: FontAwesome `dragon` (U+F6D5) in the unit's colour, in the card's icon cell | the fun pack's style · ⛔ the helicopter glyph |
+| **S** | ⭐ sounds by `SoundSources` from sim state: the wingbeat whoosh on each down-stroke (the W phase), the roar on the breath's start / take-off / a Health drop / seeded in flight, the dying roar; synthesized placeholders (`SoundSynth`) until a file is named | the note · ⛔ the rotor fallback |
+
+### 8.3 UML
+
+```mermaid
+classDiagram
+  direction LR
+  class EntityClassTable { <<existing>> +C("Dragon", "1.2.*.20.99") }
+  class VisualFamilies { <<existing>> FamilyOfClass +["Dragon"] }
+  class VisualFamily { <<existing enum>> +Dragon (appended) }
+  class ShapeKits { <<existing>> For(family) +Dragon kit }
+  class DragonPoses { <<NEW, Map3D>> WingAngle(speed, climb, airborne, simTime) LegTuck(airborne) }
+  class MotionTracker { <<existing>> +case Dragon → Wing, Tuck }
+  class EntityBodyLayer3D { <<existing>> IsMount (was IsHorse) → the mounted rider }
+  class TurretParts { <<existing>> PoseOf(world, e, 0) }
+  class EffectLayer { <<existing>> the FL-1 jet from the mouth (unchanged) }
+  class SoundSources { <<existing>> +the dragon's wingbeat and roar }
+  EntityClassTable --> VisualFamilies
+  VisualFamilies --> VisualFamily
+  ShapeKits --> VisualFamily
+  MotionTracker --> DragonPoses
+  EntityBodyLayer3D --> ShapeKits
+  EntityBodyLayer3D --> MotionTracker
+  EntityBodyLayer3D --> TurretParts : the neck and head
+  SoundSources --> DragonPoses : the down-stroke
+```
+*What the picture shows that prose hid:* nothing new draws the dragon — it is one more family through the same classifier, kit table, motion tracker and articulation the
+AH-64 and the horse use; the only new code is the dragon's pose curves (one pure class both the look and the sound read, so a whoosh lands on the drawn down-stroke).
+
+```mermaid
+sequenceDiagram
+  participant B as EntityBodyLayer3D.Draw3D (per dragon, per frame)
+  participant M as MotionTracker
+  participant P as DragonPoses
+  participant T as TurretParts
+  B->>M: Of(e, position, simTime) — speed, climb, Airborne
+  M->>P: WingAngle / LegTuck
+  M-->>B: MotionPose (Wing, Tuck)
+  B->>T: PoseOf(world, e, 0) — azimuth, elevation
+  B->>B: the kit's parts: wings by Wing, legs by Tuck, neck by azimuth, head by elevation
+  B->>B: seated men on its Ride seats: IsMount ⇒ Mounted / MountedAiming
+```
+
+### 8.4 How it is judged *(R-4277; frame rails under `xvfb-run -a`)*
+
+| rail | asserts |
+|---|---|
+| D-POSE | `DragonPoses`: beats at 1 Hz slow / climbing, glides still at speed, folded landed; a smooth blend; 0 B |
+| D-FAMILY | type 411 classifies as `VisualFamily.Dragon`, its kit is the dragon's (not the AH-64's) |
+| D-FRAME ×5 | the mockup's states on a real frame: flying (wings up vs down at two beat phases), gliding, landed (wings folded below the back, legs to the ground), breathing (the jet starts at the mouth with the neck turned), rider + pillion seated astride |
+| D-ALLOC | 0 B per steady frame with a dragon in view |
+| scenario | backend's `dr-dragon-flight` / `dr-dragon-breath` (the sim) — the look adds no sim state |
+
