@@ -8,6 +8,8 @@ current-answer: the whole file
 
 ## D-10 · CE-4670 — who decides a crewman's head-out and a vehicle's light discipline? (backend built the asks; the deciding is ours) *(2026-11-19)*
 
+**DECIDED `2026-11-19` (user, via coordinator: "approved"): A ① the vehicle's SOP decides head-out (out while calm; in on the contact / hit / under-fire rows that start VehicleFightFromCover; out again after ~30 s quiet; one ask per change, an event) · B ① an SOP parameter `LightDiscipline` (default Normal — no golden moves), set per side / unit by the scenario; an order carrying one overrides it while it runs**
+
 **Built (backend, `NOTE_Backend_To_Behaviors_Vehicle_HeadOut_And_Light_Discipline.md`):** `VehicleRequests.HeadOut(world, vehicle, man, out)` (the boarding arbiter opens his seat's hatches, `CrewExposed`) and `VehicleRequests.SwitchLights(world, vehicle, discipline)` (`LightRuleSystem` lights by discipline × darkness × engine). Both are EVENTS — safe from the parallel brain phase. A scenario trigger can already ask (`va-crew-switches`). ⏳ Nothing in a brain asks today: hatches open only on boarding; every vehicle's discipline is whatever the scenario authored (default Normal).
 
 | the lean rests on | code — how it IS | design — how it was MEANT to be |
@@ -27,6 +29,8 @@ current-answer: the whole file
 ⛔ Not built. Each half is independent — approve one, both, or name another.
 
 ## D-9 · CE-2451 — an insurgent fires his RPG at a MAN: one rocket into the stack ends `ts-house-defenders`' clearance. Should the weapon brain keep the RPG for vehicles? *(2026-11-19)*
+
+**DECIDED `2026-11-19` (user, via coordinator: "approved"): ① make R-3 true: an anti-armour mount (shaped charge / ATGM / RPG) scores 0 against an UNARMOURED target while another mount with rounds can hurt him; his only loaded mount may still fire; a rail (rifle at a 13 m soldier, RPG at a tank, RPG with an empty rifle); re-measure `ts-house-defenders` and `bc-house-defended`**
 
 **Measured (`ts-house-defenders`, editor, live probe, `/combat/detonations` + `/combat/shots`):**
 1. The six-man squad stacks at the front door (~39, 105–109).

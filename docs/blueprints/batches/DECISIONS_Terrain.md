@@ -5,7 +5,8 @@ current-answer: the whole file
 -->
 # DECISIONS — terrain
 
-## (open) · CE-5039 — may a run start before the scenario's own terrain overlay is baked?
+## CE-5039 — may a run start before the scenario's own terrain overlay is baked?
+**DECIDED `2026-11-19` (user, via coordinator: "approved"): the run gate stays closed until the live overlay's FIRST commit for the loaded scenario (built by ui — `HANDOFF_Coordinator_To_Ui_Run_Gate_And_Cover_View.md`); the independent hardening — a path that failed for an off-mesh target retries when the navmesh version changes — is backend's (`HANDOFF_Coordinator_To_Backend_Path_Retry.md`)**
 **OPEN `2026-11-19` — for the user (it touches the editor's load / run gate: ui · backend).** Measured: the load reports done ~0.6 s before the live
 overlay's first bake; a unit whose target only the overlay makes reachable (inside a building made enterable) plans on the base mesh, fails, and never
 retries (`MaxReplans 0`) — `te-make-enterable` is red by it; after the bake the same unit walks in. ⭐ Lean: the run gate stays closed until the live
@@ -25,12 +26,14 @@ the base; a removed footprint is levelled (bare flat ground); its doors and dama
 importer's generator with a ≥ 1 door rule the importer adopts; "Save terrain as" deletes the removed features. 📄 DESIGN_Terrain_Base_Edits.md §3.
 
 ## R-5066 · CE-4662 ② — the smoke cloud carries "blocks infrared" as a FIELD, not by its type *(the lane's own ruling, for review)*
+**DECIDED `2026-11-19` (user, via coordinator: "approved"): KEPT as built**
 **DECIDED (lane): `AreaEffectCloud.BlocksInfrared` (byte, appended to `dtAreaEffectCloud`), copied from the munition's `WarheadDto.SmokeBlocksInfrared` when
 the burst asks for the cloud.** Why: every cloud is the one bare TKB type 7202, so its type cannot tell a phosphorus screen from a signal smoke. Starter
 values: the 60 / 81 / 120 mm mortar smoke bombs block infrared; the hand smoke grenade does not. Revisit if a cloud should get its own TKB type per munition.
 📄 DESIGN_Thermal_Drivers §4c.
 
 ## R-5065 · CE-4662 ① — the ground SURFACES get thermal classes too *(the lane's own ruling, for review)*
+**DECIDED `2026-11-19` (user, via coordinator: "approved"): KEPT as built**
 **DECIDED (lane): `materials.json` gains a `surfaceThermalClasses` map beside the materials** — ground soil-dry · open grass · forest dense-vegetation ·
 water water · scrub grass; a terrain folder may override it. Why: TD-9 named materials only, but most of what an image generator paints (fields, forest,
 water) is a surface with no material. Revisit: wet soil after rain (soil-dry → soil-wet) belongs to the generator's solve from the weather, not to us.
