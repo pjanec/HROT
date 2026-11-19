@@ -3049,8 +3049,8 @@ namespace CarKinem.Tests.Systems
             CarKinem.Controllers.ContactBreach.Reset();
             var (repo, e) = ManualWorld(VehicleClass.Quadruped, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
             repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
-            repo.AddComponent(e, new Fdp.Toolkit.Animals.AnimalState { Mode = mode });
-            repo.RegisterComponent<Fdp.Toolkit.Creatures.Fear>();   // ⭐ CE-4628 — the panic breach reads fear ≥ 0.75 (band 3), not a stored band
+            repo.AddComponent(e, new Fdp.Toolkit.Animals.AnimalState { Mode = mode, FearBand = band });   // ⭐ CE-4628 — the species is the TKB type's; the band stays (§10b)
+            repo.RegisterComponent<Fdp.Toolkit.Creatures.Fear>();
             repo.AddComponent(e, new Fdp.Toolkit.Creatures.Fear { Value = band >= 3 ? 0.9f : 0f });
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
             repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)700 });
