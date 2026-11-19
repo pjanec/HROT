@@ -2402,12 +2402,12 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(SquadDefendManeuver.ManeuverKind, s.Kind);
             Assert.Equal(SquadDefendManeuver.PhaseMoving, s.Phase);
-            // first, to the position — ⭐ D-13: each man to HIS point there (within ArrivedMetres, MovingIntervalMetres apart), never all to one
+            // first, to the position — ⭐ D-13: as a MARCH — the lead to the position, every other man to his own wedge slot, never all to one point
             var moving = s.Members.Select(m => s.LastOrders()[m].Objective).ToArray();
-            foreach (var o in moving) Assert.True(Vector3.Distance(o, new Vector3(6, 20, 0)) < SquadDefendPlay.ArrivedMetres, $"{o} is at the position");
+            Assert.Contains(new Vector3(6, 20, 0), moving);                                  // the lead
             for (int i = 0; i < moving.Length; i++)
                 for (int j = i + 1; j < moving.Length; j++)
-                    Assert.True(Vector3.Distance(moving[i], moving[j]) >= SquadDefendPlay.MovingInterval(moving.Length) - 0.01f, $"men {i} and {j} move to {moving[i]} / {moving[j]}");
+                    Assert.True(Vector3.Distance(moving[i], moving[j]) > 4f, $"men {i} and {j} move to {moving[i]} / {moving[j]}");
             Assert.True(DefendQuery(s, SquadDefendPlay.WindowSite).IsNull, "no post is asked for before the squad is there");
 
             s = Defending(out var posts);
