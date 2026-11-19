@@ -5,6 +5,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb.Domain;
 using Fdp.Toolkit.Vis3D;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.Look.Vehicles;
 using Raylib_cs;
 
@@ -134,14 +135,14 @@ public sealed partial class EntityBodyLayer3D
     }
 
     /// <summary>The lights collected this frame: an unlit core and a faint halo each (the halo writes no depth), after the lit batch.</summary>
-    private void DrawLightPoints()
+    private void DrawLightPoints(in RenderContext ctx)
     {
         LightsDrawn = _lightsNow.Count;
         if (_lightsNow.Count == 0) return;
-        foreach (var (at, c) in _lightsNow) Raylib.DrawSphereEx(HrotToRaylib.Position(at), VehicleSockets.LightRadius, 6, 8, c);
+        foreach (var (at, c) in _lightsNow) Raylib.DrawSphereEx(HrotToRaylib.Position(at), VehicleSockets.LightRadius, 6, 8, ctx.Emissive(c));   // ⭐ CE-1984 — seen by a sensor, lighting nothing
         Rlgl.DrawRenderBatchActive();
         Rlgl.DisableDepthMask();
-        foreach (var (at, c) in _lightsNow) Raylib.DrawSphereEx(HrotToRaylib.Position(at), VehicleSockets.HaloRadius, 6, 8, new Color(c.R, c.G, c.B, (byte)90));
+        foreach (var (at, c) in _lightsNow) Raylib.DrawSphereEx(HrotToRaylib.Position(at), VehicleSockets.HaloRadius, 6, 8, ctx.Emissive(new Color(c.R, c.G, c.B, (byte)90)));
         Rlgl.DrawRenderBatchActive();
         Rlgl.EnableDepthMask();
         _lightsNow.Clear();

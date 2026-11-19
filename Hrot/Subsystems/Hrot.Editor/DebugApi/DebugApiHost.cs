@@ -1356,6 +1356,14 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(409, error) : Ok(node);
             }));
 
+            // ⭐ CE-1984 (DESIGN_Sensor_View D-10) — the map's sensor view (night vision; thermal CE-1985): read and set it.
+            _routes.Add(new("GET", "/view/sensor", _ => RunMain(s => s.GetSensorView())));
+            _routes.Add(new("POST", "/view/sensor", ctx => RunMainResult(s =>
+            {
+                var (node, error) = s.SetSensorView(ctx.Body);
+                return error is null ? Ok(node) : Fail(409, error);
+            })));
+
             // ⭐ RB-7 (R-4083) — point the operator's panels at a unit, on every host, through SelectEntityCommand → SelectionRequestSystem.
             _routes.Add(new("POST", "/selection", ctx => RunMainResult(s =>
             {

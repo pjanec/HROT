@@ -99,27 +99,62 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// </summary>
         internal static float HeatOf(ISimulationView view, Entity target, in ThermalState ts, double now, bool sources, bool fires)
         {
-            float heat = ts.BarrelHeat;   // a station weapon carried (ThermalHeatSystem)
+            var d = UnitThermalDrivers.Of(view, target, in ts, now, sources, fires);
+            float heat = MathF.Max(d.Barrel01, d.Fire01);
+            if (d.HasSource) heat = MathF.Max(heat, ThermalDriversOps.SourceHeat(in ts, in d.Source, d.Speed, now, d.DiedAt));
+            return Math.Clamp(heat, 0f, 1f);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1985</c> (docs/designs/sensor-view/DESIGN_Sensor_View.md D-7, §5b) — ONE gathering of a unit's heat drivers at <c>now</c> from what this node has
+    /// replicated, for the AI's thermal sensor (<see cref="ThermalPerception.HeatOf"/>) AND the 3-D map's thermal view (<c>ThermalScene.Unit</c>) — ⛔ never two
+    /// copies of which speed, which death time, which barrel. ⭐ Moved here from <c>HeatOf</c> unchanged (CE-4658 / CE-4659 / CE-4661 rules).
+    /// </summary>
+    public readonly struct UnitThermalDrivers
+    {
+        public readonly bool HasSource;
+        public readonly HeatSource Source;
+        /// <summary>The speed the source's load reads (m/s); a target the state says moves but whose speed this node cannot read counts at full load.</summary>
+        public readonly float Speed;
+        /// <summary>A dead BODY's time of death (<c>Health.StateSince</c>); NaN = alive or an engine.</summary>
+        public readonly double DiedAt;
+        /// <summary>The hottest barrel, 0..1 (a carried station weapon's, or the unit's own mounts' from their last shot).</summary>
+        public readonly float Barrel01;
+        /// <summary>The strongest burning fire spot on it, 0..1.</summary>
+        public readonly float Fire01;
+
+        private UnitThermalDrivers(bool hasSource, in HeatSource source, float speed, double diedAt, float barrel, float fire)
+        {
+            HasSource = hasSource; Source = source; Speed = speed; DiedAt = diedAt; Barrel01 = barrel; Fire01 = fire;
+        }
+
+        /// <summary>The drivers of <paramref name="target"/> at <paramref name="now"/>; <paramref name="sources"/> / <paramref name="fires"/> false skip those
+        /// (a view without the components registered).</summary>
+        public static UnitThermalDrivers Of(ISimulationView view, Entity target, in ThermalState ts, double now, bool sources = true, bool fires = true)
+        {
+            float barrel = ts.BarrelHeat;   // a station weapon carried (ThermalHeatSystem)
             // ⭐ CE-4659 — the unit's own barrels, computed from each mount's last shot (WeaponAmmo, replicated to every node)
             if ((view is not EntityRepository ar || ar.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponAmmo>())
                 && view.HasComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>(target))
-                heat = MathF.Max(heat, view.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(target).HottestBarrelAt(now));
-            if (sources && view.HasComponent<HeatSource>(target))
+                barrel = MathF.Max(barrel, view.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(target).HottestBarrelAt(now));
+            bool has = false; HeatSource hs = default; float speed = 0f; double diedAt = double.NaN;
+            if (sources && (view is not EntityRepository sr || sr.IsComponentTypeRegistered<HeatSource>()) && view.HasComponent<HeatSource>(target))
             {
-                ref readonly var hs = ref view.GetComponentRO<HeatSource>(target);
-                float speed = Fdp.Toolkit.Motion.Locomotions.SpeedOf(view, target);
+                has = true;
+                hs = view.GetComponentRO<HeatSource>(target);
+                speed = Fdp.Toolkit.Motion.Locomotions.SpeedOf(view, target);
                 if (speed < HeatSourceSystem.MoveOffSpeed && hs.State is HeatSourceState.Running or HeatSourceState.Moving)
                     speed = ts.ReferenceSpeed > 0f ? ts.ReferenceSpeed : 5f;
                 // ⭐ CE-4661 (TD-7) — a dead body cools from its time of death (Health.StateSince, replicated)
-                double diedAt = double.NaN;
                 if (!hs.IsEngine && (view is not EntityRepository hr || hr.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
                     && view.HasComponent<Fdp.Toolkit.Combat.Components.Health>(target)
                     && view.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(target) is { Current: <= 0f } hp) diedAt = hp.StateSince;
-                heat = MathF.Max(heat, ThermalDriversOps.SourceHeat(in ts, in hs, speed, now, diedAt));
             }
-            if (fires && view.HasComponent<FireState>(target))
-                heat = MathF.Max(heat, view.GetComponentRO<FireState>(target).Intensity01(now));
-            return Math.Clamp(heat, 0f, 1f);
+            float fire = 0f;
+            if (fires && (view is not EntityRepository fr || fr.IsComponentTypeRegistered<FireState>()) && view.HasComponent<FireState>(target))
+                fire = view.GetComponentRO<FireState>(target).Intensity01(now);
+            return new UnitThermalDrivers(has, in hs, speed, diedAt, barrel, fire);
         }
     }
 }

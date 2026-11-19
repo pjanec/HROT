@@ -263,6 +263,11 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         ChargeLightsDrawn = 0;
         EjectionSeatsDrawn = 0;
         OpeningsDrawn = CrewOutDrawn = 0; _lightsNow.Clear();   // ⭐ CE-4670
+        // ⭐ CE-1985 (DESIGN_Sensor_View §5c) — the thermal pass: every body instance carries its °C as its colour (Submit), the batch reads it so
+        _thermal = ctx.Sensor == SceneSensor.Thermal && UnitHeat != null;
+        _airHeat = Fdp.Toolkit.Vis3D.LitShader.EncodeC(ctx.AirC + 6f);   // a draw no unit owns (a far SUMO body, a rope, a load): about body-warm
+        _submitHeat = _unitBody = _unitHot = _airHeat; _hotSign = 0;
+        if (_thermal && LitShader.IsCreated) LitShader.Shared.SetThermalSource(1, ThermalDefaultClass);
         _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
@@ -551,9 +556,11 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             bool vehicleBody = look.Family != VisualFamily.Person && !animal;
             _damageMask = vehicleBody ? VehicleDamageDraw.DestroyedMask(world, e) : (byte)0;
             _turretThrown = vehicleBody && wreck && VehicleDamageDraw.TurretThrown(world, e);
+            if (_thermal) SetUnitHeat(world, e, size);   // ⭐ CE-1985
             DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
                       geometry, carriage, shader, rounds);
             _damageMask = 0; _turretThrown = false;
+            _unitBody = _unitHot = _airHeat; _hotSign = 0;
             // ⭐ CE-4670 (§7d) — its hatches, doors and ramps as the replicated state has them, a head out of a hatch, its lit lights (a wreck: none)
             if (vehicleBody && !wreck && look.Family != VisualFamily.WeaponSystem)
                 DrawFittings(world, e, tkb != null && tkb.TryGetByType(type, out var fittingType) ? fittingType : null, parts, size, pivots, pose, motion,
@@ -588,7 +595,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         DrawCarried(world, shader);   // ⭐ CE-1085 — pass 2 (⭐ CE-4555 — no per-frame closure: a wreck is read inside)
         DrawRopes(world, shader, simTime);   // ⭐ CE-1119 (§6w AB-V5) — pass 3: the fast ropes, and the cut ones lying where they fell
         _batch.Flush(shader, _applySurface ??= d => _surface.Apply(LitShader.Shared, d));   // ⭐ CE-4555 (§6ak.2) — everything above, one instanced call per mesh
-        DrawLightPoints();   // ⭐ CE-4670 (§7d D-4) — the lit lights, unlit, after the lit batch
+        if (_thermal && LitShader.IsCreated) LitShader.Shared.SetThermalSource(0, ThermalDefaultClass);   // ⭐ CE-1985 — the next lit draws by class again
+        DrawLightPoints(in ctx);   // ⭐ CE-4670 (§7d D-4) — the lit lights, unlit, after the lit batch · ⭐ CE-1984 — self-luminous under a sensor view
         BodyDrawStats.Record(_batch.DrawCalls, _batch.Instances, BodiesDrawn, DoorsDrawn);
         BodyDrawStats.RecordBands(BodiesFull, BodiesFar, BodiesHidden, DoorsHidden);
         if (_recordPick) _pick.End();
@@ -729,11 +737,21 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
             bool partWrecked = wreck || (_damageMask != 0 && VehicleDamageDraw.Destroyed(_damageMask, part));   // ⭐ CE-4670 — a destroyed part is drawn dark
             var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn.ToColor() : PartColour(part.Colour, colour, partWrecked);   // ⭐ CE-1099
+            if (_thermal)   // ⭐ CE-1985 — every part at the unit's °C; the hot end is a slab on the hull (below), not whole parts (a hull is one long box)
+            {
+                _submitHeat = _unitBody;
+                if (_hotSign != 0 && part.Shape == PartShape.Box)
+                {
+                    var ext = part.Extent * size;
+                    float volume = ext.X * ext.Y * ext.Z;
+                    if (volume > _hullVolume) { _hullVolume = volume; _hullCentre = part.Centre * size; _hullExtent = ext; _hullKitToBody = kitToBody; _hullBody = body; }
+                }
+            }
             if (look.Toy && !wreck) tint = part.Colour == ColourRole.Dark ? new Color(200, 90, 15, 255) : BlockFigure.ToyOrange;   // ⭐ CE-1173 (U12)
             // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face; ⭐ CE-4555 (§6ak D-4, D-5) — as this instance's data, into the batch
             Submit(mesh, model, tint, Paint(outfit, pi, part.Face, camoSeed));
             PartsDrawn++;
-            if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o)
+            if (part.Face != FaceOn.None && !_thermal) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o) · CE-1985: no painted face in the heat picture
             for (int k = 0; k < details; k++)   // ⭐ CE-1099 (§6q) — the outfit's details on this part
                 if (_details[k].Part == pi)
                 {
@@ -751,7 +769,21 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
                     StainsDrawn++;
                 }
         }
+        // ⭐ CE-1985 (§5b) — the engine's hot end: a slab over the hull's front or rear third, at the hot end's °C
+        if (_thermal && _hotSign != 0 && _hullVolume > 0f)
+        {
+            var slab = Matrix4x4.CreateScale(_hullExtent.X * 0.3f, _hullExtent.Y * 0.92f, _hullExtent.Z * 0.12f)
+                     * Matrix4x4.CreateTranslation(_hullCentre.X + _hotSign * _hullExtent.X * 0.34f, _hullCentre.Y, _hullCentre.Z + _hullExtent.Z * 0.47f);
+            _submitHeat = _unitHot;
+            Submit(_cube, HrotToRaylib.ModelFromHrot(slab * _hullKitToBody * _hullBody), default, BodySurface.PlainData);
+        }
+        _hullVolume = 0f;
+        _submitHeat = _airHeat;
     }
+
+    private float _hullVolume;
+    private Vector3 _hullCentre, _hullExtent;
+    private Matrix4x4 _hullKitToBody, _hullBody;
 
     /// <summary>⭐ CE-1033 S4 — the figure's parts: the logical stance (the shared rule), BLENDED from the stance it is leaving while
     /// the muscle reports a transition in progress (<see cref="StanceStatus"/> — replicated, so every host shows the same blend).</summary>
@@ -1956,7 +1988,29 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     internal LitInstanceBatch Batch => _batch;
 
     private void Submit(Mesh mesh, in Matrix4x4 model, Color colour, in LitInstanceData data)
-        => _batch.Add(mesh.VaoId == _cylinder.VaoId ? _cylinderBucket : mesh.VaoId == _cone.VaoId ? _coneBucket : _cubeBucket, model, colour, data);
+        => _batch.Add(mesh.VaoId == _cylinder.VaoId ? _cylinderBucket : mesh.VaoId == _cone.VaoId ? _coneBucket : _cubeBucket, model,
+                      _thermal ? _submitHeat : colour, data);   // ⭐ CE-1985 — in the thermal pass EVERY body instance carries a °C (never a colour read as one)
+
+    // ── ⭐ CE-1985 (docs/designs/sensor-view/DESIGN_Sensor_View.md §5b, §5c) — the thermal pass ─────────────────────────────────────────────
+    /// <summary>The class a lit draw that says nothing is read as in the thermal pass (concrete — plausible background).</summary>
+    public const int ThermalDefaultClass = (int)Fdp.Toolkit.Perception.Signatures.ThermalClassId.Concrete;
+
+    /// <summary>A unit's temperatures for the thermal pass (wired to the map's sensor view by <c>AttachMapLayers</c>): its body °C, its hot end's °C
+    /// and which end is hot (+1 front, −1 rear, 0 none). Null ⇒ no thermal picture of bodies.</summary>
+    public Func<EntityRepository, Entity, (float BodyC, float HotC, int HotSign)>? UnitHeat { get; set; }
+
+    private bool _thermal;
+    private Color _airHeat, _submitHeat, _unitBody, _unitHot;
+    private int _hotSign;
+
+    private void SetUnitHeat(EntityRepository world, Entity e, Vector3 size)
+    {
+        var (bodyC, hotC, sign) = UnitHeat!(world, e);
+        _unitBody = Fdp.Toolkit.Vis3D.LitShader.EncodeC(bodyC);
+        _unitHot = Fdp.Toolkit.Vis3D.LitShader.EncodeC(hotC);
+        _hotSign = sign;
+        _submitHeat = _unitBody;
+    }
 
     /// <summary>⭐ CE-1101 (§6r) — heads painted with a face, and uniform parts painted with camouflage, by the last frame (rails).</summary>
     public int FacesPainted { get; private set; }

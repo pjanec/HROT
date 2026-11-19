@@ -2831,6 +2831,37 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"entity\":4242,\"distance\":20}",
             ExampleGist: "watch a unit the agent is debugging"),
 
+        [("GET", "/view/sensor")] = new RouteDoc(
+            Tool:    "get_sensor_view",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "The 3-D map's sensor view (CE-1984): off, night vision or thermal (CE-1985), its options, and under night vision the natural light it sees (sun, moon, stars) in lux and the moon.",
+            Returns: "{ available, mode, palette, halo, sensorResolution, noise, vignette, autoGain, thermalOffered, lux, moonElevationDeg, moonIllumination, framesProcessed }",
+            Hint:    "Example: get_sensor_view({})",
+            Params: Array.Empty<RouteParam>(),
+            Notes: new[] { "A display view only: it changes nothing in the simulation. framesProcessed counts the frames the post-process drew (0 while off or in 2-D)." },
+            ExampleArgsJson: "{}",
+            ExampleGist: "check what the night-vision view is lit by"),
+
+        [("POST", "/view/sensor")] = new RouteDoc(
+            Tool:    "set_sensor_view",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "Switches the 3-D map's sensor view (CE-1984): mode off / nightVision / thermal (thermal refused until CE-1985) and its options. Lamps, flames and flashes are seen bright and bloom; they light nothing around them.",
+            Returns: "the same object as get_sensor_view; 409 with no map canvas, an unknown mode, or thermal before it is built.",
+            Hint:    "Example: set_sensor_view({mode:'nightVision', palette:0})",
+            Params: new RouteParam[]
+            {
+                new("mode", "string", false, "off · nightVision · thermal (body)"),
+                new("palette", "number", false, "night vision: 0 green P43, 1 white P45 · thermal: 0 white-hot, 1 black-hot, 2 ironbow (body)"),
+                new("halo", "boolean", false, "the bloom round bright sources (body)"),
+                new("sensorResolution", "boolean", false, "a soft ~600-line sensor picture (body)"),
+                new("noise", "boolean", false, "the sensor's grain, growing as the light falls (body)"),
+                new("vignette", "boolean", false, "darkened edges (body)"),
+                new("autoGain", "boolean", false, "the tube's automatic gain: a bright source in view pulls the picture down (body)"),
+            },
+            Notes: new[] { "Also View ▸ Sensor View in the map's menu, on every map host. The view is per map; it is not saved with the scenario." },
+            ExampleArgsJson: "{\"mode\":\"nightVision\"}",
+            ExampleGist: "see the scene as a night-vision device would"),
+
         [("GET", "/selection")] = new RouteDoc(
             Tool:    "get_selection",
             Group:   "O — Manual-assist (focus / annotations)",

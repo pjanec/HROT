@@ -4,6 +4,7 @@ build-state: BUILT — FL-0…FL-4 (§7, §7a, §7b, §7c)
 updated: 2026-11-19
 current-answer: §0 the picture · §3 decisions (F-1…F-12, approved) · §5 slices · §7 / §7a / §7b / §7c as built (FL-1, FL-2, FL-3, FL-4)
 related-designs:
+  - ../sensor-view/DESIGN_Sensor_View.md — the sensor views show the same fires, jets and burning men (bloom in night vision, saturated in thermal)
   - ../audio/DESIGN_FPS_Audio.md — §10 how the mover loops (the flail, the flame roar) are held; §8 here owns the roar (CE-4635)
   - ../air-attack/DESIGN_Breath_Attack.md — how a FLYER delivers the flame on its own (a strafing pass, a hover for a wall); moves NeutralInFlame to the jet's origin (BA-6)
   - ../fun/DESIGN_Dragon.md — the F-11 carrier: the breath on a dragon's neck turret; moves the jet's origin to the muzzle (DR-5) and keeps a carrier's riders out of its own jet (DR-6)

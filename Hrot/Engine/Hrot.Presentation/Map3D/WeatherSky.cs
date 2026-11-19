@@ -141,7 +141,20 @@ public sealed class WeatherSkyLayer : IMapLayer
             camera.Atmosphere = WeatherSky.Of(_sample, DriftOf(world, point, _sample));
         }
         else camera.Atmosphere = null;
+        // ⭐ CE-1984 (DESIGN_Sensor_View §4b) — a sensor view lights the scene from the same sample (the moon, the stars) and sets its post-process
+        if (Sensor != null)
+        {
+            double lat = 0, lon = 0;   // ⭐ CE-1985 — where the sun's daily path is taken (thermal); the same frame WeatherField reads
+            if (at is { } p && _world() is { } gw && gw.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
+                && gw.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>() is { HasFrame: true } geo)
+                (lat, lon, _) = geo.ToGeodetic(p);
+            var lit = Sensor.Apply(_sample, _hasSample, camera.Atmosphere ?? SceneAtmosphere.Default, lat, lon);
+            if (Sensor.Mode != Fdp.Toolkit.Vis2D.Abstractions.SceneSensor.None) camera.Atmosphere = lit;
+        }
     }
+
+    /// <summary>⭐ CE-1984 — the map's sensor view (wired by <c>AttachMapLayers</c>); null = none.</summary>
+    public SensorView? Sensor { get; set; }
 
     private WeatherSample _sample;
     private bool _hasSample;

@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../sensor-view/DESIGN_Sensor_View.md — the sensor views show the lit lamps (seen, never lighting)
   - ../weapons/DESIGN_Flame_Weapons.md — the flame jet (one new EffectVisualDto kind) and burning ground through §7a's effect rules
   - ../../DESIGN_Scenario_Rules.md — the trigger verbs (SR-74's action list) that HeadOut / SetVehicleLights join
   - ../thermal/DESIGN_Thermal_Drivers.md — OWNS `HeatSource` (engine Off / Idle / Running / Dead + Since) and `FireState` (fire spots, ignition, burn damage, the wreck's flames) — this design READS both for rotors, engine sound and burning parts, and adds nothing beside them
