@@ -952,6 +952,7 @@ namespace Hrot.NED.Descriptors
         public double IrritatedUntil;
         public double KnockedDownUntil;
         public byte Cowering;   // ⭐ ui finding F-3 (civilians design §7.6) — appended: 1 while the behaviour has the person cower
+        public double BurningUntil;   // ⭐ CE-4635 (R-3111, flame weapons F-4) — appended: until when the person is on fire
     }
 
     // ⭐ CE-3224 (civilians B-6, CV-13) — a person's gesture, the brain owner → every node. Reliable + TransientLocal + KeepLast 1,

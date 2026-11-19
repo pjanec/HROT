@@ -81,18 +81,18 @@ label=Class` ⇒ 12; grep for `Flammab|Combust|Ignit|Burnable` ⇒ nothing but `
 
 | # | question | ⭐ lean | what would change it |
 |---|---|---|---|
-| **F-1** | how a flamethrower burst works | a fire intent like any other (the dispatcher, ROE, ammo) ⇒ on SimHost `FireProcessingSystem` spawns **no round** for a `Flamethrower`: it opens a **`FlameJet`** on the shooter (origin, direction, range, half-angle, until) — unmanaged, replicated, recorded; `FlameSystem` (Health owner side) applies the CONE each tick while it lasts | a scenario where a flame must arc over a wall (then: a short ballistic stream — v2) |
+| **F-1** | how a flamethrower burst works | a fire intent like any other (the dispatcher, ROE, ammo — fuel counts as rounds) ⇒ on SimHost `FireProcessingSystem` spawns **no round** for a `Flamethrower`. ⭐ **No component of its own** (user, `2026-11-19`: *"does this need any new component?"*): the jet IS the active mount's burst record — `WeaponPosture` (aim, `ActiveMount`) + `WeaponAmmo` (`LastShotAtOf`, `BurstStartedAtOf`) + the munition's `WarheadDto` — read by ONE reader, **`FlameJets.TryGet`** (built, §6); `FlameSystem` (Health owner side) applies the CONE each tick while it is lit | a scenario where a flame must arc over a wall (then: a short ballistic stream — v2) |
 | **F-2** | the cone test | `FlameCone` pure law (the `AreaEffect` sibling): reach + half-angle; stopped by a wall / closed door / hull on the line (`LineOfFire` + `BarrierTransmission` = 0 for flame); ⭐ an OPENING passes it — the flame enters a room through a window or a door (its classic use) | — |
 | **F-3** | what ignites, and when | ⭐ ONE `Ignition` rule: exposure (s × intensity) per target ≥ threshold — man 0.3 s · soft vehicle / wagon 1.5 s · building panel of a burning material (wood, thatch) 2 s · ground of grass / dense vegetation 1 s; ⭐ the stream's END always leaves a burning-fuel spot (~30 s) whatever the surface | armour: a heavy-armoured hull does NOT ignite (its crew is stressed; engine-deck fire = v2) |
-| **F-4** | a burning MAN | not a `FireState` holder (thermal §3b rejected fire in person state for THINGS; a man is the opposite case): a person effect **Burning** until-time (~6 s, rolling on the ground ends it early — v2) ⇒ `BurnSystem` burns him each second like a body in a spot; he panics (F-8) | — |
+| **F-4** | a burning MAN | not a `FireState` holder (thermal §3b rejected fire in person state for THINGS; a man is the opposite case): a person effect **Burning** until-time — ⭐ BUILT as `EffectState.BurningUntil` + `HitEffect.Burning` (appended; `dtEffectState` carries it) — (~6 s, rolling on the ground ends it early — v2) ⇒ `BurnSystem` burns him each second like a body in a spot; he panics (F-8) | — |
 | **F-5** | napalm | `WarheadKind.Incendiary` (appended, 8); a `Bomb` released by the existing cue; on impact lays spots in an ELLIPSE along the flight line (TKB `AreaLengthM` × `AreaWidthM`, e.g. 80 × 25 m), each on its cell's record, `BurnSeconds` (e.g. 300 s), intensity 1; plus the impact's fireball = one exposure of 1 s to everything inside; a big fire's smoke = an `AreaEffectCloud` | — |
 | **F-6** | the TKB | weapon: `WeaponCategory.Flamethrower` (appended, 16); munition: `FlameRangeM`, `FlameHalfAngleDeg`, `FlameIntensity`, `BurnSeconds`, and fuel as the magazine (seconds of flame); napalm: `Incendiary` warhead + `AreaLengthM` / `AreaWidthM` / `BurnSeconds` | — |
 | **F-7** | materials | `TerrainMaterial` gains ONE optional `BurnSeconds` (materials.json); default from `ThermalClass` (wood 600 s, grass / dense-vegetation 120 s, others 0 = does not burn) | a terrain needing a burning class that has no thermal class |
 | **F-8** | fear | `StressSystem` gains three causes: **in a flame** (= Hit, 0.25) · **a flame seen within 30 m** (per second, like *heard close*) · **a burning friend** (= friend down × 1.5) | — |
 | **F-9** | the ROE | ⭐ a scenario / force rule **`IncendiaryAllowed`** (default ON for military forces, OFF in a police / civil scenario); and like Protocol III: a flame is never released when a civilian is inside the cone or a napalm ellipse would cover one (the dispatcher's hold, as `NoHarm`) | the user prefers it OFF by default |
-| **F-10** | the look | `Hrot.Look` `EffectRules`: a jet effect (new `EffectVisualDto` kind **FlameJet**, the only new kind) drawn from `FlameJet`; burning spots = the existing **Fire** + **Smoke** kinds (the wreck path); a dead ground fire = the `BurnedArea` scorch. DIS: the munition's DIS type says incendiary; ⚠ the SISO detonation-result code for a flame / incendiary burst is NOT pinned (`NED_DDS_Protocol` §Detonation result lists none) — v1 sends 5 *Detonation* with the munition type, to be checked against SISO-REF-010 | the SISO list names an incendiary result |
+| **F-10** | the look | `Hrot.Look` `EffectRules`: a jet effect (new `EffectKind.FlameJet`, the only new kind — built) drawn from `FlameJets.TryGet`; burning spots = the existing **Fire** + **Smoke** kinds (the wreck path); a dead ground fire = the `BurnedArea` scorch. DIS: the munition's DIS type says incendiary; ⚠ the SISO detonation-result code for a flame / incendiary burst is NOT pinned (`NED_DDS_Protocol` §Detonation result lists none) — v1 sends 5 *Detonation* with the munition type, to be checked against SISO-REF-010 | the SISO list names an incendiary result |
 | **F-11** | who uses it | ⭐ behaviors: a squad's flamethrower man — "clear a bunker / room through its opening" (the obvious drill) and the vehicle flame tank; the AIR lane: napalm through its existing bomb attack; the FUN pack: a dragon's breath = a `Flamethrower` mount on the dragon carrier (CE-4634) | — |
-| **F-12** | the parallel rule | cone and ignition run in a SERIAL pass on the Health owner (few jets a frame); writes go to each holder's owner as today (a spot ADDED with its final value, D-31); exposure is a per-target accumulator component, written only by that pass | a measured cost (hundreds of jets) |
+| **F-12** | the parallel rule | cone and ignition run in a SERIAL pass on the Health owner (few jets a frame); writes go to each holder's owner as today (a spot ADDED with its final value, D-31); ⭐ exposure is NOT a component: `FlameSystem` keeps it in its own per-target buffer, cleared on a new world, not recorded — a seek or a branch in the middle of a burst restarts a count of ≤ 2 s (the fires and burning men it caused ARE recorded) | a measured cost (hundreds of jets) |
 
 | rejected | the one fact that killed it |
 |---|---|
@@ -111,36 +111,40 @@ classDiagram
   direction LR
   class FireState { <<exists>> +Count +X Y Z Radius Since Seconds Intensity[8] }
   class BurnSystem { <<exists, Health owner>> +DeathCrossings() +BurnBodies() }
-  class FireProcessingSystem { <<exists, SimHost>> +FlameOpensAJet (new arm) }
-  class FlameJet { <<new, unmanaged, replicated>> +Origin +Dir +RangeM +HalfAngle +Intensity +Until }
+  class FireProcessingSystem { <<exists, SimHost>> +Flamethrower spends fuel, no round (new arm) }
+  class WeaponPosture { <<exists, replicated>> +Kind +Target +Point +ActiveMount }
+  class WeaponAmmo { <<exists, replicated>> +LastShotAtOf(m) +BurstStartedAtOf(m) +LoadedOf(m) }
+  class FlameJets { <<built, pure reader>> +TryGet(world, unit, now) Jet }
   class FlameCone { <<new, pure law>> +Contains(target) +Reach(line) }
   class FlameSystem { <<new, Health owner, serial>> +ApplyJets() +ApplyNapalm() }
   class Ignition { <<new, pure rule>> +Exposure(kind) +Threshold(kind, material) }
-  class FireExposure { <<new, unmanaged>> +Seconds }
-  class PersonEffects { <<exists>> +Burning until (new field) }
+  class EffectState { <<exists, replicated>> +BurningUntil (built, appended) }
   class AreaEffect { <<exists, pure law>> }
   class CellRecordSystem { <<exists>> }
   class BuildingDamage { <<exists>> }
   class TerrainMaterial { <<exists>> +BurnSeconds (new, optional) }
   class WarheadDto { <<exists>> +Incendiary kind, AreaLengthM, AreaWidthM, BurnSeconds (new) }
   class StressSystem { <<exists>> +InFlame, FlameSeen, BurningFriend (new) }
-  FireProcessingSystem --> FlameJet : opens
-  FlameSystem --> FlameJet : reads
+  FireProcessingSystem --> WeaponAmmo : a fuel shot
+  FlameJets --> WeaponPosture : aim
+  FlameJets --> WeaponAmmo : lit?
+  FlameJets --> WarheadDto : reach, cone
+  FlameSystem --> FlameJets : reads
   FlameSystem --> FlameCone : uses
   FlameSystem --> Ignition : uses
-  FlameSystem --> FireExposure : accumulates
   FlameSystem --> FireState : adds spots
-  FlameSystem --> PersonEffects : sets Burning
+  FlameSystem --> EffectState : sets BurningUntil
   FlameCone ..> AreaEffect : sibling law
   Ignition --> TerrainMaterial : reads
   FireState --> CellRecordSystem : held on a cell record
   FireState --> BuildingDamage : held on a building record
   BurnSystem --> FireState : burns bodies in spots
-  BurnSystem --> PersonEffects : burns a Burning man
+  BurnSystem --> EffectState : burns a Burning man
   StressSystem --> FireState : sees
 ```
-*What the picture shows that prose hid:* only five boxes are new, and none of them stores fire — `FireState` stays the single store with its
-three existing holders.
+*What the picture shows that prose hid:* only three boxes are new (`FlameCone`, `Ignition`, `FlameSystem`) and one reader is built (`FlameJets`) —
+none of them stores anything: the jet is read off the replicated weapon state, fire stays in `FireState` on its three existing holders, a burning
+man in `EffectState`. ⭐ **No new component** (user, `2026-11-19`).
 
 ### 4b. Sequences — a flamethrower burst; a napalm strike
 
@@ -154,10 +158,10 @@ sequenceDiagram
   participant B as BurnSystem (Health owner)
   C->>D: fire at the room's window (ROE: IncendiaryAllowed, no civilian in the cone)
   D->>S: fire intent (ammo = fuel seconds)
-  S->>S: Flamethrower ⇒ no round: FlameJet{origin, dir, until = now + burst}
+  S->>S: Flamethrower ⇒ no round: a fuel shot (WeaponAmmo last shot, replicated)
   loop each tick while the jet lasts
     F->>F: FlameCone: men, hulls, panels, ground the jet reaches (through openings)
-    F->>F: FireExposure += dt × intensity, then the Ignition threshold crossed?
+    F->>F: FlameJets.TryGet lit ⇒ the cone, then its own exposure buffer += dt × intensity, the Ignition threshold crossed?
     F->>H: ADD a spot (vehicle / building record / cell record), final value
     F->>F: a man crossed ⇒ Burning until now + 6 s
   end
@@ -196,17 +200,17 @@ graph TD
     ST["StressSystem — exists, +3 causes"]
   end
   subgraph SIM["SimHost"]
-    FP["CombatModule → FireProcessingSystem — exists, +FlameJet arm"]
+    FP["CombatModule → FireProcessingSystem — exists, +Flamethrower arm (a fuel shot, no round)"]
   end
   subgraph HO["the HEALTH OWNER of each entity (HealthApplication capability, any node — LiveSimulationPlan)"]
     FS["FlameSystem — NEW, after the damage, before BurnSystem"]
     BS["BurnSystem — exists"]
   end
   subgraph MAP["every map host"]
-    LK["Hrot.Look EffectRules → the map — exists, +FlameJet kind"]
+    LK["Hrot.Look EffectRules → the map — exists, + the FlameJet kind"]
   end
   BR --> WD --> FP
-  FP -->|"FlameJet / detonation (replicated)"| FS
+  FP -->|"WeaponAmmo + WeaponPosture / detonation (replicated)"| FS
   FS --> BS
   FS -->|"FireState (replicated)"| LK
   FS -->|"FireState (replicated)"| ST
@@ -218,8 +222,9 @@ same place `BurnSystem` lives) — a system registered by a pack instead would n
 
 | slice | what | scenarios (each with `checks.json` expect rows) |
 |---|---|---|
-| **FL-1** | `FlameCone`, `Ignition`, `FireExposure`, `FlameJet`, `FlameSystem` — a TEST weapon only; rails per rule | `fl-cone-hits-what-it-reaches` (a man in the cone burns, one behind a wall does not, one at a window's line does) |
-| **FL-2** | the flamethrower in the TKB (man-portable + a flame-tank mount), the ROE rule, the look (FlameJet kind) | `fl-clear-the-bunker` (a squad burns a bunker through its opening; the defenders burn or break; no civilian hurt) |
+| **FL-0** ✅ | the DATA the look reads (built `2026-11-19`, §6): `EffectState.BurningUntil` + `HitEffect.Burning` (and the wire), `WeaponCategory.Flamethrower`, `WarheadKind.Incendiary` + the warhead's flame fields, `EffectKind.FlameJet`, `TerrainMaterial.BurnSeconds`, the reader `FlameJets.TryGet` | rails only (`FlameJetsTests`, `BodyPartReplicationTests.CE3219_F3_*`, `TerrainWorldTests.CE4635_*`) |
+| **FL-1** | `FlameCone`, `Ignition`, `FlameSystem` (its exposure buffer) — a TEST weapon only; rails per rule | `fl-cone-hits-what-it-reaches` (a man in the cone burns, one behind a wall does not, one at a window's line does) |
+| **FL-2** | the flamethrower in the TKB (man-portable + a flame-tank mount), the ROE rule, the look (ui: the `FlameJet` kind, §6) | `fl-clear-the-bunker` (a squad burns a bunker through its opening; the defenders burn or break; no civilian hurt) |
 | **FL-3** | napalm: the `Incendiary` warhead, the ellipse, cell-record spots, the smoke cloud, the scorch | `fl-napalm-treeline` (the strike burns the treeline's men and its vegetation for its time; a scorch is left; vehicles 50 m away untouched) |
 | **FL-4** | buildings and materials: `BurnSeconds`, a roof / facade fire on the building record | `fl-thatched-village` (the fun-pack-shared roof fire; the stone house does not burn) |
 | **FL-5** | fear (the three causes) + behaviors' drills (behaviors' slice, against FL-1…FL-3) | covered by FL-2 / FL-3 rows (breaks counted) |
@@ -227,3 +232,19 @@ same place `BurnSystem` lives) — a system registered by a pack instead would n
 
 ⛔ **Nothing is built until the user approves.** The questions that need the user: **F-9** (the ROE default) and whether **F-3**'s thresholds and
 **F-5**'s napalm footprint read right; the rest are engineering leans.
+
+## 6. The look contract — what a renderer reads, by code name *(FL-0 built `2026-11-19`; for ui's handoff)*
+
+| what to draw | read | where it is, on every node | ⭐ the rule |
+|---|---|---|---|
+| a **flame jet** | `Fdp.Toolkit.Combat.FlameJets.TryGet(world, unit, now, out Jet jet)` | `WeaponPosture` + `WeaponAmmo` (replicated) + the TKB | lit while it returns true (≤ `FlameJets.LitSeconds` 0.25 s after the last fuel shot); from the muzzle of mount `jet.Mount` toward `jet.AimPoint` (its `Target`'s position when it has one), `jet.RangeM` long, `jet.HalfAngleRad` wide, brightness `jet.Intensity`, ramp-up from `jet.BurstStartedAt`. ⚠ A wall shortens it in the SIMULATION (the cone law, FL-1); v1 draws the full reach |
+| a **burning spot** (a vehicle, a wagon, a building, the ground) | `Fdp.Toolkit.Perception.Signatures.FireState` — `Count`, `Get(i)` → `FireSpot` {`X`,`Y`,`Z`, `Radius`, `Since`, `Seconds`, `Intensity`}, `IsBurning(now)` | on the holder entity (replicated `dtFireState`) | each spot burning at `now` = flames sized by `Radius`, brightness `Intensity`; ⭐ the frame: a VEHICLE's spots are in its own frame (they move with it); a building record's and a cell record's spots are in their record entity's frame (`SimTransform`). ⛔ Today's wreck rule (`EffectSystems.cs:422`: one Fire + Smoke at the hull centre, on a vehicle only) is replaced by this rule for every holder |
+| a **burning man** | `Fdp.Toolkit.Combat.Effects.IsBurning(view, man, now)` (`EffectState.BurningUntil`) | on the person (replicated `dtEffectState`) | flames on the body while true; `PersonLook` (ui) should expose it beside its other states |
+| a **big fire's smoke** (napalm) | the strike's `AreaEffectCloud` entity | exists, replicated, drawn today | nothing new — a single spot gets only a small smoke |
+| **scorched ground** | `GroundHeatMarks` items of kind `BurnedArea` (thermal §4b) | the terrain cell's record entity | a dark ground decal sized by the mark's length × width; today the marks drive only the thermal picture |
+| the effect's **data** | `Fdp.Toolkit.Tkb.Domain.EffectKind.FlameJet` (8) | the TKB effects (`EffectTkbCatalog`) | ui adds its default visual (colour, size, flicker) and the `EffectRules` row; a spot's size class from its radius |
+
+⚠ Not for the look: `WeaponCategory.Flamethrower`, `WarheadKind.Incendiary`, the warhead's `FlameRangeM` / `FlameHalfAngleDeg` / `FlameIntensity` /
+`AreaLengthM` / `AreaWidthM` / `BurnSeconds`, `TerrainMaterial.BurnSeconds` — the simulation's (FL-1…FL-4); `FlameJets` already reads the ones a
+renderer needs.
+

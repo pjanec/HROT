@@ -27,6 +27,10 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>⭐ CE-1115 (§9) — a chaff cloud: a grey bloom growing and thinning as it sinks.</summary>
         Chaff = 7,
+
+        /// <summary>⭐ <c>CE-4635</c> (R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md F-10) — a FLAME JET: a stream of fire from a flamethrower's
+        /// muzzle along its aim, as long as the jet's reach, lit while <c>FlameJets.TryGet</c> says so. Appended.</summary>
+        FlameJet = 8,
     }
 
     /// <summary>
