@@ -142,6 +142,8 @@ internal static class BuildingTemplateGenerator
         var (placed, counts) = OpeningPlacer.Place(d.Ring, b.Id, d.Openings, storeys, party);
         rep.OpeningsPlaced += counts.Placed; rep.OpeningsDroppedOffWall += counts.OffWall; rep.OpeningsDroppedOnPartyWall += counts.OnParty;
         rep.OpeningsDroppedOverlap += counts.Overlap; rep.OpeningsDroppedOther += counts.Other;
+        if (counts.AddedDoor) rep.DoorsAdded++;   // ⭐ CE-5029 — the ≥ 1 door rule
+        if (counts.Doorless) { rep.Doorless++; rep.Warnings.Add($"building {b.Id}: every wall is shared — no door could be placed (enterable only through a neighbour)"); }
         rep.Stairs += d.Plan!.Stairs.Sum(s => s.Runs.Count); rep.StairsSwitchBack += d.Plan.Stairs.Count(s => s.SwitchBack);
 
         string material = MaterialOf(b.Material);
