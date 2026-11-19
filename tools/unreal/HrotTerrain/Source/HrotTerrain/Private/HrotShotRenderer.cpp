@@ -109,7 +109,9 @@ void UHrotShotRenderer::AddTracer(const FVector& From, const FVector& To)
 	if (Range > 1.f) Tracers.Add({ From, D / Range, Range, Now() });
 }
 
-void UHrotShotRenderer::FlashLight(const FVector& At)
+void UHrotShotRenderer::FlashLight(const FVector& At) { Flash(At, 20000.f, 600.f, FlashLife); }
+
+void UHrotShotRenderer::Flash(const FVector& At, float Intensity, float Radius, float Seconds)
 {
 	if (!EnsureComponents()) return;
 	const float T = Now();
@@ -128,9 +130,10 @@ void UHrotShotRenderer::FlashLight(const FVector& At)
 	}
 	if (!Free) return;   // all lights busy: the flash still shows, unlit surroundings
 	Free->C->SetWorldLocation(At);
-	Free->C->SetIntensity(20000.f);
+	Free->C->SetIntensity(Intensity);
+	Free->C->SetAttenuationRadius(Radius);
 	Free->C->SetVisibility(true);
-	Free->Until = T + FlashLife;
+	Free->Until = T + Seconds;
 }
 
 void UHrotShotRenderer::StartTestFire(const TArray<UHrotPersonState*>& Shooters, float RoundsPerSecond, float BurstSeconds, float PauseSeconds)
@@ -166,8 +169,8 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 		}
 	}
 	NearSpawnedLastFrame = NearThisFrame; NearThisFrame = 0;
-	const float Rates[3] = { SmokePerSecond, ShellPerSecond, ImpactPerSecond };
-	for (int32 K = 0; K < 3; ++K) Tokens[K] = FMath::Min(Tokens[K] + Rates[K] * DeltaTime, FMath::Max(Rates[K] * 0.1f, 1.f));   // ≤ 0.1 s of burst
+	const float Rates[4] = { SmokePerSecond, ShellPerSecond, ImpactPerSecond, BlastPerSecond };
+	for (int32 K = 0; K < 4; ++K) Tokens[K] = FMath::Min(Tokens[K] + Rates[K] * DeltaTime, FMath::Max(Rates[K] * 0.1f, 1.f));   // ≤ 0.1 s of burst
 	const float T = Now();
 	Flashes.RemoveAll([&](const FFlash& F) { return T - F.Born > FlashLife; });
 	Tracers.RemoveAll([&](const FTracer& R) { return (T - R.Born) * TracerSpeed - TracerLength > R.Range; });

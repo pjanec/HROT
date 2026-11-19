@@ -95,7 +95,28 @@ def tracer():
     return m
 
 
-for mk in (flash, tracer):
+def scorch():
+    """/Game/Hrot/Fx/M_HrotScorch — a deferred decal: soot, darkest at the centre, a soft ragged edge (the blast's mark on the ground).
+    ⚠ Lyra's M_ExplosionDecal is made for Niagara's decal renderer (colour from particles): as a plain decal it painted a flat tan box."""
+    m = fresh("M_HrotScorch")
+    m.set_editor_property("material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+    E, c1, c3, link, op, one, data = builder(m)
+    tc = E(unreal.MaterialExpressionTextureCoordinate, -1000, 0)
+    centred = op(unreal.MaterialExpressionMultiply, op(unreal.MaterialExpressionSubtract, tc, c1(0.5, -900, 100), -800, 0), c1(2.0, -800, 100), -650, 0)
+    r = one(unreal.MaterialExpressionLength, centred, -500, 0)
+    noise = E(unreal.MaterialExpressionNoise, -650, 250)
+    ragged = op(unreal.MaterialExpressionAdd, r, op(unreal.MaterialExpressionMultiply, noise, c1(0.25, -500, 350), -350, 250), -200, 100)
+    soot = op(unreal.MaterialExpressionPower, one(unreal.MaterialExpressionSaturate, op(unreal.MaterialExpressionSubtract, c1(1.0, -200, 250), ragged, -50, 150), 100, 150),
+              c1(1.5, 100, 300), 250, 150)
+    MEL.connect_material_property(op(unreal.MaterialExpressionMultiply, soot, c1(0.9, 250, 300), 400, 150), "", unreal.MaterialProperty.MP_OPACITY)
+    MEL.connect_material_property(c3((0.015, 0.013, 0.011), 400, 0), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    MEL.connect_material_property(c1(0.95, 400, 400), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    return m
+
+
+for mk in (flash, tracer, scorch):
     m = mk()
     MEL.recompile_material(m)
     stats = MEL.get_statistics(m) if hasattr(MEL, "get_statistics") else None

@@ -149,6 +149,11 @@ def step_build():
             wall.set_actor_scale3d(unreal.Vector(0.2, 30, 6))
             wall.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)   # moved in play, across the line of fire
             S["rows"].setdefault(g["name"], []).append(wall)
+            gr = spawn(unreal.StaticMeshActor, (0, y - 3000, -500), label="Grenade")   # Lyra's grenade, flown in play like HROT's positions
+            gr.static_mesh_component.set_static_mesh(unreal.load_asset("/Game/Weapons/Grenade/Mesh/SM_grenade"))
+            gr.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+            gr.set_actor_scale3d(unreal.Vector(2, 2, 2))   # seen from 15 m: a little larger than life
+            S["rows"][g["name"]].append(gr)
             continue
         S["shots_todo"].append({"name": g["name"], "loc": (cx, y - dist, 110.0), "rot": (-4.0, 90.0, 0.0)})
     found = sum(1 for g in R["groups"] for a in g["anims"] if a["found"])
@@ -326,14 +331,55 @@ def live():
             R["shots"].append(path if os.path.exists(path) else None); L["pending"] = None; L["shots_taken"] += 1
             L["until"] = now + 0.35
             return True
-        if L["shots_taken"] >= 3:
-            LES().editor_request_end_play(); L.update(phase="end", t=now + 4); return True
+        if L["shots_taken"] >= 3:   # then the BLASTS (UHrotExplosionFx)
+            L.update(phase="blasts", blast=0, blast_t=None); return True
         shot(g, at, d); L["next_shot"] = now + 0.1
         path = os.path.join(JOB["shots"], f"anim-fire-{L['shots_taken'] + 1}.png").replace("\\", "/")
         if os.path.exists(path): os.remove(path)
         unreal.AutomationLibrary.take_high_res_screenshot(1600, 900, path, None)
         L["pending"] = (path, now)
         return True
+    if L["phase"] == "blasts":   # ⭐ a grenade thrown (its flight = positions each frame, as HROT will send), then a mortar, a tank HE shell
+        a = L["gunner"]["actor"].get_actor_location()
+        # the wall stands 9 m ahead (−Y): the blasts land 5 m ahead, seen from 15 m off to the side
+        cam, look = unreal.Vector(a.x - 1500, a.y - 500, 300.0), unreal.Vector(a.x, a.y - 500, 150.0)
+        UES().set_level_viewport_camera_info(cam, unreal.MathLibrary.find_look_at_rotation(cam, look))
+        kinds = [("grenade", unreal.HrotBlast.GRENADE), ("mortar", unreal.HrotBlast.MORTAR), ("tank-he", unreal.HrotBlast.TANK_HE)]
+        if L["blast"] >= len(kinds):
+            LES().editor_request_end_play(); L.update(phase="end", t=now + 4); return True
+        name, kind = kinds[L["blast"]]
+        land = unreal.Vector(a.x + (L["blast"] - 1) * 300, a.y - 500, 0.0)
+        if L.get("blast_t") is None:
+            L.update(blast_t=now, exploded=False, pics=[0.12, 1.0], pending=None)
+            if name == "grenade" and L.get("grenade_actor") is None:
+                w = UES().get_game_world()
+                L["grenade_actor"] = next((x for x in unreal.GameplayStatics.get_all_actors_of_class(w, unreal.StaticMeshActor)
+                                           if x.get_actor_label() == "Grenade"), None)
+        t = now - L["blast_t"]
+        g = L.get("grenade_actor")
+        if name == "grenade" and g and not L["exploded"]:   # the flight: 1.2 s on an arc from the thrower's hand
+            u = min(t / 1.2, 1.0)
+            start = a + unreal.Vector(0, -40, 150)
+            g.set_actor_location(start + (land - start) * u + unreal.Vector(0, 0, 400 * 4 * u * (1 - u)), False, True)
+            g.set_actor_hidden_in_game(False)
+            if u < 1.0: return True
+        if not L["exploded"]:
+            if g and name == "grenade": g.set_actor_hidden_in_game(True)
+            ok = unreal.HrotExplosionFx.explode(L["gunner"]["actor"], land, unreal.Vector(0, 0, 1), kind)
+            log(f"blast {name}: {'shown' if ok else 'dropped (budget / range)'}")
+            L.update(exploded=True, boom=now); return True
+        if L.get("pending"):
+            path, t0 = L["pending"]
+            if not ((os.path.exists(path) and os.path.getsize(path) > 0) or now - t0 > 30): return True
+            R["shots"].append(path); L["pending"] = None
+        if L["pics"]:
+            if now - L["boom"] < L["pics"][0]: return True
+            secs = L["pics"].pop(0)
+            path = os.path.join(JOB["shots"], f"anim-blast-{name}-{secs:.2f}s.png").replace("\\", "/")
+            if os.path.exists(path): os.remove(path)
+            unreal.AutomationLibrary.take_high_res_screenshot(1600, 900, path, None)
+            L["pending"] = (path, now); return True
+        L.update(blast=L["blast"] + 1, blast_t=None); return True
     if L["phase"] == "end":
         log("live: Simulate ended"); return False
     return False

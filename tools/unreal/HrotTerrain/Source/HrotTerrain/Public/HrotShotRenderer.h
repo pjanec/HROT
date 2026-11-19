@@ -24,6 +24,8 @@ public:
 
 	/** A muzzle flash at the muzzle (X = the barrel's direction): 3 cards — one facing along the barrel, two along its sides. */
 	void AddFlash(const FTransform& Muzzle);
+	/** A flash of light: a pooled point light for `Seconds` (a muzzle flash, an explosion). */
+	void Flash(const FVector& At, float Intensity, float Radius, float Seconds);
 	/** A tracer: a short glowing streak flying From → To at TracerSpeed. */
 	void AddTracer(const FVector& From, const FVector& To);
 	/** This weapon's round count, for the 1-in-N tracer rule. */
@@ -31,7 +33,7 @@ public:
 	/** Where the view is (the player camera in play, the editor viewport otherwise) — for the near-only extras. */
 	FVector ViewLocation() const;
 	/** The near extras, each with its own RATE budget (per second — a per-frame budget scales with the frame rate). */
-	enum class EExtra : uint8 { Smoke, Shell, Impact };
+	enum class EExtra : uint8 { Smoke, Shell, Impact, Blast };
 	/** True while `Kind`'s budget allows one more now; spends it. */
 	bool TakeBudget(EExtra Kind);
 
@@ -50,6 +52,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float SmokePerSecond = 60.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float ShellPerSecond = 60.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float ImpactPerSecond = 30.f;
+	/** explosions (UHrotExplosionFx): their effect + scorch within BlastRange, at most BlastPerSecond; the flash is always shown */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float BlastPerSecond = 20.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float BlastRange = 150000.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") int32 MaxLights = 4;
 	/** which near extras are drawn at all (measurement: what each costs) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") bool bNearSmoke = true;
@@ -85,7 +90,7 @@ private:
 	struct FLight { TObjectPtr<UPointLightComponent> C; float Until = 0.f; };
 	TArray<FLight> Lights;
 	int32 NearThisFrame = 0;
-	float Tokens[3] = { 0.f, 0.f, 0.f };
+	float Tokens[4] = { 0.f, 0.f, 0.f, 0.f };
 
 	UPROPERTY(Transient) TArray<TObjectPtr<class UHrotPersonState>> TestShooters;
 	TArray<float> TestCarry;
