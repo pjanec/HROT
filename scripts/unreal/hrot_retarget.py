@@ -69,9 +69,11 @@ def main():
                     ("auto_map_chains", lambda: xc.auto_map_chains(unreal.AutoMapChainType.FUZZY, True))):
         try: f()
         except Exception as e: log(f"{what}: {e}")
+    # ⭐ NO auto-alignment: the mannequin, the crowd body and the soldier share one reference pose (identical foot axes, measured),
+    # and auto_align_all_bones re-aimed the feet — Lyra's clips came out toes-up ~80° on every other body. Both poses reset.
     for side in (unreal.RetargetSourceOrTarget.SOURCE, unreal.RetargetSourceOrTarget.TARGET):
-        try: xc.auto_align_all_bones(side)
-        except Exception as e: log(f"auto_align_all_bones {side}: {e}")
+        try: xc.reset_retarget_pose(xc.get_current_retarget_pose_name(side), [], side)
+        except Exception as e: log(f"reset_retarget_pose {side}: {e}")
     EAL.save_loaded_asset(rig); EAL.save_loaded_asset(rtg)
     # 3. the animations, by name
     paths = list(EAL.list_assets("/Game/Characters", recursive=True, include_folder=False))
@@ -88,6 +90,8 @@ def main():
             if names[n] not in want: want.append(names[n])
     log(f"{len(want)} animations to retarget; not found: {missing}")
     R["missing"] = missing
+    if EAL.does_directory_exist(JOB["dest"]):   # regenerate: the batch retarget does not overwrite (it would add suffixed copies)
+        EAL.delete_directory(JOB["dest"]); log(f"cleared {JOB['dest']}")
     data = [EAL.find_asset_data(p) for p in want]
     res = unreal.IKRetargetBatchOperation.duplicate_and_retarget(
         assets_to_retarget=data, source_mesh=manny, target_mesh=target, ik_retarget_asset=rtg, search="", replace="",

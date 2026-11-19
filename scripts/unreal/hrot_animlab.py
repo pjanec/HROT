@@ -230,7 +230,9 @@ def person(g, spec, x, y, row):
         # Lyra's AttachTransform for its SK_ weapons: yaw −90 at weapon_r. ⚠ Measured, not judged by eye: with +90 the muzzle socket
         # pointed INTO the person on every row (facing (−0.64, −0.77), muzzle (+0.48, +0.88)) — a small render misled that guess
         turn = unreal.Transform(rotation=unreal.Rotator(roll=0, pitch=0, yaw=-90))
-        if sk.does_socket_exist("weapon_r"): sock, off = "weapon_r", turn
+        # Lyra's weapon_r transform holds only on the MANNEQUIN skeleton. ⚠ Measured: the crowd skeleton has its own weapon_r, oriented
+        # differently — the civilians' rifles came out reversed; every other body: the grip transferred through the shared aim pose
+        if not spec.get("body") and sk.does_socket_exist("weapon_r"): sock, off = "weapon_r", turn
         else: sock, off = "hand_r", turn * weapon_at_hand(sk, spec.get("body"))   # no weapon_r: where the mannequin holds it
         setattr(ai, "weapon", weapon); setattr(ai, "weapon_socket", sock); setattr(ai, "weapon_offset", off)
         ai.apply_weapon()

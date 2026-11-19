@@ -83,11 +83,18 @@ def main():
     except Exception as e: log(f"assign source rig to ops: {e}")
     try: xc.auto_map_chains(unreal.AutoMapChainType.FUZZY, True)
     except Exception as e: log(f"auto_map_chains: {e}")
-    for side in (unreal.RetargetSourceOrTarget.SOURCE, unreal.RetargetSourceOrTarget.TARGET):   # T-pose (Mixamo) vs A-pose (Manny)
-        try: xc.auto_align_all_bones(side)
-        except Exception as e: log(f"auto_align_all_bones {side}: {e}")
+    # T-pose (Mixamo) vs A-pose (Manny): ONLY the ARMS are aligned (the mannequin's arm bones onto Mixamo's). ⚠ Measured:
+    # auto_align_all_bones on both sides also re-aimed the feet — every Mixamo clip came out on the mannequin with pointed toes.
+    for side in (unreal.RetargetSourceOrTarget.SOURCE, unreal.RetargetSourceOrTarget.TARGET):
+        try: xc.reset_retarget_pose(xc.get_current_retarget_pose_name(side), [], side)
+        except Exception as e: log(f"reset_retarget_pose {side}: {e}")
+    arms = [f"{b}_{s}" for s in ("l", "r") for b in ("clavicle", "upperarm", "lowerarm", "hand")]
+    try: xc.auto_align_bones(arms, unreal.RetargetAutoAlignMethod.CHAIN_TO_CHAIN, unreal.RetargetSourceOrTarget.TARGET)
+    except Exception as e: log(f"auto_align_bones arms: {e}")
     EAL.save_loaded_asset(rig); EAL.save_loaded_asset(rtg)
     # 4. retarget every animation onto SKM_Manny
+    if EAL.does_directory_exist("/Game/Mixamo/Retargeted"):   # regenerate (the batch retarget does not overwrite)
+        EAL.delete_directory("/Game/Mixamo/Retargeted")
     data = [unreal.EditorAssetLibrary.find_asset_data(p) for p in anims]
     try:
         res = unreal.IKRetargetBatchOperation.duplicate_and_retarget(
