@@ -43,6 +43,36 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐ CE-5040 — a step he cannot walk (the move reports Failure: blocked, no path) ends the sweep as a FAILURE, never a mark — ⛔ before, he waited
+        /// on the failed move for good. ✅ Red-proof: the failure branch dropped ⇒ Running for ever ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE5040_AStepThatCannotBeWalked_EndsTheSweep_AsAFailure_NeverAMark()
+        {
+            var w = new StationWeaponBehaviorTests.World();
+            var repo = w.Repo;
+            Field(repo);
+            repo.GetComponentRW<SimTransform>(w.Man).Position = new Vector3(-25f, 15f, 0f);
+            w.Start(BehaviorNames.ReconMinefield, "{\"Field\":" + FieldNet + ",\"At\":[20,20,0],\"Pace\":5}");
+            int marks = 0;
+            bool failedOne = false;
+            for (int i = 0; i < 3000 && w.Finished == null; i++)
+            {
+                w.Tick();
+                foreach (var _ in repo.Bus.Read<MinefieldMarked>()) marks++;
+                var to = Destination(repo, w.Man);
+                if (!float.IsNaN(to.X) && !failedOne && repo.GetComponentRO<LocomotionChannel>(w.Man).Status == NodeStatus.Running)
+                {
+                    repo.GetComponentRW<LocomotionChannel>(w.Man).Status = NodeStatus.Failure;   // the walk is failed as blocked, the body never moves
+                    failedOne = true;
+                }
+            }
+            Assert.True(failedOne);
+            Assert.Equal(NodeStatus.Failure, w.Finished);
+            Assert.Equal(0, marks);
+        }
+
+        /// <summary>
         /// ⭐⭐ MR-7 — from 25 m west of the field he sweeps toward its centre; the first mined cell starts the trace, the mine kept on his LEFT; he walks
         /// round the whole field on cells he swept clear — ⭐ NEVER stepping into a mined cell — back to the trace's start, and MARKS the field for his
         /// side (once). Every swept cell is reported with the truth (the 12 edge cells mined; the 4 inside never reached). ✅ Red-proofs: the never-enter guard dropped
