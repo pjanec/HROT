@@ -561,6 +561,48 @@ namespace Hrot.SimHost.Tests
             Assert.True(StressModel.IsBroken(_w, m));
         }
 
+        /// <summary>A superior's post order in progress (<c>CombatPosture</c>, its move to <paramref name="post"/> running at <paramref name="speed"/> m/s).</summary>
+        private unsafe void OnHisWayToHisPost(Entity m, Vector3 post, float speed, Fbt.NodeStatus status = Fbt.NodeStatus.Running)
+        {
+            _w.GetComponentRW<BehaviorState>(m) = new BehaviorState
+            {
+                Origin = BehaviorOrigin.Superior, ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.CombatPosture), InstanceId = 3,
+            };
+            if (!_w.HasComponent<LocomotionChannel>(m)) _w.AddComponent(m, new LocomotionChannel());
+            ref var ch = ref _w.GetComponentRW<LocomotionChannel>(m);
+            ch.ActiveAction = Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo;
+            ch.Status = status;
+            fixed (byte* p = ch.Params) *(Fdp.Toolkit.Navigation.MoveToParams*)p = new Fdp.Toolkit.Navigation.MoveToParams { Destination = post, Speed = 2f, ArrivalRadius = 1f };
+            var v = new SimVelocity { Linear = new Vector3(speed, 0f, 0f) };
+            if (_w.HasComponent<SimVelocity>(m)) _w.GetComponentRW<SimVelocity>(m) = v; else _w.AddComponent(m, v);
+        }
+
+        /// <summary>
+        /// ⭐⭐ D-11 A (CE-4666, user-approved 2026-11-19; Temperament &amp; Stress §TS-6a) — a man MOVING TO HIS ORDERED POST takes the near misses as
+        /// "go to cover": at his break level he does not break while his move carries him there; he breaks once it STALLS (the same level) — and
+        /// a man who ARRIVED breaks there. ✅ Red-proof: the post check removed ⇒ broken on the way ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D11A_AManMovingToHisOrderedPost_BreaksOnlyWhenThereOrStalled()
+        {
+            var m = Man(0f);
+            float line = StressModel.BreakLevel(_w, m);
+            SetLevel(m, line + 0.05f, 0.0);
+            OnHisWayToHisPost(m, new Vector3(20f, 0f, 0f), speed: 1.5f);
+            StressModel.Judge(_w, m, 0.0);
+            Assert.False(StressModel.IsBroken(_w, m), "on his way to his post");
+
+            OnHisWayToHisPost(m, new Vector3(20f, 0f, 0f), speed: 0f);   // stalled (dropped, blocked)
+            StressModel.Judge(_w, m, 0.1);
+            Assert.True(StressModel.IsBroken(_w, m), "his move stalled");
+
+            var n = Man(5f);
+            SetLevel(n, line + 0.05f, 0.0);
+            OnHisWayToHisPost(n, new Vector3(5f, 0f, 0f), speed: 0f, status: Fbt.NodeStatus.Success);   // arrived
+            StressModel.Judge(_w, n, 0.0);
+            Assert.True(StressModel.IsBroken(_w, n), "there");
+        }
+
         /// <summary>TS-6 — a broken man with a low resolve whom an enemy rifle covers SURRENDERS (for good); one with resolve does not.</summary>
         [Fact]
         public void CE2272_LowResolve_AndCovered_HeSurrenders_ElseHeBreaks()

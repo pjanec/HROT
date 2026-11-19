@@ -7,6 +7,7 @@ using Fbt.Kernel;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Squad.Command;
 using Fdp.Toolkit.Squad;
@@ -47,6 +48,62 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-4667</c> (D-7) — since when no post has had a live contact near it · 1 = the play stopped firing (exit b).</summary>
         public SimInstant QuietSince;
         public byte Down;
+        /// <summary>⭐ D-11 B (CE-4666, user-approved) — the base of fire's posts: the squad's own post plan (<see cref="DefencePlan"/>), facing the
+        /// reported posts · its outstanding ask · 1 once the posts are given (the men re-ordered to them).</summary>
+        public DefencePosts Plan;
+        public DefenceAsk Ask;
+        public byte Planned;
+    }
+
+    /// <summary>
+    /// ⭐ D-11 B — the base of fire's crew for <see cref="DefencePlan"/>: the squad's roster (as <see cref="RosterCrew"/>, indexed like
+    /// <see cref="SupportByFireBehavior.Run"/>'s members), the posts FACING the reported posts' centre — a sector plan: a line across the line of
+    /// fire, a cover search per post, the gun on the longest view. ⛔ No second planner (ruling 9).
+    /// </summary>
+    public readonly struct SupportCrew : IDefenceCrew
+    {
+        private readonly EntityRepository _world;
+        private readonly Entity _squad;
+        private readonly double _now;
+        private readonly Vector3 _facing;
+
+        public SupportCrew(EntityRepository world, Entity squad, double now, in SupportByFireParams p)
+        {
+            _world = world; _squad = squad; _now = now;
+            var sum = Vector3.Zero;
+            for (int k = 0; k < p.Posts; k++) sum += p.Post(k);
+            _facing = p.Posts > 0 ? sum / p.Posts : p.Position;
+        }
+
+        public EntityRepository World => _world;
+        public Entity Carrier => _squad;
+        public double Now => _now;
+        public int Count => _world.HasComponent<UnitRoster>(_squad) ? Math.Min(_world.GetComponentRO<UnitRoster>(_squad).Count, DefencePosts.Capacity) : 0;
+        public bool Live(int i) => Live(i, out _);
+        public bool Live(int i, out Vector3 at)
+        {
+            at = default;
+            var m = CommandPictureOps.Subordinate(_world, _squad, i);
+            if (m.IsNull || !_world.IsAlive(m) || !Injury.IsInTheFight(_world, m) || !_world.HasComponent<SimTransform>(m)) return false;
+            at = _world.GetComponentRO<SimTransform>(m).Position;
+            return true;
+        }
+        public bool Support(int i)
+            => _world.HasComponent<UnitRoster>(_squad) && SquadRoles.CarriesSupportWeapon(SquadRoles.Of(_world, in _world.GetComponentRO<UnitRoster>(_squad), i));
+        public Entity Origin()
+        {
+            for (int i = 0; i < Count; i++) if (Live(i)) return CommandPictureOps.Subordinate(_world, _squad, i);
+            return Entity.Null;
+        }
+        public ProficiencyTier MedianTier()
+        {
+            Span<Entity> men = stackalloc Entity[DefencePosts.Capacity];
+            int n = 0;
+            for (int i = 0; i < Count && n < men.Length; i++) if (Live(i)) men[n++] = CommandPictureOps.Subordinate(_world, _squad, i);
+            return ProficiencyOf.MedianTier(_world, men[..n]);
+        }
+        /// <summary>The reported posts' centre (the order's support point when it names none) — the base of fire faces its targets.</summary>
+        public bool Facing(out Vector3 at) { at = _facing; return true; }
     }
 
     /// <summary>
@@ -70,6 +127,9 @@ namespace Hrot.AI.Behaviors.Brains
         public const double EstablishSeconds = 15.0;
         /// <summary>… with at least this many rounds spent per man in the fight (a squad whose men carry no counted weapon: the time alone).</summary>
         public const int EstablishRoundsPerMan = 3;
+        /// <summary>⭐ D-11 B — how far round the support point the base of fire's post plan looks (m).</summary>
+        public const float PostSearchMetres = 20f;
+
         /// <summary>⭐ <c>CE-4667</c> (D-7, user-approved) — a post is still live while a live contact stands within this of it (m) …</summary>
         public const float PostLiveMetres = 25f;
         /// <summary>… and the play stops firing when no post has been live for this long (s).</summary>
@@ -136,6 +196,9 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 ws.Issued = 1; ws.Since = (SimInstant)now;
                 for (int i = 0; i < CommandPicture.MaxSubordinates; i++) ws.Dirty[i] = 1;
+                // ⭐ D-11 B — nobody has a post yet (SquadDefendPlay.Start's own reset: a zeroed PostOf reads as "post 0", and the plan asks nothing)
+                for (int i = 0; i < DefencePosts.Capacity; i++) { ws.Plan.PostOf[i] = DefencePosts.None; ws.Plan.MovedAt[i] = double.NegativeInfinity; ws.Plan.DwellFrom[i] = double.NegativeInfinity; }
+                ws.Plan.Hunter = DefencePosts.None;
             }
             if (ws.Phase == 0)
             {
@@ -163,6 +226,14 @@ namespace Hrot.AI.Behaviors.Brains
                     CommandNodes.ReportProgress(world, self, ProgressKind.TargetsDown, p.Position);
                 }
             }
+            // ⭐⭐ D-11 B (CE-4666, user-approved 2026-11-19) — the men do not share ONE point: the squad's own post plan places them (a line across
+            //   the line of fire at the support point, a cover search per post, facing the reported posts); until it answers they head for the point.
+            //   📌 Live (pc-corridor-fight): phase 0 held every man at p.Position ⇒ bunched by construction, in the open.
+            if (ws.Planned == 0)
+            {
+                var crew = new SupportCrew(world, self, now, in p);
+                if (DefencePlan.Step(ref ws.Plan, ref ws.Ask, in crew, default, p.Position, PostSearchMetres)) { ws.Planned = 1; Redo(ref ws); }
+            }
             for (int i = 0; i < n; i++)
             {
                 var member = CommandPictureOps.Subordinate(world, self, i);
@@ -173,7 +244,11 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ws.Dirty[i] == 0 && CommandOrders.Stands(world, self, member)) continue;
                 ws.Dirty[i] = 0;
                 var at = world.HasComponent<SimTransform>(member) ? (Vector3)world.GetComponentRO<SimTransform>(member).Position : p.Position;
-                if (ws.Phase == 0) SquadManeuverRunner.Hold(world, self, member, p.Position, p.Speed);
+                bool posted = ws.Planned != 0 && i < DefencePosts.Capacity && ws.Plan.PostOf[i] != DefencePosts.None && ws.Plan.PostOf[i] < ws.Plan.Count;
+                var post = posted ? ws.Plan.Point(ws.Plan.PostOf[i]) : p.Position;
+                if (ws.Phase == 0)
+                    SquadManeuverRunner.Hold(world, self, member, post, p.Speed,
+                                             posted ? new MemberPost { Set = 1, Radius = SquadDefendPlay.PostRadius } : default);   // ⭐ D-11 B — his post
                 else if (ws.Empty[i] != 0 || ws.Down != 0) SquadManeuverRunner.Hold(world, self, member, at, p.Speed);
                 else SquadManeuverRunner.Suppress(world, self, member, Entity.Null, p.Post(i % Math.Max(1, p.Posts)), at, p.Speed);
                 ws.Orders++;

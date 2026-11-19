@@ -202,6 +202,34 @@ platoon's lift, which never came. The platoon's lift is unchanged; `SupportByFir
 ⚠ A post with NO known contact near it keeps the blind fire: AU-1's premise (a base of fire rarely sees a man in a window) is unchanged.
 ⇒ the stop needs the men there to be known DOWN, never merely unseen. Rails: `SquadManeuverTests.CE4667_*` (SupportByFire suite).
 
+#### 9.1b D-11 B (CE-4666, user-approved `2026-11-19`) — the base of fire takes POSTS from the squad's own plan *(behaviors, BUILT)*
+
+```mermaid
+sequenceDiagram
+  participant S as SupportByFire.Run (the squad)
+  participant P as DefencePlan.Step (SquadDefend's plan)
+  participant C as SupportCrew (IDefenceCrew)
+  participant M as each man (CombatPosture, then Suppress)
+  S->>M: phase 0, plan not answered - Hold at the support point
+  loop every frame until Ready
+    S->>P: Step(posts, ask, crew, support point, 20 m)
+    P->>C: Facing - the reported posts' centre (a sector plan)
+    P-->>S: the window / roof / cover asks answered - PostOf per man
+  end
+  S->>M: Hold at HIS post, post set (CombatPosture)
+  S->>M: phase 1 - Suppress a reported post from where he is
+```
+*What the picture shows that prose hid:* no second planner — the base of fire is a defence crew whose sector is its targets; the ONE change
+to the plan is that the crew, not the engagement area, says where the posts face (`IDefenceCrew.Facing`; a defence's crew still answers
+its engagement area — unchanged).
+
+| piece | as built |
+|---|---|
+| ⛔ was | §9.1: phase 0 held EVERY man at `p.Position` ⇒ bunched by construction (📌 `pc-corridor-fight`: Blue Squad 2 failed "never bunches" at 30 s, in the open) |
+| the plan | `SupportByFireState.Plan` / `Ask` / `Planned`: `DefencePlan.Step` over `SupportCrew` (the roster as `Run` indexes it; facing the reported posts' centre), radius `PostSearchMetres` 20 m |
+| the men | phase 0: to HIS post (`MemberPost` set, `SquadDefendPlay.PostRadius`) once planned, else the support point; phase 1 unchanged — `Suppress` from where he stands, which is now his post |
+| rail | `SquadManeuverTests.D11B_TheBaseOfFire_TakesPostsFromTheSquadsOwnPlan_NotOnePoint` (red-proved) |
+
 ### 9.2 AU-2 — the approach in contact, the crossing smoke, suppression established *(R-2107, lane decision — for the user's review)*
 
 | piece | as built | where |
