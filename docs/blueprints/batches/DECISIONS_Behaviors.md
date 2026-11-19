@@ -8,6 +8,8 @@ current-answer: the whole file
 
 ## D-11 · CE-4666 — the street fight (`pc-corridor-fight`): Red's line breaks before it reaches its cover; Blue's base of fire bunches on one point. Two calls *(2026-11-19)*
 
+**DECIDED `2026-11-19` (user, via coordinator: "approved"): A ① — a man MOVING TO HIS ORDERED POST takes near misses as "go to cover" (his post is his cover); the break waits until he is there or his move has stalled; a broken man's retreat point is first his own post when it is behind cover · B ① — `SupportByFire`'s phase 0 places its men with the squad's own post planner (`SquadDefend`'s `DefencePlan`: a line across the line of fire at the support point, a cover search per post, a sector each) and fires from the posts. Defence and attack goldens move (a real behaviour change) — report the diff shape; `pc-corridor-fight` is the judge.**
+
 **Measured (terrain's `pc-corridor-fight`, CE-4672, stepped; reproduces terrain's verdicts):**
 1. Red's posts ON the corridor's centreline with `SearchRadius` 10 find no cover (terrain: the nearest is 13.5–16 m). With 25 the defence plan DOES post the men at the corridor's edge, on cover: (399, 185) · (385, 185) · (404, 181).
 2. **They never get there:** Blue opens fire at **5.4 s from ~160 m**; Red Squad 1's men BREAK (TS-6) at **11.45 · 13.92 · 14.5 s** and lie prone where they are — 4–8 m short of their posts, in the open grass — the whole first minute. ⇒ the line rows stay red with 25 too.
