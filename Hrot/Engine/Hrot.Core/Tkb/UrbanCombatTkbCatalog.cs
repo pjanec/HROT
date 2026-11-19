@@ -125,6 +125,8 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ BR-16 — the RWS station's height on the APC (m): the 2.5 m hull's roof; the weapon's own 0.3 m pivot sits above it.</summary>
         private const float ApcRwsZ = 2.5f;
         private const float RifleShotRange   = 400f;
+        /// <summary>⭐ CE-4635 — a flamethrower's roar (m): a loud hiss and a whoomph, heard closer than a rifle's crack.</summary>
+        internal const float FlameRoarRange  = 200f;
         private const float RpgShotRange     = 500f;
         private const float RpgBurstRange    = 800f;
         /// <summary>⭐ CE-3284 (Q95 B1) — the 81 mm tube's real carry, shot and burst (the BDC catalogue's <c>Mortar81Report</c>; Sensing §8.5).</summary>
@@ -336,7 +338,7 @@ namespace Hrot.Core.Tkb
                                          RateOfFire = FlameShotsPerMinute, Range = MunitionTkbCatalog.FlameReachM, MuzzleVelocity = 40f },
                 } });
                 t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
-                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms, RpgBurstRange));
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, FlameRoarRange, SoundSourceClass.Flame));
                 t.AddDescriptor(BuildMannequinAnimationDef());
                 tkb.Register(t);
             }

@@ -161,6 +161,55 @@ namespace Fdp.Toolkit.Perception.Tests
             Assert.Equal(1, ring.Places);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4635</c> (DESIGN_Flame_Weapons §6; ui NOTE flamethrower sound) — a flame burst is ONE continuous roar: the fuel shots come 10 a
+        /// second, the ring hears the burst once a second (<see cref="SoundEmissionSystem.FlameRoarSeconds"/>) while it lasts, in the shooter's own
+        /// firing class. A rifle's shots are still heard one by one. 🔴 Red-proof: the roar gate removed ⇒ 20 sounds in 2 s ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4635_AFlameBurst_IsHeardOnceASecond_NotOncePerFuelShot()
+        {
+            const long FlameMan = 9070, Rifleman = 9071;
+            var (w, e) = World();
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            foreach (var (id, cat) in new[] { (FlameMan, Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower), (Rifleman, Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms) })
+            {
+                var t = new Fdp.Interfaces.TkbTemplate("t" + id, id);
+                t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = cat } } });
+                db.Register(t);
+            }
+            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)FlameMan });
+            ref var a0 = ref w.GetComponentRW<AcousticEmitter>(e);
+            a0.FiringClass = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Flame;
+            var s = new SoundEmissionSystem();
+            var ring = SoundEmissionRing.Of(w);
+
+            for (int i = 1; i <= 20; i++)   // 2 s of flame: a fuel shot every 0.1 s
+            {
+                At(w, i * 0.1);
+                w.Bus.Publish(new WeaponFireNotification { Shooter = e });
+                w.Bus.SwapBuffers();
+                Step(w, s);
+            }
+            Assert.Equal(2, ring.Places);                                          // a roar at the start, one a second on
+            Assert.True(w.GetComponentRO<AcousticEmitter>(e).ShotTimeLeft > 0f);   // the hearing gizmo still shows the burst going on
+
+            var r = w.CreateEntity();   // a rifleman beside him: each shot is a crack of its own
+            w.AddComponent(r, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            w.AddComponent(r, new AcousticEmitter { FiringAudibleRange = 400f });
+            w.AddComponent(r, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Rifleman });
+            for (int i = 21; i <= 25; i++)
+            {
+                At(w, i * 0.1);
+                w.Bus.Publish(new WeaponFireNotification { Shooter = r });
+                w.Bus.SwapBuffers();
+                Step(w, s);
+            }
+            Assert.Equal(7, ring.Places);
+        }
+
         /// <summary>⭐ Q94 A-2 (R-3018) — a shot the muscle REFUSED never flew: nobody hears it. ✅ Red-proof: the <c>Fired</c> skip removed ⇒
         /// the refused shot is heard ⇒ red.</summary>
         [Fact]
