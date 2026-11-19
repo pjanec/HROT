@@ -6,7 +6,7 @@ current-answer: the whole file
 # DECISIONS — terrain
 
 ## CE-5039 — may a run start before the scenario's own terrain overlay is baked?
-**DECIDED `2026-11-19` (user, via coordinator: "approved"): the run gate stays closed until the live overlay's FIRST commit for the loaded scenario (built by ui — `HANDOFF_Coordinator_To_Ui_Run_Gate_And_Cover_View.md`); the independent hardening — a path that failed for an off-mesh target retries when the navmesh version changes — is backend's (`HANDOFF_Coordinator_To_Backend_Path_Retry.md`)**
+**DECIDED `2026-11-19` (user, via coordinator: "approved"): the run gate stays closed until the live overlay's FIRST commit for the loaded scenario (built by ui — `HANDOFF_Coordinator_To_Ui_Run_Gate.md`); the independent hardening — a path that failed for an off-mesh target retries when the navmesh version changes — is backend's (`HANDOFF_Coordinator_To_Backend_Path_Retry.md`)**
 **OPEN `2026-11-19` — for the user (it touches the editor's load / run gate: ui · backend).** Measured: the load reports done ~0.6 s before the live
 overlay's first bake; a unit whose target only the overlay makes reachable (inside a building made enterable) plans on the base mesh, fails, and never
 retries (`MaxReplans 0`) — `te-make-enterable` is red by it; after the bake the same unit walks in. ⭐ Lean: the run gate stays closed until the live
