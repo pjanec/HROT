@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-Queue 3 DONE: CE-5034 (terrain's layer + ui's sound), CE-4670 drawing, CE-3451 ②③④, CE-1980 triaged. NEXT: fetch the lanes; then idle — waiting for a handoff.
+idle — waiting for a handoff (Queue 3 done `2026-11-19`: CE-5034 terrain's layer + ui's glass sound, CE-4670 drawing, CE-3451 ②③④, CE-1980 triaged; lanes fetched at coordinator `99978c0df`, nothing new for ui).
 
 ## 2. The queue (in order)
 
