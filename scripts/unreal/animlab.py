@@ -83,6 +83,17 @@ GROUPS = [
          "body": "US_Soldier"},
         {"label": "pistol aimed", "base": "MM_Pistol_Idle_Hipfire", "upper": "MM_Pistol_Idle_ADS", "weapon": "pistol", "body": "US_Soldier"},
         {"label": "prone", "base": "RTG_Prone_Idle.*", "body": "US_Soldier"}]},
+    # ⭐ the Middle East fighter (Fab, a bare skeletal mesh with a Rigify skeleton: chains by hand, T-pose arms aligned —
+    # hrot_person.BODY_MESHES; clips → /Game/Hrot/People/Anims_Fighter)
+    {"name": "fighter", "anims": [
+        {"label": "rifle lowered", "base": "MM_Rifle_Idle_Hipfire", "weapon": "rifle", "body": "Fighter"},
+        {"label": "walk rifle aimed", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "Fighter"},
+        {"label": "jog rifle aimed", "base": "MF_Rifle_Jog_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "Fighter"},
+        {"label": "crouch-walk aimed", "base": "MM_Rifle_Crouch_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "Fighter"},
+        {"label": "aimed yaw -45", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "yaw": -45, "weapon": "rifle", "body": "Fighter"},
+        {"label": "unarmed walk", "base": "MM_Unarmed_Walk_Fwd", "body": "Fighter"},
+        {"label": "prone", "base": "RTG_Prone_Idle.*", "body": "Fighter"},
+        {"label": "dead front", "base": "RTG_Death_From_The_Front.*", "loop": False, "pose": 8, "body": "Fighter"}]},
     # ⭐ the fighting SIDES at first glance (UHrotPersonState.MaterialOverrides: a tint of the pack's camo per side)
     {"name": "sides", "anims": [
         {"label": "A walk aimed", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "US_Soldier", "side": "A"},
@@ -148,6 +159,8 @@ def main():
     ap.add_argument("--project", required=True); ap.add_argument("--shots", required=True)
     ap.add_argument("--engine", default=r"C:\UE_5.8\UE_5.8"); ap.add_argument("--min-free-gb", type=float, default=6.0)
     ap.add_argument("--blast-trial", action="store_true", help="the live phase sets off every explosion system of the VFX pack instead")
+    ap.add_argument("--blasts", default="", help="the live phase sets off these instead: Effect@scale[@KIND],… (Effect = a name in the VFX "
+                                                  "pack's Explosion folder; KIND = GRENADE / ROCKET / MORTAR / TANK_HE for the flash, default MORTAR)")
     ap.add_argument("--only", default="", help="comma-separated group names to render (default: all)")
     a = ap.parse_args()
     os.makedirs(a.shots, exist_ok=True)
@@ -159,7 +172,14 @@ def main():
         d = "/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Explosion/"
         job["blasts"] = [{"name": n, "kind": "MORTAR", "effect": d + n + "." + n, "scale": 1.0}
                          for n in ("P_Explosion_Big_A", "P_Explosion_Big_B", "P_Explosion_Big_C", "P_Explosion_Side", "P_Explosion_Smoke", "P_Molotov")]
-        job["blastPics"] = [0.15, 0.6, 2.0]
+        job["blastPics"] = [0.15, 0.6, 2.0]; job["blastSpacing"] = 4000
+    if a.blasts:
+        d = "/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Explosion/"
+        job["blasts"] = []
+        for b in a.blasts.split(","):
+            n, sc, *k = b.split("@")
+            job["blasts"].append({"name": f"{n}x{sc}", "kind": (k[0] if k else "MORTAR"), "effect": d + n + "." + n, "scale": float(sc)})
+        job["blastPics"] = [0.15, 0.6, 2.0]; job["blastSpacing"] = 4000
     jp = os.path.join(a.shots, "animlab-job.json"); json.dump(job, open(jp, "w"), indent=1)
     if os.path.exists(out): os.remove(out)
     umap = os.path.join(os.path.dirname(os.path.abspath(a.project)), "Content", "Maps", "AnimLab.umap")

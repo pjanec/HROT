@@ -14,6 +14,11 @@ import unreal
 
 # a dressed body: its Blueprint and the folder holding the clips on its skeleton (scripts/unreal/retarget.py)
 BODIES = {"US_Soldier": ("/Game/US_Soldier/Blueprint/US_Soldier", "/Game/Hrot/People/Anims_USSoldier")}
+# a body that is a bare SKELETAL MESH (no Blueprint): name → (mesh, clip folder, yaw of the mesh's facing vs the mannequin's +Y)
+FIGHTER_DIR = "/Game/Fab/Middle_Eastern_Armed_Fighter_–_Realistic_Soldier___Game-Ready__Rigged___Animated"   # the pack's name has an en dash
+BODY_MESHES = {"Fighter": (FIGHTER_DIR + "/Afghan_Vest_Low", "/Game/Hrot/People/Anims_Fighter", 0.0)}
+# the right-hand bone, where it is not the mannequin family's hand_r (Rigify: DEF-hand_R)
+HAND = {"Fighter": "DEF-hand_R"}
 # a body's OWN weapon meshes, hidden: the weapon is the person state's (measured: the US_Soldier Blueprint shows its "Gun" in play)
 BODY_HIDE = {"US_Soldier": ["Gun"]}
 # ⭐ the fighting SIDES at first glance: each a tint of the soldier pack's camo material (M_Master: "Color" × the camo tile), put on the
@@ -33,6 +38,7 @@ EAS = lambda: unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 
 def body_of(name):
     """BP_Person_NN (City Sample crowd) or a BODIES entry → (Blueprint path, clip folder)."""
+    if name in BODY_MESHES: return (None, BODY_MESHES[name][1])
     return BODIES.get(name) or ("/Game/Hrot/People/" + name, "/Game/Hrot/People/Anims")
 
 
@@ -147,9 +153,10 @@ class PersonKit:
         if key not in self.hand_rel:
             clip = "MM_Rifle_Idle_ADS"
             manny = self.posed_sockets(self.manny, self.resolve(clip)[1], ("weapon_r",))
-            mine = self.posed_sockets(mesh, self.resolve(clip, body)[1], ("hand_r",))
-            self.hand_rel[key] = manny["weapon_r"] * mine["hand_r"].inverse()
-            self.log(f"weapon at hand_r for {mesh.get_name()}: from the {clip} pose")
+            hand = HAND.get(body, "hand_r")
+            mine = self.posed_sockets(mesh, self.resolve(clip, body)[1], (hand,))
+            self.hand_rel[key] = manny["weapon_r"] * mine[hand].inverse()
+            self.log(f"weapon at {hand} for {mesh.get_name()}: from the {clip} pose")
         return self.hand_rel[key]
 
     def set_weapon(self, state, leader, body, kind):
@@ -163,7 +170,7 @@ class PersonKit:
             # through the shared aim pose
             turn = unreal.Transform(rotation=unreal.Rotator(roll=0, pitch=0, yaw=-90))
             if not body and leader.does_socket_exist("weapon_r"): sock, off = "weapon_r", turn
-            else: sock, off = "hand_r", turn * self.weapon_at_hand(leader, body)
+            else: sock, off = HAND.get(body, "hand_r"), turn * self.weapon_at_hand(leader, body)
             setattr(state, "weapon_socket", sock); setattr(state, "weapon_offset", off)
         state.apply_weapon()
 
@@ -207,7 +214,11 @@ class PersonKit:
                 clips[k] = self.resolve(st[k], body)[1]
                 if clips[k] is None: return None
         x, y, z = loc
-        if body:   # a DRESSED person: a Blueprint (body + outfit parts on a leader pose)
+        if body in BODY_MESHES:   # a bare skeletal mesh body (no Blueprint)
+            p = spawn(unreal.SkeletalMeshActor, (x, y, z), (0, facing - BODY_MESHES[body][2], 0), label, folder)
+            leader = p.skeletal_mesh_component
+            leader.set_skeletal_mesh_asset(unreal.load_asset(BODY_MESHES[body][0]))
+        elif body:   # a DRESSED person: a Blueprint (body + outfit parts on a leader pose)
             cls = unreal.EditorAssetLibrary.load_blueprint_class(body_of(body)[0])
             yaw_off, dz = self.body_offsets(cls)
             p = spawn(cls, (x, y, z - dz), (0, facing - yaw_off, 0), label, folder)   # placed once: never moved / renamed after

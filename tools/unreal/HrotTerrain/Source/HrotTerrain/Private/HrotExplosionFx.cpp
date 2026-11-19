@@ -27,18 +27,19 @@ namespace
 		return { 1.f, 60000.f, 1500.f, 0.12f, 150.f };
 	}
 	// ⭐ the effect per kind: Realistic Starter VFX Pack Vol 2 (Cascade systems — Lyra's NS_Grenade_Explosion drew NOTHING spawned
-	// like this). Chosen from the lab's trial sheet (animlab.py --blast-trial, every Explosion system at 0.15 / 0.6 / 2 s):
-	//   Big_B = an earth burst (dust, debris, little fire) · Big_A = a fireball with debris, little smoke ·
-	//   Big_C / Side / Molotov = long-burning fire + a black column — kept for a DESTROYED VEHICLE, not a shell
+	// like this). Chosen from the lab's ISOLATED trial (animlab.py --only live --blasts …, each blast 40 m from the last):
+	//   Big_B = an earth burst (fire, dust, debris) · Big_A = a fireball, debris, then a smoke cloud · at ×2 both read as a heavy
+	//   shell. ⚠ the first trial set them off side by side and its pictures mixed one blast's smoke into the next (superseded).
+	//   Kept for later: Big_C (a fireball → a smoke mushroom), Molotov (lasting fire — a burning wreck), Side / Smoke (small)
 	struct FBlastEffect { const TCHAR* Path; float Scale; };
 	FBlastEffect Effect(EHrotBlast K)
 	{
 		switch (K)
 		{
-		case EHrotBlast::Grenade: return { TEXT("P_Explosion_Big_B.P_Explosion_Big_B"), 0.6f };
-		case EHrotBlast::Rocket:  return { TEXT("P_Explosion_Big_A.P_Explosion_Big_A"), 0.8f };
-		case EHrotBlast::Mortar:  return { TEXT("P_Explosion_Big_B.P_Explosion_Big_B"), 1.0f };
-		case EHrotBlast::TankHE:  return { TEXT("P_Explosion_Big_A.P_Explosion_Big_A"), 1.3f };
+		case EHrotBlast::Grenade: return { TEXT("P_Explosion_Big_B.P_Explosion_Big_B"), 1.0f };
+		case EHrotBlast::Rocket:  return { TEXT("P_Explosion_Big_A.P_Explosion_Big_A"), 1.0f };
+		case EHrotBlast::Mortar:  return { TEXT("P_Explosion_Big_B.P_Explosion_Big_B"), 2.0f };
+		case EHrotBlast::TankHE:  return { TEXT("P_Explosion_Big_A.P_Explosion_Big_A"), 2.0f };
 		}
 		return { TEXT("P_Explosion_Big_B.P_Explosion_Big_B"), 0.5f };
 	}

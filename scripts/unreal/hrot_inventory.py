@@ -19,14 +19,35 @@ def size_m(box):
     return [round(e.x * 2 / 100, 2), round(e.y * 2 / 100, 2), round(e.z * 2 / 100, 2)]
 
 
+def center_m(box):
+    o = box.origin if hasattr(box, "origin") else box.get_editor_property("origin")
+    return [round(o.x / 100, 3), round(o.y / 100, 3), round(o.z / 100, 3)]
+
+
 def static_info(m):
-    return {"kind": "static", "lods": m.get_num_lods(), "size": size_m(m.get_bounds()),
+    return {"kind": "static", "center": center_m(m.get_bounds()), "lods": m.get_num_lods(), "size": size_m(m.get_bounds()),
             "mats": len(m.get_editor_property("static_materials")),
             "sockets": [str(n) for n in SMS.get_socket_names(m)] if hasattr(SMS, "get_socket_names") else None}
 
 
 def skeletal_info(m):
     out = {"kind": "skeletal", "size": size_m(m.get_bounds()), "mats": len(m.get_editor_property("materials"))}
+    if JOB.get("materials"):   # each slot: the material and, for an instance, its parent and texture parameters
+        rows = []
+        for sm in m.get_editor_property("materials"):
+            mi = sm.get_editor_property("material_interface")
+            row = {"slot": str(sm.get_editor_property("material_slot_name")), "mat": mi.get_path_name() if mi else None,
+                   "cls": mi.get_class().get_name() if mi else None}
+            if isinstance(mi, unreal.MaterialInstance):
+                p = mi.get_editor_property("parent"); row["parent"] = p.get_path_name() if p else None
+                row["tex"] = [(str(t.get_editor_property("parameter_info").get_editor_property("name")),
+                               t.get_editor_property("parameter_value").get_path_name() if t.get_editor_property("parameter_value") else None)
+                              for t in mi.get_editor_property("texture_parameter_values")]
+            elif isinstance(mi, unreal.Material):
+                try: row["tex"] = [t.get_path_name() for t in unreal.MaterialEditingLibrary.get_used_textures(mi)]
+                except Exception as e: row["tex"] = str(e)
+            rows.append(row)
+        out["materials"] = rows
     try:
         sub = unreal.get_editor_subsystem(unreal.SkeletalMeshEditorSubsystem)
         out["lods"] = sub.get_lod_count(m)

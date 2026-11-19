@@ -96,9 +96,9 @@ bool UHrotShotRenderer::TakeBudget(EExtra Kind)
 	return true;
 }
 
-void UHrotShotRenderer::AddFlash(const FTransform& Muzzle)
+void UHrotShotRenderer::AddFlash(const FTransform& Muzzle, float Size)
 {
-	Flashes.Add({ Muzzle, Now(), FMath::FRand() });
+	Flashes.Add({ Muzzle, Now(), FMath::FRand(), Size });
 	if (FVector::Dist(Muzzle.GetLocation(), ViewLocation()) < NearRange) FlashLight(Muzzle.GetLocation());
 }
 
@@ -195,12 +195,13 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 		const float Age = FMath::Clamp((T - F.Born) / FlashLife, 0.f, 1.f);
 		// the front card faces along the barrel (its plane ⟂ Fwd), spun by the seed so repeated flashes differ
 		const FQuat Spin(Fwd, F.Seed * 2.f * PI);
-		X.Add(Card(At + Fwd * 2.f, Spin.RotateVector(Side), Spin.RotateVector(Up), FlashWidth * 1.2f, FlashWidth * 1.2f));
+		const float Len = FlashLength * F.Size, Wid = FlashWidth * F.Size;
+		X.Add(Card(At + Fwd * 2.f, Spin.RotateVector(Side), Spin.RotateVector(Up), Wid * 1.2f, Wid * 1.2f));
 		Data.Append({ Age, 0.f, F.Seed });
 		// two side cards containing the barrel, crossed, extending forward from the muzzle
-		X.Add(Card(At + Fwd * FlashLength * 0.5f, Fwd, Spin.RotateVector(Up), FlashLength, FlashWidth));
+		X.Add(Card(At + Fwd * Len * 0.5f, Fwd, Spin.RotateVector(Up), Len, Wid));
 		Data.Append({ Age, 1.f, F.Seed });
-		X.Add(Card(At + Fwd * FlashLength * 0.5f, Fwd, Spin.RotateVector(Side), FlashLength, FlashWidth));
+		X.Add(Card(At + Fwd * Len * 0.5f, Fwd, Spin.RotateVector(Side), Len, Wid));
 		Data.Append({ Age, 1.f, F.Seed });
 	}
 	FlashIsm->ClearInstances();

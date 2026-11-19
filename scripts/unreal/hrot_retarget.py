@@ -50,11 +50,22 @@ def main():
     if not isinstance(target, unreal.SkeletalMesh): raise RuntimeError("not a skeletal mesh: " + JOB["target"])
     manny = unreal.load_asset("/Game/Characters/Heroes/Mannequin/Meshes/SKM_Manny")
     src_rig = unreal.load_asset("/Game/Characters/Heroes/Mannequin/Rig/IK_Mannequin")
+    sc = unreal.IKRigController.get_controller(src_rig)
+    log(f"source IK_Mannequin: root {sc.get_retarget_root()}; chains " +
+        str([(str(c.get_editor_property('chain_name')), str(c.get_editor_property('start_bone').get_editor_property('bone_name')),
+              str(c.get_editor_property('end_bone').get_editor_property('bone_name'))) for c in sc.get_retarget_chains()]))
     # 1. the target's IK rig
     rig = get_or_create(JOB["rig"], unreal.IKRigDefinition, unreal.IKRigDefinitionFactory())
     rc = unreal.IKRigController.get_controller(rig)
     rc.set_skeletal_mesh(target)
-    ok = rc.apply_auto_generated_retarget_definition()
+    if JOB.get("chains"):   # ⭐ a skeleton the auto-definition does not know (Rigify DEF-*): the chains by hand, named as IK_Mannequin's
+        ok = "by hand"
+        for c in list(rc.get_retarget_chains()): rc.remove_retarget_chain(c.get_editor_property("chain_name"))
+        rc.set_retarget_root(JOB["root"])
+        for name, start, end in JOB["chains"]:
+            rc.add_retarget_chain(name, start, end, "")
+    else:
+        ok = rc.apply_auto_generated_retarget_definition()
     chains = [str(c.get_editor_property("chain_name")) for c in rc.get_retarget_chains()]
     log(f"{JOB['rig']}: auto retarget definition {ok}; root {rc.get_retarget_root()}; {len(chains)} chains {chains}")
     # 2. the retargeter Manny -> target
@@ -74,6 +85,17 @@ def main():
     for side in (unreal.RetargetSourceOrTarget.SOURCE, unreal.RetargetSourceOrTarget.TARGET):
         try: xc.reset_retarget_pose(xc.get_current_retarget_pose_name(side), [], side)
         except Exception as e: log(f"reset_retarget_pose {side}: {e}")
+    if JOB.get("alignTarget"):   # a T-posed body: its ARM bones aligned onto the A-posed mannequin's (only these: the feet stay)
+        T = unreal.RetargetSourceOrTarget.TARGET
+        def offsets():
+            return {b: str(xc.get_rotation_offset_for_retarget_pose_bone(b, T).rotator()) for b in JOB["alignTarget"][:3]}
+        for method in ([getattr(unreal.RetargetAutoAlignMethod, JOB["alignMethod"])] if JOB.get("alignMethod") else
+                       [unreal.RetargetAutoAlignMethod.CHAIN_TO_CHAIN, unreal.RetargetAutoAlignMethod.MESH_TO_MESH]):
+            try: xc.auto_align_bones(JOB["alignTarget"], method, T)
+            except Exception as e: log(f"auto_align_bones {method}: {e}")
+            o = offsets()
+            log(f"aligned target arms by {method}: {o}")
+            if any("0.000000, 0.000000, 0.000000" not in v for v in o.values()): break   # it moved something
     EAL.save_loaded_asset(rig); EAL.save_loaded_asset(rtg)
     # 3. the animations, by name
     paths = list(EAL.list_assets("/Game/Characters", recursive=True, include_folder=False))

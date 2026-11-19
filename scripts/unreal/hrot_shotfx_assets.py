@@ -1,4 +1,4 @@
-"""hrot_shotfx_assets.py — runs in the Unreal editor COMMANDLET (CE-4651, U-16): the two materials of UHrotShotRenderer.
+"""hrot_shotfx_assets.py — runs in the Unreal editor COMMANDLET (CE-4651, U-16): the effect materials (shots, scorch, burnt wreck).
 
     UnrealEditor-Cmd <project> -run=pythonscript -script=<this> -nullrhi      [HROT_SHOTFX_FLIPBOOK="cols,rows"]
 
@@ -116,7 +116,29 @@ def scorch():
     return m
 
 
-for mk in (flash, tracer, scorch):
+def burnt():
+    """/Game/Hrot/Fx/M_HrotBurnt — a burnt-out vehicle: every part of a DESTROYED vehicle takes it (AHrotVehicle). Opaque, lit: soot black
+    with ash-grey and rust-brown patches (world-space noise, so parts agree at their seams), rough."""
+    m = fresh("M_HrotBurnt")
+    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_OPAQUE)
+    m.set_editor_property("two_sided", False)
+    E, c1, c3, link, op, one, data = builder(m)
+    noise = E(unreal.MaterialExpressionNoise, -600, 0); noise.set_editor_property("scale", 0.02)   # ~50 cm patches (world position)
+    t = one(unreal.MaterialExpressionSaturate, op(unreal.MaterialExpressionAdd, op(unreal.MaterialExpressionMultiply, noise, c1(1.5, -450, 120), -300, 0),
+                                                 c1(0.45, -300, 150), -150, 50), 0, 50)
+    soot, rust = c3((0.012, 0.011, 0.010), -150, 250), c3((0.09, 0.045, 0.02), -150, 350)
+    lerp = E(unreal.MaterialExpressionLinearInterpolate, 150, 150)
+    link(soot, lerp, "A"); link(rust, lerp, "B"); link(t, lerp, "Alpha")
+    MEL.connect_material_property(lerp, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    MEL.connect_material_property(c1(0.92, 150, 400), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    MEL.connect_material_property(c1(0.3, 150, 500), "", unreal.MaterialProperty.MP_METALLIC)
+    return m
+
+
+ONLY = [n for n in os.environ.get("HROT_SHOTFX_ONLY", "").split(",") if n]   # e.g. "burnt": build only these
+for mk in (flash, tracer, scorch, burnt):
+    if ONLY and mk.__name__ not in ONLY: continue
     m = mk()
     MEL.recompile_material(m)
     stats = MEL.get_statistics(m) if hasattr(MEL, "get_statistics") else None

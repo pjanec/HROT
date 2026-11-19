@@ -221,6 +221,10 @@ def live():
         for row, actors in S.get("rows", {}).items():   # only the live row in the game world (editor-hidden does not carry over)
             for a in actors:
                 a.set_is_temporarily_hidden_in_editor(row != "live"); a.set_actor_hidden_in_game(row != "live")
+        # ⭐ the editor runs HIDDEN (HROT_HIDDEN_WINDOW) and throttles itself when not in front — measured: six blast pictures
+        # 0.12 s / 1 s apart showed the SAME frame. The crowd test's switches (hrot_crowd.step_settings)
+        for c in ("t.IdleWhenNotForeground 0", "t.MaxFPS 0", "r.VSync 0", "r.VSyncEditor 0", "r.DontLimitOnBattery 1"):
+            unreal.SystemLibrary.execute_console_command(None, c)
         LES().editor_play_simulate()
         L.update(phase="find", t=now + 6); return True
     if now < L.get("t", 0): return True
@@ -340,9 +344,14 @@ def live():
         L["pending"] = (path, now)
         return True
     if L["phase"] == "blasts":   # ⭐ a grenade thrown (its flight = positions each frame, as HROT will send), then a mortar, a tank HE shell
+        # ⭐ GAME time here, not the wall clock: a picture "0.12 s after" means the world's 0.12 s (a slow frame cannot shift it)
+        now = unreal.GameplayStatics.get_time_seconds(UES().get_game_world())
         a = L["gunner"]["actor"].get_actor_location()
-        # the wall stands 9 m ahead (−Y): the blasts land 5 m ahead, seen from 15 m off to the side
-        cam, look = unreal.Vector(a.x - 1500, a.y - 500, 300.0), unreal.Vector(a.x, a.y - 500, 150.0)
+        # the wall stands 9 m ahead (−Y): the blasts land 5 m ahead, seen from 15 m off to the side. ⭐ blastSpacing (a trial): each
+        # blast lands that far from the last, the camera with it — measured: side by side, a picture showed the previous blast's smoke
+        sp = float(JOB.get("blastSpacing") or 0)
+        ox = L["blast"] * sp
+        cam, look = unreal.Vector(a.x - 1500 + ox, a.y - 500, 300.0), unreal.Vector(a.x + ox, a.y - 500, 150.0)
         UES().set_level_viewport_camera_info(cam, unreal.MathLibrary.find_look_at_rotation(cam, look))
         # the job's blasts (animlab.py --blasts): {name, kind, effect (a path = try that system), scale}; default the three kinds
         kinds = [(b["name"], getattr(unreal.HrotBlast, b["kind"]), b.get("effect"), b.get("scale", 1.0)) for b in JOB.get("blasts") or
@@ -350,7 +359,7 @@ def live():
         if L["blast"] >= len(kinds):
             LES().editor_request_end_play(); L.update(phase="end", t=now + 4); return True
         name, kind, effect, scale = kinds[L["blast"]]
-        land = unreal.Vector(a.x + ((L["blast"] % 3) - 1) * 300, a.y - 500, 0.0)
+        land = unreal.Vector(a.x + ox, a.y - 500, 0.0) if sp else unreal.Vector(a.x + ((L["blast"] % 3) - 1) * 300, a.y - 500, 0.0)
         if L.get("blast_t") is None:
             L.update(blast_t=now, exploded=False, pics=list(JOB.get("blastPics") or [0.12, 1.0]), pending=None)
             if name == "grenade" and L.get("grenade_actor") is None:
