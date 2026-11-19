@@ -80,5 +80,18 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// round flies the low ARC (an arrow's gravity) and is SILENT to the AI (BW-9). Bow and crossbow are two mounts of this one kind that differ
         /// only in numbers — speed, draw (<c>AimSeconds</c>), reload (<c>ReloadSeconds</c>) — and look. Appended.</summary>
         Bow = 14,
+        /// <summary>⭐ <c>CE-4670</c> (vehicle appearance VA-9 / VA-S5; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §6e) — a vehicle's SMOKE
+        /// DISCHARGERS: one fire is a SALVO of <c>Pellets</c> smoke grenades laid in a fan <c>PelletSpreadMils</c> wide, centred on the bearing it is fired
+        /// towards, bursting <c>Range</c> metres out — each round's burst is the existing smoke cloud. ⛔ NOT a weapon (no target, no damage): self-protection,
+        /// like <see cref="Countermeasure"/> (<see cref="WeaponCategories.IsSelfProtection"/>). Appended.</summary>
+        SmokeDischarger = 15,
+    }
+
+    /// <summary>⭐ <c>CE-4670</c> (VA-S5) — the ONE answer to "is this mount a weapon at all?" (ruling 9: the readers each tested
+    /// <see cref="WeaponCategory.Countermeasure"/> by hand — a smoke discharger joins it here, once).</summary>
+    public static class WeaponCategories
+    {
+        /// <summary>A self-protection mount — a flare / chaff dispenser or smoke dischargers: never chosen to fire at anything, never "armed".</summary>
+        public static bool IsSelfProtection(this WeaponCategory c) => c is WeaponCategory.Countermeasure or WeaponCategory.SmokeDischarger;
     }
 }

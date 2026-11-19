@@ -23,7 +23,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// absent, and a later reload restarts on authored defaults — the behaviour before this existed.
     /// </para>
     /// </summary>
-    [ComponentId(BehaviorApplicationComponentIds.BehaviorStartRecord)]
+    [ComponentId(GlobalComponentIds.BehaviorStartRecord)]
     // ⭐ CE-3299 D1 — RECORDED (was Transient/NoReplay): sim state a restored run diverges without (restore design §6b, M4).
     [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario)]
     public sealed record BehaviorStartRecord   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set

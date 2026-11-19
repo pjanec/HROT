@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// </para>
     /// </remarks>
     [StructLayout(LayoutKind.Sequential, Size = 1024)]
-    [ComponentId(BehaviorApplicationComponentIds.BTreeTraceWorkingMemory)]
+    [ComponentId(GlobalComponentIds.BTreeTraceWorkingMemory)]
     [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct BTreeTraceWorkingMemory1024
     {

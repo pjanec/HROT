@@ -262,7 +262,7 @@ namespace Fdp.Toolkit.Navigation
     /// </para>
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(NavigationContractsComponentIds.NavigationIntent)]
+    [ComponentId(GlobalComponentIds.NavigationIntent)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavigationIntent
     {
@@ -390,7 +390,7 @@ namespace Fdp.Toolkit.Navigation
     /// Written by <c>NavigationExecutionSystem</c>; observed by <c>MoveToExecutor.Execute</c>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(NavigationContractsComponentIds.NavigationStatus)]
+    [ComponentId(GlobalComponentIds.NavigationStatus)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct NavigationStatus
     {
@@ -448,7 +448,7 @@ namespace Fdp.Toolkit.Navigation
     /// and compute physically plausible paths.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(NavigationContractsComponentIds.NavAgentProfile)]
+    [ComponentId(GlobalComponentIds.NavAgentProfile)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavAgentProfile
     {
@@ -475,7 +475,7 @@ namespace Fdp.Toolkit.Navigation
     /// Destroyed and recreated each time a new route handle is accepted.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(NavigationContractsComponentIds.NavigationCorridorMuscle)]
+    [ComponentId(GlobalComponentIds.NavigationCorridorMuscle)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct NavigationCorridorMuscle
     {
@@ -541,7 +541,7 @@ namespace Fdp.Toolkit.Navigation
     /// + 8 x <see cref="PreviewWaypoint"/> (8 x 16 = 128 bytes) = 144 bytes total.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(NavigationContractsComponentIds.NavigationCorridorPreview)]
+    [ComponentId(GlobalComponentIds.NavigationCorridorPreview)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavigationCorridorPreview
     {
@@ -581,7 +581,7 @@ namespace Fdp.Toolkit.Navigation
     /// that need more than the 8-waypoint preview.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(NavigationContractsComponentIds.NavigationPathDetailsBuffer)]
+    [ComponentId(GlobalComponentIds.NavigationPathDetailsBuffer)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct NavigationPathDetailsBuffer
     {
@@ -603,7 +603,7 @@ namespace Fdp.Toolkit.Navigation
     /// Presence of this component opts the entity into crowd-avoidance updates.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(NavigationContractsComponentIds.CrowdAgent)]
+    [ComponentId(GlobalComponentIds.CrowdAgent)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct CrowdAgent
     {

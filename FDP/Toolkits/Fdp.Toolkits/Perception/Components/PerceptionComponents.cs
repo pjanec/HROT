@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// Attach to any entity that should react to audio stimuli or perform visual scans.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(251)]
+    [ComponentId(GlobalComponentIds.PerceptionReceptor)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct PerceptionReceptor
     {
@@ -487,7 +487,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// No cognitive data (no threat scores, no decay curves).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(PerceptionApplicationComponentIds.SensorContactList)]
+    [ComponentId(GlobalComponentIds.SensorContactList)]
     [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct SensorContactList
     {
@@ -553,7 +553,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// Written by <c>SensorTrackStateIngressTranslator</c>; read by <c>ThreatEvaluationSystem</c>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(PerceptionApplicationComponentIds.ActiveSensorTracks)]
+    [ComponentId(GlobalComponentIds.ActiveSensorTracks)]
     [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct ActiveSensorTracks
     {

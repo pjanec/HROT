@@ -820,6 +820,56 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(Pitch(SpawnTarget(new Vector3(100f, 0f, 0f))) < 1e-5f, "a round at a ground target only across");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4670</c> (vehicle appearance VA-S5, VA-9) — SMOKE DISCHARGERS fired towards a threat 1 km away: ONE fire is a salvo of six screening grenades
+        /// (not refused as out of reach — the aim is pulled in to the fan's centre), each on its own low arc to its own point of a 110° fan centred on the bearing
+        /// to the threat, 30 m out on the ground the tank stands on; none is spent by the mount's range (it is where they burst, not a pellet's limit); the
+        /// fan is the same on every node (no dispersion draw). 🔴 Red-proof: no fan (every round on the centre) ⇒ one landing point ⇒ red; the range limit kept
+        /// ⇒ <c>RangeLimitM</c> 30 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4670_SmokeDischargers_FireAFanOfGrenades_TowardsTheThreat_ThirtyMetresOut()
+        {
+            const long Tank = 9800, Grenade = 9801;
+            _world.RegisterComponent<TkbIdentity>();
+            _world.RegisterComponent<ShotOrdinal>();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var tank = new Fdp.Interfaces.TkbTemplate("tank", Tank);
+            tank.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmokeDischarger, AmmoGuid = Grenade, InitialAmmunition = 2, MuzzleVelocity = 30f,
+                  Range = 30f, Pellets = 6, PelletSpreadMils = 1920f } } });
+            db.Register(tank);
+            var grenade = new Fdp.Interfaces.TkbTemplate("vehicle smoke grenade", Grenade);
+            grenade.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Smoke, Indirect = true, CloudRadiusM = 10f,
+                CloudHeightM = 6f, CloudSeconds = 60f, SmokeBlocksInfrared = true });
+            db.Register(grenade);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var shooter = SpawnShooter(new Vector3(100f, 200f, 0f), muzzleVelocity: 30f);
+            _world.AddComponent(shooter, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(Tank) });
+
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, AtPoint = true, TargetPoint = new Vector3(1100f, 200f, 0f) });   // the threat due east
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+
+            var rounds = Rounds();
+            Assert.Equal(6, rounds.Count);
+            var bearings = new System.Collections.Generic.List<float>();
+            foreach (var r in rounds)
+            {
+                Assert.Equal(0f, _world.GetComponent<BallisticProjectile>(r).RangeLimitM);
+                var p = (Vector3)_world.GetComponent<SimTransform>(r).Position;
+                var v = _world.GetComponent<SimVelocity>(r).Linear;
+                float g = CombatConstants.Gravity, t = (v.Z + MathF.Sqrt(v.Z * v.Z + 2f * g * p.Z)) / g;   // lands on z = 0
+                var land = new Vector2(p.X + v.X * t - 100f, p.Y + v.Y * t - 200f);
+                Assert.InRange(land.Length(), 28.5f, 31.5f);                                                         // 30 m out
+                bearings.Add(MathF.Atan2(land.Y, land.X) * 180f / MathF.PI);
+            }
+            bearings.Sort();
+            Assert.InRange(bearings[0], -58f, -52f);                                                                  // ±55° about east
+            Assert.InRange(bearings[^1], 52f, 58f);
+            for (int i = 1; i < bearings.Count; i++) Assert.InRange(bearings[i] - bearings[i - 1], 19f, 25f);         // evenly: 22° apart
+        }
+
         private System.Collections.Generic.List<Entity> Rounds()
         {
             var rounds = new System.Collections.Generic.List<Entity>();

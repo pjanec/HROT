@@ -1,3 +1,4 @@
+using Fdp.Core;
 namespace Fdp.Toolkit.Perception
 {
     /// <summary>
@@ -7,12 +8,14 @@ namespace Fdp.Toolkit.Perception
     ///
     /// <para>IDs 172-173 are in the 160-199 application-level descriptor block.</para>
     /// </summary>
+    // ⛔ ALIASES ONLY (CE-4628 follow-up, user 2026-11-19: "all component ids ... written at one single place"): every id lives in
+    //   Fdp.Core GlobalComponentIds (values unchanged); a NEW id is added THERE, never here. Rail: ComponentIdCatalogueTests.
     public static class PerceptionApplicationComponentIds
     {
         /// <summary><c>SensorContactList</c> — Muscle-tier raw physical track list with hysteresis state.</summary>
-        public const int SensorContactList  = 172;
+        public const int SensorContactList  = GlobalComponentIds.SensorContactList;
 
         /// <summary><c>ActiveSensorTracks</c> — Brain-tier cognitive buffer of currently acquired sensor tracks.</summary>
-        public const int ActiveSensorTracks = 173;
+        public const int ActiveSensorTracks = GlobalComponentIds.ActiveSensorTracks;
     }
 }

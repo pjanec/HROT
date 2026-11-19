@@ -15,7 +15,7 @@ namespace Hrot.Map.Common.Components;
 /// that prevents storing string-bearing DDS structs directly in Tier-1 tables
 /// (see IG-DEBT-008).
 /// </summary>
-[ComponentId(HrotComponentIds.MapSymbolOverride)]
+[ComponentId(GlobalComponentIds.MapSymbolOverride)]
 [DataPolicy(DataPolicy.NoScenario)]
 // ⭐ CE-4046 — an immutable record: a change is a new value (`with`) + Set, so the recorder sees it (docs/DESIGN_Replay_Census_H0.md §2)
 public record MapSymbolOverride

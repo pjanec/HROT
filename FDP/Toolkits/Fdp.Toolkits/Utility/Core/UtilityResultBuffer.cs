@@ -43,7 +43,7 @@ namespace Fdp.Toolkit.Utility
     /// Contains up to <see cref="UtilityConstants.TopN"/> ranked entries, sorted descending by score.
     /// Stack-allocated or stored as an ECS component; fully unmanaged.
     /// </summary>
-    [ComponentId(UtilityApplicationComponentIds.UtilityResultBuffer)]
+    [ComponentId(GlobalComponentIds.UtilityResultBuffer)]
     [DataPolicy(DataPolicy.NoScenario)]
     [StructLayout(LayoutKind.Sequential)]
     public struct UtilityResultBuffer
@@ -110,7 +110,7 @@ namespace Fdp.Toolkit.Utility
     /// Per-entity transient flags enabling Utility AI diagnostics.
     /// Attach to an entity at debug-time to activate the scoring trace buffer.
     /// </summary>
-    [ComponentId(UtilityApplicationComponentIds.UtilityDebugFlags)]
+    [ComponentId(GlobalComponentIds.UtilityDebugFlags)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct UtilityDebugFlags
     {

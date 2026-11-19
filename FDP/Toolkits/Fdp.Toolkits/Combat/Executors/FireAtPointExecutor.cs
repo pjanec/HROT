@@ -295,12 +295,14 @@ namespace Fdp.Toolkit.Combat.Executors
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.OutOfArc;
             // ⭐ CE-1960 — the operator's round from a fixed mount goes along the bore when he aims outside its cone (never behind the nose)
             if (!obeyArc && firing == unit) point = BodyAim.IntoFixedCone(world, unit, CombatTkb.MountOf(world, firing, mountIndex), point);
-            if (obeyRoe && !AimAndFireExecutor.RoePermitsFire(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe;
+            // ⭐ CE-4670 (VA-S5) — smoke dischargers (a self-protection mount) are no engagement: hold fire / the force level never hold them
+            bool selfProtection = CombatTkb.MountOf(world, firing, mountIndex) is { } own && Fdp.Toolkit.Tkb.Domain.WeaponCategories.IsSelfProtection(own.Category);
+            if (obeyRoe && !selfProtection && !AimAndFireExecutor.RoePermitsFire(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRoe;
             // ⭐ CE-3255 (BR-2) — a stunned man fires nothing at a point either (the AI's; an operator's own stun is his screen's, not this gate)
             if (obeyRoe && Effects.IsStunned(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldStunned;
             if (obeyRoe && Fdp.Toolkit.Civilians.CustodyRules.IsRestrained(world, unit)) return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldRestrained;   // ⭐ CE-3256
             // ⭐ CE-2239 part 1 (CV-8, §5j FL-2) — the FORCE LEVEL, for a round at a point (no target ⇒ no self-defence lift); an operator decides himself
-            if (obeyRoe && !ForceLevels.Permits(world, unit, Entity.Null, ammo, CombatTkb.MountOf(world, firing, mountIndex)))
+            if (obeyRoe && !selfProtection && !ForceLevels.Permits(world, unit, Entity.Null, ammo, CombatTkb.MountOf(world, firing, mountIndex)))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldForceLevel;
             // ⭐ CE-3158 G3 — a DIRECT burst never flies through a friend (CE-321's rule, to a point); held like the aimed guard
             //   (Running, no round spent). An INDIRECT warhead (a mortar, a thrown grenade) arcs over them — exempt.

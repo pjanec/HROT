@@ -5599,6 +5599,48 @@ namespace Hrot.SimHost.Tests
             Near(plan.Stack(1), PostureOf(s, s.Members[2]).Post.Point, "the rest move up one");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2451</c> (the clearance stall after D-9) — an entry man BREAKS after #1 is through (he flees: he stays where he is, deaf to his
+        /// orders); the other three go in to their points ⇒ the room still CLEARS. A broken man is no more able to take his place than a man down
+        /// (CB-73's rule, as for `CE2261_BC5_AManDownBeforeTheEntry`): the drill counts him out. 📐 `ts-house-defenders` (stepped): a broken entry man
+        /// kept the entry "not placed" for good. ✅ Red-proof: the drill counting a broken man in (`IsInTheFight` alone) ⇒ never cleared.
+        /// </summary>
+        [Fact]
+        public void CE2451_AnEntryManWhoBreaks_AfterTheFirstIsThrough_DoesNotHoldTheRoomForEver()
+        {
+            var s = new Squad(members: 4);
+            var door = RoomDoor(s, Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+            s.Surveys[ClearRoomPlay.RoomSite] = RoomAnswer();
+            ClearRoom(s);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            for (int i = 0; i < 4; i++) s.Tick();
+            s.Repo.SetComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            s.Teleport(s.Members[0], plan.Threshold + new Vector3(0f, 0.2f, 0f));   // #1 across
+            TickFor(s, 0.1);
+
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>()) s.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.Stress>();
+            s.Repo.AddComponent(s.Members[2], new Fdp.Toolkit.Behavior.Components.Stress { Level = 1f, Broken = 1 });   // #3 breaks in the stack
+
+            for (int round = 0; round < 6; round++)
+            {
+                for (int k = 0; k < 4; k++)
+                {
+                    if (k == 2) continue;                                                    // the broken man obeys nothing
+                    var adv = s.Orders.LastOrDefault(o => o.Entity.Equals(s.Members[k]) && o.IntentId == BehaviorNames.AdvanceTo);
+                    if (adv != null) s.Teleport(s.Members[k], plan.Threshold + new Vector3(0f, 0.2f, 0f));
+                }
+                TickFor(s, RoomDrill.FlowSeconds + 0.1);
+            }
+            for (int k = 0; k < 4; k++) if (k != 2) s.Teleport(s.Members[k], plan.Point(k));
+            TickFor(s, RoomDrill.EnterTimeoutSeconds + RoomDrill.ClearSeconds + 1.0);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseCleared, s.Phase);
+            Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
+        }
+
         private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload RoomAnswer(bool small = false)
         {
             var a = new Fdp.Toolkit.Perception.Survey.WorldSurveyPayload { Kind = Fdp.Toolkit.Perception.Survey.WorldSurveyKind.BuildingSurvey };

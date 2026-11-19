@@ -36,7 +36,7 @@ namespace Fdp.Toolkit.Navigation
     /// </para>
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(NavigationContractsComponentIds.CrowdMotorIntent)]
+    [ComponentId(GlobalComponentIds.CrowdMotorIntent)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct CrowdMotorIntent
     {

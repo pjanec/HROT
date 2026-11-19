@@ -208,6 +208,98 @@ namespace Hrot.Look.Tests
             Assert.True(n > 0);
         }
 
+        private const long Heli = 2;
+
+        private void RegisterHeli(EntityRepository w, TkbDatabase db)
+        {
+            if (!w.IsComponentTypeRegistered<HeatSource>()) w.RegisterComponent<HeatSource>();
+            if (db.TryGetByType(Heli, out _)) return;
+            var t = new TkbTemplate("H1", Heli) { DisType = new DISEntityType { Kind = 1, Domain = 2, Category = 21 } };
+            t.AddDescriptor(new SignaturesDto { Thermal = new ThermalSignatureDto { HasPowerPlant = true, SpinUpSeconds = 20f, SpinDownSeconds = 30f } });
+            db.Register(t);
+        }
+
+        private Entity Heli1(EntityRepository w, HeatSourceState state, double since, double motionSince = -1.0)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)Heli });
+            w.AddComponent(e, HeatSource.Of(state, (SimInstant)since, (SimInstant)(motionSince < 0 ? since : motionSince)));
+            return e;
+        }
+
+        /// <summary>
+        /// ⭐ VA-5 (VA-S4) — a rotor's speed is DERIVED from the engine state and its time: started (Idle since 10 s) it runs up at full scale per 20 s to the
+        /// ground idle 0.6 (0.3 after 6 s); flying (Running since 30 s) it goes on to 1 (0.8 after 4 s); shut down (Off since 50 s) it runs down at full scale
+        /// per 30 s (0.3 after 9 s, 0 after 18 s); a dead engine from full; a STOP (Since = MotionSince) comes down from full — to idle
+        /// crewed (never a dip to 0), to 0 empty; a state held from the scenario's start is at its target at once (a parked
+        /// helicopter never runs down at load, one loaded flying never runs up); no power plant ⇒ 0. 🔴 Red-proof: ignore the time since the change (jump to the target)
+        /// ⇒ the 0.3 / 0.8 samples read 0.6 / 1.
+        /// </summary>
+        [Fact]
+        public void CE4670_ARotorsSpeed_RunsUpAndDown_FromTheEngineStateAndItsTime()
+        {
+            RegisterHeli(_w, _db);
+            var h = Heli1(_w, HeatSourceState.Off, 0.0);
+            Assert.Equal(0f, VehicleLook.RotorSpeed(_w, h, 5.0));   // parked from the start: still, never a run-down at load
+            var flying = Heli1(_w, HeatSourceState.Running, 0.0);
+            Assert.Equal(1f, VehicleLook.RotorSpeed(_w, flying, 0.5));   // loaded flying: full at once, never a run-up
+            _w.SetComponent(h, HeatSource.Of(HeatSourceState.Idle, (SimInstant)10.0, (SimInstant)0.0));   // crew aboard: Since alone
+            Assert.Equal(0f, VehicleLook.RotorSpeed(_w, h, 10.0), 4);
+            Assert.Equal(0.3f, VehicleLook.RotorSpeed(_w, h, 16.0), 4);
+            Assert.Equal(0.6f, VehicleLook.RotorSpeed(_w, h, 29.0), 4);
+            _w.SetComponent(h, HeatSource.Of(HeatSourceState.Running, (SimInstant)30.0, (SimInstant)30.0));
+            Assert.Equal(0.8f, VehicleLook.RotorSpeed(_w, h, 34.0), 4);
+            Assert.Equal(1f, VehicleLook.RotorSpeed(_w, h, 45.0), 4);
+            Assert.Equal(1f, VehicleLook.EngineLevel(_w, h, 45.0), 4);
+            _w.SetComponent(h, HeatSource.Of(HeatSourceState.Off, (SimInstant)50.0, (SimInstant)30.0));   // crew out while idling: Since alone
+            Assert.Equal(0.3f, VehicleLook.RotorSpeed(_w, h, 59.0), 4);
+            Assert.Equal(0f, VehicleLook.RotorSpeed(_w, h, 68.0), 4);
+            _w.SetComponent(h, HeatSource.Of(HeatSourceState.Dead, (SimInstant)70.0, (SimInstant)70.0));
+            Assert.Equal(0.5f, VehicleLook.RotorSpeed(_w, h, 85.0), 4);
+            // ⭐ a STOP (Since = MotionSince): landed and stopped at 90 s, still crewed ⇒ Idle, coming DOWN from full to idle — never a dip to 0
+            _w.SetComponent(h, HeatSource.Of(HeatSourceState.Idle, (SimInstant)90.0, (SimInstant)90.0));
+            Assert.Equal(0.8f, VehicleLook.RotorSpeed(_w, h, 96.0), 4);
+            Assert.Equal(0.6f, VehicleLook.RotorSpeed(_w, h, 120.0), 4);
+            // ⭐ stopped and EMPTY (Since = MotionSince, Off): from full to 0
+            _w.SetComponent(h, HeatSource.Of(HeatSourceState.Off, (SimInstant)130.0, (SimInstant)130.0));
+            Assert.Equal(0.5f, VehicleLook.RotorSpeed(_w, h, 145.0), 4);
+            var tank = Vehicle();   // the tank type has no thermal data of its own and no locomotion ⇒ no power plant
+            Assert.Equal(0f, VehicleLook.RotorSpeed(_w, tank, 85.0));
+        }
+
+        /// <summary>⭐ VA-5 — a REPLICA computes the owner's speed at every sample: the reader reads only the replicated engine state and the type (here a second
+        /// world holding the same HeatSource, as the wire's EntityHeatSource gives it); and the class default is a rotor's 20 s / 30 s.</summary>
+        [Fact]
+        public void CE4670_ARotorsSpeed_IsTheSameOnAReplica_AtEverySample()
+        {
+            RegisterHeli(_w, _db);
+            using var replica = new EntityRepository();
+            replica.RegisterComponent<TkbIdentity>();
+            var db2 = new TkbDatabase();
+            RegisterHeli(replica, db2);
+            replica.SetSingletonManaged<ITkbDatabase>(db2);
+            var owner = Heli1(_w, HeatSourceState.Idle, 3.0, 0.0);
+            var copy = Heli1(replica, HeatSourceState.Idle, 3.0, 0.0);
+            for (double now = 0.0; now < 40.0; now += 0.37)
+                Assert.Equal(VehicleLook.RotorSpeed(_w, owner, now), VehicleLook.RotorSpeed(replica, copy, now));
+            Assert.Equal(20f, Fdp.Toolkit.Perception.Signatures.ThermalDefaults.For(LocomotionClass.Rotorcraft)!.SpinUpSeconds);
+            Assert.Equal(30f, Fdp.Toolkit.Perception.Signatures.ThermalDefaults.For(LocomotionClass.Rotorcraft)!.SpinDownSeconds);
+        }
+
+        /// <summary>⭐ The rotor reader allocates nothing (a renderer calls it per aircraft per frame).</summary>
+        [Fact]
+        public void CE4670_TheRotorReader_AllocatesNothing()
+        {
+            RegisterHeli(_w, _db);
+            var h = Heli1(_w, HeatSourceState.Running, 1.0);
+            float sum = 0f;
+            for (int i = 0; i < 10; i++) sum += VehicleLook.RotorSpeed(_w, h, i);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++) sum += VehicleLook.RotorSpeed(_w, h, i * 0.1);
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.True(sum > 0f);
+        }
+
         private int Read(Entity v)
         {
             int n = 0;

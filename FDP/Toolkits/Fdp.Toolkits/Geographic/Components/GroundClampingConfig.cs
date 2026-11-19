@@ -9,7 +9,7 @@ namespace Fdp.Modules.Geographic.Components
     /// Read by <c>TerrainQuerySubmitSystem</c> to determine whether to issue a
     /// terrain query for this entity each frame.
     /// </summary>
-    [ComponentId(GeographicComponentIds.GroundClampingConfig)]
+    [ComponentId(GlobalComponentIds.GroundClampingConfig)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct GroundClampingConfig
     {

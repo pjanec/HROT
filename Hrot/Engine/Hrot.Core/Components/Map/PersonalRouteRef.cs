@@ -7,7 +7,7 @@ namespace Hrot.Map.Common.Components;
 /// Blittable ECS component placed on a vehicle entity to provide an O(1)
 /// lookup from vehicle → its personal child route entity.
 /// </summary>
-[ComponentId(HrotComponentIds.PersonalRouteRef)]
+[ComponentId(GlobalComponentIds.PersonalRouteRef)]
 [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
 public struct PersonalRouteRef
 {

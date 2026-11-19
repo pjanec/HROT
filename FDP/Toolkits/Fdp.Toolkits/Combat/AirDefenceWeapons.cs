@@ -106,7 +106,7 @@ namespace Fdp.Toolkit.Combat
 
         private static bool DroneCapable(EntityRepository world, Entity owner, WeaponMountDto m, float range)
         {
-            if (m.Hands || m.Category is WeaponCategory.Countermeasure or WeaponCategory.Bomb or WeaponCategory.Grenade or WeaponCategory.Mortar
+            if (m.Hands || m.Category.IsSelfProtection() || m.Category is WeaponCategory.Bomb or WeaponCategory.Grenade or WeaponCategory.Mortar
                 or WeaponCategory.Howitzer or WeaponCategory.Atgm or WeaponCategory.TankGun) return false;
             bool inRange = m.Range <= 0f || range <= m.Range;
             if (m.Pellets > 1) return inRange;
@@ -117,7 +117,7 @@ namespace Fdp.Toolkit.Combat
 
         private static bool AirCapable(EntityRepository world, Entity owner, WeaponMountDto m, float minElevationDeg)
         {
-            if (m.Category == WeaponCategory.Countermeasure) return false;
+            if (m.Category.IsSelfProtection()) return false;
             if (m.Category == WeaponCategory.Sam)
                 return CombatTkb.MissileOf(world, unchecked((long)m.AmmoGuid)) is not { } missile || missile.TargetDomain != TargetDomain.Ground;
             if (m.Category is not (WeaponCategory.MachineGun or WeaponCategory.Autocannon)) return false;
