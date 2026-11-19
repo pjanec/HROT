@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-idle — waiting for a handoff (last: CE-5039 DONE `2026-11-19`).
+IN PROGRESS: CE-4628 shared creature components (HANDOFF_Coordinator_To_Ui_Shared_Creature_Components, merged coordinator `243ecc372`).
 
 ## 2. The queue (in order)
 
@@ -69,3 +69,9 @@ idle — waiting for a handoff (last: CE-5039 DONE `2026-11-19`).
 | row | state | finding | gates | design |
 |---|---|---|---|---|
 | CE-5039 the run gate waits for the first live-overlay commit | DONE — ScenarioLoadStep ⑤ via StaticObstacleBakery.AwaitsLiveOverlay; te-make-enterable's atEnd row re-judged (cross-lane, terrain's scenario: it measured Idle's fidget) | te-make-enterable PASS 3/3; te-remove-building PASS (waited 0.7 s) and ua-tank-ammo PASS (no overlay: no wait); LiveOverlayBakeTests + ScenarioLoadStepTests + LoadPhaseChainTests 88 pass + the new rail (its first run red on its own no-op leg, removed; then 1/1) | LiveOverlayBakeTests.CE5039_* (red-proved: ⑤ off) | DESIGN_Cluster_Load_Phase §11.10d |
+
+## Queue 5 — HANDOFF_Coordinator_To_Ui_Shared_Creature_Components.md (taken 2026-11-19)
+
+| row | state | finding | gates | design |
+|---|---|---|---|---|
+| CE-4628 (+ CE-2250) shared creature components: Fear, Home, GroupMember / Group, Mood, AnimalTasks | IN PROGRESS — step 1 the inventory | | | designs/animals/DESIGN_Animals.md §10 |
