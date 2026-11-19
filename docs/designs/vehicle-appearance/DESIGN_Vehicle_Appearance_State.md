@@ -430,7 +430,7 @@ command missile then loses the tank by the existing rule (`GuidedRoundSystem`: a
 | **`VehicleCrewNodes.SmokeByThreat`** (`CrewSmokeParams`) | the SOP's third side step (inverted, never a row): a launch fresher than 3 s and not yet answered ⇒ the salvo at `MissileWarning.From`; else a fresh hit ⇒ at the top known threat's remembered point (none known ⇒ nothing). One salvo per threat, `SmokeCooldownSeconds` (30) between salvos; no dischargers or none left ⇒ nothing. Shot through `ShootAtPoint` (a self-protection mount: hold-fire and the force level never hold it) — ⛔ never `FireAtPoint`, which takes the weapon channel from the gun |
 | the move | `BasicVehicleSop`'s new row *"launch at me → VehicleFightFromCover"* (urgency Hit); the cycle's `Engaging` and `Watching` withdraw on a launch at me since the exposure began (`LaunchedAtMe`, beside `LaunchHeard`) |
 | rails | `VehicleCrewNodesTests.CE4670_PopSmoke_*` (red-proved: the cool-down removed ⇒ red; the freshness removed ⇒ red) |
-| scenario | `va-pop-smoke` — a Bradley's TOW at an M1 in the open; the salvo within 3 s; the tank backs into its hide behind the block |
+| scenario | ✅ `va-pop-smoke` 6/6 — a Bradley's TOW at an M1 in the open (11.37 s); the salvo 0.07 s later; the tank (hit, 1000 HP left) backs out of sight behind the block by 15.5 s and is never hit again. 📌 Measured: the first TOW still hits — at 170 m it arrives before the screen blooms (1.5 s fuze); the smoke denies the NEXT shot |
 
 ## 7. The shared LOOK library — every renderer derives the same picture *(CE-4671, `2026-11-18`)*
 
