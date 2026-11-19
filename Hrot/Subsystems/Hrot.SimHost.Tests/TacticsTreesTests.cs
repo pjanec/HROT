@@ -2119,6 +2119,7 @@ namespace Hrot.SimHost.Tests
             var w = new World();
             w.Arm();
             w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });   // on his post
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());   // a body that can lie down (CE-2121)
             w.Order("CombatPosture", "{\"stay\":true,\"post\":{\"point\":[0,0,0],\"radius\":4,\"open\":true}}");
             Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
             for (int i = 0; i < 30; i++)
