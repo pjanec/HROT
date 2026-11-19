@@ -487,7 +487,7 @@ sequenceDiagram
   S->>C: Embark Role=Gunner — walk to it, board its Gunner seat (ManWeapon)
   S->>D: DeployWeapon { weapon }
   D->>W: CanBegin(weapon) — read only (CE-3470)
-  Note over D,W: in the parallel brain phase the weapon is ANOTHER entity — Deploy/Pack runs as a follow-up after the phase (BatchContext.Later); outside a phase at once
+  Note over D,W: in the parallel brain phase the weapon is ANOTHER entity — Deploy/Pack runs as a follow-up after the phase (BatchContext.Later), outside a phase at once
   D->>W: Deploy(weapon) once — false when already Deployed
   loop each tick
     D->>W: read WeaponSystemState.Deploy
