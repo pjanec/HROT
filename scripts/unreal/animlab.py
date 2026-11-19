@@ -62,12 +62,38 @@ GROUPS = [
          "then": {"yaw": 90}, "after": 0.6},
         {"label": "stand>prone +0.12s", "base": "RTG_Neutral_Idle.*", "then": {"base": "RTG_Prone_Idle.*"}, "after": 0.12},
         {"label": "stand>prone +0.5s", "base": "RTG_Neutral_Idle.*", "then": {"base": "RTG_Prone_Idle.*"}, "after": 0.5}]},
+    # ⭐ U-16 step 3: DRESSED people — City Sample crowd bodies (BP_Person_NN: body + outfit on a leader pose), the same states, the
+    # clips retargeted onto their skeleton (retarget.py → /Game/Hrot/People/Anims, same names)
+    {"name": "dressed", "anims": [
+        {"label": "walk unarmed", "base": "MM_Unarmed_Walk_Fwd", "body": "BP_Person_00"},
+        {"label": "on the phone", "base": "RTG_Talking_On_Phone.*", "body": "BP_Person_01"},
+        {"label": "waving", "base": "RTG_Waving.*", "body": "BP_Person_02"},
+        {"label": "walk rifle aimed", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "BP_Person_03"},
+        {"label": "crouch-walk aimed", "base": "MM_Rifle_Crouch_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "BP_Person_04"},
+        {"label": "pistol aimed yaw 45", "base": "MM_Pistol_Idle_Hipfire", "upper": "MM_Pistol_Idle_ADS", "yaw": 45, "weapon": "pistol",
+         "body": "BP_Person_05"},
+        {"label": "prone", "base": "RTG_Prone_Idle.*", "body": "BP_Person_06"}]},
     # the aim pitch seen from the SIDE (facing 90: the barrel crosses the picture) — to judge the angle, not foreshortened
     {"name": "pitch-side", "anims": [
         {"label": "pitch 0", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 0, "facing": 90, "weapon": "rifle"},
         {"label": "pitch +10", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 10, "facing": 90, "weapon": "rifle"},
         {"label": "pitch +25", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 25, "facing": 90, "weapon": "rifle"},
         {"label": "pitch -25", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": -25, "facing": 90, "weapon": "rifle"}]},
+    # ⭐ PLAY MODE (Simulate): the engine ticks the people itself (no explicit posing); every `seq` entry is a state applied live,
+    # held `hold` s, then shot (live-<n>.png); `speed` cm/s moves the actor along its facing (the clip plays in place)
+    {"name": "live", "live": True, "anims": [
+        {"label": "soldier", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "BP_Person_03", "seq": [
+            {"base": "MF_Rifle_Walk_Fwd", "speed": 150}, {"base": "MF_Rifle_Jog_Fwd", "speed": 350},
+            {"base": "MM_Rifle_Crouch_Walk_Fwd", "speed": 120}, {"base": "MM_Rifle_Idle_Hipfire", "yaw": 60, "speed": 0},
+            {"base": "RTG_Prone_Idle.*", "upper": None, "yaw": 0, "speed": 0}]},
+        {"label": "civilian", "base": "MM_Unarmed_Walk_Fwd", "body": "BP_Person_00", "seq": [
+            {"base": "MM_Unarmed_Walk_Fwd", "speed": 150}, {"base": "MM_Unarmed_Jog_Fwd", "speed": 350},
+            {"base": "RTG_Looking_Around.*", "speed": 0}, {"base": "RTG_Talking_On_Phone.*", "speed": 0},
+            {"base": "RTG_Waving.*", "speed": 0}]},
+        {"label": "mannequin", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "seq": [
+            {"base": "MF_Rifle_Walk_Fwd", "speed": 150}, {"base": "MF_Rifle_Jog_Fwd", "speed": 350},
+            {"base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Fire", "speed": 0}, {"base": "MM_Rifle_Idle_Hipfire", "upper": None, "speed": 0},
+            {"base": "MM_Rifle_Crouch_Idle", "speed": 0}]}]},
 ]
 
 

@@ -56,20 +56,53 @@ def step_index():
     if unreal.EditorAssetLibrary.does_directory_exist("/Game/Mixamo/Retargeted"):   # Mixamo, retargeted onto the mannequin (hrot_mixamo.py)
         paths += list(unreal.EditorAssetLibrary.list_assets("/Game/Mixamo/Retargeted", recursive=True, include_folder=False))
     S["names"] = {p.rsplit(".", 1)[-1]: p for p in paths}
+    body = "/Game/Hrot/People/Anims"   # the same clips on the City Sample crowd skeleton (retarget.py) — same names, own folder
+    S["body_names"] = ({p.rsplit(".", 1)[-1]: p for p in unreal.EditorAssetLibrary.list_assets(body, recursive=True, include_folder=False)}
+                       if unreal.EditorAssetLibrary.does_directory_exist(body) else {})
     S["manny"] = unreal.load_asset(next(p for n, p in S["names"].items() if n == "SKM_Manny"))
     S["rifle"] = unreal.load_asset(next(p for n, p in S["names"].items() if n == "SM_Rifle"))
     pistols = [p for n, p in S["names"].items() if n.startswith("SM_") and "Pistol" in n]
     S["pistol"] = unreal.load_asset(pistols[0]) if pistols else None
-    log(f"indexed {len(paths)} assets; pistol mesh {'found' if S['pistol'] else 'MISSING'}")
+    S["weapon_rel"] = None   # weapon_r relative to hand_r on the mannequin: a body without weapon_r holds the weapon there
+    tmp = spawn(unreal.SkeletalMeshActor, (0, 0, -5000), label="tmp_manny")
+    tmp.skeletal_mesh_component.set_skeletal_mesh_asset(S["manny"])
+    S["weapon_rel"] = tmp.skeletal_mesh_component.get_socket_transform("weapon_r", unreal.RelativeTransformSpace.RTS_PARENT_BONE_SPACE)
+    tmp.destroy_actor()
+    log(f"indexed {len(paths)} assets, {len(S['body_names'])} body clips; pistol mesh {'found' if S['pistol'] else 'MISSING'}")
 
 
-def resolve(rx):
+def resolve(rx, body=False):
     rxc = re.compile(rx, re.I)
-    for n in sorted(S["names"]):
+    names = S["body_names"] if body else S["names"]
+    for n in sorted(names):
         if rxc.fullmatch(n):
-            a = unreal.load_asset(S["names"][n])
+            a = unreal.load_asset(names[n])
             if isinstance(a, unreal.AnimSequenceBase): return n, a
     return None, None
+
+
+def body_component(actor):
+    """The dressed person's LEADER — the component the body and outfit parts follow (leader pose). Measured on the crowd Blueprints:
+    a hidden root `SkeletalMeshComponent0` (the *_base mesh, playing the crowd's own clip) leads Body, Top, Bottom, Shoes; the Face
+    runs its own head Anim BP. ⚠ Driving `Body` does nothing: a follower copies its leader's pose."""
+    comps = list(actor.get_components_by_class(unreal.SkeletalMeshComponent))
+    leaders = {c.get_editor_property("leader_pose_component") for c in comps}
+    for c in comps:
+        if c in leaders: return c
+    return next((c for c in comps if c.get_name().startswith("Body")), None)
+
+
+def attach_weapon(w, sk):
+    """At weapon_r (Lyra's AttachTransform: yaw −90); a body without weapon_r: at hand_r, where weapon_r sits on the mannequin."""
+    keep = unreal.AttachmentRule.KEEP_WORLD; snap = unreal.AttachmentRule.SNAP_TO_TARGET
+    turn = unreal.Transform(rotation=unreal.Rotator(roll=0, pitch=0, yaw=-90))
+    if sk.does_socket_exist("weapon_r"):
+        w.attach_to_component(sk, "weapon_r", snap, snap, keep, False)
+        w.set_actor_relative_rotation(unreal.Rotator(roll=0, pitch=0, yaw=-90), False, True)
+    else:
+        w.attach_to_component(sk, "hand_r", snap, snap, keep, False)
+        rel = turn * S["weapon_rel"]   # child first: the yaw in weapon_r's frame, then weapon_r in hand_r's
+        w.set_actor_relative_transform(rel, False, True)
 
 
 def person(g, spec, x, y, row):
@@ -77,12 +110,19 @@ def person(g, spec, x, y, row):
     clips = {}
     for k in ("base", "upper", "action"):
         if spec.get(k):
-            n, a = resolve(spec[k]); clips[k] = a
+            n, a = resolve(spec[k], bool(spec.get("body"))); clips[k] = a
             if not a: row.append({"want": spec[k], "found": None}); return
     row.append({"want": spec["label"], "found": spec["label"]})
-    p = spawn(unreal.SkeletalMeshActor, (x, y, 0), (0, float(spec.get("facing", 140)), 0), f"{g['name']}_{spec['label']}")
-    sk = p.skeletal_mesh_component
-    sk.set_skeletal_mesh_asset(S["manny"])
+    if spec.get("body"):   # a DRESSED person: a City Sample crowd Blueprint (body + outfit parts on a leader pose)
+        cls = unreal.EditorAssetLibrary.load_blueprint_class("/Game/Hrot/People/" + spec["body"])
+        # measured (live shots): the crowd body faces its actor's +Y, like the mannequin mesh ⇒ the same yaw
+        p = spawn(cls, (x, y, 0), (0, float(spec.get("facing", 140)), 0), f"{g['name']}_{spec['label']}")
+        sk = body_component(p)
+        if sk is None: raise RuntimeError("no Body component on " + spec["body"])
+    else:
+        p = spawn(unreal.SkeletalMeshActor, (x, y, 0), (0, float(spec.get("facing", 140)), 0), f"{g['name']}_{spec['label']}")
+        sk = p.skeletal_mesh_component
+        sk.set_skeletal_mesh_asset(S["manny"])
     sk.set_animation_mode(unreal.AnimationMode.ANIMATION_BLUEPRINT)
     sk.set_anim_instance_class(unreal.HrotPersonAnimInstance.static_class())
     sk.set_update_animation_in_editor(True)
@@ -97,15 +137,14 @@ def person(g, spec, x, y, row):
     ai.set_editor_property("aim_yaw", float(spec.get("yaw", 0))); ai.set_editor_property("aim_pitch", float(spec.get("pitch", 0)))
     ai.set_editor_property("time_offset", 0.3)
     S.setdefault("rows", {}).setdefault(g["name"], []).append(p)
+    if spec.get("seq"): S.setdefault("live", []).append({"label": p.get_actor_label(), "spec": spec, "crowd": bool(spec.get("body"))})
     if spec.get("then"):   # a TRANSITION: posed in this state, then switched to "then" and shot `after` seconds later (in shoot())
         S.setdefault("transitions", {})[p.get_actor_label()] = (ai, spec)
     weapon = {"rifle": S["rifle"], "pistol": S["pistol"]}.get(spec.get("weapon"))
     if weapon:
         w = spawn(unreal.StaticMeshActor, (x, y, 100), label=f"W_{spec['label']}")
         w.static_mesh_component.set_static_mesh(weapon); w.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
-        w.attach_to_component(sk, "weapon_r", unreal.AttachmentRule.SNAP_TO_TARGET, unreal.AttachmentRule.SNAP_TO_TARGET,
-                              unreal.AttachmentRule.KEEP_WORLD, False)
-        w.set_actor_relative_rotation(unreal.Rotator(roll=0, pitch=0, yaw=-90), False, True)
+        attach_weapon(w, sk)
         S["rows"][g["name"]].append(w)
     t = spawn(unreal.TextRenderActor, (x, y, 205), (0, -90, 0), f"L_{spec['label']}")
     tc = t.text_render
@@ -121,8 +160,9 @@ def step_build():
         y = gi * 2500.0
         row = []
         for ai, rx in enumerate(g["anims"]):
-            x = ai * 160.0
-            if isinstance(rx, dict):   # a COMBINATION through UHrotPersonAnimInstance (the state-driven person)
+            x = ai * 160.0 * (2 if g.get("live") else 1)
+            if isinstance(rx, dict):
+                if g.get("live"): rx = dict(rx, facing=rx.get("facing", 180))   # walking toward the camera   # a COMBINATION through UHrotPersonAnimInstance (the state-driven person)
                 person(g, rx, x, y, row); continue
             name, anim = resolve(rx)
             row.append({"want": rx, "found": name})
@@ -159,6 +199,8 @@ def step_build():
         n = max(1, len(g["anims"]))
         cx = (n - 1) * 80.0
         dist = max(520.0, n * 125.0)
+        if g.get("live"):   # the live row is spaced twice as wide
+            S["live_cam"] = {"x": 2 * cx, "y": y, "dist": dist + 250}; continue
         S["shots_todo"].append({"name": g["name"], "loc": (cx, y - dist, 110.0), "rot": (-4.0, 90.0, 0.0)})
     found = sum(1 for g in R["groups"] for a in g["anims"] if a["found"])
     log(f"{found} animations placed, {sum(len(g['anims']) for g in R['groups']) - found} not found")
@@ -208,15 +250,84 @@ def step_save():
     LES().save_current_level(); unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
 
 
-STEPS = [step_level, step_index, step_build, None, step_save]
+UES = lambda: unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
+
+
+def live():
+    """⭐ PLAY MODE: Simulate in the editor — the engine ticks the people (no pose_now); each state of `seq` applied to the PIE copies,
+    held, shot. Returns True while busy."""
+    L = S.setdefault("L", {"phase": "start"})
+    if not S.get("live"): return False
+    now = time.time()
+    if L["phase"] == "start":
+        for row, actors in S.get("rows", {}).items():   # only the live row in the game world (editor-hidden does not carry over)
+            for a in actors:
+                a.set_is_temporarily_hidden_in_editor(row != "live"); a.set_actor_hidden_in_game(row != "live")
+        LES().editor_play_simulate()
+        L.update(phase="find", t=now + 6); return True
+    if now < L.get("t", 0): return True
+    if L["phase"] == "find":
+        w = UES().get_game_world()
+        if w is None: raise RuntimeError("Simulate did not start (no game world)")
+        by_label = {a.get_actor_label(): a for a in unreal.GameplayStatics.get_all_actors_of_class(w, unreal.Actor)}
+        L["people"] = []
+        for e in S["live"]:
+            a = by_label.get(e["label"])
+            st = a.get_component_by_class(unreal.HrotPersonState) if a else None
+            if st is None: log(f"live: {e['label']} not in the game world"); continue
+            L["people"].append(dict(e, actor=a, state=st))
+        log(f"live: Simulate running, {len(L['people'])} people found in the game world")
+        L.update(phase="state", k=0, last=now); return True
+    people = L["people"]
+    n = max(len(p["spec"]["seq"]) for p in people) if people else 0
+    if L["phase"] == "state":
+        if L["k"] >= n:
+            LES().editor_request_end_play(); L.update(phase="end", t=now + 4); return True
+        for p in people:
+            seq = p["spec"]["seq"]; st = seq[min(L["k"], len(seq) - 1)]
+            for key, prop in (("base", "base_anim"), ("upper", "upper_anim")):
+                if key in st: p["state"].set_editor_property(prop, resolve(st[key], p["crowd"])[1] if st[key] else None)
+            if "yaw" in st: p["state"].set_editor_property("aim_yaw", float(st["yaw"]))
+            p["speed"] = float(st.get("speed", 0))
+        L.update(phase="hold", until=now + 1.6, last=now, shots=0); return True
+    if L["phase"] == "hold":   # move the walkers (the clip plays in place) and keep the camera on them
+        dt = min(0.1, now - L["last"]); L["last"] = now
+        ys = []
+        for p in people:
+            a = p["actor"]
+            fwd = a.get_actor_right_vector()   # both bodies face their actor's +Y
+            a.set_actor_location(a.get_actor_location() + fwd * (p["speed"] * dt), False, False)
+            ys.append(a.get_actor_location().y)
+        c = S["live_cam"]; my = sum(ys) / max(1, len(ys))
+        UES().set_level_viewport_camera_info(unreal.Vector(c["x"], my - c["dist"], 120.0), unreal.Rotator(roll=0, pitch=-4, yaw=90))
+        if now < L["until"]: return True
+        if L.get("pending"):
+            path, t = L["pending"]
+            if not ((os.path.exists(path) and os.path.getsize(path) > 0) or now - t > 60): return True
+            R["shots"].append(path if os.path.exists(path) else None); L["pending"] = None
+            if L["k"] == 0 and L["shots"] == 1:   # the first state twice, 0.5 s apart: the poses must differ (the engine ticks them)
+                L["until"] = now + 0.5; return True
+            L["k"] += 1; L["phase"] = "state"; return True
+        name = f"live-{L['k'] + 1}" + ("b" if L["shots"] >= 1 else "")
+        path = os.path.join(JOB["shots"], f"anim-{name}.png").replace("\\", "/")
+        if os.path.exists(path): os.remove(path)
+        unreal.AutomationLibrary.take_high_res_screenshot(1600, 900, path, None)
+        L["pending"] = (path, now); L["shots"] = L.get("shots", 0) + 1
+        return True
+    if L["phase"] == "end":
+        log("live: Simulate ended"); return False
+    return False
+
+
+STEPS = [step_level, step_index, step_build, None, step_save, "live"]
 
 
 def tick(dt):
     if S["busy"]: return
     try:
         S["busy"] = True
-        if S["step"] < len(STEPS) and STEPS[S["step"]] is None:
-            if shoot(): return
+        if S["step"] < len(STEPS) and STEPS[S["step"]] in (None, "live"):
+            if (shoot() if STEPS[S["step"]] is None else live()): return
             S["step"] += 1; return
         if S["step"] >= len(STEPS): finish(True); return
         s = STEPS[S["step"]]; S["step"] += 1; s()

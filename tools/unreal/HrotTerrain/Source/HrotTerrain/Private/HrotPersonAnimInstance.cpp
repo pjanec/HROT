@@ -67,24 +67,34 @@ namespace
 			SampleBlended(PrevBase, PrevBaseT, Base, BaseT, BaseAlpha, Output);
 			const FBoneContainer& BC = Output.Pose.GetBoneContainer();
 
-			// in place: the root keeps no translation (HROT moves the person; the clip only animates)
-			Output.Pose[FCompactPoseBoneIndex(0)].SetTranslation(FVector::ZeroVector);
+			// in place: the root keeps no HORIZONTAL travel (HROT moves the person; the clip only animates). Its height stays —
+			// measured: clips retargeted onto the crowd skeleton carry the pelvis height in `root` (the retargeter's root-motion op),
+			// so clearing all of it sank those people ~80 cm; Lyra's clips have root z = 0, unchanged.
+			FTransform& Root = Output.Pose[FCompactPoseBoneIndex(0)];
+			Root.SetTranslation(FVector(0.f, 0.f, Root.GetTranslation().Z));
+
+			// ⭐ an ADDITIVE clip in the upper slot (Lyra's MM_Rifle_Fire is one) is a DIFFERENCE, not a pose: played as a pose it
+			// collapsed the upper body (measured, live shot). It is added on top instead (below), fading with the same crossfade.
+			UAnimSequence* const UpperAdd = (Upper && Upper->IsValidAdditive()) ? Upper.Get() : nullptr;
+			UAnimSequence* const PrevAdd = (PrevUpper && PrevUpper->IsValidAdditive()) ? PrevUpper.Get() : nullptr;
+			UAnimSequence* const UpperFull = UpperAdd ? nullptr : Upper.Get();
+			UAnimSequence* const PrevFull = PrevAdd ? nullptr : PrevUpper.Get();
 
 			// the upper body from UpperRoot up, from the upper clip — crossfading from the previous one (a null side = the base pose)
-			if (Upper || (PrevUpper && UpperAlpha < 1.f))
+			if (UpperFull || (PrevFull && UpperAlpha < 1.f))
 			{
 				FPoseContext UpperPose(Output);
 				UpperPose.Pose.CopyBonesFrom(Output.Pose);
-				SampleBlended(PrevUpper, PrevUpperT, Upper, UpperT, UpperAlpha, UpperPose);
-				if (!Upper && UpperAlpha < 1.f)   // fading OUT: blend the old upper toward the base
+				SampleBlended(PrevFull, PrevUpperT, UpperFull, UpperT, UpperAlpha, UpperPose);
+				if (!UpperFull && UpperAlpha < 1.f)   // fading OUT: blend the old upper toward the base
 				{
-					FPoseContext Old(Output); Sample(PrevUpper, PrevUpperT, Old);
+					FPoseContext Old(Output); Sample(PrevFull, PrevUpperT, Old);
 					FAnimationPoseData O(UpperPose), DA(Old), DB(Output);
 					FAnimationRuntime::BlendTwoPosesTogether(DA, DB, 1.f - UpperAlpha, O);
 				}
-				else if (Upper && !PrevUpper && UpperAlpha < 1.f)   // fading IN from the base
+				else if (UpperFull && !PrevFull && UpperAlpha < 1.f)   // fading IN from the base
 				{
-					FPoseContext New(Output); Sample(Upper, UpperT, New);
+					FPoseContext New(Output); Sample(UpperFull, UpperT, New);
 					FAnimationPoseData O(UpperPose), DA(Output), DB(New);
 					FAnimationRuntime::BlendTwoPosesTogether(DA, DB, 1.f - UpperAlpha, O);
 				}
@@ -105,6 +115,19 @@ namespace
 					}
 				}
 			}
+
+			// the additive upper clips: the new one fading in, the previous one fading out
+			auto AddOn = [&Output](UAnimSequence* A, float T, float W)
+			{
+				if (!A || W <= 0.f) return;
+				FPoseContext Additive(Output);
+				Sample(A, T, Additive);
+				FAnimationPoseData OutData(Output), AddData(Additive);
+				FAnimationRuntime::AccumulateAdditivePose(OutData, AddData, W, A->GetAdditiveAnimType());
+				Output.Pose.NormalizeRotations();
+			};
+			AddOn(UpperAdd, UpperT, UpperAlpha);
+			if (UpperAlpha < 1.f) AddOn(PrevAdd, PrevUpperT, 1.f - UpperAlpha);
 
 			// an additive action on top (fire kick, reload, grenade toss)
 			if (Action && Action->IsValidAdditive() && ActionW > 0.f)
