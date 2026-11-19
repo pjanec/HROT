@@ -1,0 +1,98 @@
+{
+  "$comment": "CE-3488 (flame FL-4 B-4; docs/designs/weapons/DESIGN_Flame_Weapons.md \u00a77c) - a one-storey TIMBER HOUSE, 8 x 6 m, 2.8 m: the burnable building the flame tests stand beside a brick shed. One door (south, open), a window east and west. Local metres; origin = the south-west corner.",
+  "name": "timber-house",
+  "material": "timber",
+  "footprint": [
+    [
+      0,
+      0
+    ],
+    [
+      8,
+      0
+    ],
+    [
+      8,
+      6
+    ],
+    [
+      0,
+      6
+    ]
+  ],
+  "storeys": [
+    {
+      "height": 2.8,
+      "walls": [
+        {
+          "from": [
+            0,
+            0
+          ],
+          "to": [
+            8,
+            0
+          ],
+          "thickness": 0.2,
+          "openings": [
+            {
+              "kind": "door",
+              "at": 3.5,
+              "width": 1.0,
+              "doorId": "door",
+              "initial": "open"
+            }
+          ]
+        },
+        {
+          "from": [
+            8,
+            0
+          ],
+          "to": [
+            8,
+            6
+          ],
+          "thickness": 0.2,
+          "openings": [
+            {
+              "kind": "window",
+              "at": 2.25,
+              "width": 1.5
+            }
+          ]
+        },
+        {
+          "from": [
+            8,
+            6
+          ],
+          "to": [
+            0,
+            6
+          ],
+          "thickness": 0.2
+        },
+        {
+          "from": [
+            0,
+            6
+          ],
+          "to": [
+            0,
+            0
+          ],
+          "thickness": 0.2,
+          "openings": [
+            {
+              "kind": "window",
+              "at": 2.25,
+              "width": 1.5
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "roof": "flat"
+}

@@ -170,6 +170,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.PlacementGroup>();   // ⭐ CE-5008 (R-5041) — a placed obstacle row's group id, saved with each member
         world.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.BuildingFireEvent>();   // ⭐ CE-3488 (flame FL-4) — a building set alight: the record writer adds its FireState
         world.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();
         // ⭐ CE-4591 (P-4, G-7) — the craters of one ground cell (dtGroundDamage): a runtime entity its deciding node owns, replicated, read by every view's
         //   DoorStates.Craters (the cratered ground, D-1). The event is the local "a burst made this crater" the deciding node's system turns into the component.

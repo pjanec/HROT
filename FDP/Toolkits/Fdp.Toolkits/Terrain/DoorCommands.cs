@@ -127,6 +127,8 @@ namespace Fdp.Toolkit.Terrain
         public const int WindowBroken = 5112;
         /// <summary>⭐ CE-3487 (flame FL-3) — <c>GroundFireEvent</c>: a ground fire spot a napalm strike lays (5113 free on every lane, <c>2026-11-19</c>).</summary>
         public const int GroundFire = 5113;
+        /// <summary>⭐ CE-3488 (flame FL-4) — <c>BuildingFireEvent</c>: a building set alight (5114 free on every lane, <c>2026-11-19</c>).</summary>
+        public const int BuildingFire = 5114;
     }
 
     /// <summary>

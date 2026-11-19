@@ -28,7 +28,8 @@ namespace Fdp.Toolkit.Combat.Modules
         /// <summary>Systems that run in the Simulation phase.</summary>
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; } =
             new IEcsModuleSystem[] { new DamageCalculationSystem(), new AreaEffectSystem(),   // ⭐ CE-1032 W-5 — the area effect beside the direct hit
-                                     new NapalmSystem(),   // ⭐ CE-3487 (flame FL-3) — a napalm burst: the fireball (men alight) and the ground fire's spots, from the same bursts
+                                     new NapalmSystem(),
+                                     new StructureFlameSystem(),   // ⭐ CE-3488 (flame FL-4) — a flame jet on a burnable wall sets its building alight (before the record writer below)   // ⭐ CE-3487 (flame FL-3) — a napalm burst: the fireball (men alight) and the ground fire's spots, from the same bursts
                                      new Fdp.Toolkit.Squad.DangerArea.ShelledAreaSystem(),   // ⭐ CE-4583 — the shelled areas, from the same bursts
                                      new Fdp.Toolkit.Terrain.BuildingDamageSystem(),   // ⭐ CE-4391 S-1 — the breaches it decided, written into the building's damage entity (after it: B-5)
                                      new Fdp.Toolkit.Terrain.GroundDamageSystem(),   // ⭐ CE-4591 (P-4) — the craters it decided, written into the cell's ground-damage entity
