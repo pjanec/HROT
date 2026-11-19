@@ -27,6 +27,21 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <summary>⭐ M5 — a tank's coaxial machine gun: on the turret beside the gun, a 200-round belt (6 s to change), 1 in 5 traces;
         /// it fires on the move (a machine gun, D-L).</summary>
+        /// <summary>
+        /// ⭐ <c>CE-4670</c> (vehicle appearance VA-S5, VA-9) — a tank's / an IFV's SMOKE DISCHARGERS, its LAST mount: one fire is a salvo of
+        /// <paramref name="tubes"/> screening grenades (<see cref="Hrot.Core.Tkb.MunitionTkbCatalog.TkbVehicleSmokeGrenade"/>) laid in a 110° fan centred on
+        /// the bearing it is fired towards, bursting 30 m out (each a cloud that blocks sight and the thermal sight); <paramref name="salvos"/> loads.
+        /// Self-protection, never a weapon (<see cref="WeaponCategory.SmokeDischarger"/>). Starter values (a 4- or 6-tube bank, a 76 mm grenade at ~30 m/s).
+        /// </summary>
+        private static WeaponMount SmokeDischargers(int tubes, int salvos) => new()
+        {
+            WeaponType = "smoke_discharger", Category = WeaponCategory.SmokeDischarger, TurretIndex = 0,
+            Ammunition = salvos, MagazineSize = salvos, Range = 30f, MuzzleVelocity = 30f, RateOfFire = 6f,
+            Pellets = tubes, PelletSpreadMils = 1920f,   // 110° in mils (÷1000 = the fan in radians, the pellet rule)
+            MuzzleOffset = new System.Numerics.Vector3(0f, 0f, 2.2f),
+            AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbVehicleSmokeGrenade),
+        };
+
         private static WeaponMount Coax(System.Numerics.Vector3 muzzle) => new()
         {
             WeaponType = "7.62mm_coax", Ammunition = 2000, Range = 900, RateOfFire = 600, Penetration = 8, DamagePerHit = 30, DispersionMils = 3f,
@@ -951,6 +966,7 @@ namespace Hrot.Map.Definitions.Tkb
                         Loadout = TankLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds, 20, 10, 12),
                     });
                     c.Weapons.Add(Coax(new System.Numerics.Vector3(1.0f, 0.5f, 0.1f)));   // ⭐ M5 — the coaxial M240
+                    c.Weapons.Add(SmokeDischargers(tubes: 12, salvos: 2));   // ⭐ CE-4670 (VA-S5) — the two M250 banks, fired together
                     c.SensorRange = 8000;
                     // ⛔ CE-2349 — NO thermal sight here yet (WITHDRAWN `2026-10-22`): carried, it changed ua-hill-attack (A/B: 4 tanks on the
                     //   slope at once vs 2 without) while seeing nothing — no template has a heat signature. Re-add with the signatures slice.
@@ -1007,6 +1023,7 @@ namespace Hrot.Map.Definitions.Tkb
                         AimSeconds = 1.5f,   // ⭐ M5 (§5) — the gunner's lay before the launch; the TOW then flies command-guided (MissileDto)
                         Category = WeaponCategory.Atgm, TurretIndex = 0,
                         MuzzleOffset = new System.Numerics.Vector3(0.4f, 1.0f, 0.35f) });   // ⭐ E4 — the launcher on the turret's left
+                    c.Weapons.Add(SmokeDischargers(tubes: 8, salvos: 2));   // ⭐ CE-4670 (VA-S5) — the two M257 banks
                     c.SensorRange = 5000;
                     // ⛔ CE-2349 — NO thermal sight here yet (WITHDRAWN `2026-10-22`): carried, it changed ua-hill-attack (A/B: 4 tanks on the
                     //   slope at once vs 2 without) while seeing nothing — no template has a heat signature. Re-add with the signatures slice.
@@ -1074,6 +1091,7 @@ namespace Hrot.Map.Definitions.Tkb
                         MuzzleOffset = new System.Numerics.Vector3(6.0f, 0f, 0f),   // ⭐ E4 — the 125 mm L/48 barrel
                         Loadout = TankLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds, 18, 9, 12) });   // ⭐ M5 — the 39 as a loadout
                     c.Weapons.Add(Coax(new System.Numerics.Vector3(1.0f, 0.5f, 0.1f)));   // ⭐ M5 — the coaxial PKT (7.62 × 51 stands in)
+                    c.Weapons.Add(SmokeDischargers(tubes: 8, salvos: 1));   // ⭐ CE-4670 (VA-S5) — the 902 Tucha bank
                     c.SensorRange = 6000;
                 })
                 .WithTurrets(TkbEntityTypes.Tank_T72, new TurretDto { PivotX = -0.3f, PivotZ = 1.75f, TrunnionX = 1.2f,

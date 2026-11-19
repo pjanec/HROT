@@ -42,14 +42,14 @@ public static class EntityRoleLine
         var suite = t.GetDescriptor<WeaponSuiteDto>();
         if (suite is null) return null;
         foreach (var m in suite.Mounts)
-            if (m.Category is not (WeaponCategory.Unknown or WeaponCategory.Countermeasure)) return Words(m.Category.ToString());
+            if (m.Category is not WeaponCategory.Unknown && !m.Category.IsSelfProtection()) return Words(m.Category.ToString());
         return null;
     }
 
     /// <summary>All the weapon categories of the mounts, in mount order, distinct.</summary>
     public static IReadOnlyList<string> Weapons(TkbTemplate t)
         => t.GetDescriptor<WeaponSuiteDto>()?.Mounts
-            .Where(m => m.Category is not (WeaponCategory.Unknown or WeaponCategory.Countermeasure))
+            .Where(m => m.Category is not WeaponCategory.Unknown && !m.Category.IsSelfProtection())
             .Select(m => Words(m.Category.ToString())).Distinct().ToArray()
            ?? Array.Empty<string>();
 

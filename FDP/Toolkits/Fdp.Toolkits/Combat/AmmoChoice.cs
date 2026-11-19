@@ -68,7 +68,7 @@ namespace Fdp.Toolkit.Combat
             //   an ATGM against a flying helicopter. The one gate for the round choice, the mount ranking and Sufficient.
             if (!InDomain(world, target, ammo)) return (0f, 0f);
             // ⛔ CE-2188 (BS-1-DESIGN §5.4c) — a flare / chaff DISPENSER (its expendables) hurts nothing: worth 0, so it is never chosen
-            if (mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Countermeasure || Munitions.IsExpendable(world, ammo)) return (0f, 0f);
+            if ((mount != null && Fdp.Toolkit.Tkb.Domain.WeaponCategories.IsSelfProtection(mount.Category)) || Munitions.IsExpendable(world, ammo)) return (0f, 0f);   // ⭐ CE-4670 — + smoke dischargers
             var (pen, dmg) = CombatTkb.RoundOf(world, mount, ammo);
             var penetrator = CombatTkb.PenetratorOf(world, ammo);
             float armour = pen > 0f ? ArmourFacing(world, shooter, target, penetrator) : 0f;
