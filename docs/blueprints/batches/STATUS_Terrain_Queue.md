@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE · updated: 2026-11-18 · current-answer: §1
+state: LIVE · updated: 2026-11-19 · current-answer: §1
 related-designs:
   - HANDOFF_Coordinator_To_Terrain_Bug_Queue.md — the queue (11 rows)
   - PROTOCOL_Autonomous_Lanes.md — how this lane works it
@@ -8,6 +8,8 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
+**MINEFIELD SCENARIOS (HANDOFF_Coordinator_To_Terrain_Minefield_Scenarios, `2026-11-19`)** — `mf-clear-lane-and-cross` authored, ⏳ RED at S3: terrain's half fixed (CE-2443 / KG-7: the route's minefield area also fires on cells the side does not know clear, `31872471f`; the checks grammar's `also` cue, `84114d73c`) and measured green to the sensor buffer; a squad under an HQ never reacts `MinefieldAhead` ⇒ **CE-5040 → behaviors** (NOTE_Terrain_To_Behaviors_Commanded_Squad_Ignores_Minefield.md). Next: `mf-knowledge-survives`; CE-2443 / CE-4624 close waits on CE-5040.
+
 **GLASS WINDOWS FIRST (user, `2026-11-18`: "take this window breaking first, then continue with the terrain editor")** — GW-1 CE-5032 and GW-2 CE-5033 DONE (scenarios `gw-shoot-the-window`, `gw-fire-out` pass); GW-3 CE-5034 (the look) BUILT by terrain (the coordinator's handoff); BE-1 CE-5027, BE-2 CE-5028, BE-3 CE-5029, BE-5 CE-5031 DONE; BE-4 CE-5030 DONE (part 1 the Buildings tools; part 2 the hover, the removed building's ghost, the edit's Details) — BE-1…BE-5 all built; both acceptance scenarios PASS (`te-make-enterable` since ui's CE-5039 run gate — re-run by terrain on `bf92de7cd`, 2 / 2). CE-5039 DONE by ui (the run gate); the path retry is backend's. **Street fight DONE `2026-11-19`** (HANDOFF + STEER): the terrain `wide-corridor`; CE-4672 `pc-corridor-fight` (RED rows named in NOTE_Terrain_To_Behaviors_Corridor_Fight.md); CE-4673 the cover is there — "no cover at 10 m" is the search; CE-4665 not reproduced. ⏭ BE-4 is done; queue empty — next: a handoff. Waiting: CE-3424 (coordinator), CE-4630 (user).
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292); its message is now §1a's text VERBATIM (updated `2026-11-18` 12:05).
 
