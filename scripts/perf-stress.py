@@ -149,7 +149,7 @@ def node_pid(port):
             envs = open(f"/proc/{p}/environ").read().split("\0")
         except OSError:
             continue
-        if cmd.startswith("dotnet ") and f"HROT_DEBUG_API_PORT={port}" in envs:
+        if os.path.basename(cmd.split(" ", 1)[0]) == "dotnet" and f"HROT_DEBUG_API_PORT={port}" in envs:   # "/root/.dotnet/dotnet …" too
             return int(p)
     return None
 
