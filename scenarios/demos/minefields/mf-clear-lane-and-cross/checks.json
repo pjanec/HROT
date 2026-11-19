@@ -1,6 +1,6 @@
 {
-  "$doc": "DRAFT \u2014 stage rows to learn the chain's timing",
-  "runFor": 900,
+  "$doc": "DRAFT — stage rows to learn the chain's timing",
+  "runFor": 2000,
   "golden": false,
   "anchors": {
     "strike": {
@@ -50,11 +50,11 @@
       "is": "ClearLane"
     },
     {
-      "name": "S8 Friend knows cleared cells",
+      "name": "S8 Friend holds the cleared lane",
       "on": "knowledge",
       "who": "Field D",
       "side": "Friend",
-      "is": "KnownClear"
+      "is": "Lane"
     },
     {
       "name": "S9 the patrol marches again",

@@ -2301,6 +2301,28 @@ namespace Hrot.SimHost.Tests
         private static Entity DefendQuery(Squad s, int site) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, site);
 
         /// <summary>
+        /// ⭐ D-13 (on the move in) — a squad of four with TWO men down moves to its position: the two survivors' points are spaced by their rank
+        /// among the LIVE men (more than 4 m apart, so never within 2 m of their centre), not by their roster slots. ✅ Red-proof: by roster slot
+        /// (slots 1 and 2 of 4) ⇒ 3.3 m ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D13_TwoSurvivorsOfFour_MoveInMoreThanFourMetresApart()
+        {
+            var s = new Squad(members: 4);
+            foreach (int down in new[] { 0, 3 })
+            {
+                var hp = new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f };
+                if (s.Repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(s.Members[down])) s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(s.Members[down]) = hp;
+                else s.Repo.AddComponent(s.Members[down], hp);
+            }
+            s.Order("{\"Position\":[6,60,0],\"SearchRadius\":15}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            var a = s.LastOrders()[s.Members[1]].Objective;
+            var b = s.LastOrders()[s.Members[2]].Objective;
+            Assert.True(Vector3.Distance(a, b) > 4f, $"the survivors move to {a} and {b}");
+        }
+
+        /// <summary>
         /// ⭐⭐ D-13 (CE-4666, user-approved 2026-11-19; Defend &amp; Attack §8c D-2n) — the asks find cover for ONE man only: the other three are not
         /// left standing where they are (side by side) but get DISPERSAL spots — every man ordered to his own post, no two posts within
         /// <see cref="DefencePlan.DispersalMetres"/>. ✅ Red-proof: the dispersal step removed ⇒ three men keep no post (no CombatPosture with a
@@ -2380,12 +2402,12 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(SquadDefendManeuver.ManeuverKind, s.Kind);
             Assert.Equal(SquadDefendManeuver.PhaseMoving, s.Phase);
-            // first, to the position — ⭐ D-13: each man to HIS point there (within ArrivedMetres, MovingIntervalMetres apart), never all to one
+            // first, to the position — ⭐ D-13: as a MARCH — the lead to the position, every other man to his own wedge slot, never all to one point
             var moving = s.Members.Select(m => s.LastOrders()[m].Objective).ToArray();
-            foreach (var o in moving) Assert.True(Vector3.Distance(o, new Vector3(6, 20, 0)) < SquadDefendPlay.ArrivedMetres, $"{o} is at the position");
+            Assert.Contains(new Vector3(6, 20, 0), moving);                                  // the lead
             for (int i = 0; i < moving.Length; i++)
                 for (int j = i + 1; j < moving.Length; j++)
-                    Assert.True(Vector3.Distance(moving[i], moving[j]) >= SquadDefendPlay.MovingInterval(moving.Length) - 0.01f, $"men {i} and {j} move to {moving[i]} / {moving[j]}");
+                    Assert.True(Vector3.Distance(moving[i], moving[j]) > 4f, $"men {i} and {j} move to {moving[i]} / {moving[j]}");
             Assert.True(DefendQuery(s, SquadDefendPlay.WindowSite).IsNull, "no post is asked for before the squad is there");
 
             s = Defending(out var posts);
@@ -7664,6 +7686,40 @@ namespace Hrot.SimHost.Tests
         /// <c>MinefieldAhead</c> as a reaction (<c>Alert</c>) that PAUSES the march — every man holds, and the squad's outbox carries a request for
         /// ENGINEERS at the field's near side; once the area is gone the reaction ends and the march resumes. ✅ Red-proofs: the SOP row dropped ⇒
         /// no reaction ⇒ red; the hold dropped ⇒ red; the request dropped ⇒ red.</summary>
+        /// <summary>⭐⭐ <c>CE-5040</c> (terrain, mf-clear-lane-and-cross) — the SAME minefield ahead stops a squad under a LIVE platoon / HQ: the halt and the
+        /// Engineers request are the squad's own (MS-B5 sends the request UP the chain, so the asking squad always has a commander), like the carrier rows —
+        /// ⛔ the <c>UnderCommand</c> row (CE-2358, "the platoon reacts for the squad") stood above it, so a commanded squad never reached it and walked into
+        /// the field. ✅ Red-proof: the minefield row back below <c>UnderCommand</c> ⇒ the march runs on ⇒ red.</summary>
+        [Fact]
+        public void CE5040_BasicSquadSop_UnderALivePlatoon_AMinefieldAhead_StillHalts_AndCallsTheEngineers()
+        {
+            var s = new Squad(members: 4);
+            var platoon = s.Repo.CreateEntity();
+            s.Repo.AddComponent(platoon, new UnitEntity());
+            s.Repo.AddComponent(s.Commander, new UnitSubordinate { Commander = platoon });
+            s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(10f, 5f, 0f), Rotation = Quaternion.Identity });
+            s.Order("{\"Objective\":[10,100,0]}", BehaviorNames.SquadMarch);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 10; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadMarch, s.TaskName);
+            Assert.True(SopConditions.UnderCommand(s.Commander, s.Repo));                                // the platoon is live: the contact rows stand aside
+
+            var near = new Vector3(10f, 20f, 0f);
+            AreaAhead(s, distanceAlongRoute: 12f, near: near, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Minefield);
+            s.Orders.Clear();
+            for (int i = 0; i < SopReactionFrames + 1; i++) s.Tick();
+            Assert.Equal(BehaviorNames.MinefieldAhead, s.TaskName);                                        // ⭐ the squad halts all the same
+            Assert.Equal(BehaviorNames.SquadMarch, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
+            s.Tick(); s.Tick();
+            var q = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander).Queued;
+            int engineers = 0;
+            for (int i = 0; i < q.Count; i++)
+                if (q.Items[i].Report.Kind == Fdp.Toolkit.Squad.Command.ReportKind.Request
+                    && q.Items[i].Report.Subtype == (byte)Fdp.Toolkit.Squad.Command.RequestKind.Engineers) engineers++;
+            Assert.Equal(1, engineers);                                                                    // ⭐ and asks up the chain
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
         [Fact]
         public void CE4624_MS_B4_BasicSquadSop_AMinefieldAhead_Halts_AndCallsTheEngineers()
         {

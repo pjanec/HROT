@@ -394,13 +394,22 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < ctx.Roster.Count; i++) partition[i] = new MemberPartitionInput(1f, 0f);
             unsafe { for (int i = 0; i < DefencePosts.Capacity; i++) { p.Posts.PostOf[i] = DefencePosts.None; p.Posts.MovedAt[i] = double.NegativeInfinity; p.Posts.DwellFrom[i] = double.NegativeInfinity; } }
             p.Posts.Hunter = DefencePosts.None;   // ⭐ CE-2359
-            return SquadManeuverRunner.AnyLive(in ctx) ? PlayStart.Go : PlayStart.Fail;
+            if (!SquadManeuverRunner.AnyLive(in ctx)) return PlayStart.Fail;
+            var march = MarchTo(in p);
+            default(SquadMarchPlay).Start(ref march, ref ws, in ctx, partition);   // ⭐ D-13 — the move IN is the squad's march (a wedge on its lead)
+            return PlayStart.Go;
         }
 
         public void Update(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
             AreaAlert.KeepInArea(in ctx, p.Position, MathF.Max(p.SearchRadius, AlertMinMetres));   // ⭐ CE-2371 (AQ104 D) — an enemy in the area stays known until down
             LiftOwnHold(ref p, ref ws, in ctx);
+            if (ctx.Squad.PhaseId == SquadDefendManeuver.PhaseMoving)
+            {
+                var march = MarchTo(in p);
+                default(SquadMarchPlay).Update(ref march, ref ws, in ctx);   // ⭐ D-13 — keeps the wedge, re-slots, waits for stragglers
+                return;
+            }
             if (ctx.Squad.PhaseId != SquadDefendManeuver.PhasePosting) return;
             if (p.Posts.Ready == 0) { Plan(ref p, ref ws, in ctx); return; }
             Manned(ref p, in ctx);
@@ -419,6 +428,8 @@ namespace Hrot.AI.Behaviors.Brains
             evt = PhaseEventKind.BoundComplete;
             if (ctx.Squad.PhaseId != SquadDefendManeuver.PhaseMoving || ws.Reissue != 0) return false;
             if (ctx.Now - ws.IssuedAt >= MoveTimeoutSeconds) { ws.CompletedByTimeout = 1; return true; }
+            var march = MarchTo(in p);
+            if (default(SquadMarchPlay).Outcome(ref march, ref ws, in ctx) == NodeStatus.Success) return true;   // ⭐ D-13 — the wedge is there
             for (int i = 0; i < ctx.Roster.Count; i++)
                 if (ctx.Live(i, out var m) && Flat(ctx.At(m) - p.Position) > ArrivedMetres) return false;
             return true;
@@ -426,41 +437,29 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void BeginIssue(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
 
-        /// <summary>⭐ D-13 — the interval between the men's points on the move to the position (m).</summary>
-        public const float MovingIntervalMetres = 4f;
+        /// <summary>⭐ D-13 — the interval between the men of the march IN (m): the march's own default.</summary>
+        public const float MarchSpacingMetres = 5f;
 
-        /// <summary>⭐ D-13 — the interval for <paramref name="n"/> men: <see cref="MovingIntervalMetres"/>, narrower when the line would reach past
-        /// <see cref="ArrivedMetres"/> − 1 of the position (so every man's point still counts as arrived).</summary>
-        public static float MovingInterval(int n) => n <= 1 ? 0f : MathF.Min(MovingIntervalMetres, 2f * (ArrivedMetres - 1f) / (n - 1));
-
-        /// <summary>⭐ D-13 — man <paramref name="member"/>'s point on the move: the position offset across the line from the squad's centre to it, by his
-        /// rank among the roster, <see cref="MovingIntervalMetres"/> apart, never beyond <see cref="ArrivedMetres"/> − 1 (so arriving still counts).</summary>
-        private static Vector3 MovingPoint(ref SquadDefendParams p, in SquadPlayContext ctx, int member, Vector3 at)
+        /// <summary>⭐ D-13 — the march that carries the squad to its position: a wedge on its lead, arriving within half <see cref="ArrivedMetres"/>.</summary>
+        public static SquadMarchParams MarchTo(in SquadDefendParams p) => new()
         {
-            int n = ctx.Roster.Count;
-            if (n <= 1) return p.Position;
-            var centre = Vector3.Zero; int live = 0;
-            for (int i = 0; i < n; i++) if (ctx.Live(i, out var m)) { centre += ctx.At(m); live++; }
-            centre = live > 0 ? centre / live : at;
-            var dir = new Vector2(p.Position.X - centre.X, p.Position.Y - centre.Y);
-            if (dir.LengthSquared() < 1e-4f) dir = Vector2.UnitY;
-            dir = Vector2.Normalize(dir);
-            var across = new Vector2(-dir.Y, dir.X);
-            float off = (member - (n - 1) * 0.5f) * MovingInterval(n);
-            return p.Position + new Vector3(across * off, 0f);
-        }
+            Objective = p.Position, Shape = SquadMarchManeuver.ShapeWedge, Spacing = MarchSpacingMetres,
+            Speed = p.Speed > 0f ? p.Speed : 1.5f, ArrivalRadius = ArrivedMetres * 0.5f, MaxLagMetres = 10f,
+        };
 
         public unsafe MemberOrder OrderFor(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
         {
             if (ctx.Squad.PhaseId == SquadDefendManeuver.PhaseMoving)
-                return new MemberOrder
-                {
-                    // ⭐ D-13 (CE-4666, user-approved: dispersion) — each man to HIS point across the line of travel, MovingIntervalMetres apart and
-                    //   inside ArrivedMetres of the position, never all to one point: 📌 live (pc-corridor-fight) the Red Reserve's two survivors
-                    //   walked to the same point side by side, 0.5–1 m apart, for 20 s. ⛔ Was: Point = p.Position for every man
-                    Kind = MemberOrderKind.AdvanceTo, Point = MovingPoint(ref p, in ctx, member, at), Speed = p.Speed, ArrivalRadius = ArrivedMetres * 0.5f,
-                    RoleId = SquadDefendManeuver.RoleMoving,
-                };
+            {
+                // ⭐⭐ D-13 (CE-4666, user-approved: dispersion) — the move IN is the squad's MARCH (SquadMarchPlay, CE-2123): the lead walks to the
+                //   position, the others keep their WEDGE slot on him (MarchSpacingMetres), a stuck man walks in file on the lead's trail. 📌 live
+                //   (pc-corridor-fight): two men sent to points 3.7 m apart still walked their 60 m side by side, 1–1.4 m apart — a spread DESTINATION
+                //   does not space the TRAVEL. ⛔ Was: every man AdvanceTo p.Position (then: MovingPoint, a spread destination — superseded)
+                var march = MarchTo(in p);
+                var order = default(SquadMarchPlay).OrderFor(ref march, ref ws, in ctx, member, element, at);
+                order.RoleId = SquadDefendManeuver.RoleMoving;
+                return order;
+            }
             bool hasEa = EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea);
             byte post = member < DefencePosts.Capacity ? p.Posts.PostOf[member] : DefencePosts.None;
             if (p.Posts.Ready == 0 || post == DefencePosts.None || post >= p.Posts.Count)
