@@ -265,4 +265,5 @@ Rails: `BuildingEditBirthTests` (part 1) · `BuildingEditHoverTests` (4) · `Ter
 |---|---|
 | ⭐ new `te-remove-building` | after the edit: no door entity of the building; a man walks straight across the footprint (it was a wall); the ground there within 0.05 m of the building's floor height |
 | ⭐ new `te-make-enterable` | a rifleman ordered into the converted shed enters through its door and stands inside; the shed has ≥ 1 door entity |
+| ⭐ as built `2026-11-19` | ✅ `te-remove-building` PASSES (crosses the old footprint at 8.75 s, never off the line, arrives). ⚠ `te-make-enterable` is RED by [CE-5039](blueprints/Blueprint_Issues_Tracker.md): the run starts before the scenario's live overlay is baked, his first plan runs on the base mesh (the block still solid) and is never retried; loaded and run in Preview AFTER the bake he walks in through the new door and the door opens (measured over HTTP). Its checks name only the door rule's outcome (inside the footprint), not a door entity count — the grammar has no cue for one |
 | existing `bd-destruction`, `tt-dozer-breach` | unchanged (the merge without edits is byte-for-byte as today) |
