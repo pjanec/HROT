@@ -36,6 +36,19 @@ namespace Fdp.Toolkit.Behavior.Components
         Lethal = 3,
     }
 
+    /// <summary>⭐ <c>CE-3486</c> (flame FL-2, F-9, R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md) — may the unit's weapons use an INCENDIARY
+    /// munition (a flamethrower, napalm)? <see cref="IncendiaryUnset"/> ⇒ <see cref="IncendiaryAllowed"/> (a military force); a police or civil force
+    /// is held already by its force level (an incendiary round is lethal). Ordered most to least restrictive, as the other fields.</summary>
+    public enum RoeIncendiary : byte
+    {
+        /// <summary>No rule given — reads as <see cref="IncendiaryAllowed"/>. ⚠ Named, not <c>Unset</c> (the IDL's one enum scope).</summary>
+        IncendiaryUnset = 0,
+        /// <summary>Never an incendiary round.</summary>
+        IncendiaryForbidden = 1,
+        /// <summary>Incendiary rounds allowed (still never with a civilian in the flame — <c>ForceLevels.IncendiaryPermits</c>).</summary>
+        IncendiaryAllowed = 2,
+    }
+
     /// <summary>⭐ <c>CE-2074</c> (R-199 ②, R-200) — may the unit's SOP interrupt its task with a reaction?
     /// <see cref="ReactionsUnset"/> ⇒ <see cref="React"/>.</summary>
     public enum RoeReactions : byte
@@ -76,6 +89,9 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8, §5j FL-1) — the most force the unit may use; <see cref="RoeForceLevel.ForceUnset"/> ⇒
         /// <see cref="RoeForceLevel.Lethal"/>. Last, so the earlier fields keep their offsets.</summary>
         public RoeForceLevel ForceLevel;
+        /// <summary>⭐ <c>CE-3486</c> (F-9) — may its weapons use an incendiary munition; <see cref="RoeIncendiary.IncendiaryUnset"/> ⇒ allowed. Last,
+        /// so the earlier fields keep their offsets.</summary>
+        public RoeIncendiary Incendiary;
     }
 
     /// <summary>⭐ <c>CE-2074</c> — reading a unit's ROE with the defaults applied, in one place.
@@ -107,6 +123,10 @@ namespace Fdp.Toolkit.Behavior.Components
         /// <summary>⭐ <c>CE-2239</c> part 1 — the unit's force level; <see cref="RoeForceLevel.Lethal"/> when nothing in its chain set one.</summary>
         public static RoeForceLevel ForceLevel(ISimulationView view, Entity unit)
             => Decide(view, unit, static r => r.ForceLevel != RoeForceLevel.ForceUnset, out var roe) ? roe.ForceLevel : RoeForceLevel.Lethal;
+
+        /// <summary>⭐ <c>CE-3486</c> (F-9) — the unit's incendiary rule; <see cref="RoeIncendiary.IncendiaryAllowed"/> when nothing in its chain set one.</summary>
+        public static RoeIncendiary Incendiary(ISimulationView view, Entity unit)
+            => Decide(view, unit, static r => r.Incendiary != RoeIncendiary.IncendiaryUnset, out var roe) ? roe.Incendiary : RoeIncendiary.IncendiaryAllowed;
 
         /// <summary>The unit's reaction rule; <see cref="RoeReactions.React"/> when nothing in its chain set one.</summary>
         public static RoeReactions Reactions(ISimulationView view, Entity unit)

@@ -1,0 +1,139 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: a flame tank burns the men in a building THROUGH ITS OPENING (CE-3486 flame FL-2, R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md F-2, F-11): the drill puts the flame INTO the window, it does not need to see who is inside. On bt-range the 'CQB House' (one storey, its west wall at x 40, its room-C window at y 101.25..102.75 over a 0.9 m sill) holds two unarmed hostiles: 'Defender A' in room C at (44, 102), on the window's line, and 'Defender At Wall' just inside the west wall at (41.5, 103.6) - inside the jet's 5 degree cone, but with the wall, not the window, on his line from the turret. 'Flame Tank' (the M67, friend) stands 28 m west, ordered FireAtPoint with its flamethrower (mount 0) at the window, 60 fuel shots (6 s). Judge: the tank spends fuel (no round); Defender A is set alight through the window, burns and dies; Defender At Wall never burns (the wall stops the flame, the opening passes it)."
+  },
+  "entities": {
+    "c3486000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          12,
+          102.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 117
+      },
+      "EntityInfo": {
+        "Name": "Flame Tank",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Params": {
+          "x": 40.2,
+          "y": 102.0,
+          "z": 1.4,
+          "mount": 0,
+          "rounds": 60,
+          "cooldownSeconds": 0.1
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3486000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          44,
+          102.0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Defender A",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3486000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          41.5,
+          103.6,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Defender At Wall",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

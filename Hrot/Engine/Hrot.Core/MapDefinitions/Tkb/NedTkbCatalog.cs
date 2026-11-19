@@ -430,6 +430,8 @@ namespace Hrot.Map.Definitions.Tkb
         private const float RotorRange         = 3000f;   // below the ~5 km detector figure for heavy military helicopters
         private const float JetRange           = 15000f;  // the low end of a jet's 15–25 km (⚠ a non-authoritative guide)
         private const float BombBurstRange     = 10000f;  // a 1 000 kg bomb heard ~10 km (⚠ news reports)
+        /// <summary>⭐ CE-3486 — a flame tank's ROAR (heard once a second while it burns, SoundEmissionSystem); ⚠ one class per type: its coax reads as it.</summary>
+        private static readonly Report FlameRoarReport = new(Hrot.Core.Tkb.UrbanCombatTkbCatalog.FlameRoarRange * 1.5f, SoundSourceClass.Flame);
         private static readonly Report TankGunReport = new(12000f, SoundSourceClass.HeavyWeapon, Burst: 12000f, Family: SoundFamily.Gun);   // 120 / 125 mm: ≥ the 1B19 floor for guns ≤ 90 mm (12 km)
 
         /// <summary>⭐ CE-3281 — a type's sounds: its movement, and its loudest weapon's report and burst (one figure each, §8.4) — the urban
@@ -872,6 +874,55 @@ namespace Hrot.Map.Definitions.Tkb
         /// <para>🛡 Heavier than the dozer (58 t against 49 t): 70 mm front, 50 sides and rear, 40 roof, health 1500; blast susceptibility 0.1 so a mine's burst under the hull stays survivable (the AT mine's 250 damage ×
         /// 6 hits, not 1). Starter numbers — the engine decides nothing by them but the "heavier than the dozer" order and the armour law.</para>
         /// </summary>
+        /// <summary>⭐ CE-3486 (flame FL-2, F-6/F-11) — the M67 FLAME TANK: an M48 hull and turret whose gun is a FLAMETHROWER (mount 0, its fuel as rounds:
+        /// 10 a second, ~60 s of flame), the coax kept for what the flame may not reach (or the ROE forbids — the weapon choice then takes it), and
+        /// the smoke dischargers. Armour of the M48 (a heavy hull never catches fire from a flame: side ≥ ArmorModel.SoftSkinArmourMm).</summary>
+        private static void DefineFlameTank(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Tank_FlameM67;
+            builder
+                .DefineVehicle(type, "M67 flame tank")
+                .WithVisual(type, v =>
+                {
+                    v.SymbolCode = "SFGPUCIZ-------";
+                    v.ColorHex = "#4A5A2E";
+                    v.Scale = 1.1f;
+                    v.ShowLabel = true;
+                })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 48_000;
+                    p.Length = 6.9f;
+                    p.Width = 3.6f;
+                    p.Height = 3.1f;
+                    p.MaxSpeed = 13.0f; p.MaxSpeedRev = 6.0f; p.Acceleration = 1.8f; p.TurnRate = 18f;
+                    p.Mobility = TerrainMobility.Tracked;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 120; c.ArmorSide = 76; c.ArmorRear = 50; c.ArmorTop = 40; c.ArmorBottom = 25;
+                    c.MaxHealth = 2000;
+                    c.BlastSusceptibility = 0.05f;
+                    c.EyeHeight = 2.6f;
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = "M7-6_flamethrower", Category = WeaponCategory.Flamethrower, TurretIndex = 0,
+                        Ammunition = 600, MagazineSize = 600, RateOfFire = 600, Range = Hrot.Core.Tkb.MunitionTkbCatalog.TankFlameReachM, MuzzleVelocity = 40f,
+                        MuzzleOffset = new System.Numerics.Vector3(2.4f, 0f, 0f),
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel),
+                    });
+                    c.Weapons.Add(Coax(new System.Numerics.Vector3(1.0f, 0.5f, 0.1f)));
+                    c.Weapons.Add(SmokeDischargers(tubes: 8, salvos: 2));
+                    c.SensorRange = 2000;
+                })
+                .WithTurrets(type, new TurretDto { PivotX = -0.3f, PivotZ = 2.0f, TrunnionX = 1.2f,
+                    ElevationMinDeg = -9f, ElevationMaxDeg = 20f, TraverseRateDegPerSec = 24f, ElevationRateDegPerSec = 8f })
+                .WithFaction(type, 1)
+                .WithBehavior(type)
+                .WithSignatures(type, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, FlameRoarReport))
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 1, Subcategory = 20 });
+        }
+
         private static void DefineMineClearer(NedTkbBuilder builder)
         {
             const long type = TkbEntityTypes.Engineer_MineClearer;
@@ -1461,6 +1512,7 @@ namespace Hrot.Map.Definitions.Tkb
             DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
             DefineBulldozer(builder);               // ⭐ CE-6006 — the engineering dozer
             DefineMineClearer(builder);             // ⭐ CE-4624 (MS-T4, MF-9) — the mine-clearing vehicle: plough / flail / line charge
+            DefineFlameTank(builder);               // ⭐ CE-3486 (flame FL-2) — the M67 flame tank
 
             // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
             //   a Strike to it resolves to ArtilleryUnitStrike (the behaviour lane's battery play). Three M109s, placed by hand (no auto spawn).
