@@ -1,0 +1,65 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-3490 (docs/designs/air-attack/DESIGN_Breath_Attack.md \u00a75): the hover on a timber house; a brick one is never breathed on.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the dragon breathes on the timber house",
+      "on": "field",
+      "who": "Dragon",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 600,
+      "before": 60
+    },
+    {
+      "name": "it hovers low to breathe",
+      "on": "field",
+      "who": "Dragon",
+      "path": "SimTransform.Position.2",
+      "op": "<",
+      "value": 15,
+      "before": 60
+    },
+    {
+      "name": "the man in the timber house burns",
+      "on": "field",
+      "who": "Hut Man",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "before": 80
+    },
+    {
+      "name": "the man in the timber house dies",
+      "on": "field",
+      "who": "Hut Man",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 118
+    },
+    {
+      "name": "the brick dragon never breathes",
+      "never": {
+        "on": "field",
+        "who": "Brick Dragon",
+        "path": "WeaponAmmo.Ammo0",
+        "op": "<",
+        "value": 600
+      }
+    },
+    {
+      "name": "the man in the brick shed is never hurt",
+      "never": {
+        "on": "field",
+        "who": "Shed Man",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    }
+  ]
+}

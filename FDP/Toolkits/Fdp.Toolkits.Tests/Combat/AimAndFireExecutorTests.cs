@@ -625,16 +625,17 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
             var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
             _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, mount, 0L, target), "no one in the flame");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, mount, 0L, target), "no one in the flame");
 
             var past = Neutral(new Vector3(30f, 0f, 0f), person: true);   // 10 m BEYOND the target, inside the 40 m reach
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, mount, 0L, target), "the flame goes on past the target");
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, rifle, 0L, target), "a rifle is not a flame");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, mount, 0L, target), "the flame goes on past the target");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, rifle, 0L, target), "a rifle is not a flame");
             Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f), "the bullet's line stops at the target");
             _world.AddComponent(past, new Health { Current = 0f, Max = 100f });
 
             Neutral(new Vector3(35f, 3f, 0f), person: true);    // 3 m off the axis at 35 m: the 6° cone is ±3.7 m there
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, mount, 0L, new Vector3(20f, 0f, 0f)), "inside the cone, toward a point");
+            //   ⭐ CE-3490 BA-6 — the hold is the 3-D jet FlameSystem burns with: aimed at chest height (a jet aimed at the GROUND 20 m out is under it at 35 m)
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, mount, 0L, new Vector3(20f, 0f, 1f)), "inside the cone, toward a point");
         }
 
         /// <summary>

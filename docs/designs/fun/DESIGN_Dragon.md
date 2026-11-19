@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-11-19 (R-3112); nothing built — D-1 next; DR-8 (the attack pattern) to be DESIGNED (CE-3490)
 updated: 2026-11-19
-build-state: BUILDING — ✅ D-1 BUILT (§7); READY-TO-BUILD D-3, D-4 (ui), D-5 · DESIGN D-2 (DR-8's attack pattern, CE-3490)
+build-state: BUILDING — ✅ D-1 BUILT (§7); ✅ D-2's breath attack BUILT (CE-3490, DESIGN_Breath_Attack §7); READY-TO-BUILD D-3, D-4 (ui), D-5
 current-answer: §0 the picture · §2 decisions DR-1…DR-12 (approved R-3112) · §3 UML · §5 slices and scenarios · §7 D-1 as built
 stale-below: none
 known-rot: none
@@ -177,7 +177,7 @@ scheduled, so nothing can be unreachable on a host.
 | slice | lane | builds | scenario — what it proves |
 |---|---|---|---|
 | **D-1** the beast | backend | ⚠ first: measure the operator trigger on a flame (fix the path if dark); the type (DR-1…DR-4, DR-7); DR-5 the mouth; DR-6 the riders; the sound | `dr-dragon-flight` — takes off, flies a route, LANDS on its Ground waypoint, takes off again (`Airborne` 1 → 0 → 1) · `dr-dragon-breath` — a `FireAtPoint` order: the men in the cone burn, the man behind a brick wall does not, the pillion rider is never burnt by his own dragon, a hostile flamer cannot burn the dragon |
-| **D-2** the hunt | behaviors | ⏸ after CE-3490's design: DR-8 the breath attack; DR-9 the brain's verbs | `dr-dragon-attack` — `AirPlatformAttack` on a squad in the open: the dragon runs in, burns it, climbs out; a squad 200 m off untouched · `dr-dragon-village` — a timber house set alight by the breath (FL-4), a brick one never |
+| **D-2** the hunt | ✅ exp/agg-backend `2026-11-19` (R-8012) — DR-8 the breath attack BUILT ([DESIGN_Breath_Attack.md](../air-attack/DESIGN_Breath_Attack.md) §7; `dr-dragon-attack` / `-village` / `-holds` pass); DR-9 the brain's verbs still open | ⏸ after CE-3490's design: DR-8 the breath attack; DR-9 the brain's verbs | `dr-dragon-attack` — `AirPlatformAttack` on a squad in the open: the dragon runs in, burns it, climbs out; a squad 200 m off untouched · `dr-dragon-village` — a timber house set alight by the breath (FL-4), a brick one never |
 | **D-3** the gunner | behaviors | the pillion's arc on a flyer (`InStationArc` from a moving, tilting body) | `dr-pillion-fires` — the dragon overflies an enemy squad on a route; its AI pillion opens fire inside his arc only; the rider never fires |
 | **D-4** the look | ui | DR-11, mockup first | rails on the kit (wing pose by speed, folded when landed, rider seated) |
 | **D-5** air defence *(fun)* | behaviors | none expected — DR-2 | `dr-shoot-the-dragon` — a ZU-23 engages a dragon flying past (it is an aircraft), it is hurt and lands or falls |

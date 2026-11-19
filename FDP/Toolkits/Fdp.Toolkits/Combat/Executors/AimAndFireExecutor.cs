@@ -265,7 +265,7 @@ namespace Fdp.Toolkit.Combat.Executors
             //   at his range: held the same way, so the round leaves the moment he is clear
             //   ⭐ CE-3486 (flame F-9, Protocol III) — a flamethrower: nor while one is anywhere in the FLAME it would throw (its whole reach and cone)
             if (!bomb && (LineOfFire.BlockedByNeutral(world, platform, p.Target, HitModel.Sigma(world, platform, mountDto, HitModel.Now(world)))
-                          || LineOfFire.NeutralInFlame(world, platform, mountDto, loadedAmmo, p.Target)))
+                          || LineOfFire.NeutralInFlame(world, platform, platformMount, mountDto, loadedAmmo, p.Target)))
             {
                 channel.Status = NodeStatus.Running;
                 Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target);
@@ -473,7 +473,7 @@ namespace Fdp.Toolkit.Combat.Executors
             if (BodyAim.OutsideFixedCone(world, entity, mountDto, point)) { SayAt(world, entity, ActionReason.OutOfArc, point); return; }   // ⭐ Air Ops 6a (AW-1)
             if (LineOfFire.BlockedByFriendly(world, shooter, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
             if (LineOfFire.BlockedByNeutral(world, shooter, point, HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world)))
-                || LineOfFire.NeutralInFlame(world, shooter, mountDto, loadedAmmo, point))   // ⭐ CE-3486 (flame F-9)
+                || LineOfFire.NeutralInFlame(world, shooter, mountIndex, mountDto, loadedAmmo, point))   // ⭐ CE-3486 (flame F-9)
             { Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target); return; }   // ⭐ AW-20
             if (ShotLedger.Held(in weapon, out var refused)) { Say(world, entity, HoldReasonOf(refused), p.Target); return; }   // ⭐ CE-2218 → Q94 A-4: the muscle's refusal
             if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, entity, point)) { SayAt(world, entity, ActionReason.HoldNoFireArea, point); return; }   // ⭐ CE-2282

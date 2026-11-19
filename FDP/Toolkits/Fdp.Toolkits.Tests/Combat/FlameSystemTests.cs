@@ -148,6 +148,38 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.True(Burning(stranger));
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3490</c> BA-S1 (DESIGN_Breath_Attack BA-6) — the Protocol III hold judges THE jet this system burns with: a flyer 12 m up whose mouth is 10 m ahead
+        /// of its body holds its breath for a neutral 45 m from the body (35 m along the slant from the mouth, inside the 40 m reach) — and that man WOULD burn; a
+        /// neutral 58 m out (beyond the reach from the mouth) holds nothing and never burns. 🔴 Red-proof: the old hold (2-D, 40 m from the body's centre) misses
+        /// the 45 m man.
+        /// </summary>
+        [Fact]
+        public void CE3490_TheBreathHold_CoversTheJetFromTheMouth_InThreeD()
+        {
+            _w.RegisterComponent<EntityInfo>();
+            var flyer = Carrier(mouthAheadM: 10f);
+            _w.GetComponentRW<SimTransform>(flyer).Position = new Vector3(50, 100, 12);
+            _w.AddComponent(flyer, new EntityInfo { ForceId = ForceId.Hostile });
+            var aim = new Vector3(85, 100, 1);
+            var mount = CombatTkb.MountOf(_w, flyer, 0);
+            Entity Neutral(float x)
+            {
+                var e = Body(Rifleman, new Vector3(x, 100, 0), VehicleClass.Pedestrian);
+                _w.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });
+                _w.AddComponent(e, new PhysicsCollider { Radius = 0.4f });
+                return e;
+            }
+            var far = Neutral(108f);
+            Assert.False(LineOfFire.NeutralInFlame(_w, flyer, 0, mount, 0L, aim), "58 m out: beyond the reach from the mouth");
+            var near = Neutral(95f);
+            Assert.True(LineOfFire.NeutralInFlame(_w, flyer, 0, mount, 0L, aim), "45 m from the body, 35 m along the slant from the mouth");
+            _w.GetComponentRW<WeaponPosture>(flyer).Point = aim;
+            Fire(0.5);
+            Assert.True(Burning(near), "the man the hold protects is the man the jet burns");
+            Assert.False(Burning(far));
+        }
+
         private FlameJets.Jet FlameJet() => FlameJets.TryGet(_w, _thrower, _now, out var jet) ? jet : throw new InvalidOperationException("no lit jet");
 
         [Fact]

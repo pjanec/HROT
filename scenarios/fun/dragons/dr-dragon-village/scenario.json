@@ -1,0 +1,250 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: the dragon's HOVER on a building (CE-3490 BA-4, BA-5). On basic-desert a 'Timber House' (timber-house template, SW corner at (300, 300)) with 'Hut Man' inside, and a 'Brick Shed' (shed template, brick, at (300, 420)) with 'Shed Man' inside. 'Dragon' (40 m up at (100, 300)) is ordered AirPlatformStrike (Building) on the timber house; 'Brick Dragon' (at (100, 420)) on the brick shed. Judge: the Dragon breathes on the timber house from a low hover and the house burns \u2014 Hut Man burns from the building's fire and dies; the Brick Dragon never breathes (its strike fails at once: brick does not burn) and Shed Man is never hurt."
+ },
+ "entities": {
+  "d3490002-0000-4000-8000-000000000001": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "TerrainFeature": {
+    "Kind": 1,
+    "Template": "timber-house",
+    "HeadingDeg": 0,
+    "Pad": 0,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     300,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EntityInfo": {
+    "Name": "Timber House",
+    "ForceId": "Neutral"
+   }
+  },
+  "d3490002-0000-4000-8000-000000000002": {
+   "TkbIdentity": {
+    "TkbType": 8818
+   },
+   "TerrainFeature": {
+    "Kind": 1,
+    "Template": "shed",
+    "HeadingDeg": 0,
+    "Pad": 0,
+    "Seed": 0
+   },
+   "SimTransform": {
+    "Position": [
+     300,
+     420,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "EntityInfo": {
+    "Name": "Brick Shed",
+    "ForceId": "Neutral"
+   }
+  },
+  "d3490002-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     306.5,
+     305,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Hut Man",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490002-0000-4000-8000-000000000012": {
+   "SimTransform": {
+    "Position": [
+     303,
+     422.5,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Shed Man",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490002-0000-4000-8000-000000000021": {
+   "SimTransform": {
+    "Position": [
+     100,
+     300,
+     40
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 411
+   },
+   "EntityInfo": {
+    "Name": "Dragon",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Behavior": {
+    "Name": "AirPlatformStrike",
+    "Params": {
+     "Location": [
+      304,
+      303,
+      0
+     ],
+     "TargetKind": "Building"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490002-0000-4000-8000-000000000022": {
+   "SimTransform": {
+    "Position": [
+     100,
+     420,
+     40
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 411
+   },
+   "EntityInfo": {
+    "Name": "Brick Dragon",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Behavior": {
+    "Name": "AirPlatformStrike",
+    "Params": {
+     "Location": [
+      304,
+      423,
+      0
+     ],
+     "TargetKind": "Building"
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

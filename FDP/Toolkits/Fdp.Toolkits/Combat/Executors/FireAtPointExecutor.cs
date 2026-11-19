@@ -321,7 +321,7 @@ namespace Fdp.Toolkit.Combat.Executors
             //   false — decides himself, as for the neutral target, CE-2233)
             if (obeyRoe && CombatTkb.MountOf(world, firing, mountIndex) is var aimed && roundWarhead is not { Indirect: true }
                 && (LineOfFire.BlockedByNeutral(world, unit, point, HitModel.Sigma(world, firing, aimed, HitModel.Now(world)))
-                    || LineOfFire.NeutralInFlame(world, unit, aimed, ammo, point)))   // ⭐ CE-3486 (flame F-9) — a flame: its whole cone
+                    || LineOfFire.NeutralInFlame(world, unit, mountIndex, aimed, ammo, point)))   // ⭐ CE-3486 (flame F-9) — a flame: its whole cone
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNeutralOnLine;
             // ⭐ CE-2282 DA-L — the AI's round never ends inside a NoFire area of its chain (an operator — obeyRoe false — decides himself)
             if (obeyRoe && Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, unit, point))
