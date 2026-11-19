@@ -16,4 +16,15 @@ related-designs:
 | **how it lands** | on `terrain`, a cross-lane edit named in the commit message, with a rail in your suites + `mf-clear-lane-and-cross` passing; ⭐ the design fold-back goes in the owning design |
 | **if you've already started** | tell the user — terrain stops and keeps the scenario side only |
 
-⏳ **Status:** started.
+✅ **Status: the fix landed — terrain `4dd1b818e`.**
+
+| | |
+|---|---|
+| **the cause** | `BasicSquadSop`'s `UnderCommand` row (CE-2358, *"the platoon reacts for the squad"* — true ⇒ the row wins, nothing ordered) stood ABOVE the `MinefieldAhead` row ⇒ a squad under a live HQ never reached it. ⚠ MS-B5 sends the Engineers request UP the chain, so the asking squad ALWAYS has a commander: the two rulings were never reconciled |
+| **the fix** | the minefield row moved ABOVE `UnderCommand`, beside the carrier rows that already "stay the squad's own"; `UnderCommand`'s comment names it |
+| **the rail** | `SquadManeuverTests.CE5040_BasicSquadSop_UnderALivePlatoon_AMinefieldAhead_StillHalts_AndCallsTheEngineers` — red-proved (row back below ⇒ red); MS-B4 + CE-2358 rails green (4/4) |
+| **measured** | `mf-clear-lane-and-cross`: S3 `MinefieldAhead` at 159 s, S4 `ReconMinefield` at 162 s, no second mine |
+| ⭐ **not changed** | `ReconMinefield`'s pace (MS-B2: ~75 s per 10 m cell, by design) — the scenario now places its engineers 40 m short and runs 2000 s |
+
+⚠ **FYI, not caused by this:** `mf-no-way-round` (no commander) fails its `MinefieldAhead` row on today's tree — the squad stalls ~40 m along its route
+short of the field at 120 s (it halted at 111 s on `2026-11-18`). Being bisected by terrain now.
