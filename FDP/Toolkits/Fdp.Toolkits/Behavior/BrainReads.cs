@@ -37,6 +37,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.StaticObstacle>();             // CE-7012 — the dozer's blocker (nobody writes it in the phase)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.ObstacleShape>();               // — and its box (its nearest face)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Animals.HerdState>();               // ⭐ CE-4623 AB-4 — an animal's herd (the HerdSystem writes it serially, before the phase)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Creatures.Group>();                 // ⭐ CE-4628 — the herd's header (count, centre, lead): the HerdSystem writes it serially, before the phase, with the HerdState
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Animals.AnimalState>();             // ⭐ CE-4623 AB-5 — "is that animal attacking?" (ThreatDanger.IsNeutral), and a guard dog's own; tick-start copy
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.CombatProficiency>(); // CE-2278 — a squad leader asks whether a man is Regular+ (nobody writes it in the phase)
             // ⭐ CE-7035 (X-1) — measured by the drills under HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 (78 of 244 red): a squad play reads its MEMBERS.

@@ -1,6 +1,7 @@
 using System;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Tkb.Domain;
 
@@ -55,15 +56,16 @@ namespace Fdp.Toolkit.Civilians
         public void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo) return;
-            bool civilians = repo.IsComponentTypeRegistered<CivilianState>();
-            bool animals = repo.IsComponentTypeRegistered<Animals.Fear>() && repo.IsComponentTypeRegistered<Animals.AnimalState>();   // ⭐ CE-4623 AB-3
+            bool fears = repo.IsComponentTypeRegistered<Fear>();   // ⭐ CE-4628 — the ONE shared fear: a civilian's and an animal's
+            bool civilians = fears && repo.IsComponentTypeRegistered<CivilianState>();
+            bool animals = fears && repo.IsComponentTypeRegistered<Animals.AnimalState>() && repo.IsComponentTypeRegistered<Animals.AnimalTasks>();   // ⭐ CE-4623 AB-3
             if (!civilians && !animals) return;
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : repo.SimulationTime;
 
             if (repo.Bus.IsRegistered<SoundContactEvent>())
                 foreach (ref readonly var heard in repo.ReadEvents<SoundContactEvent>())
                 {
-                    if (animals && repo.IsAlive(heard.Observer) && repo.HasComponent<Animals.Fear>(heard.Observer))
+                    if (animals && repo.IsAlive(heard.Observer) && repo.HasComponent<Animals.AnimalState>(heard.Observer) && repo.HasComponent<Fear>(heard.Observer))
                     {   // ⭐ CE-4623 AB-3 — an animal: the same table, its temperament (a fearless one only flinches at a blast)
                         float far = DistanceTo(repo, heard.Observer, heard.X, heard.Y);
                         Animals.AnimalFear.Frighten(repo, heard.Observer,
@@ -83,17 +85,17 @@ namespace Fdp.Toolkit.Civilians
                     Frighten(repo, heard.Observer, impulse, now);
                     if (impulse > 0f)
                     {
-                        ref var mind = ref repo.GetComponentRW<CivilianState>(heard.Observer);   // ⭐ CE-2236 — where it came from
-                        mind.FrightFrom = new System.Numerics.Vector3(heard.X, heard.Y, heard.Z);
-                        mind.HasFrightFrom = 1;
-                        mind.HeardAt = (SimInstant)now;   // ⭐ CE-2237 — heard, not caught from his crowd
+                        ref var fear = ref repo.GetComponentRW<Fear>(heard.Observer);   // ⭐ CE-2236 — where it came from
+                        fear.FrightFrom = new System.Numerics.Vector3(heard.X, heard.Y, heard.Z);
+                        fear.HasFrightFrom = 1;
+                        fear.HeardAt = (SimInstant)now;   // ⭐ CE-2237 — heard, not caught from his crowd
                     }
                 }
 
             if (repo.Bus.IsRegistered<SensorChangedEvent>())
                 foreach (var change in repo.ReadEvents<SensorChangedEvent>())
                 {
-                    if (animals && repo.IsAlive(change.Unit) && repo.HasComponent<Animals.Fear>(change.Unit))
+                    if (animals && repo.IsAlive(change.Unit) && repo.HasComponent<Animals.AnimalState>(change.Unit) && repo.HasComponent<Fear>(change.Unit))
                     {   // ⭐ CE-4623 AB-3 — a round past it or into it (a fearless one too: it was HIT)
                         if (change.What == SensorChange.NearMiss && !(Animals.AnimalFear.TemperamentOf(repo, change.Unit)?.Fearless ?? false))
                             Animals.AnimalFear.Frighten(repo, change.Unit, CivilianFear.NearMissImpulse, now, null);
@@ -111,12 +113,12 @@ namespace Fdp.Toolkit.Civilians
             if (civilians && repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.EffectState>())
             {
                 double effectsNow = Fdp.Toolkit.Combat.HitModel.Now(repo);
-                foreach (var e in repo.Query().With<CivilianState>().With<Fdp.Toolkit.Combat.EffectState>().Build())
+                foreach (var e in repo.Query().With<CivilianState>().With<Fear>().With<Fdp.Toolkit.Combat.EffectState>().Build())
                 {
                     ref readonly var fx = ref repo.GetComponentRO<Fdp.Toolkit.Combat.EffectState>(e);
                     double until = Math.Max(fx.StunnedUntil, fx.IrritatedUntil);
-                    if (until <= effectsNow || until <= repo.GetComponentRO<CivilianState>(e).EffectFrightUntil) continue;
-                    repo.GetComponentRW<CivilianState>(e).EffectFrightUntil = (SimInstant)until;
+                    if (until <= effectsNow || until <= repo.GetComponentRO<Fear>(e).EffectFrightUntil) continue;
+                    repo.GetComponentRW<Fear>(e).EffectFrightUntil = (SimInstant)until;
                     Frighten(repo, e, CivilianFear.EffectImpulse, now);
                 }
             }
@@ -124,11 +126,11 @@ namespace Fdp.Toolkit.Civilians
             if (civilians)
             {
                 float fade = CivilianFear.DecayPerSecond * deltaTime;
-                foreach (var e in repo.Query().With<CivilianState>().Build())
+                foreach (var e in repo.Query().With<CivilianState>().With<Fear>().Build())
                 {
-                    ref var mind = ref repo.GetComponentRW<CivilianState>(e);
-                    if (mind.LastFrightAt == now) continue;   // ⭐ a fright this frame is not faded in the same frame
-                    mind.Fear = MathF.Max(0f, mind.Fear - fade);
+                    ref var fear = ref repo.GetComponentRW<Fear>(e);
+                    if (fear.LastFrightAt == now) continue;   // ⭐ a fright this frame is not faded in the same frame
+                    fear.Value = MathF.Max(0f, fear.Value - fade);
                 }
             }
 
@@ -154,45 +156,41 @@ namespace Fdp.Toolkit.Civilians
         private void StepAnimals(EntityRepository repo, double now, float dt)
         {
             int nThreats = -1;   // gathered lazily
-            bool homes = repo.IsComponentTypeRegistered<Animals.AnimalHome>();
-            foreach (var a in repo.Query().With<Animals.Fear>().With<Animals.AnimalState>().Build())
+            bool homes = repo.IsComponentTypeRegistered<Home>();
+            foreach (var a in repo.Query().With<Fear>().With<Animals.AnimalState>().With<Animals.AnimalTasks>().Build())
             {
                 var t = Animals.AnimalFear.TemperamentOf(repo, a);
-                ref var f = ref repo.GetComponentRW<Animals.Fear>(a);
-                if (now >= f.NextZoneLookAt && t != null && repo.HasComponent<SimTransform>(a) && Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, a))
+                ref var f = ref repo.GetComponentRW<Fear>(a);
+                ref var tasks = ref repo.GetComponentRW<Animals.AnimalTasks>(a);
+                if (now >= tasks.NextZoneLookAt && t != null && repo.HasComponent<SimTransform>(a) && Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, a))
                 {
-                    f.NextZoneLookAt = (SimInstant)(now + Animals.AnimalFear.ZoneLookSeconds);
+                    tasks.NextZoneLookAt = (SimInstant)(now + Animals.AnimalFear.ZoneLookSeconds);
                     if (nThreats < 0) nThreats = GatherThreats(repo);
                     var here = (System.Numerics.Vector3)repo.GetComponentRO<SimTransform>(a).Position;
                     var seen = new ReadOnlySpan<Animals.AnimalFear.Threat>(_threats, 0, nThreats);
                     Animals.AnimalFear.LookRound(ref f, t, here, seen, now);
                     if (t.Ranges)   // ⭐ CE-4649 part D (AN-21f) — the hunting dog's handler and quarry, for its brain
                     {
-                        f.Handler = NearestHunter(here);
-                        f.Quarry = NearestQuarry(repo, a, here);
+                        tasks.Handler = NearestHunter(here);
+                        tasks.Quarry = NearestQuarry(repo, a, here);
                     }
                     if (t.Territorial)   // ⭐ AB-5 — the guard dog's ground
                     {
-                        bool hasHome = homes && repo.HasComponent<Animals.AnimalHome>(a);
-                        var home = hasHome ? repo.GetComponentRO<Animals.AnimalHome>(a) : default;
-                        f.Intruder = Animals.AnimalFear.FindIntruder(here, hasHome, in home, seen);
+                        bool hasHome = homes && repo.HasComponent<Home>(a);
+                        var home = hasHome ? repo.GetComponentRO<Home>(a) : default;
+                        tasks.Intruder = Animals.AnimalFear.FindIntruder(here, hasHome, in home, seen);
                     }
                 }
                 Animals.AnimalFear.Fade(ref f, t, now, dt);
-                byte band = Animals.AnimalFear.Band(f.Value);
-                bool bolting = t != null && Animals.AnimalFear.UpdateBolt(ref f, t, now);   // ⭐ AB-5 — the ridden horse
+                bool bolting = t != null && Animals.AnimalFear.UpdateBolt(in f, ref tasks, t, now);   // ⭐ AB-5 — the ridden horse
                 ref readonly var st = ref repo.GetComponentRO<Animals.AnimalState>(a);
                 var flags = bolting ? st.Flags | Animals.AnimalFlags.Bolting : st.Flags & ~Animals.AnimalFlags.Bolting;
-                if (st.FearBand != band || st.Flags != flags)
-                {
+                if (st.Flags != flags)
+                {   // ⭐ CE-4628 — the fear band is no longer kept here (the replicated Mood carries how it seems; the lead writes it)
                     ref var w = ref repo.GetComponentRW<Animals.AnimalState>(a);
-                    w.FearBand = band;
-                    if (w.Flags != flags)
-                    {
-                        w.Flags = flags;   // ⭐ replicated: every node's HUD shows the bolt; the local action row says why the controls went
-                        if (bolting) Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Locomotion(repo, a, 0, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Bolting,
-                            0f, Animals.AnimalFear.BoltSeconds);
-                    }
+                    w.Flags = flags;   // ⭐ replicated: every node's HUD shows the bolt; the local action row says why the controls went
+                    if (bolting) Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Locomotion(repo, a, 0, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Bolting,
+                        0f, Animals.AnimalFear.BoltSeconds);
                 }
             }
         }
@@ -216,7 +214,7 @@ namespace Fdp.Toolkit.Civilians
             {
                 if (o == dog) continue;
                 ref readonly var st = ref repo.GetComponentRO<Animals.AnimalState>(o);
-                if (st.Mode != Animals.AnimalMode.Flee || st.Species == Animals.AnimalSpecies.HuntingDog) continue;
+                if (st.Mode != Animals.AnimalMode.Flee || (Animals.AnimalSpeciesOf.TryOf(repo, o, out var sp) && sp == Animals.AnimalSpecies.HuntingDog)) continue;
                 var p = (System.Numerics.Vector3)repo.GetComponentRO<SimTransform>(o).Position;
                 float dx = p.X - here.X, dy = p.Y - here.Y, d = dx * dx + dy * dy;
                 if (d < bestD) { bestD = d; best = o; }
@@ -237,7 +235,7 @@ namespace Fdp.Toolkit.Civilians
                 if (cls == global::CarKinem.Core.VehicleClass.Quadruped)                         // animals do not frighten animals (the dog: AB-5) — ⭐ CE-4649 part D (AN-21f): but a HUNTING dog frightens game
                 {
                     if (!repo.IsComponentTypeRegistered<Animals.AnimalState>() || !repo.HasComponent<Animals.AnimalState>(e)
-                        || repo.GetComponentRO<Animals.AnimalState>(e).Species != Animals.AnimalSpecies.HuntingDog) continue;
+                        || !Animals.AnimalSpeciesOf.TryOf(repo, e, out var species) || species != Animals.AnimalSpecies.HuntingDog) continue;
                 }
                 if (aboardKnown && repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) continue;   // seated: his carrier counts
                 if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, e)) continue;                  // a body on the ground frightens nothing
@@ -274,16 +272,16 @@ namespace Fdp.Toolkit.Civilians
         private static bool IsAfraidKind(EntityRepository repo, Entity unit)
         {
             if (!repo.IsAlive(unit)) return false;
-            if (repo.HasComponent<CivilianState>(unit)) return true;
-            return Fdp.Toolkit.Combat.Armament.IsCivilianClass(repo.GetDisType(unit)) && CivilianMind.Ensure(repo, unit);
+            if (repo.HasComponent<CivilianState>(unit) && repo.HasComponent<Fear>(unit)) return true;
+            return (repo.HasComponent<CivilianState>(unit) || Fdp.Toolkit.Combat.Armament.IsCivilianClass(repo.GetDisType(unit))) && CivilianMind.Ensure(repo, unit);
         }
 
         private static void Frighten(EntityRepository repo, Entity unit, float impulse, double now)
         {
             if (impulse <= 0f) return;
-            ref var mind = ref repo.GetComponentRW<CivilianState>(unit);
-            mind.Fear = MathF.Min(1f, mind.Fear + impulse);
-            mind.LastFrightAt = (SimInstant)now;
+            ref var fear = ref repo.GetComponentRW<Fear>(unit);
+            fear.Value = MathF.Min(1f, fear.Value + impulse);
+            fear.LastFrightAt = (SimInstant)now;
         }
     }
 }

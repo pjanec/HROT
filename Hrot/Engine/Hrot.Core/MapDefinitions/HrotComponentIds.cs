@@ -52,9 +52,8 @@ namespace Hrot.Map.Definitions
         public const byte RouteTrajectoryCache = 170;
 
 
-        // IDs 163 are reserved (see note below).
-        // NOTE: InFormationTag (formerly 163) has been moved to FDP.Toolkit.Navigation
-        //       (GlobalComponentIds.InFormationTag = 70) as part of CT-MOD1-I executor migration.
+        // ID 163 is now AnimalTasks (GlobalComponentIds.AnimalTasks, CE-4628): InFormationTag (formerly 163) was moved to FDP.Toolkit.Navigation
+        //       (GlobalComponentIds.InFormationTag = 70) as part of CT-MOD1-I executor migration, which freed the id.
 
         // ── Zone authoring components (PACK3 / A011) ────────────────────────
 

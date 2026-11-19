@@ -1278,7 +1278,8 @@ namespace Hrot.NED.Descriptors
     }
 
     // ⭐ CE-4623 AB-3 (docs/designs/animals/DESIGN_Animals.md §6.1) — an animal's state as every node sees it (its brain node writes it): the
-    //   mode, the fear band, the species, the flags. 4 bytes of payload, sent on change.
+    //   mode, the fear band, the species, the flags. 4 bytes of payload, sent on change. ⭐ CE-4628: the ECS component keeps only Mode and Flags (the band is the replicated
+    //   Mood, the species the TKB type's) — FearBand and Species stay here as the wire's own fields (R-4295), written 0 and ignored on ingress.
     [DdsTopic]
     [DdsIdlFile("hrot-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]

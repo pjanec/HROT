@@ -47,38 +47,27 @@ namespace Fdp.Toolkit.Animals
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-4623</c> AB-3 (AR-3, AR-4) — an ANIMAL's fear, kept by the ONE fear system (<c>CivilianFearSystem</c>) beside a civilian's
-    /// (which stays on <c>CivilianState</c>, unchanged — L-A8). Written on the animal's brain node only; ⛔ not replicated — every other node
-    /// sees the band on <see cref="AnimalState.FearBand"/>. 0 = calm … 1 = blind panic.
+    /// ⭐⭐ <c>CE-4628</c> — what ONLY an animal keeps beside its <see cref="Fdp.Toolkit.Creatures.Fear"/> (the non-fear fields that sat on the old animal <c>Fear</c>): the person it
+    /// guards against, its hunting dog's handler and quarry, the bolt of a ridden horse, the flight-zone look schedule. Written by the one fear
+    /// system's serial step, read by the animal's brain. ⛔ BRAIN-LOCAL: never replicated, never saved. Added WITH <see cref="AnimalState"/> (<c>AnimalTkbTranslator</c>).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.Fear)]
+    [ComponentId(GlobalComponentIds.AnimalTasks)]
     [DataPolicy(DataPolicy.NoScenario)]   // ⭐ AB-10 — run-time state: recorded and snapshotted, never written into a saved scenario (rebuilt at run start)
-    public struct Fear
+    public struct AnimalTasks
     {
-        /// <summary>0 = calm … 1 = blind panic.</summary>
-        public float Value;
-        /// <summary>Where the last fright came from (a shot, the man walking up, the tank) — it runs AWAY from here.</summary>
-        public WorldPoint FrightFrom;
-        /// <summary>Sim seconds of the last fright (a fright this frame is not faded in the same frame).</summary>
-        public SimInstant LastFrightAt;
-        /// <summary>Sim seconds of the next flight-zone look (the zone is looked at ~5 times a second, not every frame).</summary>
-        public SimInstant NextZoneLookAt;
         /// <summary>⭐ AB-5 — a TERRITORIAL animal's intruder: the nearest person on its ground (the guard dog's bark and bite), Null = none.</summary>
         public Entity Intruder;
         /// <summary>⭐ CE-4649 part D (AN-21f) — a HUNTING DOG's handler (the nearest hunter) and quarry (the nearest game animal in flight): written by the fear system's serial step, read by the dog's brain. Null = none.</summary>
         public Entity Handler, Quarry;
         /// <summary>⭐ AB-5 — a ridden horse bolts until this sim time (0 = not bolting).</summary>
         public SimInstant BoltUntil;
-        /// <summary>1 once <see cref="FrightFrom"/> holds a place.</summary>
-        public byte HasFrightFrom;
-        /// <summary>1 when the last fright was the FLIGHT ZONE (a threat seen near), 0 when it was heard or felt.</summary>
-        public byte Seen;
-        private byte _pad0, _pad1;
+        /// <summary>Sim seconds of the next flight-zone look (the zone is looked at ~5 times a second, not every frame).</summary>
+        public SimInstant NextZoneLookAt;
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-4623</c> §6.1 — an animal's state as every node sees it: written on the animal's brain node, REPLICATED. 4 bytes.
+    /// ⭐⭐ <c>CE-4623</c> §6.1 — an animal's state as every node sees it: written on the animal's brain node, REPLICATED. 2 bytes. ⭐ <c>CE-4628</c>: its species is read from the TKB (<see cref="AnimalSpeciesOf"/>), its fear band is the replicated <c>Mood</c>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.AnimalState)]
@@ -86,9 +75,6 @@ namespace Fdp.Toolkit.Animals
     public struct AnimalState
     {
         public AnimalMode Mode;
-        /// <summary>0 calm · 1 uneasy · 2 frightened · 3 panic — the shared <c>Fear</c> value in bands.</summary>
-        public byte FearBand;
-        public AnimalSpecies Species;
         public AnimalFlags Flags;
     }
 
@@ -114,48 +100,16 @@ namespace Fdp.Toolkit.Animals
         private ushort _pad1;
     }
 
-    /// <summary>⭐ <c>CE-4623</c> (AR-9) — an animal's herd (a light herd entity, NEVER a <c>UnitRoster</c>). 8 bytes.</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.HerdMember)]
-    [DataPolicy(DataPolicy.NoScenario)]   // ⭐ AB-10 — run-time state: recorded and snapshotted, never written into a saved scenario (rebuilt at run start)
-    public struct HerdMember
-    {
-        public Entity Herd;
-    }
-
-    /// <summary>
-    /// ⭐ <c>CE-4623</c> (AN-5, AN-16, AR-16) — an animal's HOME: the centre it keeps to and the radius it wanders within; an optional TETHER (a dog's
-    /// chain: the length it can NEVER exceed, enforced on the motion). <see cref="Enclosed"/> = an enclosed pen it never leaves (AN-18).
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.AnimalHome)]
-    [DataPolicy(DataPolicy.NoScenario)]   // ⭐ AB-10 — run-time state: recorded and snapshotted, never written into a saved scenario (rebuilt at run start)
-    public struct AnimalHome
-    {
-        public WorldPoint Centre;
-        public float Radius;
-        /// <summary>0 = no tether; else the chain's length from <see cref="Centre"/> (m).</summary>
-        public float TetherMetres;
-        /// <summary>The area entity it was populated from (Null for an authored one).</summary>
-        public Entity Area;
-        public byte Enclosed;
-        private byte _pad0;
-        private ushort _pad1;
-    }
-
-    /// <summary>⭐ <c>CE-4623</c> (AR-9) — a herd entity's state: its centre, the grazing spot it is heading for, its lead animal, its mode.</summary>
+    /// <summary>⭐ <c>CE-4623</c> (AR-9) — a herd entity's state: the grazing spot it is heading for, its mode, its species (a runtime herd has no TKB type). ⭐ <c>CE-4628</c>: its centre, lead and
+    /// member count are the herd entity's <see cref="Fdp.Toolkit.Creatures.Group"/> (Kind Herd).</summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.HerdState)]
     [DataPolicy(DataPolicy.NoScenario)]   // ⭐ AB-10 — run-time state: recorded and snapshotted, never written into a saved scenario (rebuilt at run start)
     public struct HerdState
     {
-        public WorldPoint Centre;
         public WorldPoint NextGrazing;
-        public Entity Lead;
         public AnimalMode Mode;
         public AnimalSpecies Species;
-        /// <summary>⭐ AB-8 — its living members (the herd's call throttle reads it; was padding).</summary>
-        public ushort Members;
     }
 
     /// <summary>

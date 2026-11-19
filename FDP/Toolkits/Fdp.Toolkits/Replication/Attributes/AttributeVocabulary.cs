@@ -65,10 +65,10 @@ public static class AttributeVocabulary
         new("ScenarioStartUtcTicks",    AttributeIds.ScenarioStartUtcTicks,    AttributeValueKind.CsInt64, typeof(Fdp.Toolkit.Weather.ScenarioClock), Unit: "ticks"),
         new("ScenarioUtcOffsetMinutes", AttributeIds.ScenarioUtcOffsetMinutes, AttributeValueKind.CsInt32, typeof(Fdp.Toolkit.Weather.ScenarioClock), Unit: "min"),
         // ⭐ CE-4024 (AQ93 §15 K5) — a civilian's fright: a converted SUMO pedestrian is born in panic on the brain node
-        new("Fear",                  AttributeIds.CivilianFear,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true, Unit: "0-1"),
-        new("FrightFrom.X",          AttributeIds.CivilianFrightFromX, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true, Unit: "m"),
-        new("FrightFrom.Y",          AttributeIds.CivilianFrightFromY, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true, Unit: "m"),
-        new("FrightFrom.Z",          AttributeIds.CivilianFrightFromZ, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Civilians.CivilianState), BrainLocal: true, Unit: "m"),
+        new("Fear",                  AttributeIds.CivilianFear,        AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Creatures.Fear), BrainLocal: true, Unit: "0-1"),
+        new("FrightFrom.X",          AttributeIds.CivilianFrightFromX, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Creatures.Fear), BrainLocal: true, Unit: "m"),
+        new("FrightFrom.Y",          AttributeIds.CivilianFrightFromY, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Creatures.Fear), BrainLocal: true, Unit: "m"),
+        new("FrightFrom.Z",          AttributeIds.CivilianFrightFromZ, AttributeValueKind.CsFloat64, typeof(Fdp.Toolkit.Creatures.Fear), BrainLocal: true, Unit: "m"),
         // ⭐ rules V-4 (§00.10) — a rule entity's runtime control: applied on the node that owns the entity, a change-request elsewhere; the component is brain-local (no descriptor)
         new("Rule.Request",          AttributeIds.RuleRequest,         AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleControl), BrainLocal: true),
         new("Rule.Seq",              AttributeIds.RuleSeq,             AttributeValueKind.CsInt32,   typeof(Fdp.Toolkit.ScenarioRules.RuleControl), BrainLocal: true),
