@@ -6,6 +6,30 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-13 · CE-4666 — a squad's post plan finds too few cover posts: every man WITHOUT a post holds where he stands, shoulder to shoulder *(2026-11-19)*
+
+**Measured** (`pc-corridor-fight`, behaviors `e661d0936`, the last red rows — Blue Squad 3 "bunched" 131.25 s, "wholly in the open" 146.75 s):
+the reserve's D-12 wait (`SquadDefend`, 15 m) found cover for only TWO men — the Leader (237.5, 216.4) and Rifleman 3 (246.5, 216.4), 9 m apart
+(cover posts are spread `CoverSpacingMetres` 8 m). Riflemen 1 and 2 got NO post and hold where they stood — their authored spots, 1.6 m apart —
+through the casevac; at 130 s the bound starts from that pair (⇒ bunched), then crosses the open corridor (⇒ open). 📐 Read from the verify
+run's own snapshots (the stepped HTTP probes diverge from it after ~77 s).
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a man the plan posts nowhere holds where he stands | ✅ `SquadDefendPlay.OrderFor`: `PostOf == None` ⇒ `MemberOrderKind.Hold` (no point) | ⛔ searched Defend & Attack §8c (D-2a…D-2m): no row spaces the UNPOSTED men |
+| cover posts are kept apart, other posts 2.5 m | ✅ `DefencePostPicker.CoverSpacingMetres` 8 / `SpacingMetres` 2.5 | ✅ CE-2345 (R-2066 B): "two cover posts are spread wider" |
+| a section in the open disperses | — | ✅ doctrine (ATP 3-21.8): dispersion of ~5–10 m between men; no cover ⇒ go prone, spread |
+
+**DECIDED `2026-11-19` (user: "approved"): ①.** **🛠 BUILT `2026-11-19` (behaviors): `DefencePlan.Disperse`, real men only (`IDefenceCrew.DispersesUnposted`; a stochastic squad keeps its D-P5 fallback line); ⚠ not prone (no post flag for it). Rail `D13_*` red-proved; 381 / 0. Defend & Attack §8f D-2n.** **My lean: ① the plan gives every man still without a post a DISPERSAL spot** — on a line across the facing (or round the point when
+all-round) through the position, at least `SpacingMetres` × 2 (5 m) from every other man's post or spot, inside the radius; he holds it
+PRONE (no cover). In `DefencePlan` (one place: every squad defence, the wait, the base of fire). Blast radius: every `SquadDefend` that finds
+too few cover posts; goldens move.
+- ② only the waiting assault / reserve (D-12) disperses: a second spacing rule beside the plan's (ruling 9).
+- ③ keep it and drop the bunched row for a WAITING squad: hides two men shoulder to shoulder under fire.
+
+⏳ **Separate, flagged:** *"wholly in the open after 90 s"* also reds a squad BOUNDING across the open corridor (the bound has no cover
+between) — I read that row as over-strict for a moving squad (terrain's check), not a behaviour defect; ⛔ not changed.
+
 ## D-12 · CE-4666 — while the base of fire gets SET, the assault and reserve squads have NO order: they stand idle in the open *(2026-11-19)*
 
 **Measured** (`pc-corridor-fight`, behaviors `88e055e88`, with D-11 and Red's `SearchRadius` 25): every Red and base-of-fire row now passes; the two

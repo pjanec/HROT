@@ -43,6 +43,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Animal,
         /// <summary>⭐ CE-5034 (glass windows GW-3, D-8) — a PANE SHATTERED: a sharp crack, then glass tinkling down. Appended.</summary>
         Glass,
+        /// <summary>⭐ CE-4635 (flame weapons §8) — a FLAMETHROWER's roar: low rumbling noise with a hiss and a little crackle, a seamless loop held while the jet is lit. Appended.</summary>
+        FlameRoar,
     }
 
     /// <summary>

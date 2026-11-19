@@ -52,7 +52,7 @@ namespace Hrot.UI.Common.Audio
         private readonly Dictionary<Entity, double> _lastBurst = new();
         private readonly Dictionary<Entity, Vector3> _lastPos = new();
         private readonly RoundPasses _passes = new();   // ⭐ CE-1216 — the rounds passing the ear (was _lastRound / _cracked)
-        private readonly List<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority, bool Flail)> _movers = new();
+        private readonly List<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority, byte Loop)> _movers = new();
         private int _ownMagazines = -1;
         private float _rumble;
         private float _recentNear;
@@ -239,14 +239,23 @@ namespace Hrot.UI.Common.Audio
         private ITkbDatabase? _acousticTkb;
         private readonly Dictionary<long, AcousticSignatureDto?> _acoustic = new();
         private readonly List<Entity> _goneMovers = new();
-        private static readonly Comparison<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority, bool Flail)> LouderFirst = (x, y) => y.Gain.CompareTo(x.Gain);
+        private static readonly Comparison<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority, byte Loop)> LouderFirst = (x, y) => y.Gain.CompareTo(x.Gain);
 
         /// <summary>⭐ CE-4560 — the farthest a body of <paramref name="type"/> can be heard moving (m): the type's own range when it names one; else the widest its
         /// bodies' LOCOMOTION has given so far (a rifleman's steps: 60 m — measured: with the jet's 4 km for every man, a street ear searched the whole army);
         /// else, before any body of it was looked at, the loudest locomotion's (a jet).</summary>
         private float ReachOf(ITkbDatabase? tkb, long type)
-            => AcousticCached(tkb, type) is { MovingAudibleRange: > 0f } a ? a.MovingAudibleRange
-             : _typeReach.TryGetValue(type, out float seen) ? seen : MaxDefaultRange;
+        {
+            var ac = AcousticCached(tkb, type);
+            float moving = ac is { MovingAudibleRange: > 0f } a ? a.MovingAudibleRange
+                         : _typeReach.TryGetValue(type, out float seen) ? seen : MaxDefaultRange;
+            return MathF.Max(moving, FlameRangeOf(ac));   // ⭐ CE-4635 — a flamer is heard roaring beyond his steps (a man's 60 m)
+        }
+
+        /// <summary>⭐ CE-4635 — how far this type's FLAME roar is heard (m): its firing audible range when its firing class is <see cref="Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Flame"/>
+        /// (backend's contract: the FlamethrowerSoldier, 200 m); else 0. Read from the cached signature — no TKB walk per entity.</summary>
+        private static float FlameRangeOf(AcousticSignatureDto? a)
+            => a is { FiringClass: Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Flame, FiringAudibleRange: > 0f } ? a.FiringAudibleRange : 0f;
 
         private readonly Dictionary<long, float> _typeReach = new();
 
@@ -288,6 +297,7 @@ namespace Hrot.UI.Common.Audio
             }
             bool embarked = w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             bool flight = w.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>();
+            double simNow = Fdp.Toolkit.Time.SimClock.TotalTimeOf(w);   // ⭐ CE-4635 — the boxing-free reader
             foreach (var e in _moverQuery!)
             {
                 var at = w.GetComponentRO<SimTransform>(e).Position;
@@ -305,19 +315,27 @@ namespace Hrot.UI.Common.Audio
                 // ⭐ CE-4560 — what this type's bodies are heard at, learned from the bodies themselves (a silent locomotion counts as 0)
                 float heard = a?.MovingAudibleRange ?? 0f;
                 if (!_typeReach.TryGetValue(type, out float known) || heard > known) _typeReach[type] = heard;
-                if (a == null) continue;
                 float d = Vector3.Distance(at, ear.Position);
-                if (d >= a.MovingAudibleRange) continue;
                 // ⭐ CE-1305 TE-11 — the velocity per SIM second (span is wall time): an engine keeps its natural pitch in slow motion
                 double rate = _mixer.Rate;
                 var vel = had && rate > 1e-9 && double.IsFinite(rate) ? (at - before) / (span * (float)rate) : Vector3.Zero;
+                // ⭐ CE-4635 (flame weapons §8) — a flamer whose JET is lit (FlameJets.TryGet, the one reader the picture uses too) is HELD as a roar loop — one roar for the burst, not a sample per
+                //   fuel shot — under its own mixer key beside the engine's (the flail's precedent), heard standing still and out to the type's FLAME range (200 m), past his steps' 60 m
+                if (FlameRangeOf(AcousticCached(tkb, type)) is > 0f and var flameRange && d < flameRange
+                    && Fdp.Toolkit.Combat.FlameJets.TryGet(w, e, simNow, out _) && SoundTkbCatalog.SoundOf(tkb, SoundTkbCatalog.FlameRoar) is { } rs)
+                {
+                    float rg = Spatializer.Gain(d, rs.ReferenceM, flameRange) * Volume(rs) * (e == own ? OwnMoverShare : 1f);
+                    if (rg > 1e-3f) _movers.Add((e, SoundTkbCatalog.FlameRoar, rg, at, vel, rs.Priority, LoopFlame));
+                }
+                if (a == null) continue;
+                if (d >= a.MovingAudibleRange) continue;
                 // ⭐ CE-4624 (MS-U4) — a mine clearer's FLAIL is a loop of its own while the flail is ON (FlailActivity, the one reader — the drum spins on the same answer), heard even standing,
                 //   louder than the engine and at FlailPitch; the engine below is held beside it. ⚠ No sound asset of its own yet: it is the tracked-engine loop, pitched up (a finding).
                 if (Hrot.UI.Common.Map3D.FlailActivity.IsOn(w, e) && SoundTkbCatalog.SoundOf(tkb, SoundTkbCatalog.TrackedEngine) is { } fs)
                 {
                     float fg = Spatializer.Gain(d, fs.ReferenceM, a.MovingAudibleRange) * Volume(fs) * FlailLoudness * (e == own ? OwnMoverShare : 1f);
                     if (fg > 1e-3f)
-                        _movers.Add((e, SoundTkbCatalog.TrackedEngine, fg, at, vel, fs.Priority, true));
+                        _movers.Add((e, SoundTkbCatalog.TrackedEngine, fg, at, vel, fs.Priority, LoopFlail));
                 }
                 float speed = vel.Length();
                 bool airborne = flight && w.HasComponent<Fdp.Toolkit.Motion.FlightState>(e) && w.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(e).Airborne != 0;
@@ -329,7 +347,7 @@ namespace Hrot.UI.Common.Audio
                 if ((animalMover ? AnimalSoundCatalog.SoundOf(tkb, clip) : SoundTkbCatalog.SoundOf(tkb, clip)) is not { } s) continue;
                 float g = Spatializer.Gain(d, s.ReferenceM, a.MovingAudibleRange) * (0.35f + 0.65f * level) * Volume(s) * (e == own ? OwnMoverShare : 1f);
                 if (g <= 1e-3f) continue;
-                _movers.Add((e, clip, g, at, vel, e == own ? SoundTkbCatalog.PriorityOwn : s.Priority, false));
+                _movers.Add((e, clip, g, at, vel, e == own ? SoundTkbCatalog.PriorityOwn : s.Priority, LoopEngine));
             }
             // forget the gone
             if (_lastPos.Count > 4 * Math.Max(16, _movers.Count))
@@ -346,9 +364,12 @@ namespace Hrot.UI.Common.Audio
         private void HoldMovers(EntityRepository w, Entity own, in Ear ear, float dt, IAudioOutput output)
         {
             double rate = _mixer.Rate;
+            double simNow = Fdp.Toolkit.Time.SimClock.TotalTimeOf(w);
             for (int i = 0; i < _movers.Count && i < MaxMovers; i++)
             {
                 var m = _movers[i];
+                // ⭐ CE-4635 — the roar follows the JET, not the search: the moment it goes out (≤ 0.25 s after the last fuel shot) the loop is no longer held
+                if (m.Loop == LoopFlame && !Fdp.Toolkit.Combat.FlameJets.TryGet(w, m.E, simNow, out _)) continue;
                 // between searches the held few follow their source: where it is now and how fast it moves (pan, Doppler) — at most MaxMovers reads
                 if (dt > 0f && w.IsAlive(m.E) && w.HasComponent<SimTransform>(m.E))
                 {
@@ -356,9 +377,11 @@ namespace Hrot.UI.Common.Audio
                     var vel = rate > 1e-9 && double.IsFinite(rate) ? (now - m.At) / (dt * (float)rate) : Vector3.Zero;
                     _movers[i] = m = m with { At = now, Vel = vel };   // (_lastPos keeps the search's sample: the next search measures over its own span)
                 }
-                float pitch = (0.9f + 0.25f * MathF.Min(1f, m.Vel.Length() / 15f)) * (m.E == own ? 1f : Spatializer.Doppler(ear, m.At, m.Vel));
-                // ⭐ CE-4624 — the flail loop: its own mixer key (FlailKey, beside the engine's), the engine clip a third higher and louder
-                _mixer.Hold(output, m.Flail ? FlailKey(m.E) : m.E.Index + 1L, m.Clip, m.Gain, m.E == own ? 0f : Spatializer.Pan(ear, m.At), m.Flail ? pitch * FlailPitch : pitch, m.Priority);
+                float doppler = m.E == own ? 1f : Spatializer.Doppler(ear, m.At, m.Vel);
+                float pitch = (m.Loop == LoopFlame ? 1f : 0.9f + 0.25f * MathF.Min(1f, m.Vel.Length() / 15f)) * doppler;   // ⭐ CE-4635 — the roar keeps its own pitch (+ Doppler)
+                // ⭐ CE-4624 — the flail loop: its own mixer key (FlailKey, beside the engine's), the engine clip a third higher and louder; ⭐ CE-4635 — the flame roar: FlameKey
+                long key = m.Loop == LoopFlail ? FlailKey(m.E) : m.Loop == LoopFlame ? FlameKey(m.E) : m.E.Index + 1L;
+                _mixer.Hold(output, key, m.Clip, m.Gain, m.E == own ? 0f : Spatializer.Pan(ear, m.At), m.Loop == LoopFlail ? pitch * FlailPitch : pitch, m.Priority);
                 MoversHeard++;
             }
         }
@@ -373,6 +396,12 @@ namespace Hrot.UI.Common.Audio
 
         /// <summary>The mixer key of an entity's flail loop (a key range apart from the engines' <c>Index + 1</c> and the beds' negatives).</summary>
         private static long FlailKey(Entity e) => (1L << 40) + e.Index;
+
+        /// <summary>⭐ CE-4635 — the mixer key of a flamer's roar loop (its own range, beside the engine's and the flail's).</summary>
+        public static long FlameKey(Entity e) => (2L << 40) + e.Index;
+
+        /// <summary>The kind of a held mover loop: its body's engine / steps, a mine clearer's flail (CE-4624), a flamethrower's roar (CE-4635).</summary>
+        private const byte LoopEngine = 0, LoopFlail = 1, LoopFlame = 2;
 
         public static AcousticSignatureDto? MovingDefault(LocomotionClass loco) => loco switch
         {

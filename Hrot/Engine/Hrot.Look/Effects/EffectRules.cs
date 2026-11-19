@@ -87,6 +87,10 @@ public static class EffectRules
                    null, heavy ? EffectTkbCatalog.CalibreClass.Large : EffectTkbCatalog.CalibreClass.Medium, EffectSurface.Building, default);
     }
 
+    /// <summary>⭐ CE-4635 — is this mount a FLAMETHROWER (its shots are fuel: heard as one roar while the jet is lit, seen as the jet)? THE one predicate: the flash rule here and the
+    /// map's queued shot sound (<c>EffectSpawnSystem</c>) both ask it.</summary>
+    public static bool IsFuelShot(WeaponMountDto? mount) => mount?.Category == WeaponCategory.Flamethrower;
+
     /// <summary>
     /// A shot (<see cref="WeaponFireNotification"/>): a muzzle flash ATTACHED to the shooter's weapon (VE-J) — none for a refused shot, a decoy release, a
     /// throw (CE-3248), a bomb leaving its rack (CE-1094) or a silent weapon (an arrow, a bolt — CE-4649 BW-9); then what the shot throws besides
@@ -102,7 +106,7 @@ public static class EffectRules
         var mount = CombatTkb.MountOf(world, fire.Shooter, fire.WeaponIndex);
         // ⭐ CE-4635 (flame weapons §8 U-5) — a FLAMETHROWER's fuel shot (600 a minute, a normal fired notification, no round) makes no flash and no blast: the JET is its look
         //   (EffectLayer draws it from FlameJets.TryGet) — otherwise it would flash like a rifle ten times a second under its own flames.
-        if (mount?.Category == WeaponCategory.Flamethrower) return 0;
+        if (IsFuelShot(mount)) return 0;
         long fired = fire.AmmoGuid != 0 ? fire.AmmoGuid : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;   // ⭐ CE-1115 — the round actually fired
         float damage = mount?.DamagePerHit ?? 0f;
         var set = EffectTkbCatalog.EffectsFor(tkb, fired, damage);
