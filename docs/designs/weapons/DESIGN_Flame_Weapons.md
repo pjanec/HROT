@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — ⭐ DESIGN FOR THE USER'S APPROVAL; nothing built (HANDOFF_Coordinator_To_Backend_Reload_And_Fire_Weapons.md row 2)
+state: LIVE — ✅ APPROVED 2026-11-19 (R-3111); nothing built yet (HANDOFF_Coordinator_To_Backend_Reload_And_Fire_Weapons.md row 2)
 build-state: DESIGN
 updated: 2026-11-19
 current-answer: §0 the picture · §3 decisions (leans F-1…F-12) · §5 slices
@@ -74,7 +74,10 @@ label=Class` ⇒ 12; grep for `Flammab|Combust|Ignit|Burnable` ⇒ nothing but `
 | a burning ground area (napalm) | real: Mk 77 ≈ 75 gal ⇒ ~2 500 m² burning 5–10 min; sims: a set of fire patches | ⭐ **adopt patches = `FireState` spots on cell records** (thermal §3c decided the holder); ⛔ reject one big area entity (a fire must tie to the ground it burns, and go out piecewise) |
 | spread (wind, materials) | real and good sims model it | ⛔ **not in v1** (thermal §3c fenced it here): a spot burns its time where it was lit; napalm's area is laid by the bomb, not grown. Spread = a later slice once v1 is seen |
 
-## 3. Decisions — leans for the user
+## 3. Decisions — ✅ APPROVED `2026-11-19` (R-3111)
+
+🔒 User, `2026-11-19`: *"F-9 lean approved, numbers fine."* ⇒ F-9 as leaned (incendiary allowed for military forces, off in a police / civil scenario; never released with a civilian in the cone or the ellipse) and F-3 / F-5's numbers stand; the other rows were engineering leans the user did not contest.
+
 
 | # | question | ⭐ lean | what would change it |
 |---|---|---|---|
