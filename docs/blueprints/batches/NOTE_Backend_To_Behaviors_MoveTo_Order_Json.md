@@ -28,3 +28,10 @@ velocity (−7.4, −6.7). `hill-attack` failed its own checks in BOTH tiers (th
 
 ⚠ **For new behaviour code:** never serialise a blackboard struct as an order's JSON — write the authored DTO (`…ParamsJsonDto`). Only the
 LOAD path refuses retired keys (S0 item 9); a runtime order with them is silently zero.
+
+## Also from the same re-check — CE-3484, half ⓑ is yours
+
+After the fix, `hill-attack` passes 3 / 4 in both tiers. The last check ("the four tanks end back near the baseline") fails because two tanks
+returning on crossing paths jam each other: one ends `FailedBlocked`, the other creeps `InProgress` for good. ⓐ the jam is backend's motion
+(CE-3484, open). ⓑ `Condition_AreAllAtBaseline` then waits forever on a member whose return FAILED — nothing re-orders it. ⭐ Lean: a failed
+return is re-issued once (or the member counts as "back" where it stands), so one blocked tank cannot freeze the platoon.
