@@ -96,6 +96,9 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte Authored[Capacity];
         /// <summary>⭐ D-2g (DA-5, DA-22) — per candidate: 1 = a roof post (from the roof ask), fought prone behind the parapet.</summary>
         public fixed byte Roof[Capacity];
+        /// <summary>⭐ D-13 (CE-4666, the prone half) — per candidate: 1 = a DISPERSAL spot (<see cref="DefencePlan"/>'s Disperse: no cover in
+        /// reach), held PRONE.</summary>
+        public fixed byte Open[Capacity];
         public fixed float WatchX[Capacity];
         public fixed float WatchY[Capacity];
         public fixed float WatchZ[Capacity];
@@ -174,7 +177,7 @@ namespace Hrot.AI.Behaviors.Brains
             X[Count] = p.X; Y[Count] = p.Y; Z[Count] = p.Z;
             Window[Count] = window ? (byte)1 : (byte)0;
             Roof[Count] = roof ? (byte)1 : (byte)0;
-            Frame[Count] = Shallow[Count] = 0;   // ⭐ D-2l — a slot freed by the frame pass may hold an old candidate's flags
+            Frame[Count] = Shallow[Count] = Open[Count] = 0;   // ⭐ D-2l — a slot freed by the frame pass may hold an old candidate's flags
             Count++;
         }
 
@@ -491,6 +494,7 @@ namespace Hrot.AI.Behaviors.Brains
                     Frame = p.Posts.Frame[post],   // ⭐ D-2l (DA-78) — beside the frame, leaning out
                     FrameA = p.Posts.FrameA(post), FrameB = p.Posts.FrameB(post), Opening = p.Posts.Opening(post),
                     Roof = p.Posts.Roof[post],   // ⭐ D-2g — prone behind the parapet, crouched to fire
+                    Open = p.Posts.Open[post],   // ⭐ D-13 — a dispersal spot: no cover, he lies prone on it
                     HasAlternate = alternate >= 0 ? (byte)1 : (byte)0, Alternate = alternate >= 0 ? p.Posts.Point(alternate) : default,
                 },
             };

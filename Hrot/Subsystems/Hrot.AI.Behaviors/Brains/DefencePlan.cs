@@ -293,6 +293,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (best < 0) continue;
                 var spot = new Vector3(cand[best].X, cand[best].Y, at.Z);
                 posts.Add(spot);
+                posts.Open[posts.Count - 1] = 1;   // ⭐ D-13 (the prone half) — no cover there: he holds it prone
                 posts.PostOf[i] = (byte)(posts.Count - 1);
                 taken[t++] = spot;
             }
@@ -435,7 +436,7 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 posts.X[keep] = at.X; posts.Y[keep] = at.Y; posts.Z[keep] = at.Z;
                 posts.Window[keep] = 1;
-                posts.Authored[keep] = posts.Roof[keep] = posts.Shallow[keep] = 0;
+                posts.Authored[keep] = posts.Roof[keep] = posts.Shallow[keep] = posts.Open[keep] = 0;
                 posts.WatchX[keep] = posts.WatchY[keep] = posts.WatchZ[keep] = 0f;
                 posts.Frame[keep] = framed ? (byte)1 : (byte)0;
                 keep++;

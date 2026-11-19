@@ -146,6 +146,7 @@ namespace Hrot.AI.Behaviors.Brains
             peek.AnchorRadius = post.Radius;
             peek.AnchorAlternate = post.Alternate;
             peek.AnchorHasAlternate = post.HasAlternate ? (byte)1 : (byte)0;
+            peek.Open = post.Open && !post.Window && !post.Roof ? (byte)1 : (byte)0;   // ⭐ D-13 — a dispersal spot: prone on it
             if (post.Window && post.Frame)   // ⭐ D-2l (DA-80, R-2059) — beside the frame, leaning out; the sill shape above is his fallback (DA-84)
             {
                 peek.Frame = 1;
@@ -200,6 +201,13 @@ namespace Hrot.AI.Behaviors.Brains
                         //   spot is used up or hot. The decision switching between its options no longer tears the cycle down.
                         //   ⛔ SUPERSEDED: AQ102 B (CE-2356) flew him through PeekAndFire from the Suppress branch only, and the TakeCover
                         //   branch ran it with the same state — a switch between them, or to Advance, reset it (📐 live bt-window-duel).
+                        // ⭐⭐ D-13 (CE-4666, the prone half; user-approved 2026-11-19) — a man ON an OPEN post (his squad's dispersal spot: no
+                        //   cover in reach) lies PRONE there and returns fire, whatever the decision says — with or without a threat. ⛔ Was:
+                        //   he stood on it (AdvanceAndAttack wins with no enemy, D-13's "not prone" gap), and under fire the TakeCover branch
+                        //   looked for cover off his post, which his anchor forbids
+                        .Sequence(open => open
+                            .Condition(bb => bb.Peek, PostureNodes.AtOpenPost)
+                            .StatefulAction(bb => bb.Engage, bb => bb.HoldProneState, PostureNodes.HoldProne))
                         .Sequence(posted => posted
                             .Condition(bb => bb.Peek, PostureNodes.PostedWithThreat)
                             .StatefulAction(bb => bb.Peek, bb => bb.PeekState, PeekAndFireNodes.PeekAndFire))

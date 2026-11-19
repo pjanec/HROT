@@ -2109,6 +2109,39 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ D-13 (CE-4666, the prone half; Defend &amp; Attack §8f D-2n) — a man ON an OPEN post (his squad's dispersal spot: no cover in
+        /// reach) lies PRONE there whatever the posture decision chose — quiet (Advance forced, which wins with no enemy) and with a threat (TakeCover
+        /// forced). 🔴 Red-proof: the open branch removed ⇒ he never asks for prone. A plain cover post (not open) is not this branch.
+        /// </summary>
+        [Fact]
+        public unsafe void D13_AManOnAnOpenPost_LiesProne_WhateverTheDecisionChooses()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });   // on his post
+            w.Order("CombatPosture", "{\"stay\":true,\"post\":{\"point\":[0,0,0],\"radius\":4,\"open\":true}}");
+            Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+            for (int i = 0; i < 30; i++)
+            {
+                if (w.TaskName == "CombatPosture") Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.AdvanceAndAttack;
+                w.Tick();
+            }
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+            w.Contact(armed: true);
+            for (int i = 0; i < 30; i++)
+            {
+                Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.TakeCover;
+                w.Tick();
+            }
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+            var cover = new PeekAndFireParams { Anchor = Vector3.Zero, AnchorRadius = 4f };
+            Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.AtOpenPost(ref cover, w.Unit, w.Repo));
+            cover.Open = 1;
+            Assert.Equal(Fbt.NodeStatus.Success, PostureNodes.AtOpenPost(ref cover, w.Unit, w.Repo));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2366</c> A (R-2077; Peek and Fire §12.2) — a man POSTED at a window with a threat runs PeekAndFire WHATEVER the posture
         /// decision chose, and the decision changing its winner does not reset the cycle. 📐 Live <c>bt-window-duel</c>: each switch between
         /// TakeCover / Suppress / Advance reset it, and on Advance a posted man only stood at his post. The decision's winner is forced through

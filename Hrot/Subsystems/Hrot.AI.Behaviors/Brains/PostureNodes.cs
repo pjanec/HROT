@@ -561,6 +561,15 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus AtFramePost(ref PeekAndFireParams p, Entity self, EntityRepository world)
             => p.Frame != 0 && p.AnchorRadius > 0f ? NodeStatus.Success : NodeStatus.Failure;
 
+        /// <summary>
+        /// ⭐⭐ D-13 (CE-4666, the prone half) — the man is posted at an OPEN post (<see cref="PeekAndFireParams.Open"/>: his squad's dispersal
+        /// spot, no cover in reach). <c>CombatPosture</c> then holds him PRONE there (<see cref="HoldProne"/>), threat or not — the occupy
+        /// branch before it walks him onto the post first. 📄 Defend &amp; Attack §8f D-2n.
+        /// </summary>
+        [SharedAiCondition]
+        public static NodeStatus AtOpenPost(ref PeekAndFireParams p, Entity self, EntityRepository world)
+            => p.Open != 0 && p.AnchorRadius > 0f ? NodeStatus.Success : NodeStatus.Failure;
+
         /// <summary>⭐ D-2e — this close to his post he has occupied it (m): the advance's own arrival (1 m) plus a step.</summary>
         public const float OccupiedMetres = 1.5f;
 

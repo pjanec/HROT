@@ -2357,6 +2357,12 @@ namespace Hrot.SimHost.Tests
                 for (int j = i + 1; j < posts.Length; j++)
                     Assert.True(Vector2.Distance(new Vector2(posts[i].X, posts[i].Y), new Vector2(posts[j].X, posts[j].Y)) >= DefencePlan.DispersalMetres - 0.01f,
                                 $"men {i} and {j} posted {posts[i]} and {posts[j]}");
+            // ⭐ D-13 (the prone half) — the three dispersal spots are OPEN posts (he lies prone there); the one cover post is not
+            var open = s.Members.Select(m => System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
+                s.Orders.Last(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture).JsonParams,
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!.Post.Open).ToArray();
+            Assert.Equal(3, open.Count(o => o));
+            Assert.False(open[Array.FindIndex(posts, p => Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(6f, 26f)) < 0.1f)], "the cover post is not open");
         }
 
         /// <summary>A squad of four at the position (6, 20) whose own sector looks north (an arc from (0, 20), 330°–30°, out to 200 m ⇒ its
