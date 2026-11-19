@@ -11,7 +11,7 @@ namespace Hrot.Common.Components
     /// auto-enabling per-entity diagnostics.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(HrotComponentIds.GlobalDebugSettings)]
+    [ComponentId(GlobalComponentIds.GlobalDebugSettings)]
     [DataPolicy(DataPolicy.Transient)]
     public struct GlobalDebugSettings
     {

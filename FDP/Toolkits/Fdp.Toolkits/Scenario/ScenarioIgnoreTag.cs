@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Scenario
     /// </para>
     /// </remarks>
     [StructLayout(LayoutKind.Sequential, Size = 1)]
-    [ComponentId(ScenarioComponentIds.ScenarioIgnoreTag)]
+    [ComponentId(GlobalComponentIds.ScenarioIgnoreTag)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct ScenarioIgnoreTag { }
 }

@@ -15,7 +15,7 @@ namespace Hrot.Map.Common.Components
     //   not replace the loaded instance (R-3043).
     // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): this editor's canvas menu state — never copied into a merged view.
     [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
-    [ComponentId(HrotComponentIds.CanvasContextMenuState)]
+    [ComponentId(GlobalComponentIds.CanvasContextMenuState)]
     public sealed class CanvasContextMenuState
     {
         public string MenuJson { get; set; } = string.Empty;

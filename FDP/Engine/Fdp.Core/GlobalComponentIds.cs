@@ -38,6 +38,12 @@ namespace Fdp.Core
     /// struct may sit on a production-free id only while its suite never registers the production type (the registry is process-wide — RegistryAuditTests
     /// moved 290 / 291 → 506 / 507). ⚠ (user, 2026-11-18) the space is NOT full — many ids are free; measure before claiming otherwise.</para>
     ///
+    /// <para>⭐⭐ CE-4628 follow-up (user, 2026-11-19: "all component ids ... written at one single place"): THIS is the ONE catalogue of production
+    /// component ids. The side classes (HrotComponentIds, NavigationContractsComponentIds, BehaviorApplicationComponentIds, GeographicComponentIds,
+    /// UtilityApplicationComponentIds, PerceptionApplicationComponentIds, ReplayComponentIds, ScenarioComponentIds, NavFakeIds) are ALIASES of constants here;
+    /// a production <c>[ComponentId(…)]</c> names a constant here — never a literal (test / benchmark / example structs exempt). Rail
+    /// <c>Fdp.Core.Tests.ComponentIdCatalogueTests</c> enforces it, forbids one id on two production components, and PRINTS the free ids
+    /// (<c>dotnet test FDP/Engine/Fdp.Core.Tests --filter ComponentIdCatalogueTests --logger "console;verbosity=detailed"</c>) — ⛔ never a hand count.</para>
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
     /// add a constant here, and decorate the struct with
@@ -268,7 +274,7 @@ namespace Fdp.Core
         public const int Faction                 = 71;
 
         /// <summary><c>PerceptionReceptor</c> â€” combined sensor range/FOV parameters (FDP.Toolkit.Perception).</summary>
-        public const int PerceptionReceptor      = 72;
+        public const int PerceptionReceptor      = 251;   // ⭐ CE-4628 follow-up: was 72 here while the struct registered 251 (a literal) — the catalogue was wrong; 251 is what recordings carry
 
         /// <summary><c>TargetMemory</c> â€” fixed-size threat table for perceived targets (FDP.Toolkit.Perception).</summary>
         public const int TargetMemory            = 73;
@@ -1474,5 +1480,74 @@ namespace Fdp.Core
         public const int MissileDefenceState = 128;
         /// <summary><c>AirArena</c> — the show's stage, an authored entity (Brain group, <c>dtAirArena</c> 218).</summary>
         public const int AirArena = 160;
+
+        // ── ⭐ CE-4628 follow-up (terrain, user 2026-11-19: "all component ids ... written at one single place") ─────────────────────────
+        // Moved here from the side catalogues (HrotComponentIds, NavigationContractsComponentIds, BehaviorApplicationComponentIds, GeographicComponentIds,
+        // UtilityApplicationComponentIds, PerceptionApplicationComponentIds, ReplayComponentIds, ScenarioComponentIds — now aliases of these) and from the
+        // literal [ComponentId(n)] attributes. ⛔ NO value changed (recordings and the wire keep their ids). Rail: ComponentIdCatalogueTests.
+        // from BehaviorApplicationComponentIds
+        public const int BTreeTraceWorkingMemory = 146;
+        public const int HsmTraceWorkingMemory = 147;
+        public const int DebugState = 148;
+        public const int BehaviorStartRecord = 154;
+        public const int BehaviorOwnedPart = 155;
+        public const int BehaviorFaultLatch = 156;
+        // from GeographicComponentIds
+        public const int GroundClampingConfig = 77;
+        public const int TerrainClampBaseline = 78;
+        public const int TerrainQueryBatchData = 79;
+        // from HrotComponentIds
+        public const int EntityDamage = 161;
+        public const int ActiveMissionPlan = 162;
+        public const int RetiredPlayerHealthState = 165;
+        public const int ActivePerspective = 166;
+        public const int MapSymbolOverride = 167;
+        public const int RoutePlan = 168;
+        public const int PersonalRouteRef = 169;
+        public const int RouteTrajectoryCache = 170;
+        public const int InitialPassengersIntent = 177;
+        public const int InitialVehicleIntent = 178;
+        public const int InitialHierarchyIntent = 179;
+        public const int InitialRouteIntent = 180;
+        public const int InitialTargetsIntent = 181;
+        public const int GlobalDebugSettings = 185;
+        public const int CanvasContextMenuState = 186;
+        public const int InitialBlueprintsIntent = 187;
+        // from NavigationContractsComponentIds
+        public const int NavigationIntent = 67;
+        public const int NavigationStatus = 68;
+        public const int NavAgentProfile = 257;
+        public const int NavigationCorridorMuscle = 258;
+        public const int NavigationCorridorPreview = 259;
+        public const int NavigationPathDetailsBuffer = 260;
+        public const int CrowdAgent = 261;
+        public const int CrowdMotorIntent = 265;
+        // from PerceptionApplicationComponentIds
+        public const int SensorContactList = 172;
+        public const int ActiveSensorTracks = 173;
+        // from ReplayComponentIds
+        public const int EpisodeTag = 84;
+        public const int EpisodeReplayTag = 85;
+        // from ScenarioComponentIds
+        public const int ScenarioIgnoreTag = 200;
+        // from UtilityApplicationComponentIds
+        public const int UtilityDebugFlags = 149;
+        public const int UtilityTraceWorkingMemory = 150;
+        public const int UtilityResultBuffer = 151;
+        // from NavFakeIds (the fake navigation backend, Fdp.Toolkits Navigation/Fake)
+        public const int FakeNavmeshState = 262;
+        public const int FakeCrowdGlobalState = 263;
+        public const int FakeCrowdAgentState = 264;
+        public const int FakeBrainPathCacheEntry = 267;
+        public const int FakePathRegistryStats = 268;
+        public const int FakeVolumetricState = 269;
+        // from literal [ComponentId(n)] attributes
+        public const int Velocity = 230;   // Fdp.Toolkits Geographic
+        public const int MissionAdapterState = 129;   // Hrot.CGF
+        public const int BpComponentDemo = 188;   // Hrot.AI.Behaviors demo
+        public const int BpCollectionDemo = 189;   // Hrot.AI.Behaviors demo
+        public const int BpManagedCollectionDemo = 190;   // Hrot.AI.Behaviors demo
+        public const int BpFixedListDemo = 191;   // Hrot.AI.Behaviors demo
+        public const int BpGenListDemo = 192;   // Hrot.AI.Behaviors demo
     }
 }

@@ -1,3 +1,4 @@
+using Fdp.Core;
 namespace Fdp.Toolkit.Navigation
 {
     /// <summary>
@@ -6,6 +7,8 @@ namespace Fdp.Toolkit.Navigation
     /// have been moved here as part of DB-MOD1-23.  The numeric values are unchanged to
     /// preserve ECS registry compatibility.
     /// </summary>
+    // ⛔ ALIASES ONLY (CE-4628 follow-up, user 2026-11-19: "all component ids ... written at one single place"): every id lives in
+    //   Fdp.Core GlobalComponentIds (values unchanged); a NEW id is added THERE, never here. Rail: ComponentIdCatalogueTests.
     public static class NavigationContractsComponentIds
     {
         // IDs 67–68: formerly in GlobalComponentIds, moved here (DB-MOD1-23).
@@ -13,10 +16,10 @@ namespace Fdp.Toolkit.Navigation
         // where they were originally allocated to avoid circular assembly dependencies.
 
         /// <summary><c>NavigationIntent</c> — CQRS command component carrying the Brain's navigation order.</summary>
-        public const int NavigationIntent = 67;
+        public const int NavigationIntent = GlobalComponentIds.NavigationIntent;
 
         /// <summary><c>NavigationStatus</c> — CQRS status component carrying the Muscle's navigation result.</summary>
-        public const int NavigationStatus = 68;
+        public const int NavigationStatus = GlobalComponentIds.NavigationStatus;
 
         // IDs 257-261: Nav subsystem v2 components (NAV-P0-T5).
         // IDs 69-73 cannot be used — they are occupied by FrustrationTicks, InFormationTag,
@@ -24,19 +27,19 @@ namespace Fdp.Toolkit.Navigation
         // The 257-261 block is in the extended 256-511 range (ecs-512-comps).
 
         /// <summary><c>NavAgentProfile</c> — locomotion profile used by the nav solver.</summary>
-        public const int NavAgentProfile                = 257;
+        public const int NavAgentProfile                = GlobalComponentIds.NavAgentProfile;
 
         /// <summary><c>NavigationCorridorMuscle</c> — Muscle-owned active corridor runtime state.</summary>
-        public const int NavigationCorridorMuscle       = 258;
+        public const int NavigationCorridorMuscle       = GlobalComponentIds.NavigationCorridorMuscle;
 
         /// <summary><c>NavigationCorridorPreview</c> — Brain-readable look-ahead of first 8 corridor waypoints.</summary>
-        public const int NavigationCorridorPreview      = 259;
+        public const int NavigationCorridorPreview      = GlobalComponentIds.NavigationCorridorPreview;
 
         /// <summary><c>NavigationPathDetailsBuffer</c> — full waypoint snapshot fetched from the path registry.</summary>
-        public const int NavigationPathDetailsBuffer    = 260;
+        public const int NavigationPathDetailsBuffer    = GlobalComponentIds.NavigationPathDetailsBuffer;
 
         /// <summary><c>CrowdAgent</c> — tag component opting the entity into Detour crowd avoidance.</summary>
-        public const int CrowdAgent                     = 261;
+        public const int CrowdAgent                     = GlobalComponentIds.CrowdAgent;
 
         // IDs 262-264 WERE occupied by GlobalComponentIds (DangerAreaSensor, DangerAreaCognitiveBuffer,
         // MovementModeIntent) AND NavFakeIds at once (QA-037); those three moved to 271-273 on 2026-10-06 (CE-3072 B0).
@@ -52,6 +55,6 @@ namespace Fdp.Toolkit.Navigation
         /// <c>CrowdAgentUpdateSystem</c> (P2-T4) and read by <c>BulletCharacterMotor</c>
         /// (P1-T3, design §5.3).
         /// </summary>
-        public const int CrowdMotorIntent               = 265;
+        public const int CrowdMotorIntent               = GlobalComponentIds.CrowdMotorIntent;
     }
 }

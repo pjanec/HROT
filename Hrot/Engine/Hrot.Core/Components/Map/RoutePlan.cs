@@ -65,7 +65,7 @@ public struct RouteWaypoint
 /// flight recorder sees it.
 /// </para>
 /// </summary>
-[ComponentId(HrotComponentIds.RoutePlan)]
+[ComponentId(GlobalComponentIds.RoutePlan)]
 [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
 public sealed record RoutePlan
 {
