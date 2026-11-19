@@ -30,6 +30,22 @@ namespace Hrot.Map.Definitions.Behavior
         public const string BehaviorId = BehaviorNames.MoveToLocation;
 
         /// <summary>
+        /// ⭐ CE-3483 — the ONE way code writes a MoveToLocation order as JSON: a point in local metres, the speed and the arrival radius,
+        /// serialised with the options the resolver reads (<c>BehaviorParams.JsonOptions</c> = <c>DefaultRelaxed</c>). ⛔ Never serialise the
+        /// blackboard struct <c>CgfNodes.MoveToLocationParams</c> (keys <c>X</c> / <c>Y</c>, retired by S0 item 5): the resolver ignores them and
+        /// the unit drives to (0, 0) — the hill attack's baseline orders and SimHost's click-to-move did exactly that from 2026-11-01.
+        /// </summary>
+        public static string Json(float x, float y, float speed, float arrivalRadius)
+            => System.Text.Json.JsonSerializer.Serialize(
+                new MoveToLocationParamsJsonDto
+                {
+                    Location = new System.Numerics.Vector3(x, y, 0f),
+                    Speed = speed,
+                    ArrivalRadius = arrivalRadius,
+                },
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+        /// <summary>
         /// ⭐ <c>S0</c> item 5 (<c>DESIGN_Scenario_Rules</c> §9.8.0, SR-135) — WHERE to go: ONE authored place, local metres
         /// (<c>[x, y, z]</c>) or an entity's position (<c>"@Key"</c> / a GUID). It replaces the lat/lon pair, the local <c>x</c> / <c>y</c>
         /// fallback and the computed <c>PickableLocation</c>: the TYPE makes the field map-pickable and relocatable, and no latitude or
