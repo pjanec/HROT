@@ -82,6 +82,11 @@ namespace Fdp.Toolkit.Weather
         /// <summary>⭐ <c>CE-3216</c> S2 (R-3017) — where the day is in the ground temperature's swing, −1…1: ±1 at the day's extremes, 0
         /// where it crosses its daily mean (the thermal crossover, dawn and dusk).</summary>
         public float DiurnalPhase;
+        /// <summary>⭐ <c>CE-1984</c> (DESIGN_Sensor_View §4a) — the MOON (<see cref="LunarPosition"/>): above the horizon, degrees; its compass bearing;
+        /// its lit fraction 0 (new) … 1 (full). Read by <see cref="NaturalLight.Lux"/>; ⛔ not by <see cref="RelativeLight"/> (CE-1986).</summary>
+        public double MoonElevationDeg;
+        public double MoonAzimuthDeg;
+        public float MoonIllumination;
     }
 
     /// <summary>
@@ -373,6 +378,8 @@ namespace Fdp.Toolkit.Weather
                 Precipitation = (PrecipitationKind)precip, PrecipitationMmPerHour = precipRate,
                 SunElevationDeg = sun.ElevationDeg, SunAzimuthDeg = sun.AzimuthDeg,
             };
+            var moon = LunarPosition.Of(utc, lat, lon);   // ⭐ CE-1984
+            s.MoonElevationDeg = moon.ElevationDeg; s.MoonAzimuthDeg = moon.AzimuthDeg; s.MoonIllumination = (float)moon.Illumination;
 
             // irradiance: 1361 · sin(elevation) · τ × the Kasten–Czeplak cloud cut 1 − 0.75 (N/8)^3.4 — N the cover ABOVE the point (§6.3)
             float cloudCut = 1f - 0.75f * MathF.Pow(Math.Clamp(octasAbove / 8f, 0f, 1f), 3.4f);

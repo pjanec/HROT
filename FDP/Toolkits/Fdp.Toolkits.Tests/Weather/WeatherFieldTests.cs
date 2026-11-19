@@ -17,6 +17,69 @@ namespace Fdp.Toolkit.Tests.Weather
     {
         private static readonly List<Vector2> Square100 = new() { new(-100, -100), new(100, -100), new(100, 100), new(-100, 100) };
 
+        // ── CE-1984: the moon (DESIGN_Sensor_View §4a, §7 MOON) ─────────────────────────────────────────────────────────────────
+
+        /// <summary>⭐ CE-1984 MOON — the phase at two known dates: full 2024-01-25 17:54 UTC, new 2024-01-11 11:57 UTC; and a quarter between.</summary>
+        [Fact]
+        public void CE1984_TheMoonsLitFraction_IsFullAtAFullMoon_AndNewAtANewMoon()
+        {
+            var full = LunarPosition.Of(new DateTime(2024, 1, 25, 17, 54, 0, DateTimeKind.Utc), 50.0, 14.4);
+            var @new = LunarPosition.Of(new DateTime(2024, 1, 11, 11, 57, 0, DateTimeKind.Utc), 50.0, 14.4);
+            var firstQuarter = LunarPosition.Of(new DateTime(2024, 1, 18, 3, 52, 0, DateTimeKind.Utc), 50.0, 14.4);
+            Assert.True(full.Illumination > 0.98, $"full moon lit {full.Illumination:0.000}");
+            Assert.True(@new.Illumination < 0.02, $"new moon lit {@new.Illumination:0.000}");
+            Assert.InRange(firstQuarter.Illumination, 0.4, 0.6);
+            Assert.True(firstQuarter.Waxing);
+        }
+
+        /// <summary>⭐ CE-1984 MOON — the position, from geometry alone: a FULL moon stands opposite the sun in the sky (the angle between their
+        /// directions ≈ 180°, less the few degrees it has moved and its latitude), high near local midnight; a NEW moon stands beside the sun.
+        /// (Azimuths alone are no test — near the meridian a degree of declination swings the azimuth by many.) 🔴 Red-proof (measured): the hour angle
+        /// without the observer's longitude ⇒ "full moon el/az 58.0/140.0 vs sun −58.8/353.3: 162.7°" — the 172° bound fails.</summary>
+        [Fact]
+        public void CE1984_AFullMoonStandsOppositeTheSun_AndANewMoonBesideIt()
+        {
+            var t = new DateTime(2024, 1, 25, 23, 0, 0, DateTimeKind.Utc);   // near local midnight at 14.4° E
+            var moon = LunarPosition.Of(t, 50.0, 14.4); var sun = SolarPosition.Of(t, 50.0, 14.4);
+            double apart = Separation(moon.ElevationDeg, moon.AzimuthDeg, sun.ElevationDeg, sun.AzimuthDeg);
+            Assert.True(apart > 172, $"full moon el/az {moon.ElevationDeg:0.0}/{moon.AzimuthDeg:0.0} vs sun {sun.ElevationDeg:0.0}/{sun.AzimuthDeg:0.0}: {apart:0.0}°");
+            Assert.True(moon.ElevationDeg > 45, $"a January full moon at midnight in Prague rides high: {moon.ElevationDeg:0.0}");
+
+            var n = new DateTime(2024, 1, 11, 11, 57, 0, DateTimeKind.Utc);
+            var nm = LunarPosition.Of(n, 50.0, 14.4); var ns = SolarPosition.Of(n, 50.0, 14.4);
+            double beside = Separation(nm.ElevationDeg, nm.AzimuthDeg, ns.ElevationDeg, ns.AzimuthDeg);
+            Assert.True(beside < 8, $"new moon el/az {nm.ElevationDeg:0.0}/{nm.AzimuthDeg:0.0} vs sun {ns.ElevationDeg:0.0}/{ns.AzimuthDeg:0.0}: {beside:0.0}°");
+        }
+
+        private static double Separation(double el1, double az1, double el2, double az2)
+        {
+            static (double, double, double) V(double el, double az)
+            {
+                double e = el * Math.PI / 180, a = az * Math.PI / 180;
+                return (Math.Cos(e) * Math.Sin(a), Math.Cos(e) * Math.Cos(a), Math.Sin(e));
+            }
+            var (x1, y1, z1) = V(el1, az1); var (x2, y2, z2) = V(el2, az2);
+            return Math.Acos(Math.Clamp(x1 * x2 + y1 * y2 + z1 * z2, -1, 1)) * 180 / Math.PI;
+        }
+
+        /// <summary>⭐ CE-1984 — the natural light: a sunny noon ~10⁵ lux, a full moon high ~0.2, a moonless clear night 0.002, an overcast moonless
+        /// night below it; the sample carries the moon (<see cref="WeatherField"/> fills it). ⛔ RelativeLight is NOT changed by the moon (CE-1986).</summary>
+        [Fact]
+        public void CE1984_NaturalLight_SunMoonAndStars()
+        {
+            var noon = new WeatherSample { IrradianceWm2 = 900f, SunElevationDeg = 60 };
+            var fullHigh = new WeatherSample { SunElevationDeg = -40, MoonElevationDeg = 60, MoonIllumination = 1f };
+            var starlight = new WeatherSample { SunElevationDeg = -40, MoonElevationDeg = -10, MoonIllumination = 1f };
+            var overcast = new WeatherSample { SunElevationDeg = -40, MoonElevationDeg = -10, CloudOctasAbove = 8f };
+            var halfMoon = new WeatherSample { SunElevationDeg = -40, MoonElevationDeg = 60, MoonIllumination = 0.5f };
+            Assert.InRange(NaturalLight.Lux(noon), 5e4f, 2e5f);
+            Assert.InRange(NaturalLight.Lux(fullHigh), 0.15f, 0.3f);
+            Assert.Equal(NaturalLight.StarlightLux, NaturalLight.Lux(starlight), 4);
+            Assert.True(NaturalLight.Lux(overcast) < NaturalLight.Lux(starlight));
+            Assert.True(NaturalLight.Lux(halfMoon) < NaturalLight.Lux(fullHigh) / 4f, "a half moon is far dimmer than half a full one");
+            Assert.InRange(NaturalLight.Lux(new WeatherSample { SunElevationDeg = 0 }), 300f, 500f);   // sunset
+        }
+
         // ── W-1 ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>⭐ W-1 — 1 at the centroid, 0 at the edge, smooth and falling between; along the ray, not a circle (a corner is
