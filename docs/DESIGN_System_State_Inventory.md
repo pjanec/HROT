@@ -1148,3 +1148,68 @@ next tick — ⛔ no list of systems for a restore handler to call. ⚠ `Ended` 
 | **B means "re-derived at a world replacement"** | a B field's owner clears or re-derives it when `WorldEpoch.Moved` fires (directly, via `OnWorldBoundary`, or the ELM's `OnWorldReplaced`). 📐 Measured: 88 B owners, **15** with no such hook — the eight animation egress translators, the mission and route egress caches, the overlay ingress's pending set, the two entity-request trackers, `TrafficPanicSystem._held`, and the ELM (its re-derive, replay design §2.1m, is wired only into the editor preview) |
 | **NEW class S — session state** | cluster, transport and process state that is not the world: a restore leaves it, by design (`ClusterSlave`, the cluster state cache, capability ingest, the SUMO wire reconstructors, publish-once latches, the time-mode echo suppression, three counters that only grow, the replay controller's own clock and mode). 📐 **12** owners, reclassified from B |
 | **the rail** | `EveryProtocolFieldIsReDerivedAtARestore` — every B row's owner file reacts to the world replacing (`WorldEpoch` / `OnWorldBoundary` / `OnWorldReplaced`); an S row needs no hook. ⚠ A text check: it proves the hook exists, not that it clears the right field — the ELM gets a behavioural rail |
+
+## 9. ⭐ R-4297 — the classification moves INTO THE CODE; this ledger retires *(CE-1980 / CE-3451 ②③④, ui; design `2026-11-19`; build-state: BUILDING)*
+
+> 🔒 **DECIDED `2026-11-18` (user, via coordinator, `DECISIONS_Ui.md` CE-3451):** *② BUILD it — one system at a time, a reset or a rail-backed exemption per field ·
+> ③ CHANGE THE RULE — classification moves into the CODE: an attribute on the field (`[FrameScratch]`, `[WorldDerived]`, `[ProtocolCache]` …) the rail reads; the
+> central hand ledger retires · ④ BUILD it ONCE in the egress translators' shared shape (one reset on `WorldEpoch.Moved`; the wire unchanged).*
+
+**INVENTORY / measured at ui `6ea6b2cc9`:** `SystemStateProbe` — 551 owners, 2 200 fields, **518 unclassified**, 8 C/X (rail allows 7); `WorldBoundaryProbe` — **21** of 68
+entity-holding systems with neither a reset nor an exemption (the exemptions: a 44-entry dictionary in `EverySystemForgetsTheLastWorldTests`); the B rail — **45** red,
+of which ⛔ **36 are STALE ROWS** (the field no longer exists: CE-4007 moved every egress send-on-change cache into `PublishedInstances<T>`, which ALREADY deletes and
+forgets everything on `WorldEpoch.Moved` — `PublishedInstances.cs:76` — so ④'s "shared shape" is built), 4 are side caches their owners clear on `_instances.OnFrame(...)`
+returning true (correct, invisible to a TEXT check), and **5 are real**: the ingress `_pending` sets of the Passengers, ScenarioClock, TrafficDemand, WeaponSystemState and
+Weather translators never forget at a world move. `search_graph` for `.*(StateAttribute|FrameScratch|WorldDerived).*` → none; `DataPolicyAttribute` (`Fdp.Core`) is the
+precedent of a classifying attribute the rails read.
+
+```mermaid
+classDiagram
+  class SystemStateAttribute { <<abstract, Fdp.Core, NEW>> +StateClass Class ; +string Why }
+  class StateClass { <<enum>> NotState_K ; Derived_A ; Protocol_B ; Session_S ; SimulationMemory_C ; External_X }
+  class FrameScratch { <<A>> rebuilt before use every run - also exempts the world-boundary rail }
+  class WorldDerived { <<A>> a cache / index rebuilt from the world }
+  class ProtocolCache { <<B>> re-derived at a world replacement - its owner must react }
+  class NotState { <<K>> }
+  class SessionState { <<S>> }
+  class SimulationMemory { <<C, a listed move>> }
+  class ExternalState { <<X, a listed move>> }
+  class SystemStateProbe { <<FDP/TestShared>> reads the attribute on the field, else on the field's TYPE, else the shape rules }
+  class WorldBoundaryProbe { <<FDP/TestShared>> a FrameScratch field needs no reset }
+  class PublishedInstances~T~ { <<existing, the egress shared shape>> OnFrame - WorldEpoch.Moved deletes and forgets }
+  SystemStateAttribute <|-- FrameScratch
+  SystemStateAttribute <|-- WorldDerived
+  SystemStateAttribute <|-- ProtocolCache
+  SystemStateAttribute <|-- NotState
+  SystemStateAttribute <|-- SessionState
+  SystemStateAttribute <|-- SimulationMemory
+  SystemStateAttribute <|-- ExternalState
+  SystemStateAttribute --> StateClass
+  SystemStateProbe --> SystemStateAttribute
+  WorldBoundaryProbe --> FrameScratch
+```
+*What the picture shows that prose hid:* ONE attribute family answers all three rails — ③ reads the class, ② treats a `FrameScratch` field as needing no reset (the
+44-entry exemption dictionary becomes attributes), ④ requires a `ProtocolCache` field's owner to react — so a new field is classified once, where it is written.
+
+```mermaid
+graph TD
+  F[a field in any lane's system / module / translator] -->|attribute on the field, or on its type| P3[③ EveryField IsClassified]
+  F -->|FrameScratch| P2[② EverySystem ForgetsTheLastWorld - exempt]
+  F -->|ProtocolCache| P4[④ EveryProtocolField IsReDerived]
+  P4 -->|IL: the owner calls WorldEpoch.Moved / Ended or PublishedInstances.OnFrame| OK[green]
+  R[§3 shape rules - _epoch, _worldEpoch, diagnostic counters] --> P3
+  L[⛔ §4 / §5 hand rows - migrated by script, then deleted] -.->|retired| P3
+```
+*What the picture shows that prose hid:* ④ stops being a TEXT search over this file and reads the owner's compiled code, so the shared shape (`PublishedInstances.OnFrame`)
+counts — the 36 stale rows were the text check failing on code that was right.
+
+| ⭐ decision | taken | rejected |
+|---|---|---|
+| **where the attribute lives** | `Fdp.Core` (beside `DataPolicyAttribute`): every assembly the probes walk (`Fdp.*`, `Hrot.*`) reaches it | a new assembly — one more reference everywhere for seven types |
+| **on a type or a field** | a field; ⭐ or the held TYPE (a class marked once classifies every field holding it — §4's "once per type") when the type is ours | type rows kept in a ledger — the ledger is what retires |
+| **the shape rules (§3)** | stay, as code in the probe (they are rules, not rows) | an attribute on every `_epoch` |
+| **the migration** | a script places each §4 / §5 row as an attribute on its field (or its type), then the rows are deleted; the 518 are classified by reading them, in the same attribute form | keep the ledger for old fields — two sources for one answer |
+| **④ the check** | IL, as `WorldBoundaryProbe.CallsWorldEpochMoved` already reads it, plus `PublishedInstances<T>.OnFrame` (its own reset, CE-4007) | the text grep over an evidence file |
+| **④ the 5 ingress `_pending`** | each clears on `WorldEpoch.Moved` at the top of its apply (the `MapVisualOverlayIngressTranslator` precedent, S3) — red-proved by removing one | a new shared ingress shape for five dictionaries — not asked, and ingress translators share no base |
+
+**Announced to every lane:** [`NOTE_Ui_To_All_Lanes_State_Attributes.md`](blueprints/batches/NOTE_Ui_To_All_Lanes_State_Attributes.md) (R-4297).

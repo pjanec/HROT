@@ -21,12 +21,27 @@ namespace Fdp.TestShared
     /// </summary>
     public static class SystemStateProbe
     {
-        public sealed record Hit(string Family, string Owner, string Key, string Kind, string TypeKey);
+        public sealed record Hit(string Family, string Owner, string Key, string Kind, string TypeKey)
+        {
+            /// <summary>⭐ R-4297 — the class the CODE gives it (an attribute on the field, else on the held type); null when the code says nothing.</summary>
+            public Row? Attributed { get; init; }
 
-        public sealed record Row(string Key, string Class, string Reason);
+            /// <summary>⭐ R-4297 (④) — the type that declares the field (its owner's compiled code is what must react to a world replacement).</summary>
+            public Type? Declaring { get; init; }
+        }
+
+        public sealed record Row(string Key, string Class, string Reason)
+        {
+            /// <summary>⭐ R-4297 — the attribute's type name when the row comes from the code (null: a ledger row).</summary>
+            public string? Attribute { get; init; }
+        }
 
         public sealed record Result(int Owners, IReadOnlyList<Hit> Hits, IReadOnlyList<Hit> Unclassified, IReadOnlyList<string> UnusedRows,
-                                    IReadOnlyList<(Hit Hit, Row Row)> Pending);
+                                    IReadOnlyList<(Hit Hit, Row Row)> Pending)
+        {
+            /// <summary>⭐ R-4297 — every classified hit with the row (or the attribute) that classified it.</summary>
+            public IReadOnlyList<(Hit Hit, Row Row)> Classified { get; init; } = Array.Empty<(Hit, Row)>();
+        }
 
         private static readonly string[] Families = { "system", "module", "translator" };
 
@@ -50,11 +65,45 @@ namespace Fdp.TestShared
                             if (kind == null) continue;
                             string key = Qualified(f.DeclaringType!) + "." + f.Name;
                             if (!seen.Add(key)) continue;   // a base-class field once, not per subclass
-                            hits.Add(new Hit(family, Qualified(type), key, kind, kind == "object" ? "type:" + Pretty(f.FieldType) : ""));
+                            hits.Add(new Hit(family, Qualified(type), key, kind, kind == "object" ? "type:" + Pretty(f.FieldType) : "") { Attributed = AttributedRow(f, key), Declaring = f.DeclaringType });
                         }
                 }
             return hits;
         }
+
+        /// <summary>
+        /// ⭐ R-4297 — the class written in the code: a <c>Fdp.Core.SystemStateAttribute</c> on the field (an auto-property's <c>[field: …]</c> lands on its
+        /// backing field), else on the field's type or the element type of its array / collection. Read by NAME so the probe needs no reference to a
+        /// particular <c>Fdp.Core</c>. A blank <c>Why</c> is no classification.
+        /// </summary>
+        public static Row? AttributedRow(FieldInfo f, string key)
+        {
+            var a = StateAttributeOf(f.GetCustomAttributes(false)) ?? StateAttributeOf(f.FieldType.GetCustomAttributes(false));
+            if (a == null && f.FieldType.IsArray) a = StateAttributeOf(f.FieldType.GetElementType()!.GetCustomAttributes(false));
+            return a;
+
+            Row? StateAttributeOf(object[] attrs)
+            {
+                foreach (var attr in attrs)
+                {
+                    var t = attr.GetType();
+                    for (var b = t; b != null; b = b.BaseType)
+                        if (b.FullName == "Fdp.Core.SystemStateAttribute")
+                        {
+                            string why = t.GetProperty("Why")?.GetValue(attr) as string ?? "";
+                            object? cls = t.GetProperty("Class")?.GetValue(attr);
+                            if (string.IsNullOrWhiteSpace(why)) return null;
+                            return new Row(key, LetterOf(cls?.ToString()), why) { Attribute = t.Name };
+                        }
+                }
+                return null;
+            }
+        }
+
+        private static string LetterOf(string? cls) => cls switch
+        {
+            "NotState" => "K", "Derived" => "A", "Protocol" => "B", "Session" => "S", "SimulationMemory" => "C", "External" => "X", _ => "?",
+        };
 
         /// <summary>Matches every hit against the inventory rows.</summary>
         public static Result Check(IReadOnlyList<Row> rows)
@@ -65,15 +114,17 @@ namespace Fdp.TestShared
             var used = new HashSet<string>(StringComparer.Ordinal);
             var unclassified = new List<Hit>();
             var pending = new List<(Hit, Row)>();
+            var classified = new List<(Hit, Row)>();
             foreach (var h in hits)
             {
-                Row? row = Match(h.Key, exact, globs, used);
+                Row? row = h.Attributed ?? Match(h.Key, exact, globs, used);   // ⭐ R-4297 — the code's own word first
                 if (row == null && h.Kind == "object") row = Match(h.TypeKey, exact, globs, used);
                 if (row == null) { unclassified.Add(h); continue; }
+                classified.Add((h, row));
                 if (row.Class is "C" or "X") pending.Add((h, row));
             }
             var unused = rows.Select(r => r.Key).Where(k => !used.Contains(k)).Distinct().ToList();
-            return new Result(owners, hits, unclassified, unused, pending);
+            return new Result(owners, hits, unclassified, unused, pending) { Classified = classified };
         }
 
         private static Row? Match(string key, Dictionary<string, Row> exact, List<(Row Row, Regex Re)> globs, HashSet<string> used)

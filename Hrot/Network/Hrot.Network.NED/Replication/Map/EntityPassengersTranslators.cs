@@ -111,6 +111,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly DdsReader<EntityPassengers>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly Dictionary<int, EntityPassengers> _pending = new();
+        private int _worldEpoch;   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the pending samples (they named the old world)
         private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPassengers>();
@@ -132,6 +133,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pending.Clear();   // ⭐ R-4297 ④ (CE-1980; DESIGN_System_State_Inventory §9) — the precedent: MapVisualOverlayIngressTranslator
             if (_reader is not null)
             {
                 using var loan = _reader.Take();

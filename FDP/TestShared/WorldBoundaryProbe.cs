@@ -39,13 +39,42 @@ namespace Fdp.TestShared
                     foreach (var f in fields)
                     {
                         string key = f.DeclaringType!.FullName + "." + f.Name;
-                        if (exempt.ContainsKey(key)) used.Add(key); else open.Add(f.Name);
+                        if (exempt.ContainsKey(key)) used.Add(key);
+                        else if (!IsFrameScratch(f)) open.Add(f.Name);   // ⭐ R-4297 — the field says it is scratch, where it is written
                     }
                     if (open.Count > 0 && !CallsWorldEpochMoved(type))
                         missing.Add($"{type.FullName} [{string.Join(", ", open)}]");
                 }
             return new Result(systems, holding, missing, exempt.Keys.Where(k => !used.Contains(k)).ToList());
         }
+
+        /// <summary>⭐ R-4297 — the field carries <c>[FrameScratch]</c> (rebuilt before use every run) with a reason: it needs no reset.</summary>
+        public static bool IsFrameScratch(FieldInfo f)
+        {
+            foreach (var a in f.GetCustomAttributes(false))
+                if (a.GetType().FullName == "Fdp.Core.FrameScratchAttribute")
+                    return a.GetType().GetProperty("Why")?.GetValue(a) is string why && !string.IsNullOrWhiteSpace(why);
+            return false;
+        }
+
+        /// <summary>
+        /// ⭐ R-4297 (④) — does <paramref name="type"/> (or a base) react to a world replacement in its compiled code: <c>WorldEpoch.Moved</c> / <c>Ended</c>, or the
+        /// egress shared shape's <c>PublishedInstances&lt;T&gt;.OnFrame</c> (which forgets on <c>WorldEpoch.Moved</c>, CE-4007)?
+        /// </summary>
+        public static bool ReactsToWorldReplacement(Type type)
+        {
+            if (CallsWorldEpochMoved(type)) return true;
+            for (var t = type; t != null && t != typeof(object); t = t.BaseType)
+                foreach (var m in t.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                    if (CallsPrefix(m, "Fdp.Network.Cyclone.Translators.PublishedInstances`1", "OnFrame")
+                     || CallsName(m, "OnWorldReplaced") || CallsName(m, "OnWorldBoundary") || CallsName(m, "ForgetLastWorld")) return true;
+            return false;
+        }
+
+        private static bool CallsPrefix(MethodInfo method, string declaringType, string name) => Scan(method, t => t?.Name == name && t.DeclaringType?.IsGenericType == true
+            && t.DeclaringType.GetGenericTypeDefinition().FullName == declaringType);
+
+        private static bool CallsName(MethodInfo method, string name) => Scan(method, t => t?.Name == name);
 
         /// <summary>The instance fields of <paramref name="type"/> and its bases whose type holds an <see cref="Entity"/>.</summary>
         public static IEnumerable<FieldInfo> EntityFields(Type type)
@@ -77,6 +106,9 @@ namespace Fdp.TestShared
             .GetFields(BindingFlags.Public | BindingFlags.Static).Select(f => (OpCode)f.GetValue(null)!).ToDictionary(o => o.Value);
 
         private static bool Calls(MethodInfo method, string declaringType, string name)
+            => Scan(method, target => target?.Name == name && target.DeclaringType?.FullName == declaringType);
+
+        private static bool Scan(MethodInfo method, Func<MethodBase?, bool> match)
         {
             byte[]? il;
             try { il = method.GetMethodBody()?.GetILAsByteArray(); } catch { return false; }
@@ -93,7 +125,7 @@ namespace Fdp.TestShared
                     try
                     {
                         var target = method.Module.ResolveMethod(token);
-                        if (target?.Name == name && target.DeclaringType?.FullName == declaringType) return true;
+                        if (match(target)) return true;
                     }
                     catch (ArgumentException) { }
                 }
