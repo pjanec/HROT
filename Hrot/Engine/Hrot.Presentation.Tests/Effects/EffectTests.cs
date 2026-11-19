@@ -114,7 +114,7 @@ public sealed partial class EffectTests
     public void E1_EveryEffectTypeIsInTheSharedTkb_WithItsLook_AndTheMunitionsNameTheirs()
     {
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
-        Assert.Equal(23, EffectTkbCatalog.BuiltIn.Count);   // + ⭐ CE-4618's missile launch flash and smoke (7173 / 7174) + ⭐ CE-4145's two impact puffs and two kinetic marks · W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud + ⭐ CE-1231's huge burst
+        Assert.Equal(24, EffectTkbCatalog.BuiltIn.Count);   // + ⭐ CE-4618's missile launch flash and smoke (7173 / 7174) + ⭐ CE-4145's two impact puffs and two kinetic marks · W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud + ⭐ CE-1231's huge burst + ⭐ CE-4635's flame jet (7175)
         foreach (var (type, (_, look)) in EffectTkbCatalog.BuiltIn)
         {
             Assert.True(tkb.TryGetByType(type, out var t) && t != null, $"effect type {type} missing from CreateTkb");
@@ -708,13 +708,21 @@ public sealed partial class EffectTests
         Assert.Equal(new System.Numerics.Vector2(100, 50), (c2 + d) / 2f);
     }
 
-    /// <summary>⭐ W3 (VE-P) — only a CROSSING to zero burns: a vehicle killed now gets flames (60 s) and smoke (180 s) attached to its
-    /// body; a soldier does not burn; ⭐ CE-1198 nor does a weapon system (it only goes dark, 🔒 user 2026-10-19: "weapons are usually
-    /// non-flammable"); a wreck first seen already dead does not; in a replay nothing is made (the recording has it).</summary>
-    [Fact]
-    public void W3_AVehicleKilledNowBurnsAndSmokes_ASoldierOrAWreckLoadedDeadDoesNot_AndAReplayMakesNothing()
+    /// <summary>The state source's items (flames, smoke, jets, scorch) — a fresh list through <see cref="EffectLayer.ResolveStateInto"/>.</summary>
+    private static List<EffectLayer.Resolved> State(EffectLayer layer)
     {
-        var (world, _) = World();
+        var l = new List<EffectLayer.Resolved>();
+        layer.ResolveStateInto(l);
+        return l;
+    }
+
+    /// <summary>⭐ CE-4635 (flame weapons §7 U-2) — the W3 wreck rule is RETIRED: a vehicle killed now makes NO effect entity any more (<c>WreckSpawnSystem</c> is an empty
+    /// registered shell, also in a replay); its simulation fire (<c>FireState</c>, lit by <c>BurnSystem</c> on a destroyed FUELLED hull — not a soldier, not a weapon, not a
+    /// wreck loaded dead) is drawn from the STATE: one Fire + one small Smoke per burning spot.</summary>
+    [Fact]
+    public void W3_AKilledVehicle_MakesNoEffectEntitiesNow_ItsFireStateIsDrawnFromTheState_ASoldierOrAWreckLoadedDeadDoesNotBurn()
+    {
+        var (world, tkb) = World();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
         At(world, 20.0);
         Entity Living(long type, float hp)
@@ -727,83 +735,74 @@ public sealed partial class EffectTests
         var soldier = Living(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, 100f);
         var loadedWreck = Living(Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams, 0f);
         var hmg = Living(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg, 100f);   // ⭐ CE-1198 — a weapon does not burn
-        var wrecks = new BurningWrecks(world);   // ⭐ CE-4660 — the kill lights the hull (BurnSystem), the flames read its FireState
+        var wrecks = new BurningWrecks(world);   // ⭐ CE-4660 — the kill lights the hull (BurnSystem)
+        var layer = new EffectLayer(() => world, () => tkb);
         Tick(world, wrecks, 0.016f);
-        Assert.Empty(Effects(world));                                   // the loaded wreck is already dead: no crossing, no fire
+        Assert.Empty(State(layer));                                     // the loaded wreck is already dead: no crossing, no fire
 
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         world.SetComponent(soldier, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         world.SetComponent(hmg, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         Tick(world, wrecks, 0.016f);
-        var fx = Effects(world);
-        Assert.Equal(new[] { EffectTkbCatalog.Fire, EffectTkbCatalog.Smoke }, fx.Select(f => f.Type).OrderBy(t => t).ToArray());
-        foreach (var (type, e) in fx)
-        {
-            var anchor = world.GetComponentRO<EffectAnchor>(e);
-            Assert.Equal(tank, anchor.Shooter);
-            Assert.Equal(EffectAnchorKind.Body, anchor.Kind);
-            Assert.Equal(type == EffectTkbCatalog.Fire ? 60f : 180f, (float)(world.GetComponentRO<Lifespan>(e).Seconds));
-            Assert.Equal(20.0, world.GetComponentRO<Lifespan>(e).BornAtSimSeconds);
-        }
+        Assert.Empty(Effects(world));                                   // ⛔ the retired rule: no entity
+        Assert.Equal(0, wrecks.Spawned);
+        var items = State(layer);
+        Assert.Equal(new[] { EffectKind.Fire, EffectKind.Smoke }, items.Select(r => r.Look.Kind).OrderBy(k => k).ToArray());   // the tank's one spot, nothing else
         Tick(world, wrecks, 0.016f);
-        Assert.Equal(2, Effects(world).Count);                         // a wreck burns ONCE
+        Assert.Equal(2, State(layer).Count);                            // still one fire, not a second
 
         var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext
         {
             World = world,
         });
         Fdp.Toolkit.Replay.ReplayState.Enter(world);                  // ⭐ CE-3329 P2 — the world says it is a replay
-        var other = Living(Hrot.Map.Common.TkbEntityTypes.Tank_T72, 100f);
         Tick(world, mi.WreckSpawn, 0.016f);
-        world.SetComponent(other, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
-        Tick(world, mi.WreckSpawn, 0.016f);
-        Assert.Equal(2, Effects(world).Count);                         // a replayed kill makes nothing
+        Assert.Empty(Effects(world));                                   // a replay makes nothing (as before)
+        Assert.Equal(2, State(layer).Count);                            // ... and the recorded state still draws the fire
         Assert.Contains(mi.WreckSpawn, mi.InteractionSystems);
         Assert.Contains(typeof(WreckSpawnSystem), mi.RequiredSystems);
     }
 
-    /// <summary>⭐ W3 (VE-P) — the flames sit on the wreck's TOP and scale with it; the particles are STATELESS (the same seed and age
-    /// give the same puffs, so a jump or another frame cannot disagree); the fire dies down at the end; the smoke rises and fades.</summary>
+    /// <summary>⭐ W3 (VE-P) → CE-4635 U-2 — the flames sit at the wreck's burning SPOT (hull frame) and scale with its radius; the particles are STATELESS (the same seed and
+    /// age give the same puffs, so a jump or another frame cannot disagree); the fire dies down at the end of its burn; the smoke rises; both are gone when the spot is out.</summary>
     [Fact]
-    public void W3_FlamesSitOnTheWreck_AndTheirPuffsComeFromSeedAndAgeAlone()
+    public void W3_FlamesSitOnTheWreckSpot_AndTheirPuffsComeFromSeedAndAgeAlone()
     {
         var (world, tkb) = World();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
         At(world, 0.0);
         var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(50, 0, 0));
         world.AddComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
-        var wrecks = new BurningWrecks(world);   // ⭐ CE-4660 — the kill lights the hull (BurnSystem), the flames read its FireState
+        var wrecks = new BurningWrecks(world);
         Tick(world, wrecks, 0f);
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         Tick(world, wrecks, 0f);
-        var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => world, () => tkb);
-        var layer = new EffectLayer(() => world, () => tkb, bodies);
-        Assert.True(bodies.TryGetBox(world, tank, tkb, out var centre, out _, out var half));
+        var layer = new EffectLayer(() => world, () => tkb);
+        var spot = world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.FireState>(tank).Get(0);
 
         At(world, 10.0);
-        var fire = Assert.Single(layer.Resolve(), r => r.Look.Kind == EffectKind.Fire);
-        Assert.Equal(centre.Z + half.Z, fire.At.Z, 3);                 // on top of the drawn hull
-        Assert.Equal(50f, fire.At.X, 3);
+        var fire = Assert.Single(State(layer), r => r.Look.Kind == EffectKind.Fire);
+        Assert.Equal(50f + spot.X, fire.At.X, 3);                      // at the spot, in the hull's frame (identity rotation: an offset)
+        Assert.Equal(spot.Z, fire.At.Z, 3);
         Assert.Equal(10f, fire.Age, 3);
+        Assert.Equal(EffectLayer.SpotSize(spot.Radius), EffectLayer.SizeOf(fire), 3);
         var puffs = EffectLayer.Puffs(fire);
         Assert.Equal(EffectLayer.FirePuffs, puffs.Count);
         Assert.Equal(puffs, EffectLayer.Puffs(fire));                  // stateless: same input, same puffs
         Assert.NotEqual(puffs, EffectLayer.Puffs(fire with { Age = 10.3f }));
-        Assert.All(puffs, p => Assert.True(p.At.Z >= fire.At.Z - 0.01f, "flames rise off the top"));
+        Assert.All(puffs, p => Assert.True(p.At.Z >= fire.At.Z - 0.01f, "flames rise off the spot"));
 
         var dying = EffectLayer.Puffs(fire with { Phase = 0.99f });
         Assert.True(dying.Sum(p => (float)p.Colour.A) < puffs.Sum(p => (float)p.Colour.A) * 0.2f, "the fire dies down at the end");
 
-        var smoke = Assert.Single(layer.Resolve(), r => r.Look.Kind == EffectKind.Smoke);
+        var smoke = Assert.Single(State(layer), r => r.Look.Kind == EffectKind.Smoke);
+        Assert.True(EffectLayer.SizeOf(smoke) < EffectLayer.SizeOf(fire), "a spot sends up only a SMALL smoke");
         var column = EffectLayer.Puffs(smoke);
         Assert.Equal(EffectLayer.SmokePuffs, column.Count);
-        Assert.True(column.Max(p => p.At.Z) > smoke.At.Z + smoke.Look.Size * 2f, "the column rises well above the wreck");
-        Assert.Contains(layer.Resolve(), r => r.Look.Kind == EffectKind.Fire);   // still burning at 10 s
+        Assert.True(column.Max(p => p.At.Z) > smoke.At.Z + EffectLayer.SizeOf(smoke) * 2f, "the column rises above the spot");
 
-        At(world, 61.0);                                               // the fire's 60 s are up; the smoke's 180 s are not
-        Tick(world, new LifespanSystem(), 0f);
-        Assert.DoesNotContain(layer.Resolve(), r => r.Look.Kind == EffectKind.Fire);
-        Assert.Contains(layer.Resolve(), r => r.Look.Kind == EffectKind.Smoke);
+        At(world, spot.Since.Seconds + spot.Seconds + 1.0);            // the spot has burned out: nothing is drawn
+        Assert.Empty(State(layer));
     }
 
     /// <summary>
@@ -829,10 +828,10 @@ public sealed partial class EffectTests
         Tick(world, wrecks, 0f);
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         Tick(world, wrecks, 0f);
-        var layer = new EffectLayer(() => world, () => tkb, new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => world, () => tkb));
+        var layer = new EffectLayer(() => world, () => tkb);
         At(world, 10.0);
 
-        var smoke = Assert.Single(layer.Resolve(), r => r.Look.Kind == EffectKind.Smoke);
+        var smoke = Assert.Single(State(layer), r => r.Look.Kind == EffectKind.Smoke);
         Assert.True(smoke.Wind is { X: < -7f } w && MathF.Abs(w.Y) < 0.5f, $"the world's wind reaches the column: {smoke.Wind}");
         Vector2 Lean(EffectLayer.Resolved r)
         {
@@ -841,10 +840,10 @@ public sealed partial class EffectTests
             return new Vector2(top.Average(p => p.At.X), top.Average(p => p.At.Y)) - new Vector2(r.At.X, r.At.Y);
         }
         var lean = Lean(smoke);
-        Assert.True(lean.X < -smoke.Look.Size, $"leans west, downwind: {lean}");
+        Assert.True(lean.X < -EffectLayer.SizeOf(smoke), $"leans west, downwind: {lean}");
 
         var calm = Lean(smoke with { Wind = Vector2.Zero });
-        Assert.True(calm.Length() < smoke.Look.Size * 0.5f, $"calm rises straight: {calm}");
+        Assert.True(calm.Length() < EffectLayer.SizeOf(smoke) * 0.5f, $"calm rises straight: {calm}");
         var none = Lean(smoke with { Wind = null });
         Assert.True(none.X > 0f && none.Y > 0f, $"no weather modelled: the old north-east breeze: {none}");
         Assert.Equal(new Vector3(3f, 0f, 0f), EffectLayer.SmokeDrift(new Vector2(40f, 0f)));   // a gale is capped

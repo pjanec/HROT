@@ -67,6 +67,11 @@ public static class PersonLook
         => t.GetDescriptor<BodyGeometryDto>() is { Length: > 0f, Width: > 0f, Height: > 0f } g ? g.Height
          : t.GetDescriptor<StrideRenderModelDefDto>()?.ShapeHeight is > 0f and var tall ? tall : DefaultSize.Z;
 
+    /// <summary>⭐ CE-4635 (flame weapons §7 U-3) — is this man ON FIRE at <paramref name="now"/> (sim s)? The replicated <c>EffectState.BurningUntil</c>
+    /// (<see cref="Fdp.Toolkit.Combat.Effects.IsBurning(ISimulationView, Entity, double)"/>), exposed beside his other looks: the same answer on every node and
+    /// for every renderer; false without the component.</summary>
+    public static bool IsBurning(EntityRepository world, Entity man, double now) => Fdp.Toolkit.Combat.Effects.IsBurning(world, man, now);
+
     /// <summary>⭐ CE-1098 / CE-1099 — a man's seed: his network id (the same on every node), else his entity index.</summary>
     public static long SeedOf(EntityRepository world, Entity e)
         => world.IsComponentTypeRegistered<NetworkIdentity>() && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is int net && net != 0

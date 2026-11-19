@@ -616,7 +616,7 @@ public sealed class Map3DFrameRail
         Tick();
         Kill(m1); Kill(bradley); Kill(car);
         Tick();
-        Assert.Equal(6, wrecks.Spawned);
+        Assert.Equal(0, wrecks.Spawned);   // ⭐ CE-4635 — the wreck rule is retired: no effect entity; the flames below are drawn from each hull's FireState
 
         using var frame = UiFrameHarness.Begin(1280, 800);
         LitShader.Reset();   // a new window: the shared shader compiles in THIS context
@@ -668,7 +668,10 @@ public sealed class Map3DFrameRail
         At(150.0);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "wreck-5-fading-smoke-150s.png"));
-        Assert.Equal(3, effects.Drawn);
+        Assert.Equal(6, effects.Drawn);   // ⭐ CE-4635 — the flames burn as long as the hull's FireSeconds (a wheeled hull 10 min, a tracked one 30), each with its small smoke
+        At(2000.0);
+        frame.Step(canvas.Draw);
+        Assert.Equal(0, effects.Drawn);   // every spot is out: nothing is drawn
 
         // the 2-D map at 8.3 s: the symbols (the production EntityPresentationGizmo) with the X on the three wrecks, the puffs from above
         At(8.3);

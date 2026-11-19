@@ -67,7 +67,17 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         /// <summary>⭐ CE-1146 PR-2 (Map 3-D §6aa.next SW) — the wind at a smoke column (m/s, toward; X east, Y north), from the world's
         /// weather; null where the world models no weather (the old light breeze).</summary>
         public Vector2? Wind { get; init; }
+        /// <summary>⭐ CE-4635 (flame weapons §7) — the size this item draws at (m), when it is not the look's own (a burning spot sized by its radius): 0 ⇒ <c>Look.Size</c>.
+        /// Presentation only — a state item shares ONE cached look, so its size cannot ride on a per-item copy of the look (that would allocate).</summary>
+        public float Extent { get; init; }
+        /// <summary>⭐ CE-4635 — a flame jet's half-angle (radians): it widens from the muzzle (<see cref="At"/>) to <see cref="Toward"/> by this much.</summary>
+        public float HalfAngle { get; init; }
+        /// <summary>⭐ CE-4635 (U-4) — a scorch mark's length × width (m); (0, 0) ⇒ an ordinary round decal. Lies at <see cref="At"/>, turned <see cref="Heading"/> (radians).</summary>
+        public Vector2 Rect { get; init; }
+        public float Heading { get; init; }
     }
+
+    public static float SizeOf(in Resolved r) => r.Extent > 0f ? r.Extent : r.Look.Size;
 
     /// <summary>Every live effect resolved for drawing — railable without a GL context.</summary>
     public List<Resolved> Resolve()
@@ -93,7 +103,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         bool flying = world.IsComponentTypeRegistered<EffectFlight>();   // ⭐ CE-1115
         bool weather = world.IsComponentTypeRegistered<Fdp.Toolkit.Weather.WeatherConditions>();   // ⭐ CE-1146 PR-2
         // ⭐ W1 (VE-Q, VE-G) — the phase is the SIM clock's: paused ⇒ frozen; in a replay, the recording's own time (VE-R).
-        double now = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
+        double now = Fdp.Toolkit.Time.SimClock.TotalTimeOf(world);   // ⭐ CE-4635 — no boxed clock per frame
         foreach (var e in _query!)
         {
             if (EffectTkbCatalog.VisualOf(tkb, world.GetComponentRO<TkbIdentity>(e).TkbType) is not { } look) continue;
@@ -135,8 +145,210 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         list.Sort(ByOrder);
     }
 
-    private static readonly Comparison<Resolved> ByOrder = (x, y) => Order(x.Look.Kind).CompareTo(Order(y.Look.Kind));
-    private static readonly Comparison<Resolved> FireLast = (x, y) => (x.Look.Kind == EffectKind.Fire).CompareTo(y.Look.Kind == EffectKind.Fire);
+    /// <summary>The draw passes' order over BOTH sources (entities, then state): decals underneath … (a rail may call it too).</summary>
+    public static void SortForDraw(List<Resolved> list) => list.Sort(ByOrder);
+
+    // ---- the STATE as a second source (CE-4635, docs/designs/weapons/DESIGN_Flame_Weapons.md §7) --------------------------------------------
+
+    private EntityRepository? _stateWorld;
+    private EntityQuery? _fireQuery, _jetQuery, _burnQuery, _markQuery;
+    private ITkbDatabase? _looksTkb;
+    private bool _looksSet;
+    private EffectVisualDto? _fireLook, _smokeLook, _jetLook, _scorchLook;
+    private Color _fireColour, _smokeColour, _jetColour, _scorchColour;
+
+    /// <summary>The smoke a burning spot sends up, as a fraction of its flame size (a small plume: a napalm strike's big smoke is its cloud entity).</summary>
+    public const float SpotSmokeShare = 0.3f;
+
+    /// <summary>The slot a burning MAN's one fire takes in its seed (a holder's FireState has slots 0..<see cref="Fdp.Toolkit.Perception.Signatures.FireState.Capacity"/>-1).</summary>
+    public const int ManFireSlot = 7;
+
+    /// <summary>How big a spot's flames are (m, the Fire look's <c>Size</c>) from its radius: <see cref="SpotSizePerRadius"/> of it — a tank wreck (half-length 3.5 m + the
+    /// burn's reach, radius ≈ 4.5) keeps the 3.2 m flames its old effect entity had — within 0.3–8 m.</summary>
+    public static float SpotSize(float radius) => Math.Clamp(radius * SpotSizePerRadius, 0.3f, 8f);
+    public const float SpotSizePerRadius = 0.7f;
+
+    private void EnsureStateLooks(ITkbDatabase? tkb)
+    {
+        if (_looksSet && ReferenceEquals(tkb, _looksTkb)) return;
+        _looksSet = true; _looksTkb = tkb;
+        _fireLook = EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.Fire);
+        _smokeLook = EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.Smoke);
+        _jetLook = EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.FlameJet);
+        _scorchLook = EffectTkbCatalog.VisualOf(tkb, EffectTkbCatalog.DecalLarge);
+        _fireColour = ParseRgba(_fireLook?.ColorHex); _smokeColour = ParseRgba(_smokeLook?.ColorHex);
+        _jetColour = ParseRgba(_jetLook?.ColorHex);
+        _scorchColour = Fade(ParseRgba(_scorchLook?.ColorHex), 0.8f);   // a charred patch, the ground's grain still showing through
+    }
+
+    /// <summary>A holder's point <c>(x, y, z)</c> in the world: a vehicle's spots are in ITS frame (rotated by its <c>SimTransform</c>, then offset); a building's or a
+    /// cell's record entity has an identity rotation, so the same rule is an offset (§6). A holder with no transform: the point as it is.</summary>
+    public static Vector3 HolderPoint(EntityRepository world, Entity holder, float x, float y, float z)
+    {
+        var p = new Vector3(x, y, z);
+        if (!world.HasComponent<SimTransform>(holder)) return p;
+        ref readonly var t = ref world.GetComponentRO<SimTransform>(holder);
+        Quaternion q = t.Rotation;
+        if (q.LengthSquared() < 0.5f) q = Quaternion.Identity;
+        return t.Position + Vector3.Transform(p, q);
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4635 / CE-4637 (flame weapons §7) — the STATE as a second source of <see cref="Resolved"/> items, APPENDED to <paramref name="list"/> (not cleared — call
+    /// <see cref="ResolveInto"/> first): every burning <c>FireState</c> spot (flames + a small smoke; vehicle, wagon, building, cell), every lit flame jet
+    /// (<c>FlameJets.TryGet</c>), every burning man (<c>PersonLook.IsBurning</c>: one body-sized fire) and every <c>BurnedArea</c> ground mark (a dark decal). They
+    /// are drawn by the same Fire / Smoke / Decal code as effect entities, in 2-D and 3-D. Stateless: the sim clock and the replicated state only, so a replay, a
+    /// pause and a second node draw the same. ⭐ 0 B in the steady frame (the lists and queries are reused; looks cached per TKB).
+    /// </summary>
+    public void ResolveStateInto(List<Resolved> list)
+    {
+        var world = _world();
+        if (world == null) return;
+        var tkb = _tkb();
+        EnsureStateLooks(tkb);
+        if (!ReferenceEquals(world, _stateWorld))
+        {
+            _stateWorld = world;
+            _fireQuery = world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>()
+                ? world.Query().With<Fdp.Toolkit.Perception.Signatures.FireState>().Build() : null;
+            _jetQuery = world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponPosture>() && world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponAmmo>()
+                ? world.Query().With<Fdp.Toolkit.Combat.Components.WeaponPosture>().With<Fdp.Toolkit.Combat.Components.WeaponAmmo>().With<SimTransform>().Build() : null;
+            _burnQuery = world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.EffectState>()
+                ? world.Query().With<Fdp.Toolkit.Combat.EffectState>().With<SimTransform>().Build() : null;
+            _markQuery = world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.GroundHeatMarks>()
+                ? world.Query().With<Fdp.Toolkit.Terrain.GroundHeatMarks>().Build() : null;
+        }
+        double now = Fdp.Toolkit.Time.SimClock.TotalTimeOf(world);   // ⭐ CE-4635 — no boxed clock per frame
+        bool weather = world.IsComponentTypeRegistered<Fdp.Toolkit.Weather.WeatherConditions>();
+
+        // ---- U-2 — every burning spot of every holder ----
+        if (_fireQuery != null && _fireLook != null)
+            foreach (var e in _fireQuery)
+            {
+                ref readonly var fs = ref world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.FireState>(e);
+                int n = Math.Min((int)fs.Count, Fdp.Toolkit.Perception.Signatures.FireState.Capacity);
+                for (int i = 0; i < n; i++)
+                {
+                    var spot = fs.Get(i);
+                    if (!spot.IsBurning(now)) continue;
+                    AddSpot(list, world, HolderPoint(world, e, spot.X, spot.Y, spot.Z), SpotSize(spot.Radius),
+                            (float)((now - spot.Since.Seconds) / spot.Seconds), (float)(now - spot.Since.Seconds),
+                            spot.Intensity > 0f ? MathF.Min(spot.Intensity, 1f) : 1f, e.Index * 8 + i, weather);
+                }
+            }
+
+        // ---- U-1 — every lit flame jet ----
+        if (_jetQuery != null && _jetLook != null)
+            foreach (var e in _jetQuery)
+            {
+                if (!Fdp.Toolkit.Combat.FlameJets.TryGet(world, e, now, out var jet)) continue;
+                var muzzle = MuzzleOf(world, e, jet.Mount, tkb, out var forward);
+                Vector3 aim = jet.AimPoint;
+                var to = aim - muzzle;
+                float dist = to.Length();
+                Vector3 dir = dist > 0.5f ? to / dist : (forward.LengthSquared() > 1e-6f ? Vector3.Normalize(forward) : Vector3.UnitX);
+                float length = dist > 0.5f ? MathF.Min(dist, jet.RangeM) : jet.RangeM;   // ⚠ v1: no wall clipping — the simulation shortens the jet (FL-1)
+                list.Add(new Resolved(_jetLook, muzzle, muzzle + dir * length, 0f, jet.Intensity, _jetColour, Seed: e.Index * 8, Age: (float)MathF.Max(0f, (float)(now - jet.BurstStartedAt)))
+                         { HalfAngle = jet.HalfAngleRad });
+            }
+
+        // ---- U-3 — every burning man: one body-sized fire ----
+        if (_burnQuery != null && _fireLook != null)
+            foreach (var e in _burnQuery)
+            {
+                if (!Hrot.Look.People.PersonLook.IsBurning(world, e, now)) continue;
+                Vector3 feet; float height = 1.8f;
+                if (_bodies != null && _bodies.TryGetBox(world, e, tkb, out var centre, out var rotation, out var half))
+                {
+                    feet = centre + Vector3.Transform(new Vector3(0f, 0f, -half.Z), rotation);
+                    height = 2f * half.Z;
+                }
+                else feet = world.GetComponentRO<SimTransform>(e).Position;
+                AddSpot(list, world, feet, Math.Clamp(height * 0.8f, 0.6f, 2.4f), 0f, (float)(now % 3600.0), 1f, e.Index * 8 + ManFireSlot, weather, smoke: false);
+            }
+
+        // ---- U-4 — scorched ground ----
+        if (_markQuery != null && _scorchLook != null)
+            foreach (var e in _markQuery)
+            {
+                ref readonly var marks = ref world.GetComponentRO<Fdp.Toolkit.Terrain.GroundHeatMarks>(e);
+                int n = Math.Min((int)marks.Count, Fdp.Toolkit.Terrain.GroundHeatMarks.Capacity);
+                for (int i = 0; i < n; i++)
+                {
+                    var m = marks.Get(i);
+                    if (m.Kind != Fdp.Toolkit.Terrain.HeatMarkKind.BurnedArea || m.Length <= 0f || m.Width <= 0f) continue;
+                    list.Add(new Resolved(_scorchLook, new Vector3(m.At.X, m.At.Y, 0f), Vector3.Zero, 0f, 1f, _scorchColour, Seed: e.Index * 16 + i)
+                             { Rect = new Vector2(m.Length, m.Width), Heading = m.Heading });
+                }
+            }
+    }
+
+    /// <summary>One burning spot as its Fire item (and, unless <paramref name="smoke"/> is off, a small Smoke item above it).</summary>
+    private void AddSpot(List<Resolved> list, EntityRepository world, Vector3 at, float size, float phase, float age, float intensity, int seed, bool weather,
+                         bool smoke = true)
+    {
+        list.Add(new Resolved(_fireLook!, at, Vector3.Zero, phase, intensity, _fireColour, Seed: seed, Age: age) { Extent = size });
+        if (!smoke || _smokeLook == null) return;
+        float fadeOut = phase < 0.7f ? 1f : Math.Clamp(1f - (phase - 0.7f) / 0.3f, 0f, 1f);
+        float smokeSize = MathF.Max(size * SpotSmokeShare, 0.25f);
+        list.Add(new Resolved(_smokeLook, at, Vector3.Zero, phase, fadeOut * intensity * 0.7f, _smokeColour, Seed: seed ^ 0x5BD1E995, Age: age)
+                 {
+                     Extent = smokeSize,
+                     Wind = weather ? Fdp.Toolkit.Weather.WeatherField.WindAt(world, at + new Vector3(0f, 0f, smokeSize * 3f)) : null,
+                 });
+    }
+
+    /// <summary>⭐ CE-4635 (U-4) — the four corners of a scorch rectangle (<paramref name="length"/> along <paramref name="heading"/>, <paramref name="width"/> across), world XY.</summary>
+    public static (Vector2 A, Vector2 B, Vector2 C, Vector2 D) RectCorners(Vector3 centre, Vector2 rect, float heading)
+    {
+        var f = new Vector2(MathF.Cos(heading), MathF.Sin(heading)) * (rect.X / 2f);
+        var l = new Vector2(-MathF.Sin(heading), MathF.Cos(heading)) * (rect.Y / 2f);
+        var c = new Vector2(centre.X, centre.Y);
+        return (c + f + l, c - f + l, c - f - l, c + f - l);
+    }
+
+    private static void DrawRect2D(in Resolved r, Color c)
+    {
+        var (a, b, d, e) = RectCorners(r.At, r.Rect, r.Heading);
+        // both windings: the 2-D camera may flip Y, and a triangle facing away is culled
+        Raylib.DrawTriangle(a, b, d, c); Raylib.DrawTriangle(a, d, b, c);
+        Raylib.DrawTriangle(a, d, e, c); Raylib.DrawTriangle(a, e, d, c);
+    }
+
+    /// <summary>⭐ CE-4635 (U-4) — a dark rectangle laid on the ground: a grid of at most 8 × 8 cells whose corners follow <see cref="GroundHeight"/> (a hair above it), like
+    /// <see cref="DrawDrapedDisc"/>.</summary>
+    private void DrawDrapedRect(Vector3 centre, Vector2 rect, float heading, Color colour)
+    {
+        int nx = Math.Clamp((int)MathF.Ceiling(rect.X / 4f), 1, 8), ny = Math.Clamp((int)MathF.Ceiling(rect.Y / 4f), 1, 8);
+        var f = new Vector2(MathF.Cos(heading), MathF.Sin(heading));
+        var l = new Vector2(-MathF.Sin(heading), MathF.Cos(heading));
+        for (int ix = 0; ix < nx; ix++)
+            for (int iy = 0; iy < ny; iy++)
+            {
+                var p00 = RectPoint(centre, f, l, rect, ix, iy, nx, ny);
+                var p10 = RectPoint(centre, f, l, rect, ix + 1, iy, nx, ny);
+                var p11 = RectPoint(centre, f, l, rect, ix + 1, iy + 1, nx, ny);
+                var p01 = RectPoint(centre, f, l, rect, ix, iy + 1, nx, ny);
+                Raylib.DrawTriangle3D(p00, p10, p11, colour); Raylib.DrawTriangle3D(p00, p11, p10, colour);
+                Raylib.DrawTriangle3D(p00, p11, p01, colour); Raylib.DrawTriangle3D(p00, p01, p11, colour);
+            }
+    }
+
+    private Vector3 RectPoint(Vector3 centre, Vector2 f, Vector2 l, Vector2 rect, int ix, int iy, int nx, int ny)
+    {
+        float u = (ix / (float)nx - 0.5f) * rect.X, v = (iy / (float)ny - 0.5f) * rect.Y;
+        float x = centre.X + f.X * u + l.X * v, y = centre.Y + f.Y * u + l.Y * v;
+        return HrotToRaylib.Position(new Vector3(x, y, (GroundHeight?.Invoke(x, y) ?? centre.Z) + 0.06f));
+    }
+
+    // ⭐ CE-4635 (U-4) — a scorch mark lies UNDER the impact decals on it (they are drawn after it)
+    private static readonly Comparison<Resolved> ByOrder = (x, y) =>
+    {
+        int c = Order(x.Look.Kind).CompareTo(Order(y.Look.Kind));
+        return c != 0 ? c : (y.Rect.X > 0f).CompareTo(x.Rect.X > 0f);
+    };
+    private static readonly Comparison<Resolved> FireLast = (x, y) => IsFlame(x.Look.Kind).CompareTo(IsFlame(y.Look.Kind));
+    private static bool IsFlame(EffectKind k) => k == EffectKind.Fire || k == EffectKind.FlameJet;
 
     // ⭐ CE-4432 — the draw passes' buffers (grown, never shrunk)
     private readonly List<Resolved> _effects = new();
@@ -145,7 +357,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
 
     private static int Order(EffectKind k) => k switch
     {
-        EffectKind.Decal => 0, EffectKind.Explosion => 1, EffectKind.Fire => 2, EffectKind.Smoke => 3, _ => 4,
+        EffectKind.Decal => 0, EffectKind.Explosion => 1, EffectKind.Fire => 2, EffectKind.FlameJet => 2, EffectKind.Smoke => 3, _ => 4,
     };
 
     /// <summary>
@@ -176,7 +388,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
             _cloudWorld = world;
             _cloudQuery = world.Query().With<Fdp.Toolkit.Combat.AreaEffectCloud>().With<SimTransform>().Build();
         }
-        double now = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
+        double now = Fdp.Toolkit.Time.SimClock.TotalTimeOf(world);   // ⭐ CE-4635 — no boxed clock per frame
         foreach (var e in _cloudQuery!)
         {
             var c = world.GetComponentRO<Fdp.Toolkit.Combat.AreaEffectCloud>(e);
@@ -268,7 +480,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     public static void PuffsInto(in Resolved r, List<Puff> list)
     {
         list.Clear();
-        float size = r.Look.Size;
+        float size = SizeOf(r);
         if (r.Look.Kind == EffectKind.Fire)
         {
             // ⭐ tuned on the Xvfb frame rail (2026-10-11): ALPHA-blended orange → red → soot tongues spread over the hull — additive
@@ -283,6 +495,31 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                 var colour = t < 0.5f ? Lerp(new Color(255, 200, 70, 255), new Color(240, 90, 20, 255), t * 2f)
                                       : Lerp(new Color(240, 90, 20, 255), new Color(80, 36, 24, 255), (t - 0.5f) * 2f);
                 list.Add(new Puff(at, radius, Fade(colour, 0.9f * MathF.Pow(1f - t, 0.6f) * strength * r.Opacity)));
+            }
+        }
+        else if (r.Look.Kind == EffectKind.FlameJet)
+        {
+            // ⭐ CE-4635 (flame weapons §7 U-1) — a STREAM of tongues from the muzzle (At) to the end of the reach (Toward), widening to the cone's half-angle: each puff
+            //   runs its own loop along the jet (0.35 s end to end), offset round the axis by a hash of (seed, i); the stream's head races out over the first 0.2 s of
+            //   the burst. Yellow at the muzzle → orange → soot at the far end. Stateless like the fire (seed + age only).
+            var path = r.Toward - r.At;
+            float length = path.Length();
+            if (length < 0.1f) return;
+            var dir = path / length;
+            var u = Vector3.Normalize(Vector3.Cross(dir, MathF.Abs(dir.Z) < 0.95f ? Vector3.UnitZ : Vector3.UnitX));
+            var v = Vector3.Cross(dir, u);
+            float reach = length * Math.Clamp(r.Age / JetRampSeconds, 0.1f, 1f);
+            float tan = MathF.Tan(Math.Clamp(r.HalfAngle, 0.02f, 1.2f));
+            for (int i = 0; i < JetPuffs; i++)
+            {
+                float t = Frac(r.Age / 0.35f + Hash(r.Seed, i));
+                float dist = t * reach;
+                float a = Hash(r.Seed, i + 101) * MathF.Tau, rr = MathF.Sqrt(Hash(r.Seed, i + 211));
+                var at = r.At + dir * dist + (u * MathF.Cos(a) + v * MathF.Sin(a)) * (dist * tan * rr);
+                float radius = (size * 0.3f + dist * tan * 0.45f) * (1f - 0.3f * t);
+                var colour = t < 0.35f ? Lerp(new Color(255, 214, 90, 255), new Color(240, 100, 24, 255), t / 0.35f)
+                                       : Lerp(new Color(240, 100, 24, 255), new Color(84, 40, 26, 255), (t - 0.35f) / 0.65f);
+                list.Add(new Puff(at, radius, Fade(colour, 0.9f * MathF.Pow(1f - t, 0.5f) * r.Opacity)));
             }
         }
         else if (r.Look.Kind == EffectKind.Flare && r.Flight is { } f)
@@ -322,6 +559,10 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
             }
         }
     }
+
+    /// <summary>⭐ CE-4635 — the puffs of a flame jet, and how long the head of the stream takes to reach the end of the reach (s).</summary>
+    public const int JetPuffs = 64;
+    public const float JetRampSeconds = 0.2f;
 
     private static float Frac(float x) => x - MathF.Floor(x);
 
@@ -428,18 +669,19 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
             Raylib.DrawRing(p, MathF.Max(0f, cl.Radius - 1.5f * px), cl.Radius, 0f, 360f, 48, Fade(colour, 0.85f * cl.Density));
         }
         CloudsDrawn = clouds.Count;
-        var effects = _effects; ResolveInto(effects);
+        var effects = _effects; ResolveInto(effects); ResolveStateInto(effects); SortForDraw(effects);
         // ⭐ W3 — seen from above the smoke would hide the flames, so in 2-D the flames are drawn LAST (on top).
         effects.Sort(FireLast);
         foreach (var r in effects)
         {
             var c = Fade(r.Colour, r.Opacity);
             var p = new Vector2(r.At.X, r.At.Y);
-            float size = r.Look.Size;
+            float size = SizeOf(r);
             switch (r.Look.Kind)
             {
                 case EffectKind.Decal:
-                    Raylib.DrawCircleV(p, MathF.Max(size / 2f, 1.5f * px), c);
+                    if (r.Rect.X > 0f) DrawRect2D(r, c);   // ⭐ CE-4635 (U-4) — scorched ground: a dark rectangle
+                    else Raylib.DrawCircleV(p, MathF.Max(size / 2f, 1.5f * px), c);
                     break;
                 case EffectKind.Explosion:
                 {
@@ -481,12 +723,13 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                     Raylib.DrawCircleV(p, MathF.Max(size / 2f * Math.Clamp(r.Age / 1.5f, 0.15f, 1f), 3f * px), Fade(c, 0.45f));
                     break;
                 case EffectKind.Fire:
+                case EffectKind.FlameJet:   // ⭐ CE-4635 — a jet: the same tongues, laid along its cone
                 case EffectKind.Smoke:
                     // ⭐ W3 (VE-P) — seen from above: the smoke column drifts downwind as a trail of thinning puffs, the flames
                     //   flicker over the wreck; at least a few pixels each, so a far wreck still shows it is burning.
                     PuffsInto(r, _puffs); foreach (var puff in _puffs)
                         Raylib.DrawCircleV(new Vector2(puff.At.X, puff.At.Y),
-                                           MathF.Max(puff.Radius, (r.Look.Kind == EffectKind.Fire ? 3f : 2f) * px),
+                                           MathF.Max(puff.Radius, (r.Look.Kind == EffectKind.Smoke ? 2f : 3f) * px),
                                            r.Look.Kind == EffectKind.Smoke ? Fade(puff.Colour, 0.6f) : puff.Colour);
                     break;
             }
@@ -507,16 +750,17 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                 Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.1f, puff.Radius), 6, 10, puff.Colour);
         }
         CloudsDrawn = clouds.Count;
-        var effects = _effects; ResolveInto(effects);
+        var effects = _effects; ResolveInto(effects); ResolveStateInto(effects); SortForDraw(effects);
         foreach (var r in effects)
         {
             var c = Fade(r.Colour, r.Opacity);
-            float size = r.Look.Size;
+            float size = SizeOf(r);
             switch (r.Look.Kind)
             {
                 case EffectKind.Decal:
                     // ⭐ CE-1129 (VE §10 IM-6) — on the ground: draped; on a wall or a roof: a disc in the face's plane, a hair off it
-                    if (IsOnGround(r)) DrawDrapedDisc(r.At, size / 2f, c);
+                    if (r.Rect.X > 0f) DrawDrapedRect(r.At, r.Rect, r.Heading, c);   // ⭐ CE-4635 (U-4) — scorched ground, draped
+                    else if (IsOnGround(r)) DrawDrapedDisc(r.At, size / 2f, c);
                     else DrawSurfaceDisc(r.At, r.Normal, size / 2f, c);
                     break;
                 case EffectKind.Explosion:
@@ -545,6 +789,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                         Raylib.DrawCylinderEx(HrotToRaylib.Position(t0), HrotToRaylib.Position(t1), size / 2f, size / 2f, 4, c);
                     break;
                 case EffectKind.Fire:
+                case EffectKind.FlameJet:   // ⭐ CE-4635
                     PuffsInto(r, _puffs); foreach (var puff in _puffs)
                         Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
                     break;
