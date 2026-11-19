@@ -94,7 +94,9 @@ namespace Hrot.Map.Common.Tests
                 Assert.Equal(eye, t.GetDescriptor<SensorCapabilitiesDto>()!.EyeHeightStanding);
 
                 var mounts = t.GetDescriptor<WeaponSuiteDto>()!.Mounts;
-                Assert.Equal(2, mounts.Count);
+                Assert.Equal(3, mounts.Count);   // ⭐ CE-4670 (VA-S5) — the gun, the coax, the smoke dischargers (last)
+                Assert.Equal(WeaponCategory.SmokeDischarger, mounts[2].Category);
+                Assert.Equal(unchecked((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbVehicleSmokeGrenade), mounts[2].AmmoGuid);
                 var gun = mounts[0];
                 Assert.Equal(unchecked((ulong)apfsds), gun.AmmoGuid);
                 Assert.Equal(gun.InitialAmmunition, System.Linq.Enumerable.Sum(gun.Loadout, l => l.Rounds));   // the same rounds, now sorted

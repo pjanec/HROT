@@ -95,7 +95,7 @@ public static class HeldWeapons
     /// </summary>
     public static HeldMarking MarkingOf(EntityRepository world, WeaponMountDto? mount)
     {
-        if (mount == null || mount.Hands || mount.Category is WeaponCategory.Grenade or WeaponCategory.Countermeasure) return HeldMarking.None;
+        if (mount == null || mount.Hands || mount.Category is WeaponCategory.Grenade || mount.Category.IsSelfProtection()) return HeldMarking.None;
         if (IsToy(mount)) return HeldMarking.Toy;
         bool namesRound = mount.AmmoGuid != 0 || mount.Loadout.Any(l => l.AmmoGuid != 0);
         return namesRound && !Fdp.Toolkit.Combat.ItemAppearances.FiresLethal(world, mount) ? HeldMarking.LessLethal : HeldMarking.None;

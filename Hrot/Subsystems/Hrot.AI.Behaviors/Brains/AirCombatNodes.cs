@@ -577,7 +577,7 @@ namespace Hrot.AI.Behaviors.Brains
                     if (missile?.Guidance == GuidanceKind.InfraRed && cs.IrMount == AirCombatState.NoMount) cs.IrMount = i;
                     else if (missile?.Guidance == GuidanceKind.Radar && cs.RadarMount == AirCombatState.NoMount) cs.RadarMount = i;
                 }
-                else if (cs.GunMount == AirCombatState.NoMount && m.Category != WeaponCategory.Countermeasure
+                else if (cs.GunMount == AirCombatState.NoMount && !m.Category.IsSelfProtection()   // ⭐ CE-4670 — the one self-protection test
                          && CombatTkb.MissileOf(world, unchecked((long)m.AmmoGuid)) == null) cs.GunMount = i;
             }
         }
