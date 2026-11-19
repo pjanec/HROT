@@ -14,6 +14,7 @@ namespace Hrot.Common.Systems
     [TickMode(TickPolicy.EveryFrame)]
     public sealed class HostActionsPumpSystem : IEcsModuleSystem
     {
+        [Fdp.Core.NotState("injected HostActions dependency")]
         private readonly HostActions _host;
 
         public HostActionsPumpSystem(HostActions host) => _host = host ?? throw new System.ArgumentNullException(nameof(host));

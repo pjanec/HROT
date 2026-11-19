@@ -70,6 +70,7 @@ internal delegate Vector2 SpatialPositionDelegate<T>(ref T component) where T : 
 ///   0 → 1: calls <see cref="DebugSnapshotProvider.SetEnabled(bool)"/> with true.
 ///   1 → 0: calls SetEnabled with false.
 /// </summary>
+[Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): the debugger's mounted breakpoints (the user's, not the world's)")]
 public sealed class DataBreakpointManager
     : IDataBreakpointManager, IActiveViewProvider, IMutationInterceptor,
       Fdp.ModuleHost.Abstractions.IStagedWrites, IDisposable

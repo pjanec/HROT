@@ -20,6 +20,7 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityAggregateUnitEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityAggregateUnit> _instances;
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.AggregateUnit };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityAggregateUnit>();
@@ -75,7 +76,9 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityUnitSlotTableEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityUnitSlotTable> _instances;
+        [Fdp.Core.ProtocolCache("last-sent sample per net id, cleared on instance OnFrame/dispose (egress change test)")]
         private readonly Dictionary<int, UnitSlotTable> _sent = new();
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.UnitSlotTable };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityUnitSlotTable>();
@@ -135,7 +138,9 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityUnitHoldingsEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
     {
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityUnitHoldings> _instances;
+        [Fdp.Core.ProtocolCache("last-sent sample per net id, cleared on instance OnFrame/dispose (egress change test)")]
         private readonly Dictionary<int, UnitHoldings> _sent = new();
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.UnitHoldings };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityUnitHoldings>();

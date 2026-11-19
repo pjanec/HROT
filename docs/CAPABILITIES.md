@@ -162,8 +162,9 @@ replicated to every node, renderer-agnostic — and HROT's own map reads the sam
   ▶ `bd-destruction`
 - **Glass in windows:** a window has a pane that sight passes unchanged and that muffles sound (20 dB); rounds crack it (two cracks kept,
   the third breaks it), a man firing out breaks it at once, a grenade's fragments or a big blast's pressure shatter it, and a breach takes it
-  with the wall. A broken window lets sound into the building and is an open hole again; no navmesh rebake. Saved and replicated; ⏳ the
-  look (cracks, shards) is GW-3. (R-5068; CE-5032, CE-5033) ✅ `gw-shoot-the-window` · `gw-fire-out`
+  with the wall. A broken window lets sound into the building and is an open hole again; no navmesh rebake. Saved and replicated; the
+  3-D map draws the pane, a crack star at each hit, an open hole with shards in the frame, a shard burst and the sound of breaking glass,
+  the same on every map node, a late joiner included. (R-5068; CE-5032, CE-5033, CE-5034) ✅ `gw-shoot-the-window` · `gw-fire-out`
 
 ## 2b. Dynamic terrain — the ground and the walls change while the simulation runs *(✅ built `2026-11-14`…`15` by the `terrain` lane — the remainders marked 📐; the programme: [PLAN_Dynamic_Terrain](PLAN_Dynamic_Terrain.md), CE-4604)*
 

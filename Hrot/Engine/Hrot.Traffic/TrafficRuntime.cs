@@ -11,6 +11,7 @@ namespace Hrot.Traffic;
 /// only when its key no longer equals the request, and the main thread only touches a session whose key equals it. So no session
 /// is ever pumped after it was disposed. The car wire between them is SumoSharp's thread-safe queue.
 /// </remarks>
+[Fdp.Core.ExternalState("owns the SUMO (LiveCitySim) session and stepping thread")]
 public sealed class TrafficRuntime : IDisposable
 {
     private readonly TrafficServeOptions _options;

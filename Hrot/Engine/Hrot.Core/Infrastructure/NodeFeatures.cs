@@ -64,6 +64,7 @@ internal sealed class FeatureConfigOps<T> : FeatureConfigOps where T : struct, I
 }
 
 /// <summary>⭐ Node Features F-2 — a named behaviour declared by the ONE capability whose code implements it.</summary>
+[Fdp.Core.NotState("a named behaviour a capability declares at start-up")]
 public sealed record FeatureDeclaration(
     string Id,
     string Description,

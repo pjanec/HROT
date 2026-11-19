@@ -34,10 +34,12 @@ namespace Fdp.Toolkit.Combat.Systems
     public sealed class WreckObstacleSystem : IEcsModuleSystem
     {
         private readonly DeathCrossings _deaths = new();   // ⭐ CE-4660 — the ONE crossing rule (was this system's own map)
+        [Fdp.Core.WorldDerived("TKB type to wreck-type memo, cleared on world change (49)")]
         private readonly Dictionary<long, long> _wreckTypeOf = new();   // vehicle TKB type → its wreck obstacle type (0 = none)
         private EntityQuery? _query;
 
         /// <summary>Wreck obstacles this node asked for (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of wreck requests")]
         public long Requested { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

@@ -28,6 +28,7 @@ namespace Hrot.Map.Common.Replication.Egress
         //   destruction, a wipe or (as an unregister) a hand-over.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityUnderFire> _instances;
 
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.UnderFire };
 
         /// <summary>A newer stamp is sent only this long (s) after the last one sent: the remote window ends at most this early.</summary>

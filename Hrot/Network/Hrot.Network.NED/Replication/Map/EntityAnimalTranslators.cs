@@ -23,6 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(AnimalState));
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityAnimalState> _instances;
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.AnimalState };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityAnimalState>();
@@ -79,6 +80,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(FlockState));
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityFlockState> _instances;
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.FlockState };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityFlockState>();

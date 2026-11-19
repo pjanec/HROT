@@ -33,6 +33,7 @@ namespace Hrot.Common.Orders
     /// <param name="ActionId">Its unit-menu action id (<see cref="OrderMenu.ActionBase"/> + its index in name order).</param>
     /// <param name="PickField">The JSON name of the field the pick fills (null when <paramref name="Pick"/> is None or Several).</param>
     /// <param name="Fields">⭐ <c>CE-2148</c> — every field of the DTO.</param>
+    [Fdp.Core.NotState("order menu table entry from registry")]
     public sealed record OrderInfo(string Name, Type Dto, int ActionId, OrderGesture Gesture, OrderPick Pick, string? PickField,
         IReadOnlyList<OrderField> Fields)
     {
@@ -53,6 +54,7 @@ namespace Hrot.Common.Orders
     /// <c>[Required]</c> fields still <see cref="Missing"/>. <see cref="Send"/> issues it to every unit (through <c>EntityOrders</c>)
     /// and answers one result per unit — what an order form calls when the operator presses Send.
     /// </summary>
+    [Fdp.Core.WorldDerived("in-progress UI order draft; cancelled/reset on restore")]
     public sealed record OrderDraft(IReadOnlyList<int> Units, OrderInfo Order, JsonObject Params, IReadOnlyList<OrderField> Missing,
         Func<string, IReadOnlyList<OrderResult>> Send)
     {

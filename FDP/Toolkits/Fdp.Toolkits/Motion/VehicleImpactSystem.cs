@@ -52,12 +52,17 @@ namespace Fdp.Toolkit.Motion
         public const float CrushBelowMps = 0.3f;
 
         private struct Body { public Entity E; public Vector2 P; public float Z; public float R; public Vector2 V; }
+        [Fdp.Core.FrameScratch("per-run body array filled from n=0 in the scan, read in the same Execute")]
         private Body[] _bodies = new Body[64];
+        [Fdp.Core.SimulationMemory("per-pair strike/crush cooldown (RepeatSeconds); stale entries swept every 256 frames")]
         private readonly Dictionary<long, double> _lastHit = new();
+        [Fdp.Core.FrameScratch("list of expired keys: cleared at 177 and filled in the same sweep")]
         private readonly List<long> _stale = new();
+        [Fdp.Core.WorldDerived("frame counter used only to schedule the stale sweep every 256 frames")]
         private int _frame;
 
         /// <summary>Strikes this process raised (rails).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of strikes raised (rails)")]
         public int Strikes { get; private set; }
 
         /// <summary>

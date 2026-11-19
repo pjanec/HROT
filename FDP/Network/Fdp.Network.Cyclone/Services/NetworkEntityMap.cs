@@ -4,6 +4,7 @@ using Fdp.Core;
 
 namespace Fdp.Network.Cyclone.Services
 {
+    [Fdp.Core.WorldDerived("net-id/entity maps rebuilt from world by RebuildFromWorld after restore")]
     public class NetworkEntityMap
     {
         private readonly ConcurrentDictionary<int, Entity> _map = new();

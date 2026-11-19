@@ -32,6 +32,7 @@ namespace Hrot.Network.Translators
     ///
     /// <para>This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.</para>
     /// </summary>
+    [Fdp.Core.NotState("translator with only readonly fields (endpoint, ids); classified on its own")]
     public sealed class DeferredTakeOwnershipIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
 

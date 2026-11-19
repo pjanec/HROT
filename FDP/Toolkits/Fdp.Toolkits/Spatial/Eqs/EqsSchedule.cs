@@ -80,6 +80,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// deterministic. Each band spends its share (<see cref="CumulativeShare"/>); a sensor whose last cost does not fit
     /// what is left waits — it is then the oldest of its band and runs first.
     /// </summary>
+    [Fdp.Core.WorldDerived("per-tick sensor ordering list, cleared by Begin()")]
     public sealed class EqsSchedule
     {
         private readonly List<(int Rank, uint LastSolved, int Index, Entity Sensor, int Estimate)> _order = new();

@@ -37,7 +37,9 @@ namespace Fdp.Toolkit.Navigation.Systems
         /// <summary>⭐ Macros debt A2 (SR-190) — frames a slot this solver handed out stays TAKEN for later requests: the children it placed
         /// are created a few ticks after the answer, so until then the world does not show them and a second expansion could land on them.</summary>
         public const int ReservedFrames = 600;
+        [Fdp.Core.SimulationMemory("slots handed out and held reserved up to 600 frames until the children exist; not in the world")]
         private readonly List<(Vector3 Position, float Radius, long Frame, int Self)> _reserved = new();
+        [Fdp.Core.SimulationMemory("frame counter ageing the _reserved slots (ReservedFrames); meaningful only with _reserved")]
         private long _frame;
 
         public PlacementSolverSystem(INavmeshProvider? navmesh = null) => _navmesh = navmesh;

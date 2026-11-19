@@ -12,6 +12,7 @@ namespace Fdp.Toolkit.Lifecycle.Systems
     public class BlueprintApplicationSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkb;
+        [Fdp.Core.NotState("injected translator list, set in ctor")]
         private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
 
         public BlueprintApplicationSystem(

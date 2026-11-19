@@ -405,8 +405,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// seconds on his phase (<see cref="CadenceGate.DueOnGrid"/>); 0 = every frame (the default). Stimuli still land at once. ✅ The step
         /// already integrates the time since his last step (<c>Stress.LastStepAt</c>), so a slower step loses no time. Experiment knob:
         /// <c>HROT_STRESS_PERIOD</c>.</summary>
+        [field: Fdp.Core.NotState("an experiment knob (`HROT_STRESS_PERIOD`), fixed at start-up (exp/perf)")]
         public double StepPeriod { get; set; } = double.TryParse(EnvVars.Read(EnvVars.HrotStressPeriod),
             System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : 0.0;
+        [Fdp.Core.WorldDerived("the previous frame's sim time for the step cadence; empty (−∞) or a later time makes every man due once (`CadenceGate.DueOnGrid`: now ≤ prev ⇒ due), and the step integrates from his own `Stress.LastStepAt` — nothing lost (exp/perf)")]
         private double _prevNow = double.NegativeInfinity;
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -453,6 +455,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
         }
 
+        [Fdp.Core.FrameScratch("scratch — refilled from 0 each run; the parallel job reads only [0, n)")]
         private Entity[] _list = new Entity[64];
 
         private struct StressJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads

@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Perception.Sensors
     /// union of the unit's acquired contacts over all its sensors (vision included since S5, <c>CE-3038</c>)
     /// CHANGED this tick. One sensor losing a target another still holds sends nothing.</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("per-call scratch maps, cleared each flush; memory is in components")]
     public sealed class SensorMemoryStage
     {
         private readonly List<(Entity Sensor, Entity Unit, SensorContactList List, bool Existed)> _observed = new();

@@ -39,21 +39,34 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
 
     private TerrainBridges? _bridges;
     private TerrainWorld? _terrain;
+    [Fdp.Core.WorldDerived("cached collapse table, re-judged when the table instance changes")]
     private BuildingDamageTable? _table;
+    [Fdp.Core.WorldDerived("flag: collapse table already judged")]
     private bool _seenTable;
+    [Fdp.Core.WorldDerived("static-obstacle signature for change detection")]
     private ulong _obstacleSig = ulong.MaxValue;
     private CraterTable? _craters;
     private readonly Hrot.Map.Common.Services.ObstacleSignatureProbe _probe = new();
+    [Fdp.Core.WorldDerived("fallen bridge keys re-derived from the collapsed buildings table (monotonic per definition)")]
     private readonly HashSet<string> _fallen = new(StringComparer.Ordinal);
 
+    [Fdp.Core.WorldDerived("own copy of the base road graph made from the holder (native blob)")]
     private RoadNetworkBlob _base;          // ⭐ OUR copy of the base graph (the holder frees a retired one)
+    [Fdp.Core.WorldDerived("flag: a base copy exists")]
     private bool _haveBase;
+    [Fdp.Core.WorldDerived("holder version of the last publish: change detection")]
     private int _publishedVersion = -1;     // the holder version of our last publish
+    [Fdp.Core.WorldDerived("blocked segment indices recomputed from blockers and fallen bridges")]
     private readonly SortedSet<int> _blocked = new();      // ORIGINAL (base) indices dropped now
+    [Fdp.Core.FrameScratch("closed segments set: cleared at 144 each Recompute")]
     private readonly HashSet<int> _scratch = new();
+    [Fdp.Core.FrameScratch("blocker polygons list refilled by Blockers/AddCraters/AddMinefields each Recompute")]
     private readonly List<System.Numerics.Vector2[]> _blockers = new();
+    [Fdp.Core.FrameScratch("SUMO edges list refilled by ClosedEdges each Recompute")]
     private readonly List<string> _sumoScratch = new();
+    [Fdp.Core.ProtocolCache("closed edges last pushed to the SUMO runtime: change test of what was sent")]
     private string[] _closed = Array.Empty<string>();
+    private int _worldEpoch;
 
     /// <summary>Bridges this system has treated as fallen (rails / diagnostics).</summary>
     public int Fallen => _fallen.Count;
@@ -62,9 +75,11 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
     public int Blocked => _blocked.Count;
 
     /// <summary>Vehicles it asked to re-plan (rails / diagnostics).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of replans")]
     public int Replans { get; private set; }
 
     /// <summary>⭐ CE-4590 — times the net was republished (rails / diagnostics).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of republishes")]
     public int Republished { get; private set; }
 
     /// <param name="runtime">Where this node runs SUMO, else null.</param>
@@ -78,6 +93,7 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
+        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _closed = Array.Empty<string>();   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the closures last pushed to the traffic (it restarts with the world)
         if (view is not EntityRepository repo) return;
         if (!repo.HasSingletonManaged<TerrainWorld>()) return;
         var terrain = repo.GetSingletonManaged<TerrainWorld>()!;
@@ -132,6 +148,7 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
         Recompute(repo, holder);
     }
 
+    [Fdp.Core.WorldDerived("cached knowledge table instance used for change detection")]
     private PlaceKnowledgeTable? _knowledge;
 
     private void Recompute(EntityRepository repo, RoadNetworkHolder? holder)

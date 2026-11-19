@@ -23,6 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(FormationController));
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityFormationController> _instances;
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.FormationController };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityFormationController>();
@@ -82,8 +83,11 @@ namespace Hrot.Map.Common.Replication.Egress
     public sealed class EntityFormationFollowerEgressTranslator : IDescriptorTranslator
     {
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityFormationFollower> _instances;
+        [Fdp.Core.FrameScratch("net ids seen this pass: cleared at 111 before each egress pass")]
         private readonly HashSet<int> _seen = new();
+        [Fdp.Core.FrameScratch("gone ids list: cleared at 125 before each use")]
         private readonly List<int> _gone = new();
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.FormationFollower };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityFormationFollower>();

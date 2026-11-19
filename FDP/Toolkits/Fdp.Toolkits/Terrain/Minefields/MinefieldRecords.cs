@@ -80,12 +80,16 @@ namespace Fdp.Toolkit.Terrain
             return r;
         }
 
+        [Fdp.Core.FrameScratch("outline buffer filled by TryOutline per use")]
         private readonly List<Vector2> _outline = new();
+        [Fdp.Core.FrameScratch("witness sides list filled by WitnessSides per strike")]
         private readonly List<int> _sides = new();
+        [Fdp.Core.WorldDerived("tick counter for the periodic edge check cadence")]
         private int _tick;
 
         // ⭐ a host that composes BOTH the SimHost and the CGF packs in one world (the editor) registers it twice: the first instance claims the world, the other stays idle
         //   (two writers would each keep their own pending set and could open two records for one key)
+        [Fdp.Core.WorldDerived("per-world claim table choosing which instance runs; recomputed on demand")]
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, PlaceKnowledgeSystem> Claims = new();
         protected override bool ShouldRun(EntityRepository repo) => ReferenceEquals(Claims.GetValue(repo, _ => this), this);
 

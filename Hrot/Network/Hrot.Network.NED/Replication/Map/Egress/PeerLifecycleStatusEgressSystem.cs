@@ -38,6 +38,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly IReadOnlyList<int> _targetIds = new int[] { GlobalComponentIds.NetworkIdentity };
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 

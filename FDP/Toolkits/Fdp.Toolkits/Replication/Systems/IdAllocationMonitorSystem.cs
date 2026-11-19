@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Replication.Systems
     public class IdAllocationMonitorSystem : IEcsModuleSystem, IDisposable
     {
         private BlockIdManager? _manager;
+        [Fdp.Core.NotState("process identity, computed once lazily")]
         private string _clientId = string.Empty;
         private EntityRepository? _repo;
 

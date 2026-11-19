@@ -74,10 +74,16 @@ namespace Fdp.Toolkit.Terrain
         public const float StepMetres = 2f, MarginMetres = 15f, ForgetSeconds = 30f;
 
         private readonly bool _gateOnAuthority;
+        [Fdp.Core.WorldDerived("minefield bounding boxes rebuilt from the world when count changes or after 1 s (Boxes)")]
         private readonly List<(Vector2 Min, Vector2 Max)> _boxes = new();
+        [Fdp.Core.FrameScratch("outline buffer: filled by TryOutline for each field inside Boxes")]
         private readonly List<Vector2> _outline = new();
+        [Fdp.Core.SimulationMemory("per-entity seconds spent out of a minefield before its breadcrumbs are forgotten (ForgetSeconds)")]
         private readonly Dictionary<Entity, float> _clearFor = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("the timers to drop this run: cleared before it is filled")]
         private readonly List<Entity> _forget = new();
+        [Fdp.Core.WorldDerived("field count of the last box build: cache validity marker")]
         private int _fieldCount = -1;
 
         /// <param name="gateOnAuthority">true on a networked brain node: only the units whose <c>BehaviorState</c> this node owns.</param>
@@ -88,6 +94,7 @@ namespace Fdp.Toolkit.Terrain
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<Minefield>() || !repo.IsComponentTypeRegistered<MineBreadcrumbs>()
                 || !repo.IsComponentTypeRegistered<BehaviorState>()) return;
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(repo, ref _worldEpoch)) _clearFor.Clear();   // ⭐ R-4297 ② (CE-1980) — a world replacement (a reload reuses the handles, a restore) forgets each man's clear-of-the-field timer
             if (!ReferenceEquals(repo, _queryRepo))
             {
                 _fields = repo.Query().With<Minefield>().Build();
@@ -131,6 +138,7 @@ namespace Fdp.Toolkit.Terrain
             }
         }
 
+        [Fdp.Core.WorldDerived("seconds since the last box rebuild: cache age")]
         private float _sinceBoxes = float.MaxValue;
         private EntityQuery? _fields, _units;
         private EntityRepository? _queryRepo;

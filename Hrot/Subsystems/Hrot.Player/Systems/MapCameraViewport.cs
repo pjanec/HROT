@@ -12,6 +12,7 @@ namespace Hrot.Player.Systems;
 /// as <see cref="MapUserConfig"/> (§CODE-STANDARDS §3: no direct world mutation
 /// from application shell).
 /// </summary>
+[Fdp.Core.WorldDerived("camera extents/zoom for culling; view state, not simulation")]
 public class MapCameraViewport
 {
     // ── World-space AABB of the visible rectangle ─────────────────────────────

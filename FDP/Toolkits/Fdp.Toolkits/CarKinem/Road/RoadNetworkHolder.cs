@@ -45,6 +45,7 @@ namespace CarKinem.Road
     /// </summary>
     [Fdp.Core.ComponentId(Fdp.Core.GlobalComponentIds.RoadNetworkHolder)]
     [Fdp.Core.DataPolicy(Fdp.Core.DataPolicy.NoScenario | Fdp.Core.DataPolicy.NoReplay)]
+    [Fdp.Core.NotState("road network blob published at scenario load")]
     public sealed class RoadNetworkHolder : IDisposable
     {
         // internal, not private: the public Lease's internal constructor takes one, and C# requires the

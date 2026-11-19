@@ -23,8 +23,10 @@ namespace Fdp.Network.Cyclone.Modules
     // Local implementation of Ingress System since it appears missing from Core
     [UpdateInPhase(SystemPhase.Input)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class CycloneNetworkIngressSystem : IEcsModuleSystem, Fdp.Interfaces.IReplayRestoreGated
     {
+        [Fdp.Core.NotState("translator list injected in ctor, never mutated")]
         private readonly Fdp.Interfaces.INetworkTranslator[] _translators;
         public IReadOnlyList<INetworkTranslator> Translators => _translators;
 
@@ -61,12 +63,15 @@ namespace Fdp.Network.Cyclone.Modules
         public System.Func<bool>? IsReplayRestoring { get; set; }
 
         // ⭐⭐ CE-3329 W5 (DESIGN_Replay_Time_Axis_And_Review §12u) — set at the exit's release, consumed by the next Execute that is not gated.
+        [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): one-shot request set by DiscardAtReplayExit and consumed on the next live frame (transport, not the world)")]
         private volatile bool _exitDiscardPending;
 
         /// <summary>⭐ CE-3329 W5 — how many exits this system has drained, and how many samples the last one threw away.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public int ExitDiscards { get; private set; }
 
         /// <inheritdoc cref="ExitDiscards"/>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public int LastExitDiscardedSamples { get; private set; }
 
         /// <inheritdoc />

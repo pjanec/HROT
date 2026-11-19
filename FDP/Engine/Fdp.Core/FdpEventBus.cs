@@ -12,6 +12,7 @@ namespace Fdp.Core
     /// Supports both unmanaged (Tier 1) and managed (Tier 2) events.
     /// Uses double-buffering: events published in Frame N are consumed in Frame N+1.
     /// </summary>
+    [Fdp.Core.NotState("event bus, treated as K per brief")]
     public class FdpEventBus : IDisposable, IEventBus
     {
         // Separate dictionaries for native and managed streams

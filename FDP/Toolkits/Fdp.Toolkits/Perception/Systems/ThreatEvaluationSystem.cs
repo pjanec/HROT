@@ -46,16 +46,20 @@ namespace Fdp.Toolkit.Perception.Systems
     /// </para>
     /// </summary>
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class ThreatEvaluationSystem : IEcsModuleSystem
     {
         // CE-3039 — each perceiving unit's health as last seen, for the Hit edge: ⭐ R-3039 S1 on the unit's TargetMemory (LastHealth), not
         //   here — a checkpoint restored into a fresh system carries it on.
         // ⭐ CE-2233 (CIV-0) — last frame's THREAT count per unit: the side is read live, so a neutral that turns Hostile changes the
         //   count without changing the memory — the edge needs the previous frame's answer, as Hit needs the previous health.
+        [Fdp.Core.WorldDerived("empty falls back to ThreatCount of the restored memory (:203) — same edge")]
         private System.Collections.Generic.Dictionary<Entity, int> _lastThreats = new();
+        [Fdp.Core.WorldDerived("swap buffer cleared each tick")]
         private System.Collections.Generic.Dictionary<Entity, int> _nextThreats = new();
 
         // ⭐ CE-3063 — this frame's heard contacts, grouped by the unit that heard them.
+        [Fdp.Core.WorldDerived("this frame's heard contacts, cleared each tick")]
         private readonly System.Collections.Generic.Dictionary<Entity, System.Collections.Generic.List<SoundContactEvent>> _heard = new();
         // ⭐ CE-3293 — the world these maps describe. A reload clears the world and the next run's units come back under the same
         //   handles (SoftClear restarts the generations), so last run's counts would read as this run's: the first step published
@@ -121,7 +125,9 @@ namespace Fdp.Toolkit.Perception.Systems
         /// </summary>
 
         // ⭐ P-1 — the parallel path's buffers (grown, never shrunk; 0 B per steady frame)
+        [Fdp.Core.WorldDerived("scratch — the parallel batch list, refilled from 0 each tick (exp/perf)")]
         private Entity[] _list = new Entity[64];
+        [Fdp.Core.WorldDerived("scratch — each batch entity's threat count, written by this tick's job, read back the same tick (exp/perf)")]
         private int[] _threatsOut = new int[64];
 
         private struct EvaluateJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads

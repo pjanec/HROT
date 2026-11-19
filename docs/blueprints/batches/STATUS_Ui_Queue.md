@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — running HANDOFF_Coordinator_To_Ui_Bug_Queue.md under PROTOCOL_Autonomous_Lanes.md
-updated: 2026-11-18 10:45 UTC
+updated: 2026-11-19
 current-answer: §1
 -->
 
@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-5034 (HANDOFF_Coordinator_To_Ui_Waiting_Work row 1, via HANDOFF_Terrain_To_UI_Glass_Look frozen at terrain 36a1ad8f3) — the look of glass. Merged coordinator 3f4a9e66d (contains backend + terrain).
+idle — waiting for a handoff (Queue 3 done `2026-11-19`: CE-5034 terrain's layer + ui's glass sound, CE-4670 drawing, CE-3451 ②③④, CE-1980 triaged; lanes fetched at coordinator `99978c0df`, nothing new for ui).
 
 ## 2. The queue (in order)
 
@@ -59,6 +59,7 @@ IN PROGRESS: CE-5034 (HANDOFF_Coordinator_To_Ui_Waiting_Work row 1, via HANDOFF_
 
 | row | state | finding | gates | design |
 |---|---|---|---|---|
-| CE-5034 GW-3 the look of glass | IN PROGRESS | | | |
-| CE-4670 drawing — openings, lights, head out, light switches | TODO | | | |
-| CE-1980 / CE-3451 ②④ (DECIDED: ② build, ③ the rule moves into code — R-4297, ④ once in the egress shape) | TODO | | | |
+| CE-5034 GW-3 the look of glass | DONE BY TERRAIN (the coordinator reassigned it; the ui handoff withdrawn) — ui's parallel build (5f845eeb4) REMOVED at the merge of terrain; ui's one addition kept: the breaking-glass SOUND (EffectSpawnSystem.TrackWindows → SoundEvents.Glass, built-in 7356) | GlassFrameRail + AudioTests (see the merge commit) | AudioTests.CE5034_AShatteredPane_IsHeardAsBreakingGlass_Once | DESIGN_Glass_Windows §5a (+ HISTORY) |
+| CE-4670 drawing — openings, lights, head out, light switches | DONE — the socket rule in Hrot.Look (VehicleSockets), the body layer's fittings, the commander's periscope eye, the station's H / U + HUD lines | Look 23/0 (+VehicleSockets); Presentation CrewControls/Fittings/PossessionStation/Keymap/MineClearer/Map3D 318/0 under xvfb; frames vs the mockup (scratchpad) | VehicleSocketsTests, CrewControlsTests (red-proved), VehicleFittingsFrameRail | DESIGN_Vehicle_Appearance_State §7d (+ as built); mockup UX/vehicle-openings-lights.svg | | | |
+| CE-3451 ②③④ (DECIDED: ② build, ③ the rule moves into code — R-4297, ④ once in the egress shape; the decision's "CE-1980" = this) | DONE — attributes on the fields (849 rows migrated, 358 classified), the ledger retired, 7 + 23 world-boundary fixes, ④ IL-checked (36 of 45 reds were stale rows), 11 C listed as CE-1981 | the three rails green (`Hrot.ClusterRunner.Tests`); full solution build; feature suites (see the commit) | `IngressPendingForgetsTheLastWorldTests` (red-proved); ② red-proved | DESIGN_System_State_Inventory §9; NOTE_Ui_To_All_Lanes_State_Attributes |
+| CE-1980 the nine pre-existing `Hrot.SimHost.Tests` reds (handoff row 3 names it) | TRIAGED — 2 now pass, 1 fixed by ui (ReplayBrowser → Orchestrator: `NodeIdRanges` → `Hrot.Core`), 7 handed back to their lanes (NOTE), ST0 flaky (measured) | OneBootstrapImplementationRails 5/0; Orchestrator NodeId 8/0; ReplayBrowser builds | — | NOTE_Ui_To_All_Lanes_SimHost_Rails_Drifted |

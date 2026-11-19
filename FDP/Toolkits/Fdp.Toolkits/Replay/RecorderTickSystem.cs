@@ -22,12 +22,17 @@ namespace Fdp.Toolkit.Replay
 
         private readonly AsyncRecorder _recorder;
         private readonly bool _blocking;
+        [Fdp.Core.WorldDerived("keyframe cadence counter; phase irrelevant to sim")]
         private int _framesSinceKeyframe;
+        [Fdp.Core.WorldDerived("recorder delta baseline; empty only forces larger delta")]
         private uint _prevTick;
+        [Fdp.Core.WorldDerived("the last frame's wall stamp — the recording's timeline never goes back; recorder output, not the world")]
         private long _lastWallTicks;   // the last frame's wall stamp: the recording's timeline never goes back
 
         // ⭐ CE-3299 B3 (R-3044) — checkpoints asked for and not yet written: (label, the wall time to write at).
+        [Fdp.Core.WorldDerived("checkpoint marks asked for and not yet written (CE-3299 B2); recorder output, not the world")]
         private readonly System.Collections.Generic.List<(string Label, long AtWallTicks)> _requested = new();
+        [Fdp.Core.NotState("static readonly menu item object")]
         private readonly object _requestedLock = new();
 
         /// <summary>
@@ -63,6 +68,7 @@ namespace Fdp.Toolkit.Replay
         /// step where it is not (at most <see cref="MaxCheckpointDeferSteps"/> steps), so a restore continues exactly. Null = never.</param>
         /// <summary>⭐ CE-2385 — how many frames a due checkpoint waits for the cadenced brain slots to drain (D8).</summary>
         public const int MaxDrainDeferrals = 3;
+        [Fdp.Core.WorldDerived("recorder pacing counter for deferring a checkpoint until the cadence drain; no sim effect")]
         private int _drainDeferrals;
 
         public RecorderTickSystem(AsyncRecorder recorder, bool blocking = false, double checkpointingSeconds = 0, Func<bool>? slotRunInFlight = null)
@@ -172,7 +178,9 @@ namespace Fdp.Toolkit.Replay
             _prevTick = repo.GlobalVersion;
         }
 
+        [Fdp.Core.SessionState("session state (CE-3329 P3 R8): the recorder is suspended for a review — set by the review handler, not the world")]
         private volatile bool _suspended;
+        [Fdp.Core.SessionState("session state (CE-3329 P3): a review's return asked the recorder to resume")]
         private bool _resumePending;
 
         /// <summary>
@@ -194,8 +202,11 @@ namespace Fdp.Toolkit.Replay
             _suspended = false;
         }
 
+        [Fdp.Core.SessionState("session state (CE-3329 P3): the live point L the recorder resumes at")]
         private double? _resumeAtSimSeconds;
+        [Fdp.Core.WorldDerived("resume gate counter (CE-3329 P3); bounded, reset on resume")]
         private int _framesWaitingForLivePoint;
+        [Fdp.Core.WorldDerived("resume gate counter (CE-3329 P3): frames the clock has stood at L; reset on resume")]
         private int _framesAtLivePoint;
 
         /// <summary>⭐ CE-3329 — consecutive frames the clock must stand at the live point before a resumed recording writes again.</summary>
@@ -207,14 +218,18 @@ namespace Fdp.Toolkit.Replay
         /// <summary>⭐ CE-3329 — true while a review holds the recording.</summary>
         public bool IsSuspended => _suspended;
 
+        [Fdp.Core.WorldDerived("per-frame scratch list of marks due this frame; cleared every tick")]
         private readonly System.Collections.Generic.List<string> _due = new();
         private readonly Func<bool>? _slotRunInFlight;   // CE-3316
+        [Fdp.Core.WorldDerived("steps a due checkpoint has waited for a quiet step (CE-3316); recorder output timing, not the world")]
         private int _deferredSteps;
 
         /// <summary>⭐ <c>CE-3316</c> — how many steps a due checkpoint waits for a frame with no slot run in flight, at most.</summary>
         public const int MaxCheckpointDeferSteps = 8;
+        [Fdp.Core.WorldDerived("the recording has written its first manifest (CE-3313; CE-3299 B4); recorder output only")]
         private bool _wroteManifest;
         private readonly double _checkpointingSeconds;   // D17 — 0 = FULL
+        [Fdp.Core.WorldDerived("CHECKPOINTING mode cadence (CE-3299 D17): sim time of the last keyframe; empty only forces the next keyframe early")]
         private double? _lastKeyframeSimTime;
 
         /// <summary>⭐ <c>CE-3299</c> D17 — the recording mode: 0 = FULL, N &gt; 0 = a keyframe every N s of sim time only.</summary>

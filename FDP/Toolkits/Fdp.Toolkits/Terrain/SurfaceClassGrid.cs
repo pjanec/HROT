@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Terrain
     /// <para>⭐ It GENERALISES the woods grid (MV-4): the woods' 25 m cell is too coarse to tell a road from the field beside it, so the class grid is
     /// finer (<see cref="Cell"/> m) and samples the woods at its cell centres. Allocation-free queries; immutable once built (the parallel move only reads it).</para>
     /// </summary>
+    [Fdp.Core.NotState("the surface-class grid built once from the static terrain")]
     public sealed class SurfaceClassGrid
     {
         /// <summary>The cell edge (m): fine enough for a carriageway (a lane ~3.5 m), coarse enough for a 10 km map in 4 M bytes.</summary>

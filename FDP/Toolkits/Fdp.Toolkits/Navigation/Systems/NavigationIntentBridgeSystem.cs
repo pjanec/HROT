@@ -41,8 +41,10 @@ namespace Fdp.Toolkit.Navigation.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class NavigationIntentBridgeSystem : IEcsModuleSystem
     {
+        [Fdp.Core.NotState("static NLog logger")]
         private static readonly Logger Log = LogManager.GetCurrentClassLogger();
 
         // ⭐ R-3039 S1 — what was already applied (the intent id, the locomotion action instance) is on the mover (NavigationApplied), not
@@ -51,15 +53,18 @@ namespace Fdp.Toolkit.Navigation.Systems
         //   recorded, so the bridge retries on the next tick.
 
         // ⭐ CE-3026 — PathToPoint intents whose crowd registration is waiting for the crowd provider (by IntentId).
+        [Fdp.Core.ProtocolCache("deferred crowd-join retries, re-derived by intent rescan")]
         private readonly Dictionary<Entity, uint> _pendingCrowd = new();
 
         private readonly TrajectoryPoolManager? _trajectoryPool;
         private readonly IDtCrowdProvider? _dtCrowd;
 
+        [Fdp.Core.WorldDerived("delta-scan cursor; 0 only rescans, filtered by applied-id cache")]
         private uint _lastScanTick;
         private int _epoch;   // ⭐ CE-3294 — the world the caches below describe
 
         /// <summary>⭐ CE-2171 — FollowRoute intents whose route entity is not compiled on this node yet: retried every tick.</summary>
+        [Fdp.Core.ProtocolCache("deferred FollowRoute retries, re-derived by intent rescan")]
         private readonly Dictionary<Entity, uint> _pendingRoute = new();
 
         /// <summary>
@@ -126,6 +131,7 @@ namespace Fdp.Toolkit.Navigation.Systems
             return progress;
         }
 
+        [Fdp.Core.WorldDerived("scratch cleared before each use")]
         private readonly List<NavRouteWaypoint> _routePoints = new();
 
         /// <summary>⭐ <c>CE-4032</c> — the arc length (XY) of the point of a one-shot <paramref name="traj"/> nearest <paramref name="at"/>

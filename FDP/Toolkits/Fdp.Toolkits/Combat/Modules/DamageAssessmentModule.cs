@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Combat.Modules
     /// registered separately in <c>SimHostApp</c> / <c>NodeBootstrapper</c>.
     /// </para>
     /// </summary>
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class DamageAssessmentModule
     {
         /// <summary>Systems that run in the Simulation phase.</summary>

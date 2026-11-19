@@ -18,6 +18,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class LookAtDispatcherSystem : DispatcherSystemBase<LookAtChannelWork>
     {
         public LookAtDispatcherSystem(IAnimationBackend backend)
@@ -97,6 +98,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
             }
         }
 
+        [Fdp.Core.WorldDerived("scratch cleared at top of Execute")]
         private readonly System.Collections.Generic.HashSet<int> _tornDown = new();
 
         /// <summary>The request (copied) and the current report — a missing report is the default one.</summary>

@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Replication.Services
     /// -- eliminating the legacy try/catch hack that miscast ordinals as component IDs.
     /// </para>
     /// </summary>
+    [Fdp.Core.NotState("descriptor-to-component tables, registered once at setup")]
     public class DescriptorOwnershipMap
     {
         private readonly Dictionary<long, Type[]> _descriptorToComponentTypes = new();

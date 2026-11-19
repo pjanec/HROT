@@ -96,6 +96,7 @@ namespace Hrot.UI.Common.Audio
                 foreach (var s in events.Shots) Shot(world, tkb, own, ear, now, s);
                 foreach (var b in events.Bursts) Burst(tkb, ear, now, b);
                 foreach (var c in events.Crashes) Crash(tkb, ear, now, c);   // ⭐ CE-4600 (B-3b)
+                foreach (var g in events.Glasses) Glass(tkb, ear, now, g);   // ⭐ CE-5034 (GW-3)
                 events.Clear();
             }
             Movers(world, tkb, own, ear, dt, output);
@@ -186,6 +187,19 @@ namespace Hrot.UI.Common.Audio
             CrashesHeard++;
             _mixer.Request(SoundTkbCatalog.Crash, c.At, true, Spatializer.Gain(d, s.ReferenceM, s.RangeM) * Volume(s) * (c.Heavy ? 1f : 0.6f), Jitter(s), s.Priority, now, Spatializer.Delay(d));
         }
+
+        /// <summary>⭐ CE-5034 (glass windows GW-3, D-8) — a pane shattered: the breaking glass, by distance.</summary>
+        private void Glass(ITkbDatabase? tkb, in Ear ear, double now, in SoundEvents.Glass g)
+        {
+            if (SoundTkbCatalog.SoundOf(tkb, SoundTkbCatalog.Glass) is not { } s) return;
+            float d = Vector3.Distance(g.At, ear.Position);
+            if (s.RangeM > 0f && d >= s.RangeM) return;
+            GlassHeard++;
+            _mixer.Request(SoundTkbCatalog.Glass, g.At, true, Spatializer.Gain(d, s.ReferenceM, s.RangeM) * Volume(s), Jitter(s), s.Priority, now, Spatializer.Delay(d));
+        }
+
+        /// <summary>⭐ CE-5034 — panes heard shattering (a rail).</summary>
+        public int GlassHeard { get; private set; }
 
         /// <summary>⭐ CE-4600 — crashes played (a rail).</summary>
         public int CrashesHeard { get; private set; }

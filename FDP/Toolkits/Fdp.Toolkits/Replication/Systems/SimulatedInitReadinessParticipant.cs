@@ -44,14 +44,17 @@ namespace Fdp.Toolkit.Replication.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class SimulatedInitReadinessParticipant : DeferredConstructionParticipant
     {
         private readonly int _simulatedReadyFrames;
         private readonly string _label;
 
         // Per-entity frame the ghost was deferred, so TryComplete can measure the elapsed window.
+        [Fdp.Core.ProtocolCache("readiness-wait start frame per entity; cleared at world boundary")]
         private readonly Dictionary<Entity, uint> _deferFrame = new();
         // The stall log fires once per entity, and only after the window is well past.
+        [Fdp.Core.WorldDerived("stall log throttle set")]
         private readonly HashSet<Entity> _stallLogged = new();
 
         /// <summary>How long after the window a still-pending ghost logs a stall (it never self-acks).</summary>

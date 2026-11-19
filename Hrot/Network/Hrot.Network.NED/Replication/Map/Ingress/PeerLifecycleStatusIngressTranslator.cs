@@ -35,6 +35,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly IReadOnlyList<int> _targetIds = new int[0];
         public IReadOnlyList<int> TargetComponentIds => _targetIds;
 

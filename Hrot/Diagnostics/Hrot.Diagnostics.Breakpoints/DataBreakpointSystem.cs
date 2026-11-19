@@ -26,6 +26,7 @@ public sealed class DataBreakpointSystem : IEcsModuleSystem
 {
     private readonly IDataBreakpointManager _manager;
     private readonly bool _eventPath;
+    [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
     private readonly List<Entity> _pendingHitsBuffer = new();
 
     /// <summary>

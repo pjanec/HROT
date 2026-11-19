@@ -65,6 +65,7 @@ namespace Fdp.Toolkit.Replication.Systems
     {
         private readonly ITkbDatabase _tkbDatabase;
         private readonly EntityLifecycleModule _lifecycleModule;
+        [Fdp.Core.NotState("injected translator list, set in ctor")]
         private readonly IReadOnlyList<ITkbEntityTranslator>? _explicitTranslators;
 
         /// <summary>
@@ -111,6 +112,7 @@ namespace Fdp.Toolkit.Replication.Systems
         /// </summary>
         private const uint STALL_REPORT_FRAMES = 600;
 
+        [Fdp.Core.WorldDerived("warn-once set (stalled components), log throttle")]
         private readonly HashSet<(long, int)> _reportedStalls = new();
 
         private void ReportStallIfOverdue(long tkbType, int componentId, uint tick, uint firstSeenFrame)
@@ -126,7 +128,9 @@ namespace Fdp.Toolkit.Replication.Systems
                 "so its egress has nothing to send. This is a cluster configuration error, not a delay.");
         }
 
+        [Fdp.Core.ProtocolCache("ghost promotion queue, refilled from query of ready ghosts")]
         private readonly Queue<Entity> _promotionQueue = new();
+        [Fdp.Core.ProtocolCache("membership set paired with promotion queue")]
         private readonly HashSet<Entity> _inQueue = new();
         private int _epoch;   // ⭐ CE-3294 — the world the state below describes (ghosts waiting to be promoted)
         /// <summary>

@@ -20,7 +20,9 @@ namespace Fdp.Toolkit.Combat.Systems
     public sealed class RoundPickUpSystem : IEcsModuleSystem
     {
         /// <summary>Asks granted / grants put in a man's hands on this node (rails and diagnostics read them).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Granted { get; private set; }
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public long Received { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -66,13 +68,17 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <summary>How far in front of him the cooked-off round is "thrown" (m).</summary>
         public const float CookOffDropM = 0.5f;
 
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _cooked = new();
 
         /// <summary>Rounds that cooked off in a hand on this node.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long CookedOff { get; private set; }
 
         /// <summary>⭐ <c>CE-3236</c> — Irritant hits a venting canister in a hand gave its holder / canisters that burnt out in a hand.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Irritated { get; private set; }
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long BurntOut { get; private set; }
 
         /// <summary>How long one in-hand Irritant hit lasts: the canister's warhead effect, at least a step and a half (as the cloud's).</summary>

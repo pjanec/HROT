@@ -38,6 +38,7 @@ namespace Hrot.Common.Systems;
 [TickMode(TickPolicy.WhenTimeAdvances)]
 public class DeadReckoningSyncSystem : IEcsModuleSystem
 {
+    [Fdp.Core.NotState("static NLog logger")]
     private static readonly NLog.Logger Log = NLog.LogManager.GetCurrentClassLogger();
 
     /// <summary>Default blend rate, in units of "fraction of the remaining gap per second".</summary>

@@ -1,5 +1,7 @@
 using System;
 
+// ⭐ CE-1980 (OneBootstrapImplementationRails) — MOVED here from the Hrot.Orchestrator host `2026-11-19`: the ReplayBrowser host names the federation rows
+//   by it, and a host may not reference another host. The namespace is kept so no call site changes (one table, ⛔ no second copy).
 namespace Hrot.Orchestrator;
 
 /// <summary>

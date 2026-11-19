@@ -40,14 +40,19 @@ namespace Fdp.Toolkit.Replication.Systems
         private readonly int _timeoutFrames;
 
         // Entities this participant has deferred and not yet acked, with the frame they entered.
+        [Fdp.Core.ProtocolCache("entities awaiting deferred construction completion")]
         private readonly HashSet<Entity> _pending = new();
+        [Fdp.Core.ProtocolCache("start frame of deferred construction wait")]
         private readonly Dictionary<Entity, uint> _pendingStartFrame = new();
         // CE-289 (C3): optional per-entity timeout override (frames). Absent ⇒ the ctor default.
+        [Fdp.Core.ProtocolCache("per-entity timeout of deferred construction")]
         private readonly Dictionary<Entity, int> _pendingTimeoutFrames = new();
         private int _epoch;   // ⭐ CE-3294 — the world the pending sets describe
 
         // Scratch buffers reused each tick to avoid per-frame allocation.
+        [Fdp.Core.WorldDerived("scratch cleared before each use")]
         private readonly List<Entity> _completeBuffer = new();
+        [Fdp.Core.WorldDerived("scratch cleared before each use")]
         private readonly List<Entity> _timedOutBuffer = new();
 
         /// <summary>Default force-ack timeout (5 s @ 60 Hz), matching the legacy gateway.</summary>

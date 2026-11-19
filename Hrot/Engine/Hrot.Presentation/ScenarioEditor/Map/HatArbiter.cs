@@ -17,6 +17,7 @@ namespace Hrot.ScenarioEditor.Map
     {
         private readonly EntityRepository _world;
         private readonly Hrot.ScenarioEditor.Tools.IToolController _tools;
+        [Fdp.Core.WorldDerived("last hat seen: edge detector, null means the first frame just records")]
         private Hat? _last;   // null until the first frame: that frame records the hat, it is not a change
 
         public HatArbiter(EntityRepository world, Hrot.ScenarioEditor.Tools.IToolController tools)
@@ -26,9 +27,11 @@ namespace Hrot.ScenarioEditor.Map
         }
 
         /// <summary>This station drives a unit (set by <c>PossessionStation</c> when it takes / gives back the camera).</summary>
+        [field: Fdp.Core.SessionState("UI-set embodied flag of the local station presentation, not the world")]
         public bool Embodied { get; set; }
 
         /// <summary>The director owns the camera (H4 sets it).</summary>
+        [field: Fdp.Core.SessionState("UI-set directing flag of the local station presentation, not the world")]
         public bool Directing { get; set; }
 
         /// <summary>The hat now: Embodied &gt; Direct &gt; Command (RTS armed, running) &gt; Edit (Edit mode) &gt; Observe.</summary>

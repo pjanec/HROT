@@ -24,6 +24,7 @@ namespace Fdp.Toolkit.Perception.Systems
         private readonly bool _gateOnAuthority;
         private EntityQuery? _emitters, _aircraft;
         private EntityRepository? _queriesFor;
+        [Fdp.Core.FrameScratch("the radiating radars of this run: cleared at the top and filled from this frame's world")]
         private readonly List<(Entity E, Vector3 Antenna, ForceId Force, float Range, Entity Tracked)> _on = new();
 
         public RadarWarningReceiverSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;

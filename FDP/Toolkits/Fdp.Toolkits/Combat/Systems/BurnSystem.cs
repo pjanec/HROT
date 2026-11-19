@@ -38,11 +38,14 @@ namespace Fdp.Toolkit.Combat.Systems
         public const float ReachM = 1.5f;
 
         private readonly DeathCrossings _deaths = new();
+        [Fdp.Core.WorldDerived("TKB type to fire-seconds memo, cleared on world change (57)")]
         private readonly Dictionary<long, float> _fireSecondsOf = new();
         private EntityQuery? _bodies, _holders, _fires;
+        [Fdp.Core.WorldDerived("step-gate (floor(now/StepSeconds)) reset on world change; derived from sim time")]
         private long _lastStep = long.MinValue;
 
         /// <summary>Fires this node lit (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of ignitions")]
         public long Ignited { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

@@ -19,6 +19,7 @@ namespace Fdp.Toolkit.Replication.Patching;
 /// attribute compiler.
 /// </para>
 /// </remarks>
+[Fdp.Core.WorldDerived("reusable per-create scratch slots, reset between uses")]
 public sealed class ListPatchContext : IEntityPatchContext
 {
     // ── Internal slot types ──────────────────────────────────

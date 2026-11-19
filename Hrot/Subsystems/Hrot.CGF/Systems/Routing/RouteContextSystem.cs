@@ -34,11 +34,13 @@ namespace Hrot.CGF.Systems.Routing;
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
 [TickMode(TickPolicy.WhenTimeAdvances)]
+[Fdp.Core.NotState("a system/module, classified on its own")]
 public sealed class RouteContextSystem : IEcsModuleSystem
 {
     // ── Configuration ─────────────────────────────────────────────────────────
 
     /// <summary>Minimum elapsed time (seconds) between consecutive evaluations.</summary>
+    [field: Fdp.Core.NotState("configuration property, default 0.5 s, set at setup")]
     public float TickIntervalSeconds { get; set; } = 0.5f;
 
     // ⭐ R-3039 S1 — no accumulator: the system runs when the SIM clock crosses a multiple of the interval, so the phase is restored with

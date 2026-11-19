@@ -364,6 +364,7 @@ namespace Fdp.Toolkit.Behavior
     /// <c>string.GetHashCode()</c> is forbidden: it is process-randomised in .NET,
     /// making behavior IDs non-reproducible across runs and processes.
     /// </summary>
+    [Fdp.Core.NotState("behaviour definitions registered at startup / hot-reload")]
     public sealed class BehaviorRegistry
     {
         private long _revision;

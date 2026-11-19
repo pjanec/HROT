@@ -71,6 +71,7 @@ namespace Fdp.Toolkit.World
     /// A world whose version does not advance between two calls is always Full (<see cref="FullReason.StaticClock"/>). A managed component is seen only through <c>SetManagedComponent</c> (an in-place mutation never moves a chunk version).</para>
     /// <para>Hot path: 0 B in steady state (<see cref="Next"/> allocates nothing).</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("what changed since the owner's last run, from world versions; in doubt (another world, a restore) it answers Full")]
     public sealed class ChangeGate
     {
         /// <summary><c>HROT_CHANGE_GATE=0</c> ⇒ off (A/B, bisect); read once.</summary>

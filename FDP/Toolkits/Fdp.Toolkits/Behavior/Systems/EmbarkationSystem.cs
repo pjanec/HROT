@@ -18,8 +18,10 @@ namespace Fdp.Toolkit.Behavior.Systems
     public sealed class EmbarkationSystem : IEcsModuleSystem
     {
         /// <summary>Commands this node applied (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public long Applied { get; private set; }
         /// <summary>Commands this node owned but the rules refused (vehicle full, passenger not aboard, …).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public long Refused { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

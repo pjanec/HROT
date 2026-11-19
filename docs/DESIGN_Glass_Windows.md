@@ -208,6 +208,7 @@ window state is not authored; the building damage's existing views list it).
 | the shard burst as a separate `GlassShatterEffect` | inside the same layer: it notices a pane turning broken in its view (`WindowTable`), throws 26 shards (1.4 s, gravity); a pane already broken when it first looks bursts nothing (a late joiner) |
 | the mockup's dark frame round each pane | ⛔ not drawn — the opening's bare cut in the wall frames it (the wall mesh is unchanged); the rest is as the mockup: the pale-blue pane at 0.45, the sheen, a crack star per kept hit (dot, seven radial lines, two dashed rings, both faces), three shards left in a broken frame |
 | the burst's time | ⭐ `2026-11-19` (ui's note): the shards step by the world's SIM clock (`GlobalTime` delta, like `EntityBodyLayer3D`) — a pause freezes them in the air, a seek back or a jump over ¼ s steps nothing; the frame delta only on a host with no sim clock. Rail: `GlassFrameRail` (60 paused frames ⇒ the same shards in flight). ⛔ SUPERSEDED: they stepped by the frame time and played on through a pause |
+| the glass sound's playback (§6 GW-3) | ⭐ *(ui, `2026-11-19`)* not the layer's — a layer is per view, so two 3-D views would each play it. The barrier-crash route: `EffectSpawnSystem.TrackWindows` (once per world, every map host) turns each `WindowBrokenEvent` (raised where the window was decided, carried to every node by event id 5112) into `SoundEvents.Glass`, played as the built-in sound type `SoundTkbCatalog.Glass` 7356 (`SoundSynth.Glass`: a crack, then tinkling; 150 m, the AI's hearing range). ⚠ Like the crash, not played in a replay (the spawner is off there) |
 | a breach or a collapse takes the pane (D-10) | `GlassLayer3D.LookOf` — the one rule the layer and its rail read: collapsed ⇒ gone; a breach over the pane's centre ⇒ gone; broken ⇒ the hole |
 
 Frames: `HROT_RAIL_SHOTS=<dir> xvfb-run -a dotnet test Hrot/Engine/Hrot.Presentation.Tests --filter GlassFrameRail` (`glass-1-south-intact-cracked`, `glass-2-east-broken`, `glass-3-the-burst`).
@@ -229,6 +230,11 @@ Frames: `HROT_RAIL_SHOTS=<dir> xvfb-run -a dotnet test Hrot/Engine/Hrot.Presenta
 | existing `bd-destruction` | unchanged breaches and collapse (`BuildingDamage` is untouched) |
 
 ## ⛔ HISTORY
+
+- **GW-3 built twice (`2026-11-19`):** ui built its own `GlassLayer3D` (+ a pure `GlassLook` in `Hrot.Look`, `ShatterWatch`) against the terrain → ui handoff,
+  unaware the coordinator had reassigned GW-3 to terrain. ⛔ Removed at the merge (one implementation per concept); terrain's layer (§5a) stands, ui's
+  sound route is kept. ⚠ Open for a later slice: moving the pane / crack geometry into the shared look library (`Hrot.Look`, DESIGN_Vehicle_Appearance_State
+  §7) so a non-raylib renderer derives the same glass.
 
 - **D-3, first lean (`2026-11-18`, superseded the same day):** the window entries APPENDED to `BuildingDamage` (40 entries, ≈ 900 B with the breaches),
   argued by "no new component id: the space is nearly full" (the header of `GlobalComponentIds.cs:35`). ⛔ Overturned: ids are free (user), and the two

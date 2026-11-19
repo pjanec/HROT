@@ -28,6 +28,7 @@ public sealed class TrafficHandoverSystem : IEcsModuleSystem
     public const double CapReferenceSpeed = 13.9;
 
     private readonly TrafficRuntime _runtime;
+    [Fdp.Core.WorldDerived("scratch cleared in Gather each frame")]
     private readonly List<TrafficHandover> _scratch = new();
 
     public TrafficHandoverSystem(TrafficRuntime runtime) => _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));

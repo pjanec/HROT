@@ -8,6 +8,7 @@ namespace CarKinem.Formation
     /// <summary>
     /// Singleton manager for formation templates.
     /// </summary>
+    [Fdp.Core.NotState("formation templates built in ctor")]
     public class FormationTemplateManager : IDisposable
     {
         private readonly Dictionary<FormationType, FormationTemplate> _templates = new();

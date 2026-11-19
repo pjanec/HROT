@@ -9,6 +9,7 @@ using Fdp.Toolkit.Vis2D.Input;
 
 namespace Fdp.Toolkit.Vis2D
 {
+    [Fdp.Core.WorldDerived("2D map renderer/input canvas; presentation only")]
     public class MapCanvas : IResourceProvider
     {
         public MapCamera Camera { get; set; } = new MapCamera();

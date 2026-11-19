@@ -33,14 +33,19 @@ namespace Hrot.Common.Macros
         /// (frames, not ticks: a scenario loads while the cluster is paused).</summary>
         public const int PlacementWaitFrames = 300;
 
+        [Fdp.Core.SimulationMemory("frame counter compared with AskedAtFrame stored in the intent component (_frame - AskedAtFrame)")]
         private long _frame;
+        [Fdp.Core.SessionState("a monotonic placement-request id: never reset, a reused id would collide with an answer in flight")]
         private long _nextPlacementRequest;
+        [Fdp.Core.FrameScratch("placement answers of this frame: cleared at 78 and filled from the bus")]
         private readonly Dictionary<long, Fdp.Toolkit.Navigation.PlacementResponseBatch> _answers = new();
 
+        [Fdp.Core.NotState("injected macro expander dependency")]
         private readonly MacroExpander? _expander;
         private readonly NetworkEntityMap _entityMap;
         private readonly INetworkIdAllocator _idAllocator;
         private readonly NodeId _localNode;
+        [Fdp.Core.FrameScratch("this pass's macro entities: cleared and refilled from this frame's world")]
         private readonly List<Entity> _work = new();
 
         private readonly Fdp.Interfaces.ITkbDatabase? _tkb;
@@ -68,6 +73,7 @@ namespace Hrot.Common.Macros
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _destroySent.Clear();   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the destroy requests already sent
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<MacroExpansionStatus>()) return;
 
@@ -99,7 +105,9 @@ namespace Hrot.Common.Macros
                 Cascade(repo);
         }
 
+        [Fdp.Core.ProtocolCache("network ids a destroy was already sent for: send-once latch, trimmed at 4096")]
         private readonly HashSet<int> _destroySent = new();
+        private int _worldEpoch;
 
         private void Cascade(EntityRepository repo)
         {

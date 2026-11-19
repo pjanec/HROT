@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Hub
     // InvalidOperationException during concurrent modification.
     //
     // Design: DESIGN.md §2.2
+    [Fdp.Core.NotState("publisher endpoint list registered at setup")]
     public sealed class GizmoUiStateHub : IGizmoUiStatePublisher
     {
         private readonly object _lock = new();

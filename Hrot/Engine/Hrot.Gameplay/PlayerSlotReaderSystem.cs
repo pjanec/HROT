@@ -17,6 +17,7 @@ public class PlayerSlotReaderSystem : IEcsModuleSystem
 {
     private readonly GameplayWire _wire;
     private readonly Func<bool>? _when;
+    [Fdp.Core.SessionState("the latest slot topic per station, as received (the cluster's join state, not the world)")]
     private readonly Dictionary<int, PlayerSlotTopic> _latest = new();
 
     /// <param name="when">⭐ Optional gate: the reader is created (and read) only while it says true. The Player's client pack passes "a deploy server exists", so a Player in a

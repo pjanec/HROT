@@ -49,8 +49,11 @@ namespace Fdp.Toolkit.Combat.Systems
         public const int LyingCap = 256;
 
         // ⭐ CE-4649 — the lying rounds, oldest first (an array and a count: no allocation, no LINQ — R-2084). Per node: the system runs once on the shooter's node.
+        [Fdp.Core.WorldDerived("the landed rounds held for the lying cap, oldest first; reset at the world epoch; emptied, only the cleanup order changes")]
         private readonly Entity[] _lying = new Entity[LyingCap];
+        [Fdp.Core.WorldDerived("the count of _lying (reset with it at the world epoch)")]
         private int _lyingCount;
+        private int _worldEpoch;
 
         /// <summary>How many rounds this node holds as lying (the rail reads it).</summary>
         public int LyingCount => _lyingCount;
@@ -108,6 +111,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _lyingCount = 0;   // ⭐ R-4297 ② (CE-1980) — a world replacement (a reload reuses the handles, a restore) forgets the rounds it held as lying
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps this system off a frame that does not advance
 
@@ -353,6 +357,7 @@ namespace Fdp.Toolkit.Combat.Systems
             }
         }
 
+        [Fdp.Core.WorldDerived("thread-static scratch list")]
         [ThreadStatic] private static List<RoundImpact>? t_impacts;
 
         /// <summary>
@@ -364,7 +369,9 @@ namespace Fdp.Toolkit.Combat.Systems
         /// <summary>The distance (m) from the muzzle within which a pane breaks on the first round — a man firing OUT through it (D-4).</summary>
         public const float FireOutShatterMetres = 1.5f;
 
+        [Fdp.Core.FrameScratch("thread-static pane-hit list reused per call")]
         [ThreadStatic] private static List<PaneHit>? t_panes;
+        [Fdp.Core.FrameScratch("thread-static muzzle-pane list reused per call")]
         [ThreadStatic] private static List<Fdp.Toolkit.Terrain.TerrainWorld.FireCrossing>? t_muzzlePanes;
 
         /// <summary>The height (m) above a shooter's feet his chest — where the gun is held — is taken at.</summary>

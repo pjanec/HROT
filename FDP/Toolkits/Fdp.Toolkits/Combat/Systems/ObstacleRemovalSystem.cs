@@ -26,6 +26,7 @@ namespace Fdp.Toolkit.Combat.Systems
         private EntityQuery? _query;
 
         /// <summary>Removals this node asked for (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of removals")]
         public long Removed { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

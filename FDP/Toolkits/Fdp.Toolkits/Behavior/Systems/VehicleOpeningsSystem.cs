@@ -33,15 +33,18 @@ namespace Fdp.Toolkit.Behavior.Systems
             public readonly double[] LastUse = new double[VehicleOpenings.Capacity];
         }
 
+        [Fdp.Core.SimulationMemory("per-vehicle LastUse times drive closing idle openings after OpenSeconds+HoldSeconds; empty closes hatches")]
         private readonly Dictionary<Entity, Track> _tracks = new();
         private EntityRepository? _for;
         private int _epoch;
         private EntityQuery? _vehicles;
 
         /// <summary>Openings this node opened (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of openings opened")]
         public long Opened { get; private set; }
 
         /// <summary>Head-out / head-in requests this node applied (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of head-out/head-in requests")]
         public long Requests { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

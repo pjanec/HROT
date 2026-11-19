@@ -113,6 +113,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
         private readonly NodeId _localNodeId;
 
+        [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): wire batch counter; only echoed to responses, never read by consumers")]
         private uint _batchCorrelationId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastRequestBatch;
@@ -605,6 +606,7 @@ namespace Hrot.Network.NED.SimHost
         private readonly DdsWriter<RaycastResponseBatch>? _writer;
         private readonly NetworkEntityMap _entityMap;
 
+        [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): wire batch counter; only echoed to responses, never read by consumers")]
         private uint _batchCorrelationId;
 
         public long   DescriptorOrdinal => (long)EDescriptorType.dtRaycastResponseBatch;

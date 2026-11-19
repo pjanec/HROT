@@ -117,6 +117,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         }
 
         private EntityQuery? _channels;
+        [Fdp.Core.FrameScratch("the units to dispatch this run: refilled from index 0 for the parallel job")]
         private Entity[] _list = new Entity[64];
 
         /// <summary>
@@ -132,6 +133,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             Fdp.Core.ParallelReadCheck.DeclareUnmanaged<Hrot.MuscleCharacter.Animation.Components.StanceIntent>();
             s_declared = true;
         }
+        [Fdp.Core.WorldDerived("static declare-once latch")]
         private static bool s_declared;
 
         private struct DispatchJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads

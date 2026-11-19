@@ -8,6 +8,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
     /// Direct-line 3D volumetric path provider for engine-backed scenarios.
     /// <c>PlanPath</c> returns two waypoints (start and end). All positions are flyable.
     /// </summary>
+    [Fdp.Core.NotState("stateless direct-line planner")]
     public sealed class EngineBackedVolumetricPathProvider : IVolumetricPathProvider
     {
         /// <inheritdoc/>

@@ -28,12 +28,15 @@ namespace Hrot.Network.Routing
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class ClusterCapabilityIngestSystem : IEcsModuleSystem
     {
         private readonly DdsReader<NodeHeartbeat> _heartbeatReader;
         private readonly DdsReader<NodeCapabilitiesTopic> _capabilitiesReader;
         private readonly SimpleClusterStateCache _cache;
+        [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): per-node capability tokens from durable DDS topic; rebuilt on reader replay")]
         private readonly Dictionary<int, string[]> _nodeCapabilities = new();
+        [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): node-departure raised-once set; empty may re-raise NodeDeparted, idempotent")]
         private readonly HashSet<int> _departed = new();
 
         /// <summary>⭐ C6 (Q91 §4-N) — the master's context plane: <c>RequiredNodeIdsJson</c> carries its InSync set.</summary>

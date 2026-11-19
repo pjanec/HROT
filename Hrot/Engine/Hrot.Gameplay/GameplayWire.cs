@@ -8,6 +8,7 @@ namespace Hrot.Gameplay;
 /// with the pack composed and the feature OFF puts NO gameplay topic on the bus (the <c>TrafficMirrorSystem</c> precedent). A null participant (the
 /// networkless editor) ⇒ every accessor returns null: a no-op. Main thread only.
 /// </summary>
+[Fdp.Core.NotState("the node's lazy gameplay transport endpoints (DDS readers / writers per topic)")]
 public sealed class GameplayWire : IDisposable
 {
     private readonly DdsParticipant? _participant;

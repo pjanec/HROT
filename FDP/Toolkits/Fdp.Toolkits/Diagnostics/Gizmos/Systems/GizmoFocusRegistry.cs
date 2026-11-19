@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     /// <para>⛔ Not thread-safe, and deliberately so: every caller is a <c>PostSimulation</c> system on the
     /// host's own thread. Transient, never serialized, never replicated.</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("which gizmo has input focus; tool UI, not simulation")]
     public sealed class GizmoFocusRegistry
     {
         private IEntityStatefulGizmo? _holder;

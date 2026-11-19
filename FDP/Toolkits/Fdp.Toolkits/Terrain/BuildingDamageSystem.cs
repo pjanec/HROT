@@ -64,8 +64,10 @@ namespace Fdp.Toolkit.Terrain
         public const int PendingTimeoutTicks = 3600;
 
         /// <summary>Breaches written into an entity (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of breaches applied")]
         public long Applied { get; private set; }
         /// <summary>Creation requests published.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of creation requests")]
         public long Requested { get; private set; }
 
         private sealed class Pending
@@ -77,7 +79,10 @@ namespace Fdp.Toolkit.Terrain
             public bool Collapse;
         }
 
+        [Fdp.Core.ProtocolCache("breaches/collapse waiting for the requested damage entity to appear: creation request in flight")]
         private readonly Dictionary<string, Pending> _pending = new(StringComparer.Ordinal);
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("keys resolved this drain: cleared at 229 and filled in DrainPending")]
         private readonly List<string> _done = new();
         private EntityQuery? _query;
         private EntityRepository? _queryRepo;
@@ -87,6 +92,7 @@ namespace Fdp.Toolkit.Terrain
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pending.Clear();   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the record entities asked for (the requests died with the world)
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<BuildingDamage>() || !repo.HasSingletonManaged<TerrainWorld>()) return;
@@ -121,6 +127,7 @@ namespace Fdp.Toolkit.Terrain
         }
 
         /// <summary>Panes broken (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of broken panes")]
         public long PanesBroken { get; private set; }
 
         /// <summary>

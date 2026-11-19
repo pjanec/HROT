@@ -16,6 +16,7 @@ namespace Fdp.Toolkit.Behavior.Modules
     ///
     /// <para>Belongs to the <em>Brain</em> tier of the Brain/Muscle decomposition (MOD1 §3.2.2).</para>
     /// </summary>
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class MissionControlModule
     {
         private readonly BehaviorRegistry _registry;

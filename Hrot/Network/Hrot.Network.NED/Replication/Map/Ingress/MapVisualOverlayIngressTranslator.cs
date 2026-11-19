@@ -36,6 +36,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         /// with <c>GeoSpatialIngressTranslator</c>).  Re-processed on subsequent
         /// <see cref="PollIngress"/> calls once <c>SimTransform</c> becomes visible.
         /// </summary>
+        [Fdp.Core.ProtocolCache("overlay polyline rebuild deferred until entity has SimTransform")]
         private readonly Dictionary<Entity, MapVisualOverlay> _pendingOverlays = new();
         private int _worldEpoch;
 

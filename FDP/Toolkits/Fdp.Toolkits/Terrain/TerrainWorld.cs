@@ -97,6 +97,7 @@ namespace Fdp.Toolkit.Terrain
     // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): a per-node terrain service — never copied into a merged view.
     [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
     [ComponentId(GlobalComponentIds.TerrainWorld)]
+    [Fdp.Core.NotState("static authored terrain data")]
     public sealed class TerrainWorld
     {
         /// <summary>How far above its current Z an entity may step onto a surface (a kerb, a ramp start).</summary>

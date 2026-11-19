@@ -87,7 +87,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
     [TickMode(TickPolicy.EveryFrame)]
     public sealed class RuleWakeSystem : IEcsModuleSystem
     {
+        [Fdp.Core.WorldDerived("last exercise phase seen: edge detector for waking all rules")]
         private ExercisePhase _phase = ExercisePhase.Running;
+        [Fdp.Core.WorldDerived("flag: phase already observed once")]
         private bool _phaseKnown;
 
         public void Execute(ISimulationView view, float deltaTime)

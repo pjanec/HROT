@@ -17,6 +17,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class AnimationRuntimeBridgeSystem : IEcsModuleSystem
     {
         private readonly IAnimationBackend _backend;
@@ -24,6 +25,7 @@ namespace Hrot.MuscleCharacter.Animation.Systems
 
         // Which entities THIS process's backend has registered — derived (R-3039 S1, docs/DESIGN_System_State_Inventory.md §6 #15): an empty
         // set (a fresh process, a checkpoint restored into it) registers each character again, under its class (ClassOf).
+        [Fdp.Core.WorldDerived("R-3039 S1 (was C `_entityClassIds`): which entities this process's backend has registered — the backend (X) is this process's, so a fresh one starts empty and re-registers each under its class — the raw template id in BackendHandle, or, past a handle encoded by an earlier process, the entity's TkbIdentity.TkbType (AnimationRuntimeBridgeSystem.ClassOf)")]
         private readonly HashSet<ulong> _registered = new();
 
         /// <summary>

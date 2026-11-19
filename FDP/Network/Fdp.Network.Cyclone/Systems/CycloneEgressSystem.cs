@@ -16,9 +16,12 @@ namespace Fdp.Network.Cyclone.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Export)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class CycloneEgressSystem : IEcsModuleSystem
     {
+        [Fdp.Core.NotState("translator list injected in ctor, never mutated")]
         private readonly INetworkTranslator[] _translators;
+        [Fdp.Core.WorldDerived("per-translator profiling data; diagnostic only")]
         private readonly Dictionary<INetworkTranslator, SystemProfileData> _translatorProfileData = new();
 
         public IReadOnlyList<INetworkTranslator> Translators => _translators;
@@ -79,9 +82,11 @@ namespace Fdp.Network.Cyclone.Systems
         /// ⭐⭐⭐ <c>Q59-E</c> — set once, on the first Execute, so no host has to remember.
         /// See <see cref="ContributeDescriptorMap"/>.
         /// </summary>
+        [Fdp.Core.NotState("one-shot latch contributing static descriptor map to the repo slot")]
         private bool _contributedDescriptorMap;
 
         /// <summary>⭐ CE-3427 N-1 — the pipeline this system handed its marked translators to (once per pipeline).</summary>
+        [Fdp.Core.WorldDerived("⭐ CE-3427 N-1 — which world's egress pipeline this system handed its marked translators to (re-registers with any other)")]
         private Egress.EgressPipeline? _registeredPipeline;
 
         private bool RegisteredWith(Egress.EgressPipeline p)

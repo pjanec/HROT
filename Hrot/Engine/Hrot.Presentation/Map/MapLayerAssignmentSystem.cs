@@ -28,8 +28,10 @@ namespace Hrot.Presentation.Map;
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
 [TickMode(TickPolicy.EveryFrame)]
+[Fdp.Core.NotState("a system/module, classified on its own")]
 public class MapLayerAssignmentSystem : IEcsModuleSystem
 {
+    [Fdp.Core.NotState("layer definitions injected in ctor")]
     private readonly IReadOnlyList<MapLayerDefinition> _layers;
     private EntityQuery? _query;
 
@@ -44,6 +46,7 @@ public class MapLayerAssignmentSystem : IEcsModuleSystem
     public ChangeGate Gate => _gate;
 
     /// <summary>How many times the entity walk actually ran (the gate skipped the rest) — for rails and diagnostics.</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of passes")]
     public int Passes { get; private set; }
 
     /// <summary>

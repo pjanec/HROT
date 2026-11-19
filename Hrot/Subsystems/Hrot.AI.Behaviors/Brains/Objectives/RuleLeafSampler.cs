@@ -55,10 +55,13 @@ namespace Hrot.AI.Behaviors.Brains.Objectives
         public static readonly FeatureDeclaration Feature = FeatureDeclaration.Switch(FeatureId,
             "Each trigger's condition leaves with their live values are sampled (twice a second) for the rules view", FeatureChange.Live, _ => false);
 
+        [Fdp.Core.WorldDerived("period gate timestamp (a clock going back reopens the window)")]
         private double _last = double.NegativeInfinity;
+        [Fdp.Core.FrameScratch("this run's owned triggers: cleared and refilled from this frame's world")]
         private readonly List<Entity> _triggers = new();
 
         /// <summary>How many sampling passes have run (the rate rail reads it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of passes")]
         public int Passes { get; private set; }
 
         /// <summary>⭐ The ONE owner test of a rule entity (V-4): <c>ObjectiveHost.Enter</c> gives <see cref="RuleControl"/> and its authority bit to the node whose Brain ticks the entity — a replica has neither.</summary>

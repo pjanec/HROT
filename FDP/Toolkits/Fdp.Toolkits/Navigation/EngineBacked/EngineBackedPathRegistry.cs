@@ -11,6 +11,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
     /// Real <see cref="IPathRegistry"/> adapter backed by <see cref="TrajectoryPoolManager"/>.
     /// RouteHandle equals NavState.TrajectoryId. All-in-one mode only.
     /// </summary>
+    [Fdp.Core.WorldDerived("R-3039 S2 (§7c; was C): its per-handle entry is re-registered by TrajectoryRestoreSystem for every restored path (the solver's backend tag is not recorded and reads 0 after a restore)")]
     public sealed class EngineBackedPathRegistry : IPathRegistry
     {
         private readonly TrajectoryPoolManager _pool;

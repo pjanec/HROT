@@ -62,16 +62,20 @@ namespace Fdp.Toolkit.Perception.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Manual)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class LocalGridBuilderSystem : IEcsModuleSystem
     {
         // Value-copy of the PerceptionModule's grid struct.
         // Shares native-memory pointers with the caller's copy and the visual template's copy.
+        [Fdp.Core.WorldDerived("spatial grid rebuilt from world by FullRebuild when state empty")]
         private SpatialHashGrid _grid;
 
         // Per-entity position tracking: full Entity handle (Index + Generation) → last known XY position.
         // Keyed by the complete Entity struct so that index reuse after destroy+create at a stable
         // entity count does not incorrectly match the previous entity's position.
+        [Fdp.Core.WorldDerived("incremental-update cache; rebuilt from world, cleared on WorldEpoch")]
         private readonly Dictionary<Entity, Vector2> _prevPositions;
+        [Fdp.Core.WorldDerived("change-detect for full rebuild; -1 forces rebuild")]
         private int _lastEntityCount = -1;
 
         // ⭐ CE-3018 — the terrain the grid is fitted to, and the placement it had at composition.
@@ -80,15 +84,18 @@ namespace Fdp.Toolkit.Perception.Systems
         private TerrainWorld? _fittedTo;
 
         // ⭐ CE-2194 — the entities already warned about since the last fit: one warning per entity per terrain fit, never per frame.
+        [Fdp.Core.WorldDerived("warn-once set, log throttle")]
         private readonly HashSet<Entity> _warned = new();
 
         /// <summary>⭐ <c>CE-2194</c> — warnings logged so far (one per entity the perception grid could not place, per terrain fit).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int Warnings { get; private set; }
 
         // Maps entity Index → the currently live entity occupying that index.
         // Used during the incremental path to detect and evict stale grid slots left
         // when an old entity is destroyed and a new one reuses the same index at a
         // stable entity count (the count-unchanged path skips FullRebuild).
+        [Fdp.Core.WorldDerived("slot-owner cache rebuilt by FullRebuild")]
         private readonly Dictionary<int, Entity> _liveByIndex;
         private int _epoch;   // ⭐ CE-3294 — the world the remembered positions describe (the snapshot carries the epoch)
 

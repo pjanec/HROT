@@ -39,6 +39,7 @@ namespace Hrot.Core.Tkb
     /// <para>⛔ Hard-coded C#, no data file (R-279, R-280). Add a class here; a rail checks names and masks are unique and that
     /// two classes of equal specificity never overlap (which would make "most specific" a tie).</para>
     /// </summary>
+    [Fdp.Core.NotState("static built-in entity class table")]
     public sealed class EntityClassTable
     {
         private readonly EntityClass[] _classes;

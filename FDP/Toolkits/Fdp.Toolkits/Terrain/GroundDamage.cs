@@ -245,6 +245,7 @@ namespace Fdp.Toolkit.Terrain
     /// what a background snapshot copies; ⛔ a world singleton would be SHARED by every snapshot — the design's "singleton" is this table, measured and
     /// recorded as lane ruling R-5020). Built when the records change, handed back unchanged otherwise (R-220: 0 B a steady frame).</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("the craters as one view sees them: built from the GroundDamage entities, the same instance while they are unchanged")]
     public sealed class CraterTable
     {
         /// <summary>The side (m) of the lookup cells of <see cref="Offset"/>.</summary>

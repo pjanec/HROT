@@ -10,6 +10,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     //
     // Design: DESIGN.md §2.4 — "Synchronous Direct Teardown".
     // No FdpEventBus is involved. No pending/deferred flags.
+    [Fdp.Core.WorldDerived("gizmo group toggle by listener count; diagnostic UI")]
     public sealed class GizmoExecutionController
     {
         private readonly TogglablePostSimulationGroup _group;

@@ -27,6 +27,7 @@ internal sealed class StanceIntentEgressTranslator : INetworkTranslator
 
     private readonly IAnimDdsWriter<DdsStanceIntent> _writer;
     private readonly NetworkEntityMap _entityMap;
+    [Fdp.Core.ProtocolCache("last-published value for egress change detection; empty republishes")]
     private readonly Dictionary<Entity, (StanceId, float, uint)> _lastPublished = new();
     private int _worldEpoch;
 

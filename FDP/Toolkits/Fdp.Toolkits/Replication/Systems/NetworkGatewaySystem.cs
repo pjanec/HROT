@@ -29,17 +29,22 @@ namespace Fdp.Toolkit.Replication.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class NetworkGatewaySystem : DeferredConstructionParticipant
     {
         private readonly NodeId _localNodeId;
 
         // Entity → the peer node ids we are still waiting for an Active ack from.
+        [Fdp.Core.ProtocolCache("pending peer acks of construction handshake; cleared at world boundary")]
         private readonly Dictionary<Entity, HashSet<int>> _pendingPeerAcks = new();
 
         // CE-288 (C2): per-entity phase-1 tracking — the peers that have sent a prompt Constructing status
         // ("participating, in progress"), and the frame the entity was deferred (the phase-1 clock start).
+        [Fdp.Core.ProtocolCache("phase-1 ack progress, handshake")]
         private readonly Dictionary<Entity, HashSet<int>> _phase1Received = new();
+        [Fdp.Core.ProtocolCache("handshake start frame for timeout")]
         private readonly Dictionary<Entity, uint> _deferFrame = new();
+        [Fdp.Core.ProtocolCache("once-per-entity prune latch in ack handshake")]
         private readonly HashSet<Entity> _phase1Checked = new();   // the short-timeout prune runs once per entity.
 
         // CE-289/290 (C3/C4): the persistent creator world, cached at defer time so the reactive completion
