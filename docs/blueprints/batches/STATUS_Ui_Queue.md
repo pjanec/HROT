@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-idle — waiting for a handoff (Queue 3 done `2026-11-19`: CE-5034 terrain's layer + ui's glass sound, CE-4670 drawing, CE-3451 ②③④, CE-1980 triaged; lanes fetched at coordinator `99978c0df`, nothing new for ui).
+IN PROGRESS: CE-5039 the run waits for the scenario's terrain overlay (HANDOFF_Coordinator_To_Ui_Run_Gate, merged coordinator `2068f9f32`).
 
 ## 2. The queue (in order)
 
@@ -63,3 +63,9 @@ idle — waiting for a handoff (Queue 3 done `2026-11-19`: CE-5034 terrain's lay
 | CE-4670 drawing — openings, lights, head out, light switches | DONE — the socket rule in Hrot.Look (VehicleSockets), the body layer's fittings, the commander's periscope eye, the station's H / U + HUD lines | Look 23/0 (+VehicleSockets); Presentation CrewControls/Fittings/PossessionStation/Keymap/MineClearer/Map3D 318/0 under xvfb; frames vs the mockup (scratchpad) | VehicleSocketsTests, CrewControlsTests (red-proved), VehicleFittingsFrameRail | DESIGN_Vehicle_Appearance_State §7d (+ as built); mockup UX/vehicle-openings-lights.svg | | | |
 | CE-3451 ②③④ (DECIDED: ② build, ③ the rule moves into code — R-4297, ④ once in the egress shape; the decision's "CE-1980" = this) | DONE — attributes on the fields (849 rows migrated, 358 classified), the ledger retired, 7 + 23 world-boundary fixes, ④ IL-checked (36 of 45 reds were stale rows), 11 C listed as CE-1981 | the three rails green (`Hrot.ClusterRunner.Tests`); full solution build; feature suites (see the commit) | `IngressPendingForgetsTheLastWorldTests` (red-proved); ② red-proved | DESIGN_System_State_Inventory §9; NOTE_Ui_To_All_Lanes_State_Attributes |
 | CE-1980 the nine pre-existing `Hrot.SimHost.Tests` reds (handoff row 3 names it) | TRIAGED — 2 now pass, 1 fixed by ui (ReplayBrowser → Orchestrator: `NodeIdRanges` → `Hrot.Core`), 7 handed back to their lanes (NOTE), ST0 flaky (measured) | OneBootstrapImplementationRails 5/0; Orchestrator NodeId 8/0; ReplayBrowser builds | — | NOTE_Ui_To_All_Lanes_SimHost_Rails_Drifted |
+
+## Queue 4 — HANDOFF_Coordinator_To_Ui_Run_Gate.md (taken 2026-11-19)
+
+| row | state | finding | gates | design |
+|---|---|---|---|---|
+| CE-5039 the run gate waits for the first live-overlay commit | IN PROGRESS | | | |
