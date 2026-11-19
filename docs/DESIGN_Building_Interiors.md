@@ -1613,6 +1613,23 @@ point-for-point identical (count + checksum pinned).
 ⛔ **Not built here, as decided:** C8 — a behaviour taking the point's stance → `CE-3135` (behaviors lane). C9 — cover
 `Quality` from the wall's material → stays ⏭ with the penetration tables.
 
+### 3l.8 Measured — the cover along a 30 m open corridor *(terrain, `2026-11-19`, `CE-4673`; the street fight, `CE-4672`)*
+
+The question (HANDOFF_Coordinator_To_Terrain_Street_Fight_Scenario): Red's posts on a street's centreline (`SearchRadius` 10) found no cover — is that the DATA or the SEARCH?
+Measured on `wide-corridor` (a 30 m open corridor between detached houses, `scripts/gen-wide-corridor.py`) through this provider:
+
+| measured | value | so |
+|---|---|---|
+| cover points within 10 m of a post ON the centreline | **0** (8 posts) | ⭐ the SEARCH: the corridor's edges are 15 m from its centre — a 10 m radius cannot reach them |
+| within 25 m | **40+** per post (70–100 measured at five) | the data is there one step further out |
+| the nearest point to a post | **13.5–16 m** — the garden walls, fences and hedges at the corridor's edge | |
+| a house front facing the corridor | ≥ 4 ground points, no gap over 3 m (the door's span is the widest, 2.8 m), none more than 1.5 m in from a corner | no facade or corner gap (C1's per-face points) |
+| imported facades (`city-battle` 474 records, `demo-city` 169) | every WALLED building carries points round it; the only two bare records are `city-battle`'s river BRIDGES (a 40 m deck + two ramps — a structure with no walls, so no cover is right) | no import gap |
+
+⚠ **Still material-blind (C9, unchanged):** a 4 cm wooden fence or a hedge makes the same `Quality` 1 point as a brick garden wall — a man "in cover" behind a fence is concealed,
+not protected. ⏭ stays with the penetration tables (a tuning decision); the street fight's `cover` checks therefore count a fence as cover too.
+Rails: `CorridorCoverTests` (Fdp.Toolkits.Tests).
+
 ## 4. Change map — what each consumer must do
 
 ```mermaid
