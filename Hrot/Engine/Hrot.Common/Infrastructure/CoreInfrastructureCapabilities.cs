@@ -71,6 +71,8 @@ public static class CoreInfrastructureCapabilities
         // ⭐ CE-6005 (city battle O-2) — a heavy vehicle's death leaves ONE wreck obstacle on the hulk, asked by its Health owner.
         private readonly Fdp.Toolkit.Combat.Systems.WreckObstacleSystem _wrecks = new();
         // ⭐ CE-4660 (thermal drivers TD-16) — a destroyed fuelled hull catches fire, and a fire burns the bodies in it, on the Health owner.
+        // ⭐ CE-4635 FL-1 (flame weapons F-1, F-12) — a lit flame jet sets men and soft vehicles alight, on their Health owner — just before the burn.
+        private readonly Fdp.Toolkit.Combat.Systems.FlameSystem _flame = new();
         private readonly Fdp.Toolkit.Combat.Systems.BurnSystem _burn = new();
         // ⭐ CE-4661 (thermal drivers TD-7) — LAST: the time the derived injury state changed (a body's time of death), stamped by the Health owner.
         private readonly Fdp.Toolkit.Combat.Systems.HealthStateSinceSystem _stateSince = new();
@@ -80,7 +82,7 @@ public static class CoreInfrastructureCapabilities
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493); run them FIRST in its sim list.</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks, _burn, _stateSince };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks, _flame, _burn, _stateSince };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -93,6 +95,7 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_bleedOut);
             simulation.Add(_obstacles);
             simulation.Add(_wrecks);
+            simulation.Add(_flame);
             simulation.Add(_burn);
             simulation.Add(_stateSince);
         }

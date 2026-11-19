@@ -178,6 +178,12 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ <c>CE-4670</c> (VA-S5) — a vehicle's smoke DISCHARGER grenade (6068 free on every lane, <c>2026-11-19</c>).</summary>
         public const int TkbVehicleSmokeGrenade = 6068;
         public const string VehicleSmokeGrenadeName = "vehicle smoke grenade";
+        /// <summary>⭐ <c>CE-4635</c> FL-1 (R-3111; DESIGN_Flame_Weapons F-6) — a flamethrower's thickened FUEL (6069 free on every lane, <c>2026-11-19</c>): an
+        /// incendiary jet <see cref="FlameReachM"/> long, 6° wide (half-angle), full intensity; what it lights burns 60 s. ⛔ A permanent wire value.</summary>
+        public const int TkbFlameFuel = 6069;
+        public const string FlameFuelName = "flamethrower fuel";
+        /// <summary>The man-portable jet's reach (m) — LPO-50 / M2 class (20–70 m).</summary>
+        public const float FlameReachM = 40f;
         public const string ArrowName = "arrow", CrossbowBoltName = "crossbow bolt";
         /// <summary>⭐ CE-4649 (BW-6, §5) — a bow arrow's penetration (mm RHA: a soft vest and a helmet stop it) and damage (0.45 of a soldier's 100 health), a bolt's 6 mm / 0.55;
         /// how long a stuck round lies (BW-4).</summary>
@@ -409,6 +415,9 @@ namespace Hrot.Core.Tkb
             Register(tkb, VehicleSmokeGrenadeName, TkbVehicleSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 10f, CloudHeightM = 6f, CloudSeconds = 60f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true, SmokeBlocksInfrared = true });
+            // ⭐ CE-4635 FL-1 — the flamethrower's fuel: no round flies (FireProcessingSystem); FlameJets reads this jet off the burst record
+            Register(tkb, FlameFuelName, TkbFlameFuel, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Incendiary, FlameRangeM = FlameReachM, FlameHalfAngleDeg = 6f, FlameIntensity = 1f, BurnSeconds = 60f });
             Register(tkb, SmokeGrenadeName, TkbSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 8f, CloudHeightM = 4f, CloudSeconds = 75f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-2278 — thrown on the arc (as the stun grenade, CE-3230)
@@ -533,6 +542,7 @@ namespace Hrot.Core.Tkb
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds
                 [TkbVehicleSmokeGrenade] = 6,                                                    // ⭐ CE-4670 — the discharger's
+                [TkbFlameFuel] = 1,                                                              // ⭐ CE-4635 — one fuel shot (a tenth of a second of flame)
                 [Tkb60mmMortarSmoke] = 25, [Tkb81mmMortarSmoke] = 40, [Tkb120mmMortarSmoke] = 60, // ⭐ CE-7025 — the smoke bombs
                 [TkbThrowingHatchet] = 1, [TkbThrowingSpear] = 1, [TkbThrowingStar] = 0.5f,      // ⭐ CE-3247 — the thrown blades
                 [TkbArrow] = 1, [TkbCrossbowBolt] = 1.5f,                                         // ⭐ CE-4649 — the bow's and the crossbow's rounds

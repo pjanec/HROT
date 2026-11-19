@@ -117,6 +117,21 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (!repo.HasComponent<WeaponState>(shooter)) { Refuse(repo, in evt, FireRefusal.CannotFire, now); continue; }
                 // ⭐ CE-3232 (B-10, §7.11 LD-3) — a LAID-DOWN mount makes no round, whoever asked (the AI, an operator, any path)
                 if (WeaponLaying.IsLaidDown(repo, shooter, evt.WeaponIndex)) { Refuse(repo, in evt, FireRefusal.CannotFire, now); continue; }
+                // ⭐⭐ CE-4635 FL-1 (R-3111; DESIGN_Flame_Weapons F-1) — a FLAMETHROWER's burst throws NO round: the jet is the burst record the brain's fuel shot
+                //   leaves (FlameJets), and FlameSystem applies it. The request is still ANSWERED as fired (Q94 A-1), so the brain's ledger clears.
+                if (CombatTkb.MountOf(repo, shooter, evt.WeaponIndex) is { Category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower })
+                {
+                    var eye = ShotOrigin.Eye(repo, shooter, out _);
+                    var aimAt = evt.AtPoint ? evt.TargetPoint : repo.IsAlive(target) && repo.HasComponent<SimTransform>(target) ? repo.GetComponentRO<SimTransform>(target).Position : eye;
+                    var line = aimAt - eye;
+                    repo.Bus.Publish(new WeaponFireNotification
+                    {
+                        Shooter = shooter, Target = target, WeaponIndex = evt.WeaponIndex, AmmoGuid = evt.AmmoGuid, Round = Entity.Null,
+                        Origin = eye, Velocity = line.LengthSquared() > 1e-6f ? Vector3.Normalize(line) * FlameStreamMps : Vector3.Zero,
+                        Quantity = 1, FiredAt = (SimInstant)now, RequestId = evt.RequestId,
+                    });
+                    continue;
+                }
 
                 // Read muzzle velocity from the shooter's WeaponState.
                 var weapon      = repo.GetComponent<WeaponState>(shooter);
@@ -518,6 +533,8 @@ namespace Fdp.Toolkit.Combat.Systems
         /// </summary>
         /// <summary>⭐ CE-10002 (AC-6) — the speed a motor round leaves at: its launcher's (an aircraft's), at least a tube's 30 m/s.</summary>
         public const float TubeSpeedMps = 30f;
+        /// <summary>⭐ CE-4635 — the speed a flame stream is reported to leave at (m/s; the fire notification's velocity — a direction for its readers).</summary>
+        public const float FlameStreamMps = 40f;
         private static float LaunchSpeed(EntityRepository repo, Entity shooter)
             => repo.IsAlive(shooter) && repo.HasComponent<SimVelocity>(shooter) ? MathF.Max(TubeSpeedMps, repo.GetComponentRO<SimVelocity>(shooter).Linear.Length()) : TubeSpeedMps;
 
