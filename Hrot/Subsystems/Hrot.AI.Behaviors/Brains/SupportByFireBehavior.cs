@@ -104,6 +104,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
         /// <summary>The reported posts' centre (the order's support point when it names none) — the base of fire faces its targets.</summary>
         public bool Facing(out Vector3 at) { at = _facing; return true; }
+        public bool DispersesUnposted => true;   // ⭐ D-13
     }
 
     /// <summary>

@@ -2300,6 +2300,43 @@ namespace Hrot.SimHost.Tests
 
         private static Entity DefendQuery(Squad s, int site) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, site);
 
+        /// <summary>
+        /// ⭐⭐ D-13 (CE-4666, user-approved 2026-11-19; Defend &amp; Attack §8c D-2n) — the asks find cover for ONE man only: the other three are not
+        /// left standing where they are (side by side) but get DISPERSAL spots — every man ordered to his own post, no two posts within
+        /// <see cref="DefencePlan.DispersalMetres"/>. ✅ Red-proof: the dispersal step removed ⇒ three men keep no post (no CombatPosture with a
+        /// distinct objective) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D13_TooFewCoverPosts_TheMenWithoutOneDisperse_FiveMetresApart()
+        {
+            var s = new Squad(members: 4);
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":15}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + 1.5f * i, 20f, 0f));   // side by side, 1.5 m apart
+            s.Tick(); s.Tick(); s.Tick();
+            for (int k = 0; k < 40; k++)
+            {
+                foreach (int site in new[] { SquadDefendPlay.WindowSite, SquadDefendPlay.RoofSite })
+                {
+                    var a = DefendQuery(s, site);
+                    if (!a.IsNull && !s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(a).IsReady) AnswerAll(s, a);
+                }
+                var c = DefendQuery(s, SquadDefendPlay.CoverSite);
+                if (!c.IsNull && !s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(c).IsReady) AnswerAll(s, c, new Vector3(6f, 26f, 0f));
+                s.Pause(0.25);
+                s.Tick();
+            }
+            var posts = s.Members.Select(m => PostureObjective(s, m)).ToArray();
+            for (int i = 0; i < posts.Length; i++)
+                for (int j = i + 1; j < posts.Length; j++)
+                    Assert.True(Vector2.Distance(new Vector2(posts[i].X, posts[i].Y), new Vector2(posts[j].X, posts[j].Y)) >= DefencePlan.DispersalMetres - 0.01f,
+                                $"men {i} and {j} posted {posts[i]} and {posts[j]}");
+        }
+
         /// <summary>A squad of four at the position (6, 20) whose own sector looks north (an arc from (0, 20), 330°–30°, out to 200 m ⇒ its
         /// point is (0, 120)), ordered to defend it; the window ask answered with three posts (two storeys of one window, one more), the roof
         /// ask (D-2g) with none, the cover ask with the fourth.</summary>

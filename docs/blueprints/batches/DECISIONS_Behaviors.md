@@ -20,7 +20,7 @@ run's own snapshots (the stepped HTTP probes diverge from it after ~77 s).
 | cover posts are kept apart, other posts 2.5 m | ✅ `DefencePostPicker.CoverSpacingMetres` 8 / `SpacingMetres` 2.5 | ✅ CE-2345 (R-2066 B): "two cover posts are spread wider" |
 | a section in the open disperses | — | ✅ doctrine (ATP 3-21.8): dispersion of ~5–10 m between men; no cover ⇒ go prone, spread |
 
-**My lean: ① the plan gives every man still without a post a DISPERSAL spot** — on a line across the facing (or round the point when
+**DECIDED `2026-11-19` (user: "approved"): ①.** **🛠 BUILT `2026-11-19` (behaviors): `DefencePlan.Disperse`, real men only (`IDefenceCrew.DispersesUnposted`; a stochastic squad keeps its D-P5 fallback line); ⚠ not prone (no post flag for it). Rail `D13_*` red-proved; 381 / 0. Defend & Attack §8f D-2n.** **My lean: ① the plan gives every man still without a post a DISPERSAL spot** — on a line across the facing (or round the point when
 all-round) through the position, at least `SpacingMetres` × 2 (5 m) from every other man's post or spot, inside the radius; he holds it
 PRONE (no cover). In `DefencePlan` (one place: every squad defence, the wait, the base of fire). Blast radius: every `SquadDefend` that finds
 too few cover posts; goldens move.
