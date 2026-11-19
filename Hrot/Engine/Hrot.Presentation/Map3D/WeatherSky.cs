@@ -141,7 +141,16 @@ public sealed class WeatherSkyLayer : IMapLayer
             camera.Atmosphere = WeatherSky.Of(_sample, DriftOf(world, point, _sample));
         }
         else camera.Atmosphere = null;
+        // ⭐ CE-1984 (DESIGN_Sensor_View §4b) — a sensor view lights the scene from the same sample (the moon, the stars) and sets its post-process
+        if (Sensor != null)
+        {
+            var lit = Sensor.Apply(_sample, _hasSample, camera.Atmosphere ?? SceneAtmosphere.Default);
+            if (Sensor.Mode != Fdp.Toolkit.Vis2D.Abstractions.SceneSensor.None) camera.Atmosphere = lit;
+        }
     }
+
+    /// <summary>⭐ CE-1984 — the map's sensor view (wired by <c>AttachMapLayers</c>); null = none.</summary>
+    public SensorView? Sensor { get; set; }
 
     private WeatherSample _sample;
     private bool _hasSample;

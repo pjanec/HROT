@@ -588,7 +588,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         DrawCarried(world, shader);   // ⭐ CE-1085 — pass 2 (⭐ CE-4555 — no per-frame closure: a wreck is read inside)
         DrawRopes(world, shader, simTime);   // ⭐ CE-1119 (§6w AB-V5) — pass 3: the fast ropes, and the cut ones lying where they fell
         _batch.Flush(shader, _applySurface ??= d => _surface.Apply(LitShader.Shared, d));   // ⭐ CE-4555 (§6ak.2) — everything above, one instanced call per mesh
-        DrawLightPoints();   // ⭐ CE-4670 (§7d D-4) — the lit lights, unlit, after the lit batch
+        DrawLightPoints(in ctx);   // ⭐ CE-4670 (§7d D-4) — the lit lights, unlit, after the lit batch · ⭐ CE-1984 — self-luminous under a sensor view
         BodyDrawStats.Record(_batch.DrawCalls, _batch.Instances, BodiesDrawn, DoorsDrawn);
         BodyDrawStats.RecordBands(BodiesFull, BodiesFar, BodiesHidden, DoorsHidden);
         if (_recordPick) _pick.End();

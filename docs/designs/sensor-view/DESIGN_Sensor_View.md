@@ -99,6 +99,22 @@ Queries: `search_graph name_pattern=".*(Thermal|Heat|Infrared|Temperature|Burn|S
 | gain (ABC) | CPU | `gain = target / lux`, clamped (a tube's range); a bright source on screen pulls the scene's exposure down (×0.5 for a flash, by its screen size) |
 | post | the post shader | downsample to ~640 lines · halo of > 0.8 (2 blurs at ¼ size) · noise σ ∝ 1/√(lux / 0.25), seeded per frame · P43 green or P45 white · round tube vignette |
 
+## 4c. As built — SV-1 *(CE-1984, ui, `2026-11-19`)*
+
+| piece | as built |
+|---|---|
+| the moon | `Weather/LunarPosition.cs` (+ `NaturalLight`); `WeatherSample.MoonElevationDeg / MoonAzimuthDeg / MoonIllumination`; rails `WeatherFieldTests.CE1984_*` |
+| the seam | `IScenePostProcess`, `SceneSensor`, `RenderContext.Sensor`, `SceneSensors.Emissive` (`Vis2D/Abstractions/CoreInterfaces.cs`); `MapCanvas.PostProcess` wraps `DrawLayers3D` in `Draw()` only |
+| the post-process | `Vis3D/SensorPostProcess.cs`: bright pass (¼ size, luminance in alpha) → two blurs → mipmaps (the mean = the automatic gain, on the GPU) → final pass; the scene's depth blitted onto the frame's (`rlBlitFramebuffer` declared with its real nine arguments — Raylib-cs 7.0.2 binds it with none); `HiddenWindow.Resume` / `CurrentFramebuffer` for the hidden-window mode |
+| the view | `Map3D/SensorView.cs` (an `IMapLayer`): mode, options, `Apply` (the light from sun / moon / stars, the gain and noise from the lux), the legend strip; wired in `AttachMapLayers` (every host); `WeatherSkyLayer.Sensor` calls `Apply` with its sample |
+| self-luminous | `ctx.Emissive(…)` at the lamps (`EntityBodyLayer3D.DrawLightPoints`), the explosion core, the muzzle flash, tracers, a flare's star, and a fire's / jet's HOT puffs (`EffectLayer.Glow`: red ≥ 200 — the soot is not) |
+| the controls | `View ▸ Sensor View` (`SensorViewMenu`, action ids 1984–1992, `SensorViewMenuEvent` 8067), `GET/POST /view/sensor` |
+
+| ⛔ deviation from the mockup / §3 — and why | |
+|---|---|
+| the legend strip carries NO controls (the mockup's combo boxes and check boxes) — they are the View ▸ Sensor View submenu | a map layer draws with Raylib; ImGui windows are drawn per host — putting the controls in the shared View menu reaches every host by construction (the shared-and-unified rule) instead of N hosts each wiring a window. The strip shows the mode, the light (lux), the moon and the palette |
+| a film frame while night vision is on is drawn NORMAL-coloured but lit by the night-vision light | the atmosphere is the scene's; the post-process is not around the film's pass (CE-1988) |
+
 ## 5. Thermal *(slice SV-2, CE-1985)*
 
 ### 5a. The surface model — three numbers per class

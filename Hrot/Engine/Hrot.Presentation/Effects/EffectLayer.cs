@@ -739,6 +739,10 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
 
     // ---- 3-D --------------------------------------------------------------------------------------------
 
+    /// <summary>⭐ CE-1984 (DESIGN_Sensor_View D-4) — a fire's puff under a sensor view: the hot part (yellow → orange) is self-luminous
+    /// (<see cref="SceneSensors.Emissive"/>), the soot that ends the ramp is not.</summary>
+    private static Color Glow(in RenderContext ctx, Color c) => c.R >= 200 ? ctx.Emissive(c) : c;
+
     public void Draw3D(RenderContext ctx)
     {
         // ⭐ CE-1165 (U4-e) — each cloud as faint puffs filling its cylinder
@@ -773,25 +777,25 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                     }
                     Raylib.BeginBlendMode(BlendMode.Additive);
                     Raylib.DrawSphereEx(HrotToRaylib.Position(r.At + new Vector3(0, 0, size * 0.25f * r.Phase)),
-                                        MathF.Max(0.05f, size / 2f * (0.3f + 0.7f * r.Phase)), 8, 12, Fade(c, 1f - 0.7f * r.Phase));
+                                        MathF.Max(0.05f, size / 2f * (0.3f + 0.7f * r.Phase)), 8, 12, ctx.Emissive(Fade(c, 1f - 0.7f * r.Phase)));   // ⭐ CE-1984
                     Raylib.EndBlendMode();
                     break;
                 case EffectKind.MuzzleFlash:
                 {
                     float radius = MathF.Max(0.05f, size / 2f * (1f - 0.5f * r.Phase));
                     Raylib.BeginBlendMode(BlendMode.Additive);
-                    Raylib.DrawSphereEx(HrotToRaylib.Position(FlashCentre(r, radius)), radius, 6, 10, Fade(c, 1f - r.Phase));   // ⭐ CE-1070
+                    Raylib.DrawSphereEx(HrotToRaylib.Position(FlashCentre(r, radius)), radius, 6, 10, ctx.Emissive(Fade(c, 1f - r.Phase)));   // ⭐ CE-1070 · CE-1984
                     Raylib.EndBlendMode();
                     break;
                 }
                 case EffectKind.Tracer:
                     if (TracerSpan(r, out var t0, out var t1))
-                        Raylib.DrawCylinderEx(HrotToRaylib.Position(t0), HrotToRaylib.Position(t1), size / 2f, size / 2f, 4, c);
+                        Raylib.DrawCylinderEx(HrotToRaylib.Position(t0), HrotToRaylib.Position(t1), size / 2f, size / 2f, 4, ctx.Emissive(c));   // ⭐ CE-1984
                     break;
                 case EffectKind.Fire:
                 case EffectKind.FlameJet:   // ⭐ CE-4635
                     PuffsInto(r, _puffs); foreach (var puff in _puffs)
-                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
+                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, Glow(in ctx, puff.Colour));   // ⭐ CE-1984
                     break;
                 case EffectKind.Smoke:
                 case EffectKind.Chaff:
@@ -805,7 +809,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
                         Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
                     float flicker = 0.85f + 0.15f * MathF.Sin(r.Age * 37f + r.Seed);
                     Raylib.BeginBlendMode(BlendMode.Additive);
-                    Raylib.DrawSphereEx(HrotToRaylib.Position(r.At), MathF.Max(0.05f, size / 2f * flicker), 6, 10, c);
+                    Raylib.DrawSphereEx(HrotToRaylib.Position(r.At), MathF.Max(0.05f, size / 2f * flicker), 6, 10, ctx.Emissive(c));   // ⭐ CE-1984
                     Raylib.DrawSphereEx(HrotToRaylib.Position(r.At), MathF.Max(0.03f, size / 5f), 5, 8, Fade(Color.White, r.Opacity));
                     Raylib.EndBlendMode();
                     break;

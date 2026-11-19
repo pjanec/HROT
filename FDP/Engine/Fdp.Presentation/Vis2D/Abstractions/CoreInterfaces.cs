@@ -45,6 +45,13 @@ public struct RenderContext
     /// </summary>
     public Vector2 ViewSize;
 
+    /// <summary>
+    /// ⭐ <c>CE-1984</c> (docs/designs/sensor-view/DESIGN_Sensor_View.md D-1, D-4) — the SENSOR VIEW this pass draws for (<see cref="MapCanvas.PostProcess"/>):
+    /// <see cref="SceneSensor.None"/> on the normal view and in a film's pass. A layer that draws something SELF-LUMINOUS (a lamp, a flame, a flash)
+    /// draws it through <see cref="SceneSensors.Emissive"/>, so a sensor view sees it bright — it still lights nothing around it.
+    /// </summary>
+    public SceneSensor Sensor;
+
     /// <summary><see cref="ViewSize"/>, or — for a context built by hand (a rail) with none — the window's size; zero with no window.</summary>
     public readonly Vector2 TargetSize =>
         ViewSize.X > 0f && ViewSize.Y > 0f ? ViewSize
@@ -140,4 +147,31 @@ public interface IMapLayer
 /// </summary>
 public interface ISceneLayer : IMapLayer
 {
+}
+
+/// <summary>⭐ <c>CE-1984</c> (DESIGN_Sensor_View §3) — what the 3-D map's scene is drawn FOR: the normal view, or a sensor's (night vision, thermal).</summary>
+public enum SceneSensor : byte { None = 0, NightVision = 1, Thermal = 2 }
+
+/// <summary>⭐ <c>CE-1984</c> — the one rule for a self-luminous draw under a sensor view (D-4: seen, never lighting).</summary>
+public static class SceneSensors
+{
+    /// <summary>The colour a self-luminous thing is drawn in: itself on the normal view; under night vision near-white at its own opacity (a lamp,
+    /// a flame, a flash saturates the tube and blooms in the post pass, whatever its colour — the tube sees red and near-infrared best).</summary>
+    public static Raylib_cs.Color Emissive(this in RenderContext ctx, Raylib_cs.Color c)
+        => ctx.Sensor == SceneSensor.NightVision ? new Raylib_cs.Color((byte)255, (byte)255, (byte)255, c.A) : c;
+}
+
+/// <summary>
+/// ⭐ <c>CE-1984</c> (docs/designs/sensor-view/DESIGN_Sensor_View.md D-3, §6) — a pass around the 3-D map's SCENE: while <see cref="Sensor"/> is not
+/// <see cref="SceneSensor.None"/>, <see cref="MapCanvas.Draw"/> draws its 3-D layers between <see cref="BeginScene"/> and <see cref="EndScene"/> (into
+/// the post-process' own target) and its screen-space overlays after — so labels, cards and the HUD stay sharp. ⛔ Not around a film's pass (CE-1988).
+/// </summary>
+public interface IScenePostProcess
+{
+    /// <summary>The sensor the scene is drawn for; <see cref="SceneSensor.None"/> = no post-process this frame.</summary>
+    SceneSensor Sensor { get; }
+    /// <summary>Binds the scene's target, <paramref name="size"/> pixels.</summary>
+    void BeginScene(Vector2 size);
+    /// <summary>Unbinds it and draws the processed picture to the screen.</summary>
+    void EndScene(Vector2 size);
 }
