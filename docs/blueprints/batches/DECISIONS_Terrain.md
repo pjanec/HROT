@@ -1,9 +1,17 @@
 <!--STATUS
 state: LIVE — the terrain lane's decisions (PROTOCOL_Autonomous_Lanes §3), newest at the top
-updated: 2026-11-18
+updated: 2026-11-19
 current-answer: the whole file
 -->
 # DECISIONS — terrain
+
+## (open) · CE-5039 — may a run start before the scenario's own terrain overlay is baked?
+**OPEN `2026-11-19` — for the user (it touches the editor's load / run gate: ui · backend).** Measured: the load reports done ~0.6 s before the live
+overlay's first bake; a unit whose target only the overlay makes reachable (inside a building made enterable) plans on the base mesh, fails, and never
+retries (`MaxReplans 0`) — `te-make-enterable` is red by it; after the bake the same unit walks in. ⭐ Lean: the run gate stays closed until the live
+overlay's FIRST commit for the loaded scenario (the overlay is the scenario's terrain; the map already draws it). Independent hardening, the navigation
+owners' call: a PathToPoint that failed for an off-mesh target retries when the navmesh version changes. What would change the lean: a measured load-time
+cost of waiting that is too high on a large overlay (then: retry-on-new-mesh alone).
 
 ## R-5068 · CE-5026 — glass windows: D-1…D-10
 **DECIDED `2026-11-18` (user: "approved"; D-10 the user's own: "building break which removes the wall should of course remove the window glass").** Glazed
