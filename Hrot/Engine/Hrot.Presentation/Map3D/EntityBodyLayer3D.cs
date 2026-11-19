@@ -2169,6 +2169,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             || Hrot.Core.Tkb.AreaEffectCloudTkb.Is(tkbType)   // ⭐ CE-1165 — nor a gas / smoke CLOUD: EffectLayer draws it
             || Hrot.Core.Tkb.BuildingDamageTkb.Is(tkbType)
             || Hrot.Core.Tkb.GroundDamageTkb.Is(tkbType)
+            || Hrot.Core.Tkb.GroundFireTkb.Is(tkbType)   // ⭐ CE-3487 (flame FL-3) — nor a cell's GROUND FIRE record: its FireState spots are drawn by the effect layer (§6 the look contract); backend, cross-lane one-line edit
             || Hrot.Core.Tkb.GroundHeatMarksTkb.Is(tkbType)   // ⭐ CE-4664 (TD-14) — nor a cell's ground HEAT MARKS: never drawn in the normal views; terrain lane, cross-lane one-line edit
             || tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainFeature || tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainBlock   // ⭐ CE-1966 — nor a placed terrain FEATURE / BLOCK: the terrain mesh draws what it makes, the feature gizmo its handle (it drew the unknown pink box at its anchor); terrain lane, cross-lane
             || IsTerrainDrawnObstacle(tkbType)   // ⭐ CE-4656 (terrain's note) — nor a baked CULTURAL-FEATURE obstacle: the terrain mesh draws its material box (it was ALSO drawn as the unknown box); the car (kind 1) stays ours

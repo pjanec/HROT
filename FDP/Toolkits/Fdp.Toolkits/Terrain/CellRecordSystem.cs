@@ -78,7 +78,15 @@ namespace Fdp.Toolkit.Terrain
             _items.Clear();
             ReadItems(repo, _items);
             for (int i = 0; i < _items.Count; i++) Apply(repo, _items[i]);
+            AfterApply(repo);
         }
+
+        /// <summary>⭐ CE-3487 — is <paramref name="e"/> one of THIS writer's records? (a component held by other entities too — <c>FireState</c> on a vehicle —
+        /// is a record only on the writer's own type). Default: every holder.</summary>
+        protected virtual bool IsRecord(EntityRepository repo, Entity e) => true;
+
+        /// <summary>⭐ CE-3487 — after this tick's items are written: the writer's own upkeep of the records it owns (a ground fire's spots that went out).</summary>
+        protected virtual void AfterApply(EntityRepository repo) { }
 
         private void Apply(EntityRepository repo, in TItem item)
         {
@@ -87,7 +95,7 @@ namespace Fdp.Toolkit.Terrain
             Entity space = Entity.Null;
             foreach (var e in Query(repo))
             {
-                if (!Owns(repo, e)) continue;
+                if (!Owns(repo, e) || !IsRecord(repo, e)) continue;
                 var d = repo.GetComponentRO<TRecord>(e);
                 if (d.CellX != cx || d.CellY != cy) continue;
                 for (int k = 0; k < d.ItemCount; k++) if (d.Item(k).Equals(item)) return;   // already here
@@ -128,7 +136,7 @@ namespace Fdp.Toolkit.Terrain
                 bool here = false;
                 foreach (var e in Query(repo))
                 {
-                    if (!Owns(repo, e)) continue;
+                    if (!Owns(repo, e) || !IsRecord(repo, e)) continue;
                     var d = repo.GetComponentRO<TRecord>(e);
                     if (d.CellX == p.CellX && d.CellY == p.CellY) { here = true; break; }
                 }

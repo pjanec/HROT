@@ -138,7 +138,8 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (repo.IsComponentTypeRegistered<Roe>() && !repo.HasComponent<Roe>(entity))
                 repo.AddComponent(entity, new Roe { Fire = dto.DefaultRoeFire, Reactions = dto.DefaultRoeReactions,
                                                 ReturnFireWindowSeconds = dto.DefaultRoeReturnFireWindowSeconds,
-                                                ForceLevel = dto.DefaultRoeForceLevel });   // CE-2239 part 1
+                                                ForceLevel = dto.DefaultRoeForceLevel,     // CE-2239 part 1
+                                                Incendiary = dto.DefaultRoeIncendiary });  // CE-3486 (F-9)
 
             // ── Proficiency (CE-2273 DA-A): the type's default in its OWN field, so an authored or a unit value set before or after wins ──
             if (dto.DefaultProficiency > 0f && repo.IsComponentTypeRegistered<CombatProficiency>())

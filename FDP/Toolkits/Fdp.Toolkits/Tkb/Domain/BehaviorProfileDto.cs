@@ -49,6 +49,10 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-2239</c> part 1 (CV-8) — the unit type's force level; <c>ForceUnset</c> = lethal (the security types: non-lethal).</summary>
         public Fdp.Toolkit.Behavior.Components.RoeForceLevel DefaultRoeForceLevel { get; init; }
 
+        /// <summary>⭐ <c>CE-3486</c> (F-9) — the unit type's incendiary rule; <c>IncendiaryUnset</c> = allowed (a police / civil type is held by its
+        /// force level already).</summary>
+        public Fdp.Toolkit.Behavior.Components.RoeIncendiary DefaultRoeIncendiary { get; init; }
+
         /// <summary>⭐ <c>CE-2077</c> — the unit type's SOP (its own logic: idle choice + reactions, R-198) by behaviour NAME;
         /// <c>null</c> = no SOP (the unit does only what it is told). Started through the ingress at spawn, origin Sop.</summary>
         public string? DefaultSop { get; init; }

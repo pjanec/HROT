@@ -109,7 +109,8 @@ namespace Hrot.Network.Translators
         internal readonly record struct Signature(
             int Hash, uint Instance, BehaviorOrigin Origin,
             int SopHash, uint SopInstance, BehaviorOrigin SopOrigin,
-            RoeFire Fire, RoeReactions Reactions, BehaviorOrigin RoeSetBy, float RoeReturnFireWindow, RoeForceLevel RoeForceLevel)
+            RoeFire Fire, RoeReactions Reactions, BehaviorOrigin RoeSetBy, float RoeReturnFireWindow, RoeForceLevel RoeForceLevel,
+            RoeIncendiary RoeIncendiary)
         {
             public static Signature Of(EntityRepository repo, Entity entity)
             {
@@ -121,7 +122,8 @@ namespace Hrot.Network.Translators
                 return new Signature(state.ActiveBehaviorHash, state.InstanceId, state.Origin,
                                      sop.SopHash, sop.SopInstanceId, sop.SopOrigin, roe.Fire, roe.Reactions, roe.SetBy,
                                      roe.ReturnFireWindowSeconds,   // CE-2095: a changed window re-publishes
-                                     roe.ForceLevel);               // CE-2239 part 1: and a changed force level
+                                     roe.ForceLevel,                // CE-2239 part 1: and a changed force level
+                                     roe.Incendiary);               // CE-3486 (F-9): and a changed incendiary rule
             }
         }
     }
@@ -213,6 +215,7 @@ namespace Hrot.Network.Translators
                     {
                         Fire = saved.Fire, Reactions = saved.Reactions, SetBy = saved.SetBy,
                         ReturnFireWindowSeconds = saved.ReturnFireWindowSeconds, ForceLevel = saved.ForceLevel,
+                        Incendiary = saved.Incendiary,   // CE-3486 (F-9)
                     };
                     if (repo.HasComponent<Roe>(entity)) cmd.SetComponent(entity, roe);
                     else cmd.AddComponent(entity, roe);

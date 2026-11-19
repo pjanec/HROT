@@ -1,0 +1,95 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-3486 FL-2 (flame F-9): no flame with a civilian in it, none where the ROE forbids it.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the Flamer never spends fuel (a civilian is in the flame)",
+      "never": {
+        "on": "field",
+        "who": "Flamer",
+        "path": "WeaponAmmo.Ammo0",
+        "op": "<",
+        "value": 90
+      }
+    },
+    {
+      "name": "Target A is never hurt",
+      "never": {
+        "on": "field",
+        "who": "Target A",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "the civilian is never hurt",
+      "never": {
+        "on": "field",
+        "who": "Civilian Beyond",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "control: Flamer Clear spends fuel",
+      "on": "field",
+      "who": "Flamer Clear",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 90,
+      "before": 10
+    },
+    {
+      "name": "control: Target C is set alight",
+      "on": "field",
+      "who": "Target C",
+      "path": "EffectState.BurningUntil",
+      "op": ">",
+      "value": 0,
+      "before": 10
+    },
+    {
+      "name": "the Forbidden Tank never spends fuel",
+      "never": {
+        "on": "field",
+        "who": "Forbidden Tank",
+        "path": "WeaponAmmo.Ammo0",
+        "op": "<",
+        "value": 600
+      }
+    },
+    {
+      "name": "Target B is never hurt",
+      "never": {
+        "on": "field",
+        "who": "Target B",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "control: the Allowed Tank spends fuel",
+      "on": "field",
+      "who": "Allowed Tank",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 600,
+      "before": 10
+    },
+    {
+      "name": "control: Target D is set alight",
+      "on": "field",
+      "who": "Target D",
+      "path": "EffectState.BurningUntil",
+      "op": ">",
+      "value": 0,
+      "before": 10
+    }
+  ]
+}

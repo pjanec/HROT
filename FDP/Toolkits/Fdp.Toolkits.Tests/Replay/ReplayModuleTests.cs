@@ -270,6 +270,61 @@ namespace Fdp.Toolkit.Replay.Tests
             Assert.Equal(5, playback.CurrentFrame);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-5041</c> — a seek BACK sent while the PREVIOUS seek's round is still completing (the replay check's shuffled seeks; an
+        /// operator's quick second click). 📌 Measured in `ua-civ-melee --verify-replay` (11 of 41 seeks never stood): the previous round's LATE
+        /// snap moved the clock, the hold (CE-4056) took it for its own, released, and the world was pulled forward to the previous landing; when
+        /// this seek's own snap then put the clock back, the pull — forward-only — never followed. ⇒ a clock standing BEHIND the frame shown is
+        /// restored back to. 🔴 Red-proof: drop the backward follow ⇒ the world stands at frame 8.
+        /// </summary>
+        [Fact]
+        public void CE5041_A_quick_seek_back_lands_although_the_previous_rounds_late_snap_pulled_it_forward()
+        {
+            var filePath = CreateSmallRecording(frameCount: 10);
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+            long start = playback.GetFrameMetadata(0).WallClockTicks;
+            double At(int frame) => (playback.GetFrameMetadata(frame).WallClockTicks - start) / (double)TimeSpan.TicksPerSecond;
+            var stub = new StubTimeController(playback.GetFrameMetadata(7).WallClockTicks, start);   // the clock at frame 7 (the seek before)
+            var sys  = new PlaybackTickSystem(playback, stub) { AnchorWallTicks = start };
+            sys.Execute(world, 0f);
+
+            Assert.True(sys.SeekTo(world, playback.GetFrameMetadata(8).WallClockTicks));   // seek to 8: the world stands there…
+            sys.Execute(world, 0f);
+            Assert.True(sys.SeekTo(world, playback.GetFrameMetadata(2).WallClockTicks));   // …so the next seek, BACK to 2, is sent at once
+
+            stub.SeedState(new GlobalTime { TotalTime = At(8) });                          // the round for 8 completes now: its late snap
+            sys.Execute(world, 0f);
+            sys.Execute(world, 0f);
+
+            stub.SeedState(new GlobalTime { TotalTime = At(2) });                          // the round for 2 lands
+            sys.Execute(world, 0f);
+            Assert.Equal(2, playback.CurrentFrame);                                        // ⭐ the world follows the clock back
+            sys.Execute(world, 0f);
+            Assert.Equal(2, playback.CurrentFrame);                                        // and stands (no restore loop)
+
+            stub.SeedState(new GlobalTime { TotalTime = At(5) });                          // play on: the clock drives it again
+            sys.Execute(world, 0f);
+            Assert.Equal(5, playback.CurrentFrame);
+        }
+
+        /// <summary>⭐ <c>CE-5041</c> — a clock on a frame whose seconds, as a double, fall a hair below the frame's tick names THAT frame, not the one
+        /// before (📌 `ua-civ-melee --verify-replay` stood at 26.9833 for 27). 🔴 Red-proof: truncate in <c>ClockTicks</c> ⇒ frame 4.</summary>
+        [Fact]
+        public void CE5041_A_clock_on_a_frame_names_that_frame_despite_its_rounding()
+        {
+            var filePath = CreateSmallRecording(frameCount: 10);
+            using var world    = new EntityRepository();
+            using var playback = new PlaybackController(filePath);
+            long start = playback.GetFrameMetadata(0).WallClockTicks;
+            var stub = new StubTimeController(start, start);
+            var sys  = new PlaybackTickSystem(playback, stub) { AnchorWallTicks = start };
+            double at5 = (playback.GetFrameMetadata(5).WallClockTicks - start) / (double)TimeSpan.TicksPerSecond;
+            stub.SeedState(new GlobalTime { TotalTime = at5 - 1e-12 });   // the double reading of a clock snapped onto frame 5
+            sys.Execute(world, 0f);
+            Assert.Equal(5, playback.CurrentFrame);
+        }
+
         [Fact]
         public void R4012_The_playhead_crossing_into_the_span_restores_by_a_seek()
         {
