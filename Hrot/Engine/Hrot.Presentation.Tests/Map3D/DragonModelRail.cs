@@ -219,6 +219,58 @@ public sealed class DragonModelRail
             }
     }
 
+    /// <summary>⭐ the bird's bob (user, `2026-11-19`: <i>"birds oscillate vertically as they move their wings … the passengers and the view from the dragon moves up and down in sync"</i>):
+    /// beating, the drawn body rises and sinks ±<see cref="DragonPoses.HeaveM"/> OPPOSITE the wings (they sweep down, it lifts); gliding it is steady; landed it is still; the sim altitude
+    /// never moves (only <see cref="MotionTracker.SwayOf"/>). 🔴 Red-proof: the heave left out of <c>SwayOf</c> ⇒ the bob is 0.</summary>
+    [Fact]
+    public void D_HEAVE_TheBodyBobsWithTheBeat_OppositeTheWings_SteadyGliding_StillLanded_AndAllocatesNothing()
+    {
+        var t = new MotionTracker();
+        var e = new Entity(1, 1);
+        double sim = 0;
+        var pos = new Vector3(0f, 0f, 30f);
+        (MotionPose Pose, float Bob) Fly(Vector3 v, bool airborne, double dt = 0.02)
+        {
+            sim += dt; pos += v * (float)dt;
+            var pose = t.Advance(e, pos, Quaternion.Identity, VisualFamily.Dragon, Size, sim, airborne);
+            return (pose, t.SwayOf(e).Translation.Z);
+        }
+        for (int i = 0; i < 150; i++) Fly(new Vector3(4f, 0f, 2f), true);   // 3 s climbing slowly: fully beating
+        float lo = float.MaxValue, hi = float.MinValue; int opposite = 0, samples = 0;
+        for (int i = 0; i < 50; i++)   // one beat
+        {
+            var (pose, bob) = Fly(new Vector3(4f, 0f, 2f), true);
+            lo = MathF.Min(lo, bob); hi = MathF.Max(hi, bob);
+            float stroke = pose.Wing - DragonPoses.GlideAngle * 0.5f;   // the wing about its mid-stroke
+            if (MathF.Abs(stroke) > 0.2f) { samples++; if (MathF.Sign(stroke) != MathF.Sign(bob)) opposite++; }
+        }
+        Assert.InRange(hi, DragonPoses.HeaveM * 0.9f, DragonPoses.HeaveM * 1.01f);
+        Assert.InRange(lo, -DragonPoses.HeaveM * 1.01f, -DragonPoses.HeaveM * 0.9f);
+        Assert.Equal(samples, opposite);   // wings up ⇒ body down, wings down ⇒ body up
+        Assert.Equal(DragonPoses.Heave(sim, 1f), t.SwayOf(e).Translation.Z, 4);   // the same curve the look and the sound read
+        // a paused clock holds it
+        var held = t.SwayOf(e);
+        t.Advance(e, pos, Quaternion.Identity, VisualFamily.Dragon, Size, sim, true);
+        Assert.Equal(held, t.SwayOf(e));
+        // gliding: the bob fades with the beat
+        for (int i = 0; i < 200; i++) Fly(new Vector3(40f, 0f, 0f), true);
+        float glideMax = 0f;
+        for (int i = 0; i < 50; i++) glideMax = MathF.Max(glideMax, MathF.Abs(Fly(new Vector3(40f, 0f, 0f), true).Bob));
+        Assert.InRange(glideMax, 0f, 0.03f);
+        // landed: none at all
+        for (int i = 0; i < 10; i++) Fly(new Vector3(4f, 0f, 2f), true);
+        Fly(Vector3.Zero, false);
+        Assert.True(t.SwayOf(e).IsIdentity, "standing on its legs it does not bob");
+        // a never-seen entity, and any other family: identity
+        Assert.True(t.SwayOf(new Entity(9, 1)).IsIdentity);
+        // ⭐ HOT PATH — 0 B
+        for (int i = 0; i < 100; i++) Fly(new Vector3(4f, 0f, 2f), true);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        float sum = 0f;
+        for (int i = 0; i < 2000; i++) sum += Fly(new Vector3(4f, 0f, 2f), true).Bob;
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
     // ── the real 3-D frame ────────────────────────────────────────────────────────────────────────────────────────────────
 
     [SkippableFact]
@@ -300,6 +352,20 @@ public sealed class DragonModelRail
         Clock(0.25); air += new Vector3(1f, 0f, 0.75f); Place(air); Look(air, 45f, Side + 0.5f, -0.35f);
         var beatB = Screen();
         Assert.True(Diff(beatA, beatB) > 2000, $"the wings beat: {Diff(beatA, beatB)} px");
+        // ⭐ the rider bobs with it, and so does his view: his camera eye on the drawn body (the sway) vs the sim's steady seat — apart by exactly the dragon's drawn bob
+        var flyer = Rider(0);
+        float maxBob = 0f;
+        for (int i = 0; i < 25; i++)
+        {
+            Clock(0.04); air += new Vector3(0.16f, 0f, 0.12f); Place(air); Look(air, 45f, Side + 0.5f, -0.35f); Render();
+            Assert.True(SeatSwitch.TryEye(world, flyer, tkb, bodies, out var drawnEye));
+            Assert.True(SeatSwitch.TryEye(world, flyer, tkb, out var simEye));
+            float bob = bodies.SwayOf(dragon).Translation.Z;
+            Assert.Equal(bob, drawnEye.Z - simEye.Z, 3);
+            maxBob = MathF.Max(maxBob, MathF.Abs(bob));
+        }
+        Assert.InRange(maxBob, DragonPoses.HeaveM * 0.5f, DragonPoses.HeaveM * 1.01f);
+        world.DestroyEntity(flyer);
         // A2 — gliding fast and level: the wings hold still (only the ground under it changes as it moves; a paused clock: nothing)
         for (int i = 0; i < 40; i++) { Clock(0.05); air += new Vector3(2f, 0f, 0f); Place(air); Render(); }
         Look(air, 45f, Side + 0.5f, -0.35f);

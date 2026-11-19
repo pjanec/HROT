@@ -392,7 +392,9 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
                 ? tf.Position.Z - (Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(tf.Position.X, tf.Position.Y) ?? 0f) : 0f;   // ⭐ CE-4623 — a jump's height: the legs tuck
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning, _frameClock, animalMode, animalHeight);   // ⭐ CE-1353
             if (deadDragon) motion = MotionPose.Still with { Tuck = 1f };   // ⭐ CE-4634 — dead: wings still, legs folded
-            if (motion.Bank != 0f) body = Matrix4x4.CreateRotationX(motion.Bank) * body;   // ⭐ CE-4621 — a motorcycle leans into its turn, about its ground line (its riders lean with it: HeldFigure)
+            // ⭐ CE-4621 / CE-4634 — the drawn sway off the sim pose (a motorcycle's lean into a turn, a dragon's wingbeat bob): the one owner, its riders and a rider's eye read the same
+            var sway = _motion.SwayOf(e);
+            if (!sway.IsIdentity) body = sway * body;
 
             KitPart[] parts;
             KitPivots pivots = default;
@@ -1329,8 +1331,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             case CarriageKind.Seated when carriage.Seat is { } seat && world.HasComponent<SimTransform>(carriage.Holder):
             {
                 ref readonly var v = ref world.GetComponentRO<SimTransform>(carriage.Holder);
-                // ⭐ CE-4621 — a motorcycle BANKS into a turn (about its ground line): its riders lean with it (the bank its body was last drawn with)
-                body = Carriage.InSeat(Matrix4x4.CreateRotationX(_motion.BankOf(carriage.Holder)) * Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
+                // ⭐ CE-4621 / CE-4634 — the carrier's drawn sway (a motorcycle's bank, a dragon's bob): its riders move with the body they sit on
+                body = Carriage.InSeat(_motion.SwayOf(carriage.Holder) * Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
                 // ⭐ CE-1202 (§6n N-2) — the gunner of a station weapon (the technical's bed pintle, the HMMWV's ring) turns WITH it: his
                 //   seat's place swung about the weapon's traverse pivot by the weapon's own azimuth, as its kit is drawn
                 body = TurnedWithStation(world, e, body, simTime);
@@ -1830,6 +1832,9 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// </summary>
     /// <summary>⭐ <c>CE-1974</c> — a carrier its rider sits ON in the open (an animal): drawn even while it is the operator's own body. (The motorcycle has a windscreen, so it
     /// already has a crew eye and is drawn.) ⭐ CE-4634 — and a DRAGON: its rider sits on its back in the open, and sees its neck and wings.</summary>
+    /// <summary>⭐ CE-4634 — the drawn sway of <paramref name="carrier"/> (<see cref="MotionTracker.SwayOf"/>): what a rider's camera eye moves with.</summary>
+    public Matrix4x4 SwayOf(Entity carrier) => _motion.SwayOf(carrier);
+
     public static bool OpenCarrier(VisualFamily family) => VisualFamilies.IsAnimal(family) || family == VisualFamily.Dragon;
 
     public static Vector3? CrewEye(VisualFamily family, Vector3 size)

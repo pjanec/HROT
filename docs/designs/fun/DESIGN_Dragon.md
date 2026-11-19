@@ -236,6 +236,7 @@ Queries: `search_graph name_pattern=".*(VisualFamily|ShapeKit|BirdKit|HorseKit|A
 | **K-1** | ⭐ `VisualFamily.Dragon` keyed by a DIS CLASS (`Dragon`, `1.2.*.20.99`), appended to the enum | the one classifier (R-279) · ⛔ a type-id check in the layer |
 | **K-2** | ⭐ **as built: TWO kits** (`DragonKits.Flying` / `.Landed`, `Map3D/DragonKits.cs`) of boxes in METRES on the TKB's numbers, in its 20 × 26 × 6 m box: body + belly + hump + saddle, the NECK (a new `PartRole.Neck`), head + jaw + horns (`Gun`), two tail boxes + a spade, four legs (Quad roles), two wings (Wing roles) spread — or folded along the flanks in the landed kit | the engine draws part kits only · ⛔ a mesh. ⛔ SUPERSEDED: *one kit, the neck a `Turret`* — `KitFromTkb` re-centres every `Turret` part ONTO the pivot (a neck reaches from the shoulders to the head), so the neck is its own role that only YAWS with turret 0; and a 12 m wing cannot fold by a rotation about the body's axis (it stabs the ground) — the perched bird's second-kit precedent |
 | **W** | ⭐ the wing angle: BEAT ±33° at **1 Hz** while climbing (> 1 m/s) or slow (< 10 m/s) airborne; GLIDE +6° still at speed; FOLDED when landed (as built: the landed KIT, not a −80° rotation — K-2); a smooth 1 s blend between them; the phase on sim time × the sim's pace (paused ⇒ still, a replay draws the same) | DR-11 · ⛔ the bird's 6.5 Hz |
+| **H** | ⭐ **the BOB** *(user, `2026-11-19`: "Helicopters are stable when in the air, but birds they oscillate vertically as they move their wings … the passengers and the view from the dragon moves up and down in sync … The motion model will keep constant altitude, just the visual model")*: while it beats, the drawn body rises and sinks ±0.4 m OPPOSITE the wings (`DragonPoses.Heave` — they sweep down and lift it); it fades with the beat into a glide and is 0 on the ground. ⭐ ONE owner — `MotionTracker.SwayOf(carrier)` (the motorcycle's bank folded in) — read by the drawn body, its seated riders and the rider's camera eye (`SeatSwitch.TryEye(…, bodies, …)`), so the three cannot drift apart | ⛔ in the motion model (the sim stays level, R-4277 scenarios unchanged) · ⛔ a camera-only shake (the view would bob against a steady dragon). ⚠ the possessed motorcyclist's eye now also moves with the bike's bank (it sat on the unbanked seat before) |
 | **L** | ⭐ legs planted (0) when `Airborne = 0`, tucked back 70° (the quadruped's `Tuck`) in flight | DR-11 |
 | **R** | ⭐ as built: `IsHorse` answers horse OR dragon (⛔ not renamed — a rename goes through Roslyn and buys nothing here), and `OpenCarrier` is true for the dragon (its possessed rider still sees it under him) — gives the mounted pose to any `SeatPose.Ride` seat on it; the pillion's firing seat aims as on a horse (`MountedAiming`) | 🔒 user: *"a passenger seat like on a motorcycle"* — but astride a neck, legs round it, is the horse's pose · ⛔ the motorcycle's upright pose on a neck |
 | **D** | ⭐ dead: the body as it fell, wings spread flat (0°), legs folded, no fire (DR: fireproof) — as built: the flying kit with `MotionPose.Still with { Tuck = 1 }`, never the burnt-out wreck colour, the neck not aimed | — |
@@ -255,8 +256,10 @@ classDiagram
   class DragonKits { <<NEW, Map3D>> Flying Landed For(airborne, dead) Mouth NeckBase Trunnion }
   class DragonPoses { <<NEW, Map3D>> BeatTarget(speed, climb) Wing(simTime, beat) DownStroke(simTime) Ease() }
   class KitFromTkb { <<existing>> the pivots from turret 0 }
-  class MotionTracker { <<existing>> +case Dragon → Wing, Tuck }
-  class EntityBodyLayer3D { <<existing>> DragonFlies (FlightState.Airborne) · IsHorse ∪ Dragon → the mounted rider · OpenCarrier }
+  class MotionTracker { <<existing>> +case Dragon → Wing, Tuck, Heave · SwayOf(e) the one drawn sway }
+  class SeatSwitch { <<existing>> TryEye(…, bodies) the rider's eye on the drawn body }
+  class PossessionStation { <<existing>> the rider's camera }
+  class EntityBodyLayer3D { <<existing>> SwayOf(carrier) · DragonFlies (FlightState.Airborne) · IsHorse ∪ Dragon → the mounted rider · OpenCarrier }
   class TurretParts { <<existing>> PoseOf(world, e, 0) }
   class EffectLayer { <<existing>> the FL-1 jet from the mouth (unchanged) }
   class SoundSources { <<existing>> +the dragon's wingbeat and roar }
@@ -270,6 +273,8 @@ classDiagram
   EntityBodyLayer3D --> ShapeKits
   EntityBodyLayer3D --> MotionTracker
   EntityBodyLayer3D --> TurretParts : the neck and head
+  PossessionStation --> SeatSwitch : the eye
+  SeatSwitch --> EntityBodyLayer3D : SwayOf(carrier)
   SoundSources --> DragonPoses : the down-stroke
 ```
 *What the picture shows that prose hid:* nothing new draws the dragon — it is one more family through the same classifier, kit table, motion tracker and articulation the
@@ -296,6 +301,7 @@ sequenceDiagram
 | D-KIT | on its feet in the box, 26 m span spread / ~4 m folded, the kit's pivots = `KitFromTkb`'s, the snout at the TKB mouth |
 | D-POSE | the neck yaws about its base with the aim, the head also nods, the body never turns |
 | D-WINGS | `DragonPoses` + `MotionTracker`: beats at 1 Hz slow / climbing, glides still at speed, no wing landed (legs walk), tucked in flight, frozen when paused; 0 B |
+| D-HEAVE | the bob: ±`HeaveM` opposite the wing stroke, steady gliding, none landed, held when paused, 0 B; in the frame rail the rider's eye on the drawn body minus the sim seat = the dragon's drawn bob |
 | D-BREATH | the drawn mouth = `Muzzle.Posed` (the jet's origin) within 0.35 m over a grid of every aim the TKB allows |
 | D-FAMILY | type 411 classifies as `VisualFamily.Dragon`, its kit is the dragon's (not the AH-64's) |
 | D-FRAME | `DragonModelRail` — the mockup's states on a real frame (`dragon-*.png` to `HROT_RAIL_SHOTS`): landed with rider + pillion astride, bare landed, breathing (neck turned, head down), flying (two beat phases differ), gliding (still), dead |

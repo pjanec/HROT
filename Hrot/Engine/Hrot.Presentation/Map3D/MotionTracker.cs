@@ -67,6 +67,7 @@ public sealed class MotionTracker
         public float Yaw, Bank; public bool HasYaw;   // ⭐ CE-4621 — a motorcycle's heading and how far it leans into a turn
         public float AnimalSpeed; public float LastZ; public bool HasZ;   // ⭐ CE-4623 — an animal's smoothed speed (m/s) and its last height
         public double Wall; public bool HasWall; public float Pace;   // ⭐ CE-1353 — the frame clock and the sim's smoothed pace on it
+        public float Heave;   // ⭐ CE-4634 — a dragon's visual bob this frame (m, body up), what its riders and the rider's eye move with (SwayOf)
         public float Beat, Tuck;   // ⭐ CE-4634 — a dragon's beat share (0 glide … 1 beating) and how far its legs are tucked, each eased over DragonPoses.BlendSeconds
     }
 
@@ -96,6 +97,16 @@ public sealed class MotionTracker
 
     /// <summary>⭐ CE-4621 — how far <paramref name="e"/> (a motorcycle) leaned into its turn when it was last drawn (rad, about +x; 0 when never seen) — what its seated riders lean with.</summary>
     public float BankOf(Entity e) => _states.TryGetValue(e, out var st) ? st.Bank : 0f;
+
+    /// <summary>⭐ CE-4634 — the ONE visual sway of <paramref name="e"/>'s drawn body off its sim pose, in its BODY frame (pre-multiply the body matrix): a motorcycle's bank
+    /// (CE-4621) and a dragon's wingbeat bob. The body, its seated riders and a rider's camera eye all move with it, so they cannot drift apart. Identity when never seen. 0 B.</summary>
+    public Matrix4x4 SwayOf(Entity e)
+    {
+        if (!_states.TryGetValue(e, out var st) || (st.Bank == 0f && st.Heave == 0f)) return Matrix4x4.Identity;
+        var m = st.Bank != 0f ? Matrix4x4.CreateRotationX(st.Bank) : Matrix4x4.Identity;
+        if (st.Heave != 0f) m *= Matrix4x4.CreateTranslation(0f, 0f, st.Heave);
+        return m;
+    }
 
     /// <summary>⭐ AQ93 §15.8 (CE-4031) — the same, for a body with no entity, by a stable <paramref name="key"/> (its network id).</summary>
     public MotionPose Advance(long key, Vector3 position, Quaternion rotation, VisualFamily family, Vector3 size, double simTime)
@@ -210,6 +221,7 @@ public sealed class MotionTracker
                 st.LastZ = position.Z; st.HasZ = true;
                 st.Beat = DragonPoses.Ease(st.Beat, rotorTurning ? DragonPoses.BeatTarget(st.AnimalSpeed, climb) : 0f, (float)dt);
                 st.Tuck = DragonPoses.Ease(st.Tuck, rotorTurning ? 1f : 0f, (float)dt);
+                st.Heave = rotorTurning ? DragonPoses.Heave(simTime, st.Beat) : 0f;   // ⭐ the bob, in step with the stroke; none on the ground
                 if (rotorTurning) wing = DragonPoses.Wing(simTime, st.Beat);
                 else if (st.AnimalSpeed > MovingSpeed)
                 {

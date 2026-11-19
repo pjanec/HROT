@@ -123,6 +123,13 @@ public static class DragonPoses
         return GlideAngle + beat * (stroke - GlideAngle * 0.5f);
     }
 
+    /// <summary>⭐ How far (m) the body rises and sinks with a full beat — a bird's flight bobs, a helicopter's does not (user, `2026-11-19`). A DRAWING only: the sim's altitude is steady.</summary>
+    public const float HeaveM = 0.4f;
+
+    /// <summary>⭐ The body's visual rise above its sim altitude (m) for a beat share <paramref name="beat"/> at <paramref name="simTime"/>: OPPOSITE the wings — they sweep down and lift
+    /// it, they rise and it sinks (−sin of <see cref="Wing"/>'s phase), so the bob is in step with the drawn stroke. 0 in a glide.</summary>
+    public static float Heave(double simTime, float beat) => -HeaveM * beat * MathF.Sin((float)(simTime * BeatHz % 1.0) * MathF.PI * 2f);
+
     /// <summary>True while the wings come DOWN (the whoosh's stroke) at <paramref name="simTime"/> — the derivative of <see cref="Wing"/>'s sine is negative.</summary>
     public static bool DownStroke(double simTime) => MathF.Cos((float)(simTime * BeatHz % 1.0) * MathF.PI * 2f) < 0f;
 
