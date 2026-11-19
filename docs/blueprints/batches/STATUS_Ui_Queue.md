@@ -87,4 +87,4 @@ IN PROGRESS: the flame visuals (HANDOFF_Backend_To_Ui_Flame_Visuals, dispatched 
 
 | row | state | finding | gates | design |
 |---|---|---|---|---|
-| U-1 the flame jet · U-2 every burning spot · U-3 a burning man · U-4 scorched ground · U-5 the effect data (CE-4635, CE-4637) | IN PROGRESS — step 1: inventory + the mockup (R-4143) | | | designs/weapons/DESIGN_Flame_Weapons.md §6 |
+| U-1 the flame jet · U-2 every burning spot · U-3 a burning man · U-4 scorched ground · U-5 the effect data (CE-4635, CE-4637) | IN PROGRESS — mockup + design done (`94aa5b7e0`); the build dispatched to the worker | ⭐ fire is drawn in ONE place today (`EffectLayer`, seeded puffs from seed + age) ⇒ the state becomes a second SOURCE of the same `Resolved` items, no spawned entities; the wreck rule retires | | designs/weapons/DESIGN_Flame_Weapons.md §6 (contract) · §7 (the look, UML) · UX/flame-visuals.svg |
