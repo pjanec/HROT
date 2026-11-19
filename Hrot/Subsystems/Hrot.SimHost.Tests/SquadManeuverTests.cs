@@ -2301,6 +2301,28 @@ namespace Hrot.SimHost.Tests
         private static Entity DefendQuery(Squad s, int site) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, site);
 
         /// <summary>
+        /// ⭐ D-13 (on the move in) — a squad of four with TWO men down moves to its position: the two survivors' points are spaced by their rank
+        /// among the LIVE men (more than 4 m apart, so never within 2 m of their centre), not by their roster slots. ✅ Red-proof: by roster slot
+        /// (slots 1 and 2 of 4) ⇒ 3.3 m ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D13_TwoSurvivorsOfFour_MoveInMoreThanFourMetresApart()
+        {
+            var s = new Squad(members: 4);
+            foreach (int down in new[] { 0, 3 })
+            {
+                var hp = new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f };
+                if (s.Repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(s.Members[down])) s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(s.Members[down]) = hp;
+                else s.Repo.AddComponent(s.Members[down], hp);
+            }
+            s.Order("{\"Position\":[6,60,0],\"SearchRadius\":15}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            var a = s.LastOrders()[s.Members[1]].Objective;
+            var b = s.LastOrders()[s.Members[2]].Objective;
+            Assert.True(Vector3.Distance(a, b) > 4f, $"the survivors move to {a} and {b}");
+        }
+
+        /// <summary>
         /// ⭐⭐ D-13 (CE-4666, user-approved 2026-11-19; Defend &amp; Attack §8c D-2n) — the asks find cover for ONE man only: the other three are not
         /// left standing where they are (side by side) but get DISPERSAL spots — every man ordered to his own post, no two posts within
         /// <see cref="DefencePlan.DispersalMetres"/>. ✅ Red-proof: the dispersal step removed ⇒ three men keep no post (no CombatPosture with a

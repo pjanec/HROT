@@ -427,26 +427,27 @@ namespace Hrot.AI.Behaviors.Brains
         public void BeginIssue(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
 
         /// <summary>⭐ D-13 — the interval between the men's points on the move to the position (m).</summary>
-        public const float MovingIntervalMetres = 4f;
+        public const float MovingIntervalMetres = 5f;
 
         /// <summary>⭐ D-13 — the interval for <paramref name="n"/> men: <see cref="MovingIntervalMetres"/>, narrower when the line would reach past
         /// <see cref="ArrivedMetres"/> − 1 of the position (so every man's point still counts as arrived).</summary>
-        public static float MovingInterval(int n) => n <= 1 ? 0f : MathF.Min(MovingIntervalMetres, 2f * (ArrivedMetres - 1f) / (n - 1));
+        public static float MovingInterval(int n) => n <= 1 ? 0f : MathF.Min(MovingIntervalMetres, 2f * (ArrivedMetres - 0.5f) / (n - 1));
 
         /// <summary>⭐ D-13 — man <paramref name="member"/>'s point on the move: the position offset across the line from the squad's centre to it, by his
         /// rank among the roster, <see cref="MovingIntervalMetres"/> apart, never beyond <see cref="ArrivedMetres"/> − 1 (so arriving still counts).</summary>
         private static Vector3 MovingPoint(ref SquadDefendParams p, in SquadPlayContext ctx, int member, Vector3 at)
         {
-            int n = ctx.Roster.Count;
-            if (n <= 1) return p.Position;
-            var centre = Vector3.Zero; int live = 0;
-            for (int i = 0; i < n; i++) if (ctx.Live(i, out var m)) { centre += ctx.At(m); live++; }
-            centre = live > 0 ? centre / live : at;
+            // ⭐ by RANK AMONG THE LIVE men, over the live count — 📌 by roster slot, two survivors of four took slots 3.3 m apart (bunched)
+            var centre = Vector3.Zero; int live = 0, rank = 0;
+            for (int i = 0; i < ctx.Roster.Count; i++)
+                if (ctx.Live(i, out var m)) { centre += ctx.At(m); if (i < member) rank++; live++; }
+            if (live <= 1) return p.Position;
+            centre /= live;
             var dir = new Vector2(p.Position.X - centre.X, p.Position.Y - centre.Y);
             if (dir.LengthSquared() < 1e-4f) dir = Vector2.UnitY;
             dir = Vector2.Normalize(dir);
             var across = new Vector2(-dir.Y, dir.X);
-            float off = (member - (n - 1) * 0.5f) * MovingInterval(n);
+            float off = (rank - (live - 1) * 0.5f) * MovingInterval(live);
             return p.Position + new Vector3(across * off, 0f);
         }
 
