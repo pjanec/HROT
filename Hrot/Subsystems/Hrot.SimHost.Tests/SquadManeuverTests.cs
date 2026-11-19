@@ -2380,7 +2380,12 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(SquadDefendManeuver.ManeuverKind, s.Kind);
             Assert.Equal(SquadDefendManeuver.PhaseMoving, s.Phase);
-            foreach (var m in s.Members) Assert.Equal(new Vector3(6, 20, 0), s.LastOrders()[m].Objective);   // first, to the position
+            // first, to the position — ⭐ D-13: each man to HIS point there (within ArrivedMetres, MovingIntervalMetres apart), never all to one
+            var moving = s.Members.Select(m => s.LastOrders()[m].Objective).ToArray();
+            foreach (var o in moving) Assert.True(Vector3.Distance(o, new Vector3(6, 20, 0)) < SquadDefendPlay.ArrivedMetres, $"{o} is at the position");
+            for (int i = 0; i < moving.Length; i++)
+                for (int j = i + 1; j < moving.Length; j++)
+                    Assert.True(Vector3.Distance(moving[i], moving[j]) >= SquadDefendPlay.MovingInterval(moving.Length) - 0.01f, $"men {i} and {j} move to {moving[i]} / {moving[j]}");
             Assert.True(DefendQuery(s, SquadDefendPlay.WindowSite).IsNull, "no post is asked for before the squad is there");
 
             s = Defending(out var posts);
