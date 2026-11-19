@@ -9,6 +9,7 @@ using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Squad.Command;
+using Fdp.Toolkit.Squad;
 using Hrot.Map.Definitions.Behavior;
 
 namespace Hrot.AI.Behaviors.Brains
@@ -41,6 +42,11 @@ namespace Hrot.AI.Behaviors.Brains
         public long RoundsAtFiring;
         public int Orders;
         public fixed byte Dirty[CommandPicture.MaxSubordinates];
+        /// <summary>⭐ <c>CE-4667</c> (D-7) — 1 = this man has no rounds left: he holds with return fire where he is (exit a).</summary>
+        public fixed byte Empty[CommandPicture.MaxSubordinates];
+        /// <summary>⭐ <c>CE-4667</c> (D-7) — since when no post has had a live contact near it · 1 = the play stopped firing (exit b).</summary>
+        public SimInstant QuietSince;
+        public byte Down;
     }
 
     /// <summary>
@@ -64,6 +70,10 @@ namespace Hrot.AI.Behaviors.Brains
         public const double EstablishSeconds = 15.0;
         /// <summary>… with at least this many rounds spent per man in the fight (a squad whose men carry no counted weapon: the time alone).</summary>
         public const int EstablishRoundsPerMan = 3;
+        /// <summary>⭐ <c>CE-4667</c> (D-7, user-approved) — a post is still live while a live contact stands within this of it (m) …</summary>
+        public const float PostLiveMetres = 25f;
+        /// <summary>… and the play stops firing when no post has been live for this long (s).</summary>
+        public const double TargetsDownSeconds = 10.0;
 
         private static readonly int s_squadHash = BehaviorHash.FromName(BehaviorNames.SupportByFire);
         private static readonly int s_platoonHash = BehaviorHash.FromName(BehaviorNames.PlatoonSupportByFire);
@@ -135,18 +145,36 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     ws.Phase = 1;
                     ws.FiringSince = (SimInstant)now;
+                    ws.QuietSince = (SimInstant)now;
                     ws.RoundsAtFiring = StaffComposerSystem.RoundsOf(world, self, out _);
                     for (int i = 0; i < CommandPicture.MaxSubordinates; i++) ws.Dirty[i] = 1;
+                }
+            }
+            // ⭐⭐ CE-4667 (D-7, user-approved; Assault Under Fire §9.1a) — exit (b): every reported post with no live contact within
+            //   PostLiveMetres for TargetsDownSeconds ⇒ the play stops firing, holds, reports TargetsDown (the platoon decides what is next);
+            //   a live contact back at a post resumes the fire. 📌 Live (real-1): a base of fire kept Suppress 434 s on posts whose men were all dead
+            if (ws.Phase == 1)
+            {
+                if (AnyPostLive(ref p, self, world)) { ws.QuietSince = (SimInstant)now; if (ws.Down != 0) { ws.Down = 0; Redo(ref ws); } }
+                else if (ws.Down == 0 && now - ws.QuietSince >= TargetsDownSeconds)
+                {
+                    ws.Down = 1;
+                    Redo(ref ws);
+                    CommandNodes.ReportProgress(world, self, ProgressKind.TargetsDown, p.Position);
                 }
             }
             for (int i = 0; i < n; i++)
             {
                 var member = CommandPictureOps.Subordinate(world, self, i);
                 if (member.IsNull || !world.IsAlive(member) || !Injury.IsInTheFight(world, member)) continue;
+                // ⭐ CE-4667 (D-7) — exit (a): a man with no rounds left is no base of fire: he holds with return fire where he is (once, then as any order)
+                bool empty = ws.Phase == 1 && StaffComposerSystem.RoundsOf(world, member, out long carries) == 0 && carries > 0;
+                if (empty && ws.Empty[i] == 0) { ws.Empty[i] = 1; ws.Dirty[i] = 1; }
                 if (ws.Dirty[i] == 0 && CommandOrders.Stands(world, self, member)) continue;
                 ws.Dirty[i] = 0;
                 var at = world.HasComponent<SimTransform>(member) ? (Vector3)world.GetComponentRO<SimTransform>(member).Position : p.Position;
                 if (ws.Phase == 0) SquadManeuverRunner.Hold(world, self, member, p.Position, p.Speed);
+                else if (ws.Empty[i] != 0 || ws.Down != 0) SquadManeuverRunner.Hold(world, self, member, at, p.Speed);
                 else SquadManeuverRunner.Suppress(world, self, member, Entity.Null, p.Post(i % Math.Max(1, p.Posts)), at, p.Speed);
                 ws.Orders++;
             }
@@ -158,6 +186,36 @@ namespace Hrot.AI.Behaviors.Brains
                 CommandNodes.ReportProgress(world, self, ProgressKind.Set, p.Position);
             }
             return NodeStatus.Running;
+        }
+
+        private static unsafe void Redo(ref SupportByFireState ws)
+        {
+            for (int i = 0; i < CommandPicture.MaxSubordinates; i++) ws.Dirty[i] = 1;
+        }
+
+        /// <summary>⭐ <c>CE-4667</c> (D-7) — some post is still worth firing on: a post with NO known contact near it (within <see cref="PostLiveMetres"/>)
+        /// stays live — the base of fire fires BLIND at a reported post by design (AU-1: it rarely sees a man in a window) — and a post with known contacts
+        /// is live while one of them is still in the fight (<c>SquadContacts.IsEnemy</c>; a heard one counts). ⇒ the play stops only when every post's
+        /// known men are DOWN (they stay in memory by design, CE-2294) — 📌 the real-1 case: hp 0 everywhere, Suppress for 434 s.</summary>
+        private static bool AnyPostLive(ref SupportByFireParams p, Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<SquadCognitiveState>(self)) return true;   // no picture: never stop on a guess
+            ref readonly var squad = ref world.GetComponentRO<SquadCognitiveState>(self);
+            var pool = SquadContacts.Slots(in squad.Contacts);
+            for (int k = 0; k < Math.Max(1, p.Posts); k++)
+            {
+                var post = p.Post(k);
+                bool known = false;
+                for (int c = 0; c < squad.Contacts.Count && c < pool.Length; c++)
+                {
+                    float dx = pool[c].PositionX - post.X, dy = pool[c].PositionY - post.Y;
+                    if (dx * dx + dy * dy > PostLiveMetres * PostLiveMetres) continue;
+                    known = true;
+                    if (SquadContacts.IsEnemy(world, in pool[c])) return true;   // someone there is still in the fight
+                }
+                if (!known) return true;                                          // nobody known there: keep the blind fire
+            }
+            return false;
         }
 
         /// <summary>⭐ AU-2 (A-8) — firing long enough, and the rounds gone: the squad's carried rounds fell by

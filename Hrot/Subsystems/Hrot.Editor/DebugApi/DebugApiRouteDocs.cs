@@ -3022,7 +3022,7 @@ namespace Hrot.Editor.DebugApi
             {
                 new("networkId", "number", true, "The unit the report comes FROM (its superior receives it)"),
                 new("kind", "string", true, "Contact · Spot · Sitrep · Lace · Progress · Request"),
-                new("subtype", "string", false, "Progress: Set · PhaseLine · Foothold · RoomClear · … · FireLifted · TaskFailed; Request: Casevac · FireSupport · Resupply · Reinforce · Permission"),
+                new("subtype", "string", false, "Progress: Set · PhaseLine · Foothold · RoomClear · … · FireLifted · TaskFailed · TargetsDown; Request: Casevac · FireSupport · Resupply · Reinforce · Permission"),
                 new("count", "number", false, "Spot / Contact: how many (0 = the element is lost); PhaseLine: the line's index"),
                 new("size", "string", false, "Individual · Team · SquadSize · PlatoonSize"),
                 new("at", "array", false, "[x, y, z] where (default: the unit's own position)"),

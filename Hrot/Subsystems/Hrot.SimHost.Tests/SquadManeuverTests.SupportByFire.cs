@@ -105,6 +105,56 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4667</c> (D-7, user-approved) exit (a) — a man of the base of fire whose rounds are gone is no base of fire: he is re-ordered to
+        /// hold with return fire where he is (<c>CombatPosture</c>), the others keep suppressing. ✅ Red-proof: the empty check dropped ⇒ he keeps
+        /// his Suppress order ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4667_AManOfTheBaseOfFire_WithNoRoundsLeft_HoldsWhereHeIs_TheRestFire()
+        {
+            var s = new Squad(3);
+            foreach (var m in s.Members)
+                s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 1, Ammo0 = 200, Max0 = 200 });
+            s.Order(SupportByFireJson(new Vector3(4f, 0f, 0f), new Vector3(0f, 150f, 0f)), BehaviorNames.SupportByFire);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponAmmo>(s.Members[0]).Ammo0 = 0;   // out of ammo
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.CombatPosture, LastIntent(s, s.Members[0]));
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[1]));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4667</c> (D-7, user-approved) exit (b) — when every man the squad knows at its posts is DOWN for
+        /// <see cref="SupportByFireBehavior.TargetsDownSeconds"/>, the base of fire stops firing: every man holds where he is and the squad reports
+        /// PROGRESS TargetsDown (the platoon decides what is next); one of them back in the fight ⇒ the fire resumes. A post with nobody known
+        /// near it keeps the blind fire (the first rail of this file). ✅ Red-proofs: the stop dropped ⇒ still Suppress ⇒ red; the resume dropped ⇒
+        /// still holding ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4667_TheBaseOfFire_StopsWhenEveryKnownManAtItsPostsIsDown_AndResumesIfOneGetsUp()
+        {
+            var s = new Squad(3);
+            var post = new Vector3(0f, 150f, 0f);
+            var enemies = s.PoolMany(2, post);
+            foreach (var e in enemies) s.Repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            s.Order(SupportByFireJson(new Vector3(4f, 0f, 0f), post), BehaviorNames.SupportByFire);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));
+            s.Pause(SupportByFireBehavior.TargetsDownSeconds + 1); s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));                       // they are alive: fire on
+
+            foreach (var e in enemies) s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(e).Current = 0f;
+            s.Tick(); s.Pause(SupportByFireBehavior.TargetsDownSeconds + 1); s.Tick(); s.Tick();
+            foreach (var m in s.Members) Assert.Equal(BehaviorNames.CombatPosture, LastIntent(s, m));   // every known man down: hold
+            Assert.Single(Queued(s, s.Commander), r => r.Kind == ReportKind.Progress && r.Subtype == (byte)ProgressKind.TargetsDown);
+
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemies[0]).Current = 50f;      // one gets up
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2436</c> AU-2 (A-7; DA-12's open half) — the CROSSING SMOKE: a squad going by fire and movement (in contact) has ONE covering man
         /// who carries smoke and is at least Regular throw a smoke grenade toward the threat before the first rush (<c>FireAtPoint</c>, round smoke,
         /// one grenade, ≤ 15 m and at most half-way); once a run; after <c>SmokeSeconds</c> he covers again. ✅ Red-proof: the smoke arm removed

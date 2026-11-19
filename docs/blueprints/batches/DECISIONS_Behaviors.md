@@ -34,7 +34,7 @@ Cost: one memory flag + one pool flag + one SPOT filter, with rails. `pc-defend-
 
 ## D-7 · CE-4667 — `SupportByFire` has no exit for an empty weapon or dead targets: what should the base of fire do then? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — two exits inside `SupportByFire`, the platoon's lift unchanged: (a) a man with no rounds left ⇒ the squad's hold-with-return-fire (`CombatPosture`, takes cover); (b) every reported post with no live contact within 25 m for 10 s ⇒ the play stops firing (Hold, PROGRESS `TargetsDown`) and keeps its position. Resupply stays a later capability**
+**✅ BUILT `2026-11-19` (behaviors): both exits in `SupportByFire.Run` — (a) an empty man holds where he is; (b) every post's KNOWN men down for 10 s ⇒ hold + PROGRESS `TargetsDown`, resumes if one gets up; ⚠ a post with nobody known near it keeps the blind fire (AU-1's premise). Assault Under Fire §9.1a.** **DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — two exits inside `SupportByFire`, the platoon's lift unchanged: (a) a man with no rounds left ⇒ the squad's hold-with-return-fire (`CombatPosture`, takes cover); (b) every reported post with no live contact within 25 m for 10 s ⇒ the play stops firing (Hold, PROGRESS `TargetsDown`) and keeps its position. Resupply stays a later capability**
 
 **Measured / read:** the design gives the base of fire ONE exit — the platoon LIFTS it when the assault holds a foothold (DA-11, `DESIGN_Assault_Under_Fire.md`
 §9.1); `Suppress` runs "until the order is taken away" (Squad Tactics §7.5) and already stops firing at a dead target (it holds). ⛔ No design names an exit for

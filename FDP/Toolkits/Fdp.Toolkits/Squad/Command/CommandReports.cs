@@ -50,6 +50,9 @@ namespace Fdp.Toolkit.Squad.Command
         FireLifted = 11,
         /// <summary>CC-5 — the task FAILED (the staff's PROGRESS on a task that did not succeed).</summary>
         TaskFailed = 12,
+        /// <summary>⭐ <c>CE-4667</c> (D-7, user-approved; APPENDED) — a base of fire stopped firing: no live contact at any of its posts for a while.
+        /// It holds where it is; the commander decides what comes next.</summary>
+        TargetsDown = 13,
     }
 
     /// <summary>⭐ <c>CE-2291</c> — REQUEST subtypes (CB-43).</summary>
