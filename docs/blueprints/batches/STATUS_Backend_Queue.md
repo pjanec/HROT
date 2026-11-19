@@ -46,7 +46,7 @@ NEXT: CE-4670 VA-S1 waits for ui's `Hrot.Look` (LK-S1) ⇒ the T2 rows: **CE-244
 | CE-3424 T2 scale-1: 1 of 12 movers moved | ➡ MOVED to terrain (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-3425 T2 scale-1 frame cost | TODO | | | |
 | CE-4395 T2 the brain's cost at 1 000 men | TODO | | | |
-| CE-3460 T2 the root objective never aggregates | TODO | | | |
+| CE-3460 T2 the root objective never aggregates | ✅ closed — fixed by CE-3468 (ui); 10/10, golden captured | | | |
 | CE-3471 T2 a pig walked through its pen wall | ➡ MOVED to terrain (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-1038 T2 SimHost run counts differ | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-1046 T2 AfterBranch_SimGroupsReEnabled under load | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
