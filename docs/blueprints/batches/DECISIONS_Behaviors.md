@@ -6,6 +6,26 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-10 · CE-4670 — who decides a crewman's head-out and a vehicle's light discipline? (backend built the asks; the deciding is ours) *(2026-11-19)*
+
+**Built (backend, `NOTE_Backend_To_Behaviors_Vehicle_HeadOut_And_Light_Discipline.md`):** `VehicleRequests.HeadOut(world, vehicle, man, out)` (the boarding arbiter opens his seat's hatches, `CrewExposed`) and `VehicleRequests.SwitchLights(world, vehicle, discipline)` (`LightRuleSystem` lights by discipline × darkness × engine). Both are EVENTS — safe from the parallel brain phase. A scenario trigger can already ask (`va-crew-switches`). ⏳ Nothing in a brain asks today: hatches open only on boarding; every vehicle's discipline is whatever the scenario authored (default Normal).
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the vehicle's reaction table already has the contact / hit / under-fire rows | ✅ `BasicVehicleSop.cs:85–98` (Hit, Contact → `VehicleFightFromCover`) | ✅ Vehicle Exposure Cycle §8 |
+| the deciding is the crew's | — | ✅ Vehicle Appearance VA-3 (*"written by the vehicle's BRAIN (the crew decides)"*), VA-4 (*"a crew member's head out (observing, an order, the SOP) is a request"*) |
+| no design names WHEN | ⛔ searched `docs/` + graph (`buttoned`, `head out`, `hatch`, `light discipline`, `blackout`): only this design and its notes | — |
+
+**A — head-out. My lean: ① the vehicle's SOP decides, from what it already knows:** the commander is HEAD OUT while the vehicle is calm (no threat in its memory, not under fire), and goes IN — buttoned up — on the same rows that start `VehicleFightFromCover` (contact / hit / under fire); out again after a quiet spell (e.g. 30 s, like the stress calm). One ask per change, as an event (no cross-entity write). Cost: every crewed vehicle in every scenario shows an open commander's hatch while calm ⇒ goldens move (the opening state); a hit model that reads `CrewExposed` would make the head-out commander vulnerable — that IS the point of the trade, and today no hit model reads it.
+- ② only an order / trigger asks (as now): nothing changes, but a convoy in a quiet zone looks buttoned up for ever.
+- ③ an observation behaviour of its own (an OP task): too much for the default; can come later on top of ①.
+
+**B — light discipline. My lean: ① a vehicle SOP parameter `LightDiscipline` (default Normal ⇒ no golden moves), set per side / unit by the scenario, and an ORDER that carries one overrides it** (a convoy order at night: Convoy; a covert move: Blackout). The order's executor calls `VehicleRequests.SwitchLights` when it starts and restores the SOP's on its end.
+- ② the ROE carries it (`Roe` gains a field): the ROE is a wire component every node reads — too wide for a lights switch.
+- ③ automatic Blackout at night for every military vehicle: realistic for a combat zone, wrong for a road march; moves every night golden.
+
+⛔ Not built. Each half is independent — approve one, both, or name another.
+
 ## D-9 · CE-2451 — an insurgent fires his RPG at a MAN: one rocket into the stack ends `ts-house-defenders`' clearance. Should the weapon brain keep the RPG for vehicles? *(2026-11-19)*
 
 **Measured (`ts-house-defenders`, editor, live probe, `/combat/detonations` + `/combat/shots`):**
