@@ -91,6 +91,9 @@ namespace CarKinem.Systems
         /// <summary>How far apart (as a share of the tile edge) a path is sampled for the tiles it crosses: a quarter tile, so no tile it passes through is skipped.</summary>
         public const float TileSampleShare = 0.25f;
 
+        /// <summary>⭐ CE-4674 — failed (unreachable) moves this system re-planned because the navmesh changed after they failed (rails, diagnostics).</summary>
+        public long MeshReplans { get; private set; }
+
         /// <summary>
         /// ⭐ True when a tile of <paramref name="traj"/>'s REMAINING path (from <paramref name="progress"/>) has a version newer than <paramref name="sinceSequence"/>, i.e. a rebake changed
         /// it after the path was planned. Samples the polyline every <see cref="TileSampleShare"/> of a tile. Zero allocation.
@@ -209,7 +212,20 @@ namespace CarKinem.Systems
                 // Once Arrived or a hard failure is written, do not mutate status further
                 // until the Brain issues a new intent (increments IntentId).
                 if (status.Result != NavResult.InProgress)
+                {
+                    // ⭐ CE-4674 (HANDOFF_Coordinator_To_Backend_Path_Retry; CE-5039's second half) — a move that FAILED because its target was unreachable
+                    //   re-plans ONCE when the navmesh changes after it failed (a breach, a building made enterable, an overlay bake): the tile change
+                    //   sequence it failed at (NavmeshVersionObserved, set by the failure) is older than the mesh's. Not on a timer; a still-unreachable
+                    //   target fails again at the new sequence and says so (P1) — one re-plan per mesh version, never a storm.
+                    if (status.Result == NavResult.FailedUnreachable && intent.Mode == NavMode.PathToPoint && tileSequence != 0
+                        && status.NavmeshVersionObserved < tileSequence)
+                    {
+                        status.NavmeshVersionObserved = tileSequence;
+                        RequestReplan(repo, entity, in intent, ref status, tf.Position);
+                        MeshReplans++;
+                    }
                     continue;
+                }
 
                 // ── Arrival check ─────────────────────────────────────────────────────────────────
                 // Trust NavState.HasArrived whenever NavState is present (set by CarKinematicsSystem).
