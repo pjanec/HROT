@@ -53,7 +53,7 @@ NEXT: CE-4670 VA-S1 waits for ui's `Hrot.Look` (LK-S1) ⇒ the T2 rows: **CE-244
 | CE-1473 T2 ClusterRunner.Tests does not build | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-3451 T2 six ClusterRunner.Tests rails drifted | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-1475 T2 SumoNetPlacementTests on a Czech Windows | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
-| CE-167 T2 re-check, close if stale | TODO | | | |
+| CE-167 T2 re-check, close if stale | ✅ closed — the overshoot stays fixed; the re-check fixed CE-3483 (order JSON) and the in-radius move (`d3240ca9d`), filed CE-3484 (two tanks jam) | | | |
 
 ## 3. Taken from new handoffs
 - ✅ `STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios.md` (`2026-11-18`) — ten rows moved (terrain: CE-3424, CE-3471, CE-4664; ui: CE-3468, CE-2438, CE-1473, CE-3451, CE-1475, CE-1038, CE-1046); from now §6a: per row its own scenarios + the touched feature's set, the wide family once per several rows. The 41-scenario run going for CE-3452 + CE-3473 counts as this batch's wide run.
