@@ -97,7 +97,12 @@ namespace Fdp.Toolkit.Vis3D
             // ③ the final picture
             var s = Settings;
             Raylib.BeginShaderMode(_final);
-            Raylib.SetShaderValueTexture(_final, _fHalo, halo);
+            // the halo on texture unit 1, bound by hand: raylib's SetShaderValueTexture slot is cleared by the batch flush the scene texture's
+            // draw can trigger, and the sampler then reads an empty unit (measured: no halo, a constant automatic gain)
+            Rlgl.ActiveTextureSlot(1);
+            Rlgl.EnableTexture(halo.Id);
+            Rlgl.ActiveTextureSlot(0);
+            SetInt(_final, _fHalo, 1);
             SetInt(_final, _fMode, (int)s.Mode);
             SetInt(_final, _fPalette, s.Palette);
             SetFloat(_final, _fGain, s.Gain);
@@ -109,7 +114,10 @@ namespace Fdp.Toolkit.Vis3D
             SetFloat(_final, _fTarget, s.TargetMean);
             SetFloat(_final, _fMip, MathF.Floor(MathF.Log2(MathF.Max(qw, qh))));
             Raylib.DrawTexturePro(_scene.Texture, new Rectangle(0, 0, w, -h), new Rectangle(0, 0, w, h), Vector2.Zero, 0f, Color.White);
-            Raylib.EndShaderMode();
+            Raylib.EndShaderMode();   // flushes the batch with unit 1 still bound
+            Rlgl.ActiveTextureSlot(1);
+            Rlgl.DisableTexture();
+            Rlgl.ActiveTextureSlot(0);
             Frames++;
         }
 

@@ -38,7 +38,7 @@ public sealed class SensorViewFrameRail
             S.Canvas.PostProcess = View.Post;
             S.Canvas.AddLayer(View);
             if (!S.World.IsComponentTypeRegistered<FireState>()) S.World.RegisterComponent<FireState>();
-            S.Look(new Vector3(S.Spot.X, S.Spot.Y, S.Ground), 140f, 0.6f, 0.45f);
+            S.Look(new Vector3(S.Spot.X, S.Spot.Y, S.Ground), 140f, 0.6f, -0.45f);
         }
 
         /// <summary>Lights the scene for <paramref name="sample"/> as <see cref="WeatherSkyLayer"/> does, then renders (settled).</summary>
@@ -124,7 +124,8 @@ public sealed class SensorViewFrameRail
         using var n = new NvScene();
         n.View.SetMode(SceneSensor.NightVision);
         n.View.Noise = false; n.View.AutoGain = false;
-        n.S.Look(new Vector3(n.S.Spot.X, n.S.Spot.Y, n.S.Ground), 25f, 0.6f, 0.3f);
+        n.View.Palette = 1;   // white (P45): its full scale reads ~0.96 luminance (the green phosphor's top is ~0.81)
+        n.S.Look(new Vector3(n.S.Spot.X, n.S.Spot.Y, n.S.Ground), 25f, 0.6f, -0.35f);
         n.Light(FullMoon);
         var before = n.Screen();
         var centre = new Vector2(before.W / 2f, before.H / 2f);
@@ -160,7 +161,7 @@ public sealed class SensorViewFrameRail
         using var n = new NvScene();
         n.View.SetMode(SceneSensor.NightVision);
         n.View.Noise = false;
-        n.S.Look(new Vector3(n.S.Spot.X, n.S.Spot.Y, n.S.Ground), 70f, 0.6f, 0.4f);
+        n.S.Look(new Vector3(n.S.Spot.X, n.S.Spot.Y, n.S.Ground), 70f, 0.6f, -0.5f);
         n.Light(FullMoon);
         var before = n.Screen();
         n.Fire(new Vector2(0f, 0f), 12f);
