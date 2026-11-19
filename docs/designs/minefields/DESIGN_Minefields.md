@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-17
+updated: 2026-11-19
 build-state: READY-TO-BUILD (R-4270…R-4274; reviews §8 and §10 approved and folded) — dispatched 2026-11-16 to terrain, behaviors, ui (§4)
-current-answer: §3 decisions · §11 behaviors as built · §12 the approved deviations (R-4278) · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
+current-answer: §3 decisions · §3g the route area as built after the scenarios · §11 behaviors as built · §12 the approved deviations (R-4278) · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -326,6 +326,18 @@ sequenceDiagram
 | catalogue | the three munitions got a relative cost (10 / 60 / 400) and the class table the `Minefield` class (5.0.*.91): two pre-existing reds of MS-T1 in `Hrot.Core.Tests` (`CE2186_EveryBuiltInMunition_HasACost…`, `CE2138_EveryBuiltInType_ResolvesToANamedClassPath`) | |
 
 *Rails (`MineTriggerTests` 4 new, `PlaceKnowledgeTests.AMinesCleared_…`, `MineClearerTkbTests`): a flail leaves only seeded survivors, bursts at every cleared mine and never at the flail, one lane with the right segment / side / width, the same set on a second run, a man on a cleared mine ⇒ nothing; a plough clears silently; a line charge ⇒ 11 bursts 8 m apart, its whole strip cleared, on the edge only; 0 B steady frames with clearers; a `MinesCleared` is recorded as Cleared and teaches nobody; TKB 116 in the catalogue, heavier than the dozer.*
+
+### 3g. As built — the route's minefield area, after the scenarios *(`2026-11-19`, terrain, CE-2443, KG-7, MF-10)*
+
+| piece | as built | why · measured |
+|---|---|---|
+| which cells report | ⭐ `DangerAlongRouteSolve.MinefieldAreas`: the first route sample inside a field the side knows of (`KnowsAny`) whose cell the side does **not know CLEAR** — unknown cells included | 📌 `mf-clear-lane-and-cross`: after a strike the side only SUSPECTS the cells round the blast; the route back in sidestepped them through unknown cells ⇒ no area, no halt, a second mine. ⛔ SUPERSEDED: "a cell it knows as suspected or mined" (`31872471f`) |
+| a cleared lane | ⭐ a sample inside a **lane record of the unit's side** (`InKnownLane`, MF-10) reports nothing — the lane is subtracted from the field | ⚠ a MARKED field reads every cell known-mined in `PlaceKnowledgeTable.Knows`, the lane's included ⇒ without this a squad halted inside its own lane. 📌 `mf-knowledge-survives`: `never MinefieldAhead` while crossing (`e342aef7c`) |
+| the checks | `knowledge` cue `is: "Lane"` (the count of the side's lane records — assert a lane with it, never `KnownClear`); `field` cue `also` (conditions on the same unit: "inside the field AND outside the lane band") | `docs/DESIGN_Scenario_Regression.md` §3 |
+| the save → load | a scenario's `Knowledge` section written by `PlaceKnowledgeSection.Write` (marked, the lane, its six cleared mines) loads back as the side's knowledge; Hostile still knows nothing | `mf-knowledge-survives` 15 / 15 — ⚠ no HTTP path saves a LIVE world yet (`/scenario/save` is edit-only; *"take a checkpoint, then make a scenario from it"* is not built), so the section was produced by the real writer over records built by hand, not by a run |
+
+*Rails: `DangerAreaSensorSystemTests.CE2443_*` (2, red-proved), `ScenarioChecksTests.CE2443_*` (2, red-proved).* ⏳ The chain end to end (`mf-clear-lane-and-cross`)
+is red at S3 — a squad under an HQ never reacts `MinefieldAhead` (CE-5040, behaviors).
 
 ## 4. Slices — ✅ dispatched `2026-11-16` *(backend busy with the animals ⇒ the ENGINE work goes to `terrain`, which built the record family, the crater table on `DoorStates` and the navmesh areas)*
 
