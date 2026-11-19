@@ -1,0 +1,65 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-3488 FL-4 (flame weapons \u00a77c): a timber building burns, a brick one does not.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the hut flamer spends fuel",
+      "on": "field",
+      "who": "Hut Flamer",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 90,
+      "before": 10
+    },
+    {
+      "name": "the shed flamer spends fuel",
+      "on": "field",
+      "who": "Shed Flamer",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 90,
+      "before": 10
+    },
+    {
+      "name": "the man in the timber house burns",
+      "on": "field",
+      "who": "Hut Man",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "before": 20
+    },
+    {
+      "name": "the man in the timber house dies",
+      "on": "field",
+      "who": "Hut Man",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 45
+    },
+    {
+      "name": "the man in the timber house is never caught by the jet itself",
+      "never": {
+        "on": "field",
+        "who": "Hut Man",
+        "path": "EffectState.BurningUntil",
+        "op": ">",
+        "value": 0
+      }
+    },
+    {
+      "name": "the man in the brick shed is never hurt",
+      "never": {
+        "on": "field",
+        "who": "Shed Man",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    }
+  ]
+}

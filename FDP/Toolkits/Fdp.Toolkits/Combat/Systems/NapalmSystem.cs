@@ -54,6 +54,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 float seconds = w.BurnSeconds > 0f ? w.BurnSeconds : Ignition.DefaultVehicleBurnSeconds;
                 float intensity = w.FlameIntensity > 0f ? MathF.Min(w.FlameIntensity, 1f) : 1f;
                 Fireball(repo, in evt, at, axis, w.AreaLengthM, w.AreaWidthM);
+                LightBuildings(repo, at, axis, w.AreaLengthM, w.AreaWidthM, now, intensity);   // ⭐ CE-3488 (FL-4 B-3)
                 // ⭐ the burst goes into the combat report's detonation log as every other burst does (AreaEffectSystem writes only those with blast or
                 //   fragments): the scenario check's `blast` cue and the /combat routes read it
                 var log = DetonationLog.For(repo);
@@ -94,6 +95,21 @@ namespace Fdp.Toolkit.Combat.Systems
             float along = Vector2.Dot(d, axis), across = axis.X * d.Y - axis.Y * d.X;
             float a = length * 0.5f, b = width * 0.5f;
             return along * along / (a * a) + across * across / (b * b) <= 1f;
+        }
+
+        /// <summary>⭐ <c>CE-3488</c> (FL-4 B-3) — every BURNABLE building the ellipse reaches (its footprint's centre inside the ellipse grown by the footprint's
+        /// radius) is set alight, by the shared <see cref="Fdp.Toolkit.Terrain.BuildingFires"/> rule.</summary>
+        private static void LightBuildings(EntityRepository repo, Vector3 at, Vector2 axis, float length, float width, double now, float intensity)
+        {
+            if (!repo.Bus.IsRegistered<Fdp.Toolkit.Terrain.BuildingFireEvent>() || !repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>()
+                || repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is not { } terrain) return;
+            var burnable = Fdp.Toolkit.Terrain.BuildingFires.Burnable(terrain);
+            for (int i = 0; i < burnable.Count; i++)
+            {
+                var (c, r) = Fdp.Toolkit.Terrain.BuildingFires.Extent(terrain.Buildings[burnable[i]]);
+                if (!InEllipse(at, axis, length + 2f * r, width + 2f * r, new Vector3(c, at.Z))) continue;
+                if (Fdp.Toolkit.Terrain.BuildingFires.TryOf(terrain, burnable[i], now, intensity, out var fire)) repo.Bus.Publish(fire);
+            }
         }
 
         /// <summary>⭐ N-5 — every living person inside the ellipse is set alight on his Health owner.</summary>

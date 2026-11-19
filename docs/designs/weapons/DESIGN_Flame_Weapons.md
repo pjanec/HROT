@@ -1,8 +1,8 @@
 <!--STATUS
-state: LIVE — ✅ APPROVED 2026-11-19 (R-3111); FL-0…FL-3 BUILT (§6, §7, §7a, §7b); FL-4 to build (CE-3488)
-build-state: BUILDING — FL-0…FL-3 built (§7, §7a, §7b); FL-4 buildings next
+state: LIVE — ✅ APPROVED 2026-11-19 (R-3111); FL-0…FL-4 BUILT (§6, §7, §7a, §7b, §7c); FL-5 drills are the behaviors lane's
+build-state: BUILT — FL-0…FL-4 (§7, §7a, §7b, §7c)
 updated: 2026-11-19
-current-answer: §0 the picture · §3 decisions (F-1…F-12, approved) · §5 slices · §7 / §7a / §7b as built (FL-1, FL-2, FL-3)
+current-answer: §0 the picture · §3 decisions (F-1…F-12, approved) · §5 slices · §7 / §7a / §7b / §7c as built (FL-1, FL-2, FL-3, FL-4)
 related-designs:
   - ../audio/DESIGN_FPS_Audio.md — §10 how the mover loops (the flail, the flame roar) are held; §8 here owns the roar (CE-4635)
   - ../thermal/DESIGN_Thermal_Drivers.md — OWNS how fire is STORED and SENT (§3b TD-16 the coupling to damage, §3c the three FireState holders, §4b the BurnedArea mark, §4g BurnSystem as built); this design adds what LIGHTS it
@@ -360,6 +360,50 @@ Scenario `fl-napalm-treeline`: the strike burns the treeline's men and leaves th
 | ⛔ deviation from §5's scenario | **`fl-napalm-strike`** on basic-desert, not `fl-napalm-treeline`: a vegetation's own burn time is FL-4's materials; ⭐ the GROUND fire is proved by its effect on a man who walks into it after the fireball (a record entity has no name a check could hold) |
 | rails | `NapalmSystemTests.CE3487_*` (the ellipse along the flight line, the spots) · `GroundFireTests.CE3487_*` (the record in the anchor's frame, never a burning car; one scorch per spot) · `AimAndFireExecutorTests.CE3487_ANapalmBomb_*` — each red-proved |
 | scenario | ✅ `fl-napalm-strike`: the firebomb released (19.7 s) and bursting; the three line men lit (27.5 s) and dead (32 s); the Late Man — never in the fireball — burned by the ground fire (84 s); the Far Car 50 m off untouched |
+
+## 7c. FL-4 buildings burn — plan and AS BUILT *(backend, `2026-11-19`, CE-3488; `build-state: BUILT` — as built in the table at the end of this section; where it differs, the as-built wins)*
+
+```mermaid
+classDiagram
+  direction LR
+  class FlameJets { <<built>> +TryGet }
+  class StructureFlameSystem { <<new, DamageAssessmentModule>> +a burnable panel in the cone, clear line ⇒ exposure per building }
+  class NapalmSystem { <<built>> +a burnable building in the ellipse (new) }
+  class BuildingFireEvent { <<new event>> +Building +spot in WORLD metres }
+  class BuildingDamageSystem { <<exists, CE-4391>> +ApplyFire (new, beside ApplyWindow) }
+  class BuildingDamage { <<exists, record per building>> }
+  class FireState { <<exists>> +on the building record (TD-6's second holder) }
+  class TerrainWallPanel { <<exists>> +Material.BurnSeconds (FL-0) +Building }
+  class BurnSystem { <<exists>> +bodies in any holder's spots }
+  StructureFlameSystem --> FlameJets
+  StructureFlameSystem --> TerrainWallPanel
+  StructureFlameSystem --> BuildingFireEvent
+  NapalmSystem --> BuildingFireEvent
+  BuildingFireEvent --> BuildingDamageSystem
+  BuildingDamageSystem --> BuildingDamage
+  BuildingDamageSystem --> FireState : added on the building's record (final value)
+  BurnSystem --> FireState
+```
+*What the picture shows that the prose hid:* the building record's writer already queues three kinds of item while its entity is being made
+(breaches, a collapse, windows); a fire is the fourth, written the way a window is — no second building-record writer.
+
+| decision | ⭐ lean | why |
+|---|---|---|
+| **B-1** the holder | `FireState` on the building's damage record (TD-6), added by `BuildingDamageSystem.ApplyFire` (or born with it); ONE spot per building in v1: the footprint's centre, radius to its farthest corner, its material's `BurnSeconds`, in the record's frame (`WallGroups.Anchor`) | the men inside burn by `BurnSystem`'s one rule; a room-by-room spread is v2 |
+| **B-2** the flame igniter | `StructureFlameSystem` (SimHost's `DamageAssessmentModule`, beside the record writer — so the event never crosses nodes): a lit jet (`FlameJets`, replicated) whose cone holds a point of a BURNABLE panel (`Material.BurnSeconds > 0`) with a clear line to just short of it gains exposure on that building; ≥ `Ignition.BuildingSeconds` (2 s, F-3) ⇒ a `BuildingFireEvent`; its own buffer, cleared on a new world | ⛔ in `FlameSystem` (the Health owner, any node) the event would be lost where no record writer runs |
+| **B-3** the napalm igniter | `NapalmSystem`: a building with a burnable panel whose footprint centre lies in the ellipse (grown by its radius) burns | — |
+| **B-4** the materials | a `timber` wall material (thermal class `wood` ⇒ 600 s) and a `timber-house` template; brick, concrete and stone stay unburnable | no building in the repo burns today — every template is brick or concrete |
+| **B-5** the scenario | `fl-timber-house` (⛔ not `fl-thatched-village`: no thatch material; the same test): on basic-desert, a placed timber house and a placed brick shed, a man in each, a flamer on each; the timber house burns and its man dies, the shed never burns and its man lives | the houses are placed by the scenario (`TerrainFeature.House`), so no terrain changes |
+
+| ⭐ as built (`2026-11-19`) | |
+|---|---|
+| B-1 | ✅ as drawn: `BuildingFireEvent` (id 5114, `TerrainEventIds.BuildingFire`; the spot in WORLD metres) → `BuildingDamageSystem.ApplyFire`: an existing record gains ONE spot (in its frame, `WallGroups.Anchor`) unless it already burns; a record still being made queues it (`Pending.LaterFires`, the fourth queued kind); no record yet ⇒ the creation request is BORN holding the `FireState` and no breach. `Ignited` counts them |
+| B-1 the one rule | `Terrain/BuildingFires.cs`: `BurnSecondsOf` (the most burnable wall's `BurnSeconds`) · `Extent` (footprint centre, radius to the farthest corner) · `TryOf` (the event; Z a metre above the floor) · `Burnable` / `BurnablePanels` (built once per world, per thread) — read by both igniters, so they cannot light a building differently |
+| B-2 | ✅ `Combat/Systems/StructureFlameSystem.cs` in `DamageAssessmentModule` after `NapalmSystem`: per lit jet, each burnable panel's point nearest the jet's axis (`NearestToAxis`) in the `FlameCone`, sight line to 0.4 m short of it ⇒ exposure on its building (once per building per tick; the gap rule of `Ignition.ExposureGapSeconds`); `Ignition.BuildingSeconds` = 2 s ⇒ the event, exposure cleared |
+| B-3 | ✅ `NapalmSystem.LightBuildings`: a burnable building whose footprint centre lies in the ellipse grown by its radius |
+| B-4 | ✅ `materials.json` `timber` (thermal class `wood` ⇒ 600 s) · `assets/buildings/timber-house.building.json` (8 × 6 m). ⚠ the template is the terrain lane's area (assets/buildings) — named in the commit |
+| B-5 | ✅ `scenarios/demos/weapons-and-fires/fl-timber-house`: the timber house's man burns (3 s) and dies (12 s), never caught by the jet itself (the walls stop it — the house's fire burns him); the brick shed's man is never hurt; both flamers spend fuel. Passes under the parallel checks (`HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) with the same golden |
+| rails | `BuildingFireTests.CE3488_*` (the burn time and the one spot; the record born holding the fire, once; 2 s on timber lights it, brick never) · `NapalmSystemTests.CE3488_*` (the burnable building in the ellipse, never brick, never one outside) — red-proved: the "already burning" test dropped (a second spot); the 2 s threshold cut (lit early); brick is guarded TWICE (the burnable-panel filter and `TryOf`'s 0 s refusal — each alone holds; both dropped ⇒ brick lit) |
 
 ## 8. The look — as ui builds it *(ui, `2026-11-19`; HANDOFF_Backend_To_Ui_Flame_Visuals; `build-state: BUILT` (ui, `2026-11-19`; as-built below, the design table under it is the plan and where they differ ⛔ the as-built wins); mockup [`UX/flame-visuals.svg`](../../UX/flame-visuals.svg), generated by `scripts/gen-flame-visuals-mockup.py`)*
 

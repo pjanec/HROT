@@ -85,6 +85,39 @@ namespace Fdp.Toolkit.Tests.Combat
             Assert.Equal(1, _napalm.Strikes);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3487</c> + <c>CE-3488</c> (FL-4 B-3) — a napalm burst sets alight every BURNABLE building it reaches (a timber house 20 m along its axis), never a
+        /// brick one in the same ellipse, nor a timber one far outside it. 🔴 Red-proof: both guards dropped (the burnable filter and `TryOf`'s 0 s refusal; each alone holds) ⇒ the brick house is lit.
+        /// </summary>
+        [Fact]
+        public void CE3488_ANapalmBurst_SetsAlightTheBurnableBuildingsItReaches()
+        {
+            const string houses = """
+                { "type": "FeatureCollection", "features": [
+                  { "type": "Feature", "properties": { "kind": "building", "label": "Near timber", "building": { "footprint": [[0,0],[8,0],[8,6],[0,6]], "material": "timber",
+                      "storeys": [ { "height": 2.8, "walls": [ { "from": [0,0], "to": [8,0], "thickness": 0.2 }, { "from": [8,0], "to": [8,6], "thickness": 0.2 },
+                        { "from": [8,6], "to": [0,6], "thickness": 0.2 }, { "from": [0,6], "to": [0,0], "thickness": 0.2 } ] } ] } },
+                    "geometry": { "type": "Point", "coordinates": [496, 517] } },
+                  { "type": "Feature", "properties": { "kind": "building", "label": "Near brick", "building": { "footprint": [[0,0],[8,0],[8,6],[0,6]], "material": "brick",
+                      "storeys": [ { "height": 2.8, "walls": [ { "from": [0,0], "to": [8,0], "thickness": 0.3 }, { "from": [8,0], "to": [8,6], "thickness": 0.3 },
+                        { "from": [8,6], "to": [0,6], "thickness": 0.3 }, { "from": [0,6], "to": [0,0], "thickness": 0.3 } ] } ] } },
+                    "geometry": { "type": "Point", "coordinates": [496, 477] } },
+                  { "type": "Feature", "properties": { "kind": "building", "label": "Far timber", "building": { "footprint": [[0,0],[8,0],[8,6],[0,6]], "material": "timber",
+                      "storeys": [ { "height": 2.8, "walls": [ { "from": [0,0], "to": [8,0], "thickness": 0.2 }, { "from": [8,0], "to": [8,6], "thickness": 0.2 },
+                        { "from": [8,6], "to": [0,6], "thickness": 0.2 }, { "from": [0,6], "to": [0,0], "thickness": 0.2 } ] } ] } },
+                    "geometry": { "type": "Point", "coordinates": [560, 500] } } ] }
+                """;
+            var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(houses, "range");
+            _w.RegisterEvent<BuildingFireEvent>();
+            _w.SetSingletonManaged(terrain);
+            _w.Bus.Publish(new DetonationNotification { Ammo = Firebomb, HitX = 500f, HitY = 500f, HitZ = 0f, TravelX = 0f, TravelY = 150f });
+            _w.Bus.SwapBuffers();
+            _napalm.Execute(_w, 0.1f);
+            _w.Bus.SwapBuffers();
+            var lit = _w.ReadEvents<BuildingFireEvent>().ToArray().Select(f => terrain.Buildings[f.Building].Label).ToArray();
+            Assert.Equal(new[] { "Near timber" }, lit);
+        }
+
         private sealed class FloatEq : System.Collections.Generic.IEqualityComparer<float>
         {
             public bool Equals(float a, float b) => System.MathF.Abs(a - b) < 1e-3f;
