@@ -570,6 +570,18 @@ void main()
             return new Color((byte)hi, (byte)MathF.Min(255f, MathF.Round((x - hi) * 255f)), (byte)0, alpha);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1985</c> (DESIGN_Sensor_View §5c, TH-5) — a temperature RISE in the same linear code, for a draw blended ADDITIVELY onto the thermal pass
+        /// (<c>BlendMode.Additive</c>, alpha 255): the result decodes as the surface under it + <paramref name="deltaK"/>, whatever that surface is. ⚠ The
+        /// low byte has no carry: when the two fractions overflow it clamps, losing &lt; one step (0.63 K).
+        /// </summary>
+        public static Color EncodeDeltaK(float deltaK)
+        {
+            float x = Math.Clamp(deltaK / 160f, 0f, 1f) * 255f;
+            float hi = MathF.Floor(x);
+            return new Color((byte)hi, (byte)MathF.Min(255f, MathF.Round((x - hi) * 255f)), (byte)0, (byte)255);
+        }
+
         /// <summary>The inverse of <see cref="EncodeC"/>.</summary>
         public static float DecodeC(Color c) => (c.R + c.G / 255f) / 255f * 160f - 40f;
 

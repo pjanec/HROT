@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Perception.Sensors
     /// ⭐ <c>CE-3061</c> — <b>thermal as a sensor</b>: vision's own chain (<see cref="VisionBroadphase"/> range / FOV / other
     /// forces, the host's <see cref="ILosStrategy"/>) read with the THERMAL sensor's range and FOV, plus
     /// <see cref="SignatureFilterTest"/> — a target is seen only when its signature reaches the sensor's
-    /// <c>MinSignature</c>. docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 F.
+    /// <c>MinContrastK</c> (°C contrast, CE-1987). docs/DESIGN_Thermal_And_Acoustic_Sensing.md §6 F, §9.
     /// </summary>
     public static class ThermalPerception
     {
@@ -37,6 +37,50 @@ namespace Fdp.Toolkit.Perception.Sensors
         public static void Register(EqsTemplateRegistry registry, SpatialHashGrid grid, ILosStrategy sight)
             => registry.Register(AssetGuid, Template(grid, sight), "Thermal");
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1987</c> (R-1058; docs/DESIGN_Thermal_And_Acoustic_Sensing.md §9, C-1) — a unit's HOTTEST part °C (its body, its engine's hot end, its barrel, a fire on it;
+        /// <see cref="ThermalScene.Unit"/>) from the drivers this node has (<see cref="UnitThermalDrivers"/>): an engine's hull at the frame's painted-metal °C, a body
+        /// at its clothing. ONE function for the AI sensor and the 3-D map's thermal view (its outlines and readout). 0 B.
+        /// </summary>
+        public static ThermalScene.UnitHeat UnitC(ISimulationView view, Entity target, in ThermalState ts, double now, ThermalBackground bg, bool sources = true, bool fires = true)
+            => UnitC(view, target, in ts, now, bg.HullC, bg.AirC, sources, fires);
+
+        /// <summary>The same with the hull's and the air's °C given (the 3-D map's view draws at its camera's weather sample).</summary>
+        public static ThermalScene.UnitHeat UnitC(ISimulationView view, Entity target, in ThermalState ts, double now, float hullC, float airC, bool sources = true, bool fires = true)
+        {
+            var d = UnitThermalDrivers.Of(view, target, in ts, now, sources, fires);
+            var source = d.HasSource ? d.Source : default;
+            return ThermalScene.Unit(in ts, in source, d.Speed, now, d.Barrel01, d.Fire01, d.DiedAt, ts.HasPowerPlant ? hullC : airC);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1987</c> (C-1, C-2) — THE thermal detection measure: |ΔT| (K) between the target's hottest part and the apparent °C it is seen against
+        /// (<see cref="ThermalBackground.BackgroundC"/> — the surface under it, the sky for a flyer). A cold object on warm ground counts as much as a warm one on cold
+        /// ground. Shared by <see cref="SignatureFilterTest"/> and the view. ⛔ One rule, never a copy.
+        /// </summary>
+        public static float ContrastOf(ISimulationView view, Entity target, in ThermalState ts, double now, ThermalBackground bg, bool sources = true, bool fires = true)
+        {
+            var heat = UnitC(view, target, in ts, now, bg, sources, fires);
+            float hottest = MathF.Max(heat.BodyC, MathF.Max(heat.HotEndC, heat.BarrelC));
+            var at = view.HasComponent<SimTransform>(target) ? view.GetComponentRO<SimTransform>(target).Position : default;
+            return MathF.Abs(hottest - bg.BackgroundC(at));
+        }
+
+        /// <summary>Whether a <paramref name="contrastK"/> reaches a sensor's <paramref name="minContrastK"/> (no contrast is never seen).</summary>
+        public static bool Reaches(float contrastK, float minContrastK) => contrastK >= minContrastK && contrastK > 0f;
+
+        /// <summary>⭐ <c>CE-1985</c> / <c>CE-1987</c> — what a thermal <paramref name="sensor"/> (a unit's sensor part, or the unit itself) looks with: its <c>MinContrastK</c> and its
+        /// range (weather-capped at <paramref name="unit"/>, as <see cref="Optics"/>). False when it is not a thermal sensor.</summary>
+        public static bool TryEyeOf(ISimulationView view, Entity sensor, Entity unit, out float minContrastK, out float range)
+        {
+            minContrastK = 0f; range = 0f;
+            if (!view.HasManagedComponent<SensorCapability>(sensor) || view.GetManagedComponentRO<SensorCapability>(sensor).Current.Thermal is not { } th) return false;
+            minContrastK = th.MinContrastK;
+            range = th.Range;
+            if (PerceptionWeather.TrySample(view, unit, out var weather)) range = PerceptionWeather.ThermalRange(range, in weather);
+            return range > 0f;
+        }
+
         /// <summary>The (range, FOV cosine) a thermal sensor looks with — its current thermal parameters.</summary>
         internal static bool Optics(ISimulationView view, Entity sensor, Entity unit, out float range, out float fovCos)
         {
@@ -56,8 +100,9 @@ namespace Fdp.Toolkit.Perception.Sensors
     }
 
     /// <summary>
-    /// ⭐ <c>CE-3061</c> — keeps a candidate only when its <see cref="ThermalState.Signature"/> reaches the sensor's
-    /// <c>MinSignature</c>. A target with no <see cref="ThermalState"/> gives off nothing (absent signature ⇒ cold).
+    /// ⭐ <c>CE-3061</c> / ⭐⭐ <c>CE-1987</c> (R-1058) — keeps a candidate only when its thermal CONTRAST against its background reaches the sensor's <c>MinContrastK</c>
+    /// (<see cref="ThermalPerception.ContrastOf"/>). A target with no <see cref="ThermalState"/> gives off nothing. The background is the frame's
+    /// <see cref="ThermalBackground"/>, prepared serially by the EQS solve before its parallel phase (⛔ the old <c>BaseSignature × crossover</c> rule retired).
     /// </summary>
     public sealed class SignatureFilterTest : IEqsTest
     {
@@ -66,12 +111,9 @@ namespace Fdp.Toolkit.Perception.Sensors
         public void ExecuteBatch(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
         {
             float min = view.HasManagedComponent<SensorCapability>(observer)
-                        && view.GetManagedComponentRO<SensorCapability>(observer).Current.Thermal is { } th ? th.MinSignature : 0f;
-            // ⭐ CE-3216 S2-3 (R-3017) — the crossover dims only the PASSIVE base signature (a cold hull against its background); the heat
-            //   term (an engine, a weapon fired, a body) is unchanged. Sampled once, at the observer's unit; 1 without a clock.
-            var unit = EqsContext.Self(view, observer, sensor);
-            float contrast = PerceptionWeather.TrySample(view, unit, out var weather) ? PerceptionWeather.BaseContrast(in weather) : 1f;
-            // ⭐ CE-4658 (thermal drivers TD-10) — the heat is COMPUTED from the replicated drivers at this instant (ThermalDriversOps), never integrated here
+                        && view.GetManagedComponentRO<SensorCapability>(observer).Current.Thermal is { } th ? th.MinContrastK : 0f;
+            // ⭐ CE-1987 C-5 — prepared serially by EqsSolverSystem before the parallel solves; a direct call (a rail, an inline solve) prepares it here
+            var bg = ThermalBackground.Of(view) ?? (view is EntityRepository pr ? ThermalBackground.Prepare(pr) : null);
             double now = view is EntityRepository clockRepo && clockRepo.HasSingletonUnmanaged<GlobalTime>() ? clockRepo.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0.0;
             bool sources = view is not EntityRepository sr || sr.IsComponentTypeRegistered<HeatSource>();
             bool fires = view is not EntityRepository fr || fr.IsComponentTypeRegistered<FireState>();
@@ -81,34 +123,19 @@ namespace Fdp.Toolkit.Perception.Sensors
                 if (c.EntityId <= 0) continue;
                 var target = new Entity((ulong)c.EntityId);
                 bool hot = false;
-                if (view.IsAlive(target) && view.HasComponent<ThermalState>(target))
+                if (bg != null && view.IsAlive(target) && view.HasComponent<ThermalState>(target))
                 {
                     ref readonly var ts = ref view.GetComponentRO<ThermalState>(target);
-                    float signature = ts.BaseSignature * contrast + HeatOf(view, target, in ts, now, sources, fires) * (1f - ts.BaseSignature);
-                    hot = signature >= min && signature > 0f;
+                    hot = ThermalPerception.Reaches(ThermalPerception.ContrastOf(view, target, in ts, now, bg, sources, fires), min);
                 }
                 if (!hot) c.EntityId = -1;
             }
-        }
-
-        /// <summary>
-        /// ⭐ <c>CE-4658</c> — the hottest of the target's sources at <paramref name="now"/>, 0..1: its engine or body (<see cref="ThermalDriversOps.SourceHeat"/> from the
-        /// replicated <see cref="HeatSource"/> and the speed this node knows, <see cref="Fdp.Toolkit.Motion.Locomotions.SpeedOf"/>), its hottest barrel
-        /// (<see cref="ThermalState.BarrelHeat"/> until CE-4659 computes it from the last burst) and a fire on it (<see cref="FireState"/>).
-        /// ⚠ A target whose state says it moves but whose speed this node cannot read (a person on the node that moves him) counts at full load.
-        /// </summary>
-        internal static float HeatOf(ISimulationView view, Entity target, in ThermalState ts, double now, bool sources, bool fires)
-        {
-            var d = UnitThermalDrivers.Of(view, target, in ts, now, sources, fires);
-            float heat = MathF.Max(d.Barrel01, d.Fire01);
-            if (d.HasSource) heat = MathF.Max(heat, ThermalDriversOps.SourceHeat(in ts, in d.Source, d.Speed, now, d.DiedAt));
-            return Math.Clamp(heat, 0f, 1f);
         }
     }
 
     /// <summary>
     /// ⭐ <c>CE-1985</c> (docs/designs/sensor-view/DESIGN_Sensor_View.md D-7, §5b) — ONE gathering of a unit's heat drivers at <c>now</c> from what this node has
-    /// replicated, for the AI's thermal sensor (<see cref="ThermalPerception.HeatOf"/>) AND the 3-D map's thermal view (<c>ThermalScene.Unit</c>) — ⛔ never two
+    /// replicated, for the AI's thermal sensor (<see cref="ThermalPerception.UnitC"/>) AND the 3-D map's thermal view (<c>ThermalScene.Unit</c>) — ⛔ never two
     /// copies of which speed, which death time, which barrel. ⭐ Moved here from <c>HeatOf</c> unchanged (CE-4658 / CE-4659 / CE-4661 rules).
     /// </summary>
     public readonly struct UnitThermalDrivers

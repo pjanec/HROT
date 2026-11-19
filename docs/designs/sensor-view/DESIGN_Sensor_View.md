@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-19
 build-state: READY-TO-BUILD
-current-answer: §3 the decisions · §4 night vision · §5 thermal · §6 UML · §8 slices · §9 light sources (seen + cheap lighting) · §10 the F4 cycle
+current-answer: §3 the decisions · §4 night vision · §5 thermal (as built §5d + §5e) · §6 UML · §8 slices · §9 light sources (seen + cheap lighting) · §10 the F4 cycle
 stale-below: nothing yet
 known-rot: D-4's "they light nothing" is SUPERSEDED by R-1057 (§9): sources may light their surroundings, cheaply, except in thermal
 known-conflict: none
@@ -51,7 +51,7 @@ Queries: `search_graph name_pattern=".*(Thermal|Heat|Infrared|Temperature|Burn|S
 | render-target precedent | `Film.cs:382-401` (`_canvas.DrawScene(size)` into a `RenderTexture`) | the pattern, already headless-proven |
 | `VehicleLights` + `VehicleLook.Lights` (brake lights derived) → `_lightsNow` | `Behavior/Components/VehicleLights.cs`, `Look/Vehicles/VehicleLook.cs:136`, `EntityBodyLayer3D.Fittings.cs:112-147` | the lit lamps, drawn as unlit spheres today |
 | `EffectLayer.ResolveStateInto` (fires on every `FireState` holder, jets, burning men, scorch) + shots / blasts | `Effects/EffectLayer.cs:198-290` | the flames and flashes |
-| `PerceptionWeather.BaseContrast` (the sensor's crossover) | `Perception/Sensors/PerceptionWeather.cs:61` | ⚠ the AI's simpler model — §3 D-9 |
+| `PerceptionWeather.BaseContrast` (the sensor's crossover) | ⛔ retired by CE-1987 | was the AI's simpler model — §3 D-9 |
 | ⛔ **a moon** | grep `Moon` in `Weather/`, `WeatherSky.cs` ⇒ **0** | every night is starlight-only ⇒ §4a |
 | ⛔ **a view mode / post-process** | the second query ⇒ none; `MapViewModeLayer` is the 2-D / 3-D switch only | ⇒ new, one seam |
 
@@ -77,7 +77,7 @@ Queries: `search_graph name_pattern=".*(Thermal|Heat|Infrared|Temperature|Burn|S
 | **D-6** | thermal surfaces: three numbers per thermal class (α absorption, τ inertia, ε emissivity) + an evaporation pin; the steady daily cycle in closed form; sky reflection by ε; wind and rain couple to the air | 🔒 user: *"cheap but not completely out of reality"* · ⛔ a heat solver with history |
 | **D-7** | units in °C = their surface (the same model, metal / body) + their own heat from `ThermalDriversOps` (engine at the hot end, barrel, fire, a corpse cooling) | ONE calculator for the AI and the view's units |
 | **D-8** | the gain is set on the CPU from what it already knows (the light level; the class and unit temperatures in view) — no GPU read-back | cheap, deterministic |
-| **D-9** | the °C model lives in `Fdp.Toolkits` beside `ThermalDriversOps`; the AI sensor keeps its 0..1 signature for now — moving it to °C contrast is **CE-1987** (behaviour change ⇒ scenarios) | one model when CE-1987 lands; the interim duplicate is named, not hidden |
+| **D-9** | the °C model lives in `Fdp.Toolkits` beside `ThermalDriversOps`; ✅ **CE-1987 BUILT `2026-11-19` (R-1058): the AI sensor reads the same model** — °C contrast against the ground under the target (DESIGN_Thermal_And_Acoustic_Sensing §9); the view's outlines and readout call the sensor's `ContrastOf`. ⛔ SUPERSEDED: "the AI sensor keeps its 0..1 signature for now" | one model — the interim duplicate is gone |
 | **D-10** | a debugging view, on every host with a 3-D map: `View ▸ Sensor View ▸ Off / Night Vision / Thermal`, `GET/POST /view/sensor`; hover readout; units above the SELECTED observer's thermal threshold outlined | the user's "debugging view"; ⛔ tied to a unit's own sight (that is G-10, later — it reuses this) |
 | **D-11** | the post-process toggles: palette (NV: green P43 / white P45; thermal: white-hot / black-hot / ironbow), auto / manual gain, halo, sensor resolution, noise — all default ON | realistic by default, clean on demand |
 
@@ -194,7 +194,24 @@ palette, the sensor resolution and the noise; its bright pass uses "T above the 
 | effects | hot parts `ctx.Emissive` (600 °C), soot +80 K, smoke +5 K, dust +20 K, marks +3 K over the air (`ctx.Heat`) |
 | the view | `SensorView.ApplyThermal`: the forcing once per sim day and place, the class °C each frame, auto gain from the coldest class to max(warmest + 2, clothing + 4) °C (fixed −10…50 °C when off), 480 sensor lines, sky = `SkyC`, no clouds or sun disc; legend *"THERMAL - lo .. hi C - air C - palette"* |
 | rails | `SensorViewFrameRail` TH-4 (a running engine's hot end 1.00 vs parked 0.60, ground 0.13; clear-night sky −17 °C vs air 8 °C), fire saturates (1.00, far unchanged), ALLOC (= normal frame; 🔴 seen red: `SimClock.Of` allocated a clock per unit per frame — now `TotalTimeOf`) |
-| ⏳ still open in CE-1985 | TH-5 ground heat marks drawn in thermal · the hover readout · the selected observer's outlines · roads (`TrafficLayer3D`) at asphalt (they read concrete) |
+| ⏳ still open in CE-1985 | ⛔ SUPERSEDED by §5e (part 2 built them all) — was: TH-5 marks · hover readout · observer outlines · roads at asphalt |
+
+### 5e. As built — SV-2 part 2 *(CE-1985, ui, `2026-11-19`)*
+
+| piece | as built |
+|---|---|
+| TH-5 ground heat marks | `EffectLayer.DrawHeatMarks3D` (thermal pass only): every mark's rise = `ThermalDriversOps.MarkWarmth` × K (stand 15, burned area 30, body imprint 6), drawn ADDITIVELY in the linear code (`LitShader.EncodeDeltaK`) ⇒ it reads **the surface under it + the rise** on grass, soil or asphalt alike, with no class lookup (⚠ the low byte has no carry: < 0.63 K lost when it overflows). A stand's hot third (`HotEnd`) gets the rest of the rise on top; depth WRITES are off while marks draw (📐 measured: the hot third lies exactly on its stand, and a written depth rejected it — front = rear). The scorch decal of a burned area is not drawn in thermal — its warmth is this pass's. Marks are read from the state resolve's query, weather by `WeatherField.GlobalOf`, 0 B |
+| the spot meter (D-10 hover readout) | `SensorPostProcess.ProbePixel` → after the scene pass the texel under it is copied into a **1×1 target** and read back (`Probed`, `HasProbed`): the °C the scene was drawn at, before gain, palette and noise. One pixel's stall, raylib's native image ⇒ 0 managed bytes, so it runs every thermal frame while the pointer is over the map. `SensorView.Update` sets it from `Pointer` (wired in `AttachMapLayers`: null while a panel holds the mouse); `DrawOverlay` draws a ring and *"23.4 C"* beside the pointer (text rebuilt per 0.1 K), `SpotC` holds it |
+| ⭐ the unit readout (mockup row C's tooltip) | over a UNIT (the 3-D pick, entities only, resolved by `NetworkIdResolver.ResolveNetworkId`) the spot meter gives way to three lines, as the mockup draws them: *"name - 36.1 C (front 74 C)"* · *"engine running for 30 min - barrel 41 C - no fire"* (the drivers the AI's sensor reads: `UnitThermalDrivers.Of`) · *"signature 0.52 >= observer 0.30: SEEN (outlined)"* (or *not seen*, *beyond the observer's N m thermal range*, *select a unit with a thermal sensor to compare*) — compared against the same eye the outlines used this frame. Rebuilt only when a shown value changes (0.1 K, a minute, 0.01 of signature) |
+| the observer's outlines (D-10) | the PRIMARY-selected unit's thermal sensor — on the unit, or its first thermal sensor PART (`SensorTag` + `PartMetadata` parent, how a TKB unit carries sensors) — through `ThermalPerception.TryEyeOf` (MinSignature, weather-capped range, crossover contrast); every `ThermalState` unit within range whose `ThermalPerception.SignatureOf` `Reaches` the minimum gets corner brackets round its projected body box (`EntityBodyLayer3D.TryGetBox`), drawn after the post. ⭐ **The rule is the AI sensor's own**: `SignatureOf` / `Reaches` were extracted from `SignatureFilterTest`, which now calls them (⛔ no copy in the view). ⚠ Range and signature only — no field of view, no line of sight: *"hot enough for this sensor"*, not *"seen now"* |
+| roads at asphalt | `TrafficLayer3D`: in the thermal pass the SUMO road mesh draws as class **asphalt**, its ambient ground as **grass**, then the default class back (sidewalks, markings and crosswalks ride the road mesh — asphalt too, accepted) |
+| rails | `SensorViewFrameRail` TH-5 (stand ⇒ warmer, hot end warmest, gone once cold, far ground unchanged) · the spot meter (on a stand's hot end it reads the bare ground + exactly `MarkWarmth` × 15, ± one code step — the probe and the additive code checked against each other; near the top it reads the cold sky — a mirrored probe would read ground) · the outlines + readout (a running truck bracketed, its readout *engine running for 30 min … SEEN (outlined)*; the same truck parked two hours not bracketed) · TH-1 roads (a road pixel reads asphalt's apparent °C, not concrete's) · ALLOC unchanged |
+
+| ⛔ deviation from §6 — and why | |
+|---|---|
+| no `SensorLegendLayer`: the legend, the spot meter and the outlines are `SensorView.DrawOverlay` | one layer already owns the mode and the post; a second layer would only read it back. §6's class diagram is updated |
+| over the ground the hover readout is the SCENE's °C at the pixel (a GPU read of one texel), not a CPU model of what is under the pointer | it answers what the picture shows, including marks, smoke and every draw nobody adapted; D-8's "no read-back" is about the GAIN, which still reads none. Over a unit it is the mockup's tooltip, computed (the drivers cannot be read from pixels) |
+| the readout's text says "C", not "°C"; separators are " - " | the map's overlays draw with raylib's default font, which has neither "°" nor "·" (the legend strip already does the same, SV-1) |
 
 ## 6. UML
 
@@ -206,7 +223,8 @@ classDiagram
   class SensorPostProcess { <<NEW, FDP Vis3D>> RenderTexture scene; Shader post; Settings; one ¼-size target for the halo }
   class LitShader { <<existing>> +SetSensor(mode, uniforms) }
   class SensorView { <<NEW, Hrot.Presentation Map3D>> Mode; Settings; Update(world, sample); Gain; Legend }
-  class SensorLegendLayer { <<NEW, IMapLayer>> DrawOverlay: legend, hover readout, outlines }
+  class SensorView_Overlay { <<AS-BUILT: SensorView.DrawOverlay>> legend · spot meter (Post.ProbePixel → Probed) · observer outlines }
+  class ThermalPerception { <<existing, the AI sensor>> SignatureOf() Reaches() TryEyeOf() — extracted, shared }
   class WeatherSkyLayer { <<existing>> _sample }
   class EntityBodyLayer3D { <<existing>> _lightsNow; +unit colour in sensor mode }
   class EffectLayer { <<existing>> resolved fires · jets · flashes }
@@ -225,7 +243,9 @@ classDiagram
   ThermalScene --> ThermalDriversOps
   EntityBodyLayer3D --> SensorView : reads the mode
   EffectLayer --> SensorView : reads the mode
-  SensorLegendLayer --> SensorView
+  SensorView_Overlay --> SensorView
+  SensorView_Overlay --> ThermalPerception : the outlines' rule (one rule)
+  SensorView_Overlay --> SensorPostProcess : the 1×1 probe
 ```
 *What the picture shows that prose hid:* FDP owns only the generic seam (`IScenePostProcess`, the post shader) and the shader switch; everything that knows
 about weather, units, lamps and fires is on the Hrot side, reading data that already exists — the only new state is the view's mode and settings.
@@ -248,7 +268,7 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-  AML["AttachMapLayers (every 3-D map host: editor, player, IG, replay)"] -->|registers| SV2["SensorView + SensorLegendLayer"]
+  AML["AttachMapLayers (every 3-D map host: editor, player, IG, replay)"] -->|registers| SV2["SensorView (legend, spot meter, outlines)"]
   AML -->|sets| PPS["canvas.PostProcess = SensorPostProcess"]
   MENU["View ▸ Sensor View (shared action registry)"] -->|event| SV2
   HTTP["GET/POST /view/sensor"] --> SV2
@@ -261,6 +281,11 @@ graph TD
 path that does NOT pass through it is the film capture (red, dashed): a film frame is drawn normal in v1 (Raylib cannot nest texture targets — CE-1988).
 
 ## 7. How it is judged — the machine checks *(R-4277)*
+
+⭐ **As built `2026-11-19` (ui):** `sv-night-and-heat` BUILT on basic-desert (no road / pond / house there — those are the FRAME rails' business): an idling tank, a
+parked cold one, a crewed HMMWV with its lamps on, a standing man, a hostile T-72 a friendly M1 kills (its hull burns), and a tank that idles 75 s and drives off (its heat
+mark, the cell record's network id 1013, measured — the M1's rounds take ids before it). Everything but the target is Neutral, so the M1 shoots only it. 9 expect rows +
+the golden (re-run: *same*); red-proof: the parked tank authored Idle ⇒ *"the parked tank never warms"* fails. The views themselves are judged by `SensorViewFrameRail` (§5d, §5e).
 
 ⭐ A view changes no simulation ⇒ its judge is the **frame rails** (`xvfb-run -a`, region brightness read back from a rendered frame) over one scene,
 `scenarios/demos/sensing-and-weather/sv-night-and-heat` (the mockup's scene: road, field, pond, house, trees, an idling tank, a parked cold tank, a car with its

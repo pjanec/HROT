@@ -75,6 +75,9 @@ public enum VisualFamily : byte
     /// <summary>⭐ CE-4649 part D (docs/designs/animals/DESIGN_Animals.md §4c, AN-21e) — a rabbit (class <c>Rabbit</c>, DIS <c>3.1.*.209</c>, TKB 715): a small hopping quadruped with long upright ears and a white tail.
     /// ⛔ Appended (a byte value others may store), AFTER <see cref="TwinEngineJet"/> — so it is NOT inside the <c>Cattle..Goat</c> range: <see cref="VisualFamilies.IsAnimal"/> names it.</summary>
     Rabbit,
+    /// <summary>⭐ CE-4634 (docs/designs/fun/DESIGN_Dragon.md §8, D-4) — a dragon (class <c>Dragon</c>, DIS <c>1.2.*.20.99</c>, TKB 411): a winged quadruped that flies, lands
+    /// and carries riders, its neck on turret 0 and its fire from the mouth. ⛔ Appended (a byte value others may store); NOT an animal (<see cref="VisualFamilies.IsAnimal"/>): it is a combat aircraft.</summary>
+    Dragon,
 }
 
 /// <summary>
@@ -119,7 +122,7 @@ public static class VisualFamilies
         ["AirDefenceVehicle"] = VisualFamily.AirDefenceVehicle,   // ⭐ CE-4618 — the radar SAM truck (DIS 1.1.*.28, type 114)
         // ⭐ CE-4623 (AU-2, AR-19) — the animals: each class is more specific than `Person` (Kind 3), so a cow is never drawn as a man (rail)
         ["Cattle"] = VisualFamily.Cattle, ["Sheep"] = VisualFamily.Sheep, ["Horse"] = VisualFamily.Horse, ["Dog"] = VisualFamily.Dog, ["Cat"] = VisualFamily.Cat,
-        ["Bird"] = VisualFamily.Bird, ["Poultry"] = VisualFamily.Poultry, ["Pig"] = VisualFamily.Pig, ["Goat"] = VisualFamily.Goat, ["Rabbit"] = VisualFamily.Rabbit,
+        ["Bird"] = VisualFamily.Bird, ["Poultry"] = VisualFamily.Poultry, ["Pig"] = VisualFamily.Pig, ["Goat"] = VisualFamily.Goat, ["Rabbit"] = VisualFamily.Rabbit, ["Dragon"] = VisualFamily.Dragon,
     };
 
     /// <summary>The family of <paramref name="t"/> — its DIS type's. ⭐ CE-2139 (C3): a unit is <see cref="VisualFamily.Unit"/>

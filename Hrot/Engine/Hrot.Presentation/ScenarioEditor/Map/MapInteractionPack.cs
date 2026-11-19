@@ -667,6 +667,10 @@ namespace Hrot.ScenarioEditor.Map
             canvas.AddLayer(sensorView);
             viewMode.Sensor = sensorView;
             bodies.UnitHeat = sensorView.UnitHeat;   // ⭐ CE-1985 — the thermal pass' bodies, from the same view
+            // ⭐ CE-1985 (D-10) — the thermal debugging aids: the spot meter under the pointer, the selected observer's outlines on the drawn bodies
+            sensorView.Pointer = () => canvas.Input.IsMouseCaptured ? null : canvas.Input.MousePosition;
+            sensorView.World = worldProvider;
+            sensorView.Bodies = bodies;
             if (LayerControlOf.TryGetValue(buffer, out var sensorMenu)) { sensorMenu.SensorMenuState = () => sensorView.MenuState; sensorMenu.SensorMenuKey = () => sensorView.CycleKey; }
             canvas.AddLayer(new Hrot.UI.Common.Map3D.WeatherSkyLayer(viewSwitch, worldProvider) { Sensor = sensorView });   // ⭐ CE-1146 — the weather's sky: the free camera at what it looks at, first person at the eye
             canvas.AddLayer(new Hrot.UI.Common.Map3D.RubberBandOverlay3D(viewSwitch, worldProvider));   // ⭐ CE-1136 — the 3-D marquee

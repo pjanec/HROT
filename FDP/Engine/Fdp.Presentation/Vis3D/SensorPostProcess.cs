@@ -43,10 +43,24 @@ namespace Fdp.Toolkit.Vis3D
             return c.A / 255f;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1985</c> (DESIGN_Sensor_View D-10 — the hover readout) — a screen pixel whose SCENE value the next <see cref="EndScene"/> reads back
+        /// (<see cref="Probed"/>): in the thermal pass that value is the °C the scene was drawn at, before gain, palette or noise
+        /// (<see cref="LitShader.DecodeC"/>). Null = no probe. ⭐ One texel through a 1×1 target: the read-back stalls for one pixel and allocates
+        /// nothing managed (raylib's image is native), so a host may probe every frame while the pointer is over the map.
+        /// </summary>
+        public Vector2? ProbePixel { get; set; }
+
+        /// <summary>The scene's value at <see cref="ProbePixel"/> as the last processed frame drew it; <see cref="HasProbed"/> says whether it is current.</summary>
+        public Color Probed { get; private set; }
+
+        /// <summary>True when the last processed frame read <see cref="Probed"/> (a probe was set and lay on the picture).</summary>
+        public bool HasProbed { get; private set; }
+
         /// <summary>Frames processed (a rail; telemetry).</summary>
         public int Frames { get; private set; }
 
-        private RenderTexture2D _scene, _q1, _q2;
+        private RenderTexture2D _scene, _q1, _q2, _probe;
         private RenderTexture2D[] _chain = Array.Empty<RenderTexture2D>();   // the halving chain to 1×1: the picture's mean
         private Shader _bright, _blur, _final;
         private IntPtr _window;
@@ -117,6 +131,18 @@ namespace Fdp.Toolkit.Vis3D
                 Raylib.EndTextureMode();
                 from = to;
             }
+            HasProbed = false;
+            if (ProbePixel is { } p && p.X >= 0 && p.Y >= 0 && p.X < w && p.Y < h)
+            {
+                // ⭐ CE-1985 — the scene's texel under the pointer into a 1×1 target (GL rows run bottom-up: screen row y is texture row h − 1 − y)
+                Raylib.BeginTextureMode(_probe);
+                Raylib.DrawTexturePro(_scene.Texture, new Rectangle(MathF.Floor(p.X), h - 1 - MathF.Floor(p.Y), 1, 1), new Rectangle(0, 0, 1, 1), Vector2.Zero, 0f, Color.White);
+                Raylib.EndTextureMode();
+                var img = Raylib.LoadImageFromTexture(_probe.Texture);
+                Probed = Raylib.GetImageColor(img, 0, 0);
+                Raylib.UnloadImage(img);
+                HasProbed = true;
+            }
             Rlgl.DrawRenderBatchActive();
             Rlgl.EnableColorBlend();
             var halo = _q1.Texture;
@@ -184,7 +210,7 @@ namespace Fdp.Toolkit.Vis3D
         {
             if (!Raylib.IsWindowReady()) return _loaded = false;
             var window = (IntPtr)Raylib.GetWindowHandle();
-            if (window != _window) { _window = window; _failed = false; _shadersReady = false; _scene = _q1 = _q2 = default; _chain = Array.Empty<RenderTexture2D>(); }
+            if (window != _window) { _window = window; _failed = false; _shadersReady = false; _scene = _q1 = _q2 = _probe = default; _chain = Array.Empty<RenderTexture2D>(); }
             if (_failed) return _loaded = false;
             if (!_shadersReady && !LoadShaders()) { _failed = true; return _loaded = false; }
             if (_scene.Id == 0 || _scene.Texture.Width != w || _scene.Texture.Height != h)
@@ -194,6 +220,7 @@ namespace Fdp.Toolkit.Vis3D
                     Raylib.UnloadRenderTexture(_scene); Raylib.UnloadRenderTexture(_q1); Raylib.UnloadRenderTexture(_q2);
                     foreach (var c in _chain) Raylib.UnloadRenderTexture(c);
                 }
+                if (_probe.Id == 0) _probe = Raylib.LoadRenderTexture(1, 1);   // ⭐ CE-1985 — the hover readout's texel (size-independent)
                 _scene = Raylib.LoadRenderTexture(w, h);
                 _q1 = Raylib.LoadRenderTexture(Math.Max(4, w / 4), Math.Max(4, h / 4));
                 _q2 = Raylib.LoadRenderTexture(Math.Max(4, w / 4), Math.Max(4, h / 4));

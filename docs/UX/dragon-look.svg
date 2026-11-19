@@ -1,0 +1,170 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1500' height='1000' viewBox='0 0 1500 1000'>
+<rect x='0' y='0' width='1500' height='1000' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The dragon on the 3-D map — a box-part kit posed by the simulation  (CE-4634 D-4, DESIGN_Dragon DR-11)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app. One kit (20 m nose to tail, 26 m wingspan, ~6 m standing) in the states the frame rails render.</text>
+<rect x='20' y='70' width='460' height='300' fill='#26313F' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='324' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
+<text x='30' y='90' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>A1 · FLYING — the wings BEAT</text>
+<text x='30' y='106' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>≈ 1 Hz while climbing or slow (&lt; 10 m/s); legs tucked</text>
+<polygon points='234.6,250.3 265.4,250.3 265.4,221.7 234.6,221.7' fill='#7A1F1F' fill-opacity='0.3' stroke='#3E1414' stroke-width='1'/>
+<polygon points='264.3,226.1 365.7,146.9 316.3,200.9 264.3,239.3' fill='#C07A6E' fill-opacity='0.3' stroke='#8A5446' stroke-width='1'/>
+<polygon points='235.7,226.1 134.3,146.9 183.7,200.9 235.7,239.3' fill='#C07A6E' fill-opacity='0.3' stroke='#8A5446' stroke-width='1'/>
+<polygon points='243.9,222.2 256.1,222.2 256.1,207.9 243.9,207.9' fill='#7A1F1F' fill-opacity='0.3' stroke='#3E1414' stroke-width='1'/>
+<polygon points='234.6,250.3 265.4,250.3 265.4,221.7 234.6,221.7' fill='#7A1F1F' fill-opacity='0.55' stroke='#3E1414' stroke-width='1'/>
+<polygon points='264.3,226.1 392.5,214.9 330.0,235.7 264.3,239.3' fill='#C07A6E' fill-opacity='0.55' stroke='#8A5446' stroke-width='1'/>
+<polygon points='235.7,226.1 107.5,214.9 170.0,235.7 235.7,239.3' fill='#C07A6E' fill-opacity='0.55' stroke='#8A5446' stroke-width='1'/>
+<polygon points='243.9,222.2 256.1,222.2 256.1,207.9 243.9,207.9' fill='#7A1F1F' fill-opacity='0.55' stroke='#3E1414' stroke-width='1'/>
+<polygon points='234.6,250.3 265.4,250.3 265.4,221.7 234.6,221.7' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='264.3,226.1 377.9,286.5 322.6,272.5 264.3,239.3' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='235.7,226.1 122.1,286.5 177.4,272.5 235.7,239.3' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='243.9,222.2 256.1,222.2 256.1,207.9 243.9,207.9' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<path d='M376.5 153.5 L324 140' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='330' y='144' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>one beat: up → level → down,</text>
+<text x='330' y='158' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a slow heavy stroke</text>
+<text x='30' y='348' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>front view · three phases of one beat overlaid (the app draws one per frame)</text>
+<rect x='500' y='70' width='460' height='300' fill='#26313F' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='500' y='324' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
+<text x='510' y='90' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>A2 · GLIDING — wings out, still</text>
+<text x='510' y='106' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>≥ 10 m/s and not climbing: no beat, a small dihedral</text>
+<polygon points='714.6,250.3 745.4,250.3 745.4,221.7 714.6,221.7' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='744.3,226.1 872.3,212.6 809.9,234.6 744.3,239.3' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='715.7,226.1 587.7,212.6 650.1,234.6 715.7,239.3' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='724.0,222.2 736.0,222.2 736.0,207.9 724.0,207.9' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<text x='510' y='348' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>front view</text>
+<rect x='980' y='70' width='460' height='300' fill='#26313F' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='980' y='324' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
+<text x='990' y='90' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>A3 · LANDED — wings folded, legs planted</text>
+<text x='990' y='106' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the flight state's Airborne = 0: on its four legs</text>
+<polygon points='1127.8,289.5 1188.0,295.8 1189.2,283.7 1129.0,277.4' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1087.9,292.2 1133.6,298.6 1134.5,292.0 1088.8,285.6' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1084.8,296.5 1093.6,287.7 1098.0,297.6' fill='#3E1414' fill-opacity='1.0'/>
+<polygon points='1198.7,324.0 1208.5,324.0 1208.5,298.7 1198.7,298.7' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1200.3,324.0 1213.5,324.0 1213.5,320.7 1200.3,320.7' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1253.7,324.0 1263.5,324.0 1263.5,298.7 1253.7,298.7' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1255.3,324.0 1268.5,324.0 1268.5,320.7 1255.3,320.7' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1183.8,300.9 1276.2,300.9 1276.2,272.3 1183.8,272.3' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1188.2,300.9 1271.8,300.9 1271.8,295.4 1188.2,295.4' fill='#A24A42' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1249.8,272.3 1169.5,277.8 1186.0,293.2 1243.2,284.4' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='1268.5,285.5 1319.1,285.5 1319.1,272.3 1268.5,272.3' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1316.9,284.9 1343.3,284.9 1343.3,272.9 1316.9,272.9' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1325.7,285.5 1343.3,285.5 1343.3,282.2 1325.7,282.2' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1316.3,274.6 1325.3,268.3 1324.1,266.7 1315.1,273.0' fill='#D8D0B8' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<path d='M1208.0 275.6 L994 140' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='1000' y='144' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the wings fold back along</text>
+<text x='1000' y='158' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the flanks (tips down)</text>
+<rect x='20' y='400' width='460' height='300' fill='#26313F' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='20' y='654' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
+<text x='30' y='420' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>B1 · BREATHING — the neck on turret 0</text>
+<text x='30' y='436' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>azimuth ±70°, elevation −60…+15° (the AH-64 chin gun's pose)</text>
+<polygon points='57.8,594.4 141.4,594.4 141.4,585.6 57.8,585.6' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='133.0,603.2 207.0,603.2 207.0,576.8 133.0,576.8' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='127.0,580.2 188.0,571.6 186.6,561.1 125.6,569.7' fill='#C07A6E' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='125.6,610.3 186.6,618.9 188.0,608.4 127.0,599.8' fill='#C07A6E' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='210.4,594.0 241.4,568.0 234.6,559.9 203.6,586.0' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='238.4,570.0 254.6,556.4 248.3,549.0 232.2,562.5' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='250.1,553.8 321.1,470.9 344.1,498.3' fill='#F29B38' fill-opacity='0.85'/>
+<polygon points='250.1,553.8 290.8,514.8 295.5,520.5' fill='#FFE28A' fill-opacity='0.9'/>
+<path d='M344.1188475771143 498.27176463188886 L304 610' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='310' y='614' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the FL-1 flame jet, unchanged —</text>
+<text x='310' y='628' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>from the MOUTH (backend's DR-5</text>
+<text x='310' y='642' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>muzzle), along the neck's aim</text>
+<text x='30' y='678' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>top view, nose to the right</text>
+<rect x='500' y='400' width='460' height='300' fill='#26313F' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='500' y='654' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
+<text x='510' y='420' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>B2 · RIDER + PILLION — astride (2× zoom)</text>
+<text x='510' y='436' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>seat 0 the rider (Driver), seat 1 the pillion: a firing seat, 100–260°</text>
+<clipPath id='b2'><rect x='500' y='444' width='460' height='256'/></clipPath><g clip-path='url(#b2)'>
+<rect x='500' y='654' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
+<polygon points='465.6,633.3 585.9,646.0 588.4,621.9 468.1,609.2' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='385.7,638.7 477.2,651.6 479.1,638.5 387.6,625.6' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='379.6,647.4 397.2,629.8 406.0,649.6' fill='#3E1414' fill-opacity='1.0'/>
+<polygon points='607.3,702.4 627.1,702.4 627.1,651.8 607.3,651.8' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='610.6,702.4 637.0,702.4 637.0,695.8 610.6,695.8' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='717.3,702.4 737.1,702.4 737.1,651.8 717.3,651.8' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='720.6,702.4 747.0,702.4 747.0,695.8 720.6,695.8' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='577.6,656.2 762.4,656.2 762.4,599.0 577.6,599.0' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='586.4,656.2 753.6,656.2 753.6,645.2 586.4,645.2' fill='#A24A42' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='709.6,599.0 549.0,610.0 582.0,640.8 696.4,623.2' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='747.0,625.4 848.2,625.4 848.2,599.0 747.0,599.0' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='843.8,624.3 896.6,624.3 896.6,600.1 843.8,600.1' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='861.4,625.4 896.6,625.4 896.6,618.8 861.4,618.8' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='842.5,603.6 860.5,591.0 858.3,587.8 840.3,600.4' fill='#D8D0B8' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='698.6,601.2 755.8,601.2 755.8,594.6 698.6,594.6' fill='#5A3A22' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='728.1,614.9 737.6,617.5 743.9,594.1 734.4,591.5' fill='#7A6A50' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='729.3,590.9 741.3,592.6 744.9,567.5 732.9,565.8' fill='#7A6A50' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<circle cx='738.2' cy='560.5' r='7.0' fill='#7A6A50' stroke='#3E1414'/>
+<polygon points='738.3,577.9 756.2,586.3 757.9,582.7 740.0,574.3' fill='#7A6A50' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='697.3,614.9 706.8,617.5 713.1,594.1 703.6,591.5' fill='#7A6A50' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='700.2,591.9 712.4,591.9 712.4,566.5 700.2,566.5' fill='#7A6A50' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<circle cx='707.4' cy='560.5' r='7.0' fill='#7A6A50' stroke='#3E1414'/>
+<polygon points='707.4,573.0 742.6,573.0 742.6,570.0 707.4,570.0' fill='#2B2B2B' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<path d='M738.2 557.2 L514 466' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='520' y='470' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the rider: hands to the neck (the</text>
+<text x='520' y='484' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>horse's Mounted pose, any mount)</text>
+<path d='M722.8 570.4 L764 466' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='770' y='470' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the pillion: turns and aims his</text>
+<text x='770' y='484' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>own rifle in his arc</text>
+</g>
+<text x='510' y='678' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>side view; both drawn while the dragon is possessed (no cab hides them)</text>
+<rect x='980' y='400' width='460' height='300' fill='#26313F' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<rect x='980' y='654' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
+<text x='990' y='420' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>B3 · DEAD — fallen, wings spread</text>
+<text x='990' y='436' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a dead body falls (the rotorcraft model); it lies wings out — NO fire (fireproof)</text>
+<polygon points='1163.8,652.9 1256.2,652.9 1256.2,626.5 1163.8,626.5' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1108.2,648.5 1168.8,648.5 1168.8,637.5 1108.2,637.5' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1068.1,649.6 1114.3,649.6 1114.3,643.0 1068.1,643.0' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1250.1,646.6 1300.2,653.6 1301.9,641.6 1251.8,634.6' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1295.4,651.7 1321.7,654.0 1322.6,643.1 1296.3,640.8' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1177.0,636.4 1232.0,625.4 1221.0,652.9 1155.0,652.9' fill='#C07A6E' fill-opacity='0.85' stroke='#8A5446' stroke-width='1'/>
+<text x='990' y='678' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>side view; legs folded under, the head on the ground</text>
+<text x='20' y='730' fill='#C8C8D0' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>C · THE 2-D MAP, THE PARTS, THE SOUNDS</text>
+<rect x='20' y='742' width='300' height='150' fill='#141418' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='34' y='764' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>2-D: the fun pack's dragon symbol</text>
+<rect x='60' y='782' width='70' height='60' fill='#1E2A1A' rx='4' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<path d='M352 323 300 336 352 323 300 336Q290 340 288 350Q287 361 297 366L338 387L294 419Q286 426 289 437Q293 448 304 448H416H464Q511 447 541 410L598 333Q608 320 608 304Q607 284 594 270Q580 257 560 256H539Q512 256 493 275L480 288H448V266Q449 227 482 205L588 139Q613 123 626 99Q640 75 640 46Q639 -1 608 -32Q577 -63 530 -64H496H32Q27 -64 23 -63Q8 -58 2 -44Q0 -39 0 -33Q0 -28 1 -23Q6 -8 20 -2Q24 0 29 0L433 36Q447 38 448 52Q448 59 443 63L399 108Q353 155 352 221V266V323ZM512 376Q512 376 512 376Q512 376 512 376Q512 376 512 376Q512 376 512 376ZM511 368 464 380 511 368 464 380Q464 378 464 376Q466 354 488 352Q505 353 511 368ZM131 331Q144 342 159 344Q175 345 189 336L320 249V221Q320 171 344 128H112Q101 129 97 138Q94 149 102 156L171 216L18 192Q7 191 2 201Q-3 212 5 220L131 331Z' fill='#5BD06A' fill-opacity='1' transform='translate(74,856.48046875) scale(0.06640625,-0.06640625)'/>
+<rect x='170' y='782' width='70' height='60' fill='#1E2A1A' rx='4' stroke='#4A4A55' stroke-width='1' opacity='1'/>
+<path d='M128 416Q128 430 137 439Q146 448 160 448H544Q558 448 567 439Q576 430 576 416Q576 402 567 393Q558 384 544 384H384V320H416Q484 318 529 273Q574 228 576 160V96Q576 82 567 73Q558 64 544 64H384H320Q288 65 269 90L197 185Q192 192 184 195L47 250Q32 256 28 272L5 364Q3 382 21 384H48Q64 384 74 371L112 320H320V384H160Q146 384 137 393Q128 402 128 416ZM384 128H512H384H512V160Q511 201 484 228Q457 255 416 256H384V128ZM631 23Q640 13 640 0Q640 -13 631 -23L627 -27Q589 -63 536 -64H256Q242 -64 233 -55Q224 -46 224 -32Q224 -18 233 -9Q242 0 256 0H536Q563 0 582 19L585 23Q595 32 608 32Q621 32 631 23Z' fill='#A0A0AA' fill-opacity='0.5' transform='translate(186,852.89453125) scale(0.05859375,-0.05859375)'/>
+<text x='150' y='862' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⛔ not the helicopter's (grey)</text>
+<text x='34' y='880' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the dragon glyph in the unit's colour, in its card cell</text>
+<text x='345' y='760' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>part</text>
+<text x='455' y='760' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>box (m)</text>
+<text x='575' y='760' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>moves by</text>
+<text x='775' y='760' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>from</text>
+<text x='345' y='780' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>body · belly</text>
+<text x='455' y='780' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>8.4 × 3.0 × 2.6</text>
+<text x='575' y='780' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>—</text>
+<text x='775' y='780' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the TKB box</text>
+<text x='345' y='800' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>neck + head</text>
+<text x='455' y='800' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>4.6 · 2.4</text>
+<text x='575' y='800' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>turret 0 azimuth / elevation</text>
+<text x='775' y='800' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>TurretParts.PoseOf</text>
+<text x='345' y='820' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>tail (2 boxes)</text>
+<text x='455' y='820' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>5.5 · 4.2</text>
+<text x='575' y='820' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a slow sway in flight</text>
+<text x='775' y='820' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>speed</text>
+<text x='345' y='840' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>wings ×2</text>
+<text x='455' y='840' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>11.7 span each</text>
+<text x='575' y='840' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>beat 1 Hz · glide · fold</text>
+<text x='775' y='840' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>speed, climb, Airborne</text>
+<text x='345' y='860' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>legs ×4</text>
+<text x='455' y='860' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>0.9 × 2.3</text>
+<text x='575' y='860' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>planted · tucked</text>
+<text x='775' y='860' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Airborne</text>
+<text x='345' y='880' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>riders</text>
+<text x='455' y='880' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>seats 0, 1</text>
+<text x='575' y='880' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>astride; the pillion aims</text>
+<text x='775' y='880' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>CarrierSeats</text>
+<text x='960' y='760' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>sound</text>
+<text x='1090' y='760' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>when (sim state the look already reads)</text>
+<text x='960' y='780' fill='#F29B38' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>wingbeat whoosh</text>
+<text x='1090' y='780' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>each down-stroke while beating; wind only gliding; silent landed</text>
+<text x='960' y='800' fill='#F29B38' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>ROAR</text>
+<text x='1090' y='800' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the breath starts (its burst record) · takes off (Airborne 0 → 1)</text>
+<text x='960' y='820' fill='#F29B38' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'></text>
+<text x='1090' y='820' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>· hit (a Health drop) · now and then in flight (seeded, sim time)</text>
+<text x='960' y='840' fill='#F29B38' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>dying roar</text>
+<text x='1090' y='840' fill='#FFFFFF' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a long roar falling away when Health reaches 0</text>
+<text x='20' y='920' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the dragon's own look and sounds only. The helicopter's look, the flame look and the horse rider are UNCHANGED, except that the seated</text>
+<text x='20' y='934' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>rider's mounted pose is now given to ANY mount (a horse, a dragon) — the motorcycle keeps its riding pose. Drawn from the measured kits: box parts,</text>
+<text x='20' y='948' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the bird's wing roles (WingLeft / WingRight) with the dragon's own beat, the quadruped's legs, the turret / gun roles for the neck and head.</text>
+</svg>
