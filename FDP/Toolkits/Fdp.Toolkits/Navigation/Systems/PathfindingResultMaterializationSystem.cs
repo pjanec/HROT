@@ -110,6 +110,8 @@ namespace Fdp.Toolkit.Navigation.Systems
                             ref var status = ref repo.GetComponentRW<NavigationStatus>(entity);
                             status.IntentId = repo.GetComponent<NavigationIntent>(entity).IntentId;
                             status.Result   = NavigationResult.FailedUnreachable;
+                            // ⭐ CE-4674 — the mesh it failed on: a later rebake (a newer tile change sequence) makes NavigationExecutionSystem re-plan it once
+                            status.NavmeshVersionObserved = evt.TileSequenceAtPlan;
                         }
                     }
                 }
