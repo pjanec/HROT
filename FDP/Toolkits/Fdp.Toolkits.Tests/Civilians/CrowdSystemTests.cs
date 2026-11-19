@@ -26,6 +26,7 @@ namespace Fdp.Toolkit.Civilians.Tests
             if (!w.IsComponentTypeRegistered<Creatures.Fear>()) w.RegisterComponent<Creatures.Fear>();
             if (!w.IsComponentTypeRegistered<GroupMember>()) w.RegisterComponent<GroupMember>();
             if (!w.IsComponentTypeRegistered<Group>()) w.RegisterComponent<Group>();
+            if (!w.IsComponentTypeRegistered<Mood>()) w.RegisterComponent<Mood>();   // ⭐ CE-4628 / CE-2250 — how he seems
             if (!w.IsComponentTypeRegistered<Health>()) w.RegisterComponent<Health>();
             if (!w.IsComponentTypeRegistered<InjuryThresholds>()) w.RegisterComponent<InjuryThresholds>();
             if (!w.Bus.IsRegistered<SoundContactEvent>()) w.Bus.Register<SoundContactEvent>();
@@ -70,6 +71,25 @@ namespace Fdp.Toolkit.Civilians.Tests
 
         private static void Move(EntityRepository w, Entity e, float x, float y)
             => w.GetComponentRW<SimTransform>(e).Position = new Vector3(x, y, 0);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2250</c> / <c>CE-4628</c> (docs/DESIGN_Civilians_And_Crowd_Control.md §5o; designs/animals/DESIGN_Animals.md §10a) — how a civilian SEEMS to
+        /// every node: the crowd pass writes his mode, fear and anger in quarters on the replicated <c>Mood</c> (the face and the mood dot read it), and a
+        /// frame in which no quarter moved leaves it untouched. 🔴 Red-proof: drop <c>WriteMoods</c> ⇒ no Mood ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4628_ACivilianSeems_HisModeFearAndAnger_OnTheMood()
+        {
+            var w = World();
+            var man = Civ(w, 0, 0, CivilianMode.Protest, fear: 0.6f);
+            Mind(w, man).Anger = 0.3f;
+            var crowds = new CrowdSystem();
+            Frame(w, crowds);
+            Assert.True(Moods.Of(w, man, out var mood), "the crowd pass writes the civilian's Mood (CE-2250)");
+            Assert.Equal(CivilianMode.Protest, mood.Mode);
+            Assert.Equal(Moods.Quarter(w.GetComponentRO<Creatures.Fear>(man).Value), mood.Fear);
+            Assert.Equal(Moods.Quarter(Mind(w, man).Anger), mood.Anger);
+        }
 
         /// <summary>
         /// ⭐⭐ <c>R-3039</c> S1 (docs/DESIGN_System_State_Inventory.md §6 #9) — a crowd survives a checkpoint restored into a FRESH system as ONE

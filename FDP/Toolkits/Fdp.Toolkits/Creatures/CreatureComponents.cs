@@ -125,9 +125,10 @@ namespace Fdp.Toolkit.Creatures
             var d = new Mood { Mode = mode, Fear = Quarter(fear), Anger = Quarter(anger) };
             if (repo.HasComponent<Mood>(man))
             {
-                ref var cur = ref repo.GetComponentRW<Mood>(man);
+                // ⭐ CE-4628 — compared READ-ONLY first: a RW reference bumps the chunk version (the recorder's and the egress' change mark) even when nothing changed
+                ref readonly var cur = ref repo.GetComponentRO<Mood>(man);
                 if (cur.Mode == d.Mode && cur.Fear == d.Fear && cur.Anger == d.Anger) return false;
-                cur = d;
+                repo.GetComponentRW<Mood>(man) = d;
                 return true;
             }
             repo.AddComponent(man, d);

@@ -37,6 +37,7 @@ namespace Fdp.Toolkit.Animals.Tests
             w.RegisterComponent<AnimalTasks>();
             w.RegisterComponent<AnimalState>();
             w.RegisterComponent<FlockState>();
+            w.RegisterComponent<Fdp.Toolkit.Creatures.Mood>();   // ⭐ CE-4628 — how it seems (the zero-allocation rail covers its write)
             if (!w.IsComponentTypeRegistered<CivilianState>()) w.RegisterComponent<CivilianState>();
             if (!w.IsComponentTypeRegistered<TkbIdentity>()) w.RegisterComponent<TkbIdentity>();
             if (!w.IsComponentTypeRegistered<VehicleParams>()) w.RegisterComponent<VehicleParams>();
@@ -316,6 +317,26 @@ namespace Fdp.Toolkit.Animals.Tests
             Assert.True(AnimalFear.Impulse(Cattle, SoundSourceClass.Animal, 50f) > 0.2f);
             Assert.Equal(0f, Civilians.CivilianFear.Impulse(SoundSourceClass.Animal, 50f));
             Assert.Equal(0f, AnimalFear.Impulse(Cattle, SoundSourceClass.Footsteps, 5f));   // a moo nearby frightens nothing
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4628</c> (designs/animals/DESIGN_Animals.md §10a) — how an ANIMAL seems to every node is its fear in quarters on the replicated <c>Mood</c>
+        /// (was <c>AnimalState.FearBand</c>), written by the fear system: a shot heard ⇒ the quarter of its fear; no mode and no anger. 🔴 Red-proof: drop the
+        /// <c>Moods.Set</c> call in the animal pass ⇒ no Mood ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4628_AnAnimalSeems_ItsFearInQuarters_OnTheMood()
+        {
+            using var w = World();
+            var sys = new CivilianFearSystem();
+            var cow = Animal(w, CattleType, Vector3.Zero);
+            w.Bus.Publish(new SoundContactEvent { Observer = cow, X = 20, Y = 0, SourceClass = (byte)SoundSourceClass.SmallArms });
+            Frame(w, sys, 0.1f);
+            Assert.True(Fdp.Toolkit.Creatures.Moods.Of(w, cow, out var mood), "the fear system writes the animal's Mood");
+            Assert.Equal(Fdp.Toolkit.Creatures.Moods.Quarter(w.GetComponentRO<Fear>(cow).Value), mood.Fear);
+            Assert.True(mood.Fear > 0, "a shot heard 20 m away frightens a cow");
+            Assert.Equal(CivilianMode.None, mood.Mode);
+            Assert.Equal((byte)0, mood.Anger);
         }
 
         /// <summary>⭐ R-2084 — the steady frame of the animal pass allocates nothing (the threat buffer is reused).</summary>

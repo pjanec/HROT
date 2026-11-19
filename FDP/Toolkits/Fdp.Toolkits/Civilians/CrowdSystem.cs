@@ -179,6 +179,22 @@ namespace Fdp.Toolkit.Civilians
             Police(repo);
             Rouse(repo, deltaTime);
             Provoke(repo, now);
+            WriteMoods(repo);
+        }
+
+        // ⭐⭐ CE-2250 / CE-4628 (docs/DESIGN_Civilians_And_Crowd_Control.md §5o; designs/animals/DESIGN_Animals.md §10a) — how each civilian SEEMS to every node:
+        //   his mode, fear and anger in quarters, on the replicated Mood (the face and the mood dot read it, CE-1177). Last, after anger and fear settled this frame;
+        //   written only when a quarter or the mode changes (Moods.Set).
+        private void WriteMoods(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<Mood>()) return;
+            for (int i = 0; i < _civs.Count; i++)
+            {
+                var e = _civs[i];
+                if (!repo.IsAlive(e)) continue;
+                ref readonly var mind = ref repo.GetComponentRO<CivilianState>(e);
+                Moods.Set(repo, e, mind.Mode, repo.GetComponentRO<Fear>(e).Value, mind.Anger);
+            }
         }
 
         // ⭐ CE-2241 ② (§5m PV-1) — every security-forces person alive and on his feet, and his heading
