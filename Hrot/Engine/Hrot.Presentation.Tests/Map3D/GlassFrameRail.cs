@@ -92,12 +92,17 @@ public sealed class GlassFrameRail
         WindowDamages.Hit(ref d2, terrain.Panes[upEast].Panel, terrain.Panes[upEast].Opening, 0.5f, 0.5f);
         world.SetComponent(damage, d2);
         sw.Camera3D.Pose = new CameraPose(new Vector3(107.1f, 100f, 4.3f), 7f, -MathF.PI / 2f + 0.3f, -0.08f);
-        for (int k = 0; k < 9; k++) { glass.Update(1f / 30f); frame.Step(canvas.Draw); }
+        double t = 1.0;
+        void Tick() { t += 1.0 / 30.0; world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t }); }   // sim time drives the shards (a pause freezes them)
+        for (int k = 0; k < 9; k++) { Tick(); frame.Step(canvas.Draw); }
         frame.Screenshot(Path.Combine(shots, "glass-3-the-burst.png"));
         Assert.Equal(1, glass.Bursts);
         Assert.True(glass.ShardsFlying > 0, "shards in the air");
         Assert.Equal(2, glass.BrokenDrawn);   // both broken panes drawn as holes (each within the draw radius)
-        for (int k = 0; k < 60; k++) { glass.Update(1f / 30f); frame.Step(canvas.Draw); }
+        int flying = glass.ShardsFlying;
+        for (int k = 0; k < 60; k++) { glass.Update(1f / 30f); frame.Step(canvas.Draw); }   // PAUSED: frames go by, sim time does not
+        Assert.Equal(flying, glass.ShardsFlying);                                           // the shards wait in the air
+        for (int k = 0; k < 60; k++) { Tick(); frame.Step(canvas.Draw); }
         Assert.Equal(0, glass.ShardsFlying);   // the burst is over
     }
 }

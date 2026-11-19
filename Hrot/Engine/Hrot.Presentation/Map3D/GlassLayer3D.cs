@@ -67,6 +67,18 @@ public sealed class GlassLayer3D : ISceneLayer
     public Entity? PickEntity(Vector2 worldPos) => null;
 
     private float _dt;
+    private double _lastSim = double.NaN;
+
+    /// <summary>⭐ CE-5034 (ui's note, `2026-11-19`) — the shards fly on SIM time, like the rest of the 3-D look (<c>EntityBodyLayer3D</c>): the step is the world's
+    /// <see cref="GlobalTime"/> delta (a pause freezes them; a seek back or a jump of more than ¼ s steps nothing), the frame delta only on a host with no sim clock.</summary>
+    private float Step(EntityRepository? world)
+    {
+        if (world is null || !world.HasSingletonUnmanaged<GlobalTime>()) return _dt;
+        double now = world.GetSingletonUnmanagedRO<GlobalTime>().TotalTime, last = _lastSim;
+        _lastSim = now;
+        double d = now - last;
+        return double.IsNaN(d) || d <= 0 || d > 0.25 ? 0f : (float)d;
+    }
     private TerrainWorld? _seenWorld;
     private readonly HashSet<long> _broken = new();     // the panes this host has seen broken (a turn to broken bursts once)
     private bool _primed;
@@ -74,9 +86,11 @@ public sealed class GlassLayer3D : ISceneLayer
     public void Draw3D(RenderContext ctx)
     {
         PanesDrawn = CracksDrawn = BrokenDrawn = 0;
-        if (_world() is not { } world || !world.HasSingletonManaged<TerrainWorld>() || world.GetSingletonManaged<TerrainWorld>() is not { PaneLeaves.Count: > 0 } terrain)
+        var current = _world();
+        float step = Step(current);
+        if (current is not { } world || !world.HasSingletonManaged<TerrainWorld>() || world.GetSingletonManaged<TerrainWorld>() is not { PaneLeaves.Count: > 0 } terrain)
         {
-            StepShards(_dt); DrawShards(); return;
+            StepShards(step); DrawShards(); return;
         }
         if (!ReferenceEquals(terrain, _seenWorld)) { _seenWorld = terrain; _broken.Clear(); _primed = false; }
         var view = DoorStates.Of(world, terrain);
@@ -97,7 +111,7 @@ public sealed class GlassLayer3D : ISceneLayer
                 for (int k = 0; k < list.Length; k++) DrawPane(terrain, view, windows, list[k], eye);
             }
         Rlgl.DrawRenderBatchActive();
-        StepShards(_dt);
+        StepShards(step);
         DrawShards();
         Rlgl.DrawRenderBatchActive();
         Rlgl.EnableBackfaceCulling();
