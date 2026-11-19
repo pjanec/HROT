@@ -63,10 +63,10 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         internal static EntityAnimalState ToSample(int netId, in AnimalState c)
-            => new() { EntityId = netId, Mode = (byte)c.Mode, Flags = (byte)c.Flags };
+            => new() { EntityId = netId, Mode = (byte)c.Mode, FearBand = c.FearBand, Flags = (byte)c.Flags };
 
         private static bool Same(in EntityAnimalState a, in EntityAnimalState b)
-            => a.Mode == b.Mode && a.Flags == b.Flags;
+            => a.Mode == b.Mode && a.FearBand == b.FearBand && a.Flags == b.Flags;
 
         public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);
         public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
@@ -175,7 +175,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (!repo.IsComponentTypeRegistered<AnimalState>()) { DroppedSampleCount++; return; }
                 if (AuthorityExtensions.IsRecordedOwner(repo, e, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
             }
-            cmd.AddComponent(e, new AnimalState { Mode = (AnimalMode)s.Mode, Flags = (AnimalFlags)s.Flags });   // ⭐ CE-4628 — the wire's FearBand and Species are not read
+            cmd.AddComponent(e, new AnimalState { Mode = (AnimalMode)s.Mode, FearBand = s.FearBand, Flags = (AnimalFlags)s.Flags });   // ⭐ CE-4628 — the wire's Species is not read (the TKB type's)
         }
 
         public void ScanAndPublish(ISimulationView view) { }

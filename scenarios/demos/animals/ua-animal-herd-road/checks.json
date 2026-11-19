@@ -27,9 +27,9 @@
       "name": "the convoy panics the herd",
       "on": "field",
       "who": "*Herd ",
-      "path": "Fear.Value",
+      "path": "AnimalState.FearBand",
       "op": ">=",
-      "value": 0.75,
+      "value": 3,
       "quantifier": "atLeast:3"
     },
     {

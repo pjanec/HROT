@@ -96,9 +96,9 @@ namespace Fdp.Toolkit.Animals.Tests
         private static byte Band(EntityRepository w, Entity e) => AnimalFear.Band(w.GetComponentRO<Fear>(e).Value);   // ⭐ CE-4628 — the band is read off the fear, not stored
 
         /// <summary>
-        /// ⭐ <c>CE-4628</c> rail (d) — <see cref="AnimalFear.PanicBreaks"/> reads the fear itself, no stored band: band 3's own threshold is 0.75, so a fleeing
-        /// fence-breaker at fear 0.74 does not breach and at 0.76 does; a calm one, one with no <c>Breaks</c> species and one with no fear never do.
-        /// 🔴 Red-proof: the threshold lowered (<see cref="AnimalFear.PanicBandFear"/> 0.5) ⇒ 0.74 breaches ⇒ red.
+        /// ⭐ <c>CE-4628</c> rail (d) — <see cref="AnimalFear.PanicBreaks"/> reads the REPLICATED band the fear system writes (§10b — kept: every node can read it,
+        /// and it is the pass's snapshot): fear 0.74 ⇒ band 2, no breach; 0.76 ⇒ band 3, a fleeing fence-breaker breaches; a calm one and a species that does not
+        /// break fences never do. 🔴 Red-proof: <c>PanicBreaks</c> reading the live fear ⇒ the "band still 2 after the fear rose" assertion fails.
         /// </summary>
         [Fact]
         public void CE4628_PanicBreaks_ReadsTheFearAtBand3sOwnThreshold_074No_076Yes()
@@ -108,10 +108,12 @@ namespace Fdp.Toolkit.Animals.Tests
             var cow = Animal(w, CattleType, Vector3.Zero);   // a species that does not break fences
             w.GetComponentRW<AnimalState>(bull).Mode = AnimalMode.Flee;
             w.GetComponentRW<AnimalState>(cow).Mode = AnimalMode.Flee;
-            w.GetComponentRW<Fear>(bull).Value = 0.74f;
-            w.GetComponentRW<Fear>(cow).Value = 0.9f;
+            w.GetComponentRW<AnimalState>(bull).FearBand = AnimalFear.Band(0.74f);
+            w.GetComponentRW<AnimalState>(cow).FearBand = AnimalFear.Band(0.9f);
             Assert.False(AnimalFear.PanicBreaks(w, bull));
-            w.GetComponentRW<Fear>(bull).Value = 0.76f;
+            w.GetComponentRW<Fear>(bull).Value = 0.9f;                         // the fear rose after the pass: the band is still the pass's
+            Assert.False(AnimalFear.PanicBreaks(w, bull));
+            w.GetComponentRW<AnimalState>(bull).FearBand = AnimalFear.Band(0.76f);
             Assert.True(AnimalFear.PanicBreaks(w, bull));
             Assert.False(AnimalFear.PanicBreaks(w, cow));                    // it does not break fences, however frightened
             w.GetComponentRW<AnimalState>(bull).Mode = AnimalMode.Calm;

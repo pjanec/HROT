@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-4628 shared creature components (HANDOFF_Coordinator_To_Ui_Shared_Creature_Components, merged coordinator `243ecc372`).
+idle — waiting for a handoff (last: CE-4628 DONE `2026-11-19`).
 
 ## 2. The queue (in order)
 
@@ -74,4 +74,4 @@ IN PROGRESS: CE-4628 shared creature components (HANDOFF_Coordinator_To_Ui_Share
 
 | row | state | finding | gates | design |
 |---|---|---|---|---|
-| CE-4628 (+ CE-2250) shared creature components: Fear, Home, GroupMember / Group, Mood, AnimalTasks | IN PROGRESS — inventory done (74 C# files; text paths: 3 checks.json + every civilian/animal golden); ✅ the playback skips a component whose layout changed (lead, `79acf0ed6`); the moves dispatched to the worker | ⭐ two corrections to §10, measured: `Mood` IS `Demeanour` (CE-3265's replicated record, never written — CE-2250's writer); ids KEPT (the space is near-full: free 0–499 = 108, 139, 158, 163, 327–329, 459), `Group` 139, `AnimalTasks` 163 | FlightRecorder/Schema/Playback 135 pass, 4 skipped; `FlightRecorderTests.CE4628_*` red-proved (without the skip X = 1) | designs/animals/DESIGN_Animals.md §10a |
+| CE-4628 (+ CE-2250) shared creature components: Fear, Home, GroupMember / Group, Mood, AnimalTasks | DONE — built (worker: the moves; lead: the playback skip, the Mood writer, the review). ⭐ corrections to §10, measured: `Mood` = `Demeanour` (written now — CE-2250); ids KEPT (the space is near-full; `Group` 139, `AnimalTasks` 163; NOTE to all lanes); `AnimalState.FearBand` KEPT (a live `Fear` read moved the herd goldens — the band is the replicated snapshot the panic breach reads); an authored animal gets a radius-0 spawn Home | Toolkits civilians/animals/crowd/herd/CarKinem 415/0; SimHost civilian/animal/people/demeanour 58/0; FlightRecorder/Schema/Playback 135/0 (+4 skip); worker: NED 8/5 (5 pre-existing RoleGroupOwnership), parallel+read-check 57/0 + 110/1 (1 red at base), ClusterRunner state rails 4/0; scenarios 35/37 (ua-armed-blend-back, ua-civ-surrender red at base `79acf0ed6` too); goldens: 28 behaviour-identical to a base capture (diff shape: +Home/Mood/GroupMember/Fear/AnimalTasks, -AnimalHome/HerdMember), 4 not repeatable at the base itself (CE-1982) | rails: FlightRecorderTests.CE4628_* (red-proved), CrowdSystemTests.CE4628_ACivilianSeems…, AnimalFearTests.CE4628_* (Mood, PanicBreaks), SpeechAndDemeanourTests (version, red-proved), worker's (a)–(d) + tie-break (red-proved) | designs/animals/DESIGN_Animals.md §10a / §10b |

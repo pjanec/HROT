@@ -225,8 +225,8 @@ namespace Fdp.Toolkit.Animals
         public static bool PanicBreaks(EntityRepository repo, Entity e)
         {
             if (!repo.IsComponentTypeRegistered<AnimalState>() || !repo.HasComponent<AnimalState>(e)) return false;
-            if (!repo.IsComponentTypeRegistered<Fear>() || !repo.HasComponent<Fear>(e)) return false;
-            if (repo.GetComponentRO<AnimalState>(e).Mode != AnimalMode.Flee || repo.GetComponentRO<Fear>(e).Value < PanicBandFear) return false;   // ⭐ CE-4628: band 3 = fear ≥ 0.75
+            var st = repo.GetComponentRO<AnimalState>(e);
+            if (st.Mode != AnimalMode.Flee || st.FearBand < 3) return false;   // ⭐ CE-4628 — the REPLICATED band (§10b): the fear system's snapshot, readable on every node
             return TemperamentOf(repo, e) is { Breaks: true };
         }
 
