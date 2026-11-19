@@ -106,6 +106,25 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         }
     }
 
+    /// <summary>⭐ CE-5034 — panes heard shattering this frame (a rail).</summary>
+    public int WindowsBroken { get; private set; }
+
+    /// <summary>
+    /// ⭐ CE-5034 (glass windows GW-3, D-8; 📄 docs/DESIGN_Glass_Windows.md §6a) — every <see cref="Fdp.Toolkit.Terrain.WindowBrokenEvent"/> of this frame (raised where the window
+    /// was decided, carried to every node by its event id) queues the breaking glass for the player's audio. The shards' flight is the 3-D map's (<c>GlassLayer3D</c>, a state
+    /// change it sees); the AI's hearing is the sim's own (<c>SoundEmissionSystem</c>).
+    /// </summary>
+    private void TrackWindows(ISimulationView view, EntityRepository world)
+    {
+        WindowsBroken = 0;
+        if (!world.Bus.IsRegistered<Fdp.Toolkit.Terrain.WindowBrokenEvent>()) return;
+        foreach (ref readonly var g in view.ReadEvents<Fdp.Toolkit.Terrain.WindowBrokenEvent>())
+        {
+            Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Glass(new Vector3(g.X, g.Y, g.Z)));
+            WindowsBroken++;
+        }
+    }
+
     public void Execute(ISimulationView view, float deltaTime)
     {
         Spawned = 0;
@@ -119,6 +138,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         Housekeep(world, cmd, tkb);
         MoveDecoys(world, now);   // ⭐ CE-1115
         TrackContacts(view, world, cmd, tkb, now);   // ⭐ CE-4600 (B-3b, V-17)
+        TrackWindows(view, world);   // ⭐ CE-5034 (GW-3, D-8)
 
         if (world.Bus.IsRegistered<WeaponFireNotification>())
         {

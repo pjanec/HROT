@@ -633,6 +633,8 @@ namespace Hrot.ScenarioEditor.Map
             viewSwitch.Build = map3D;
             canvas.AddLayer(map3D);
             canvas.AddLayer(bodies);
+            // ⭐ CE-5034 GW-3 (DESIGN_Glass_Windows §6a) — the glass in the windows: translucent, after the opaque world and before the effects
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.GlassLayer3D(worldProvider));
             // ⭐ CE-1042 E3 — muzzle flashes, tracers, explosions and decals, from their TKB type, in both modes (VE-F).
             var effects = new Hrot.UI.Common.Effects.EffectLayer(worldProvider, tkb, bodies) { GroundHeight = viewSwitch.Camera3D.GroundHeight };
             canvas.AddLayer(effects);

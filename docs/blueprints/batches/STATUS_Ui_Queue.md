@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — running HANDOFF_Coordinator_To_Ui_Bug_Queue.md under PROTOCOL_Autonomous_Lanes.md
-updated: 2026-11-18 10:45 UTC
+updated: 2026-11-19
 current-answer: §1
 -->
 
@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-5034 (HANDOFF_Coordinator_To_Ui_Waiting_Work row 1, via HANDOFF_Terrain_To_UI_Glass_Look frozen at terrain 36a1ad8f3) — the look of glass. Merged coordinator 3f4a9e66d (contains backend + terrain).
+IN PROGRESS: CE-4670 drawing (HANDOFF_Coordinator_To_Ui_Waiting_Work row 2). CE-5034 done.
 
 ## 2. The queue (in order)
 
@@ -59,6 +59,6 @@ IN PROGRESS: CE-5034 (HANDOFF_Coordinator_To_Ui_Waiting_Work row 1, via HANDOFF_
 
 | row | state | finding | gates | design |
 |---|---|---|---|---|
-| CE-5034 GW-3 the look of glass | IN PROGRESS | | | |
-| CE-4670 drawing — openings, lights, head out, light switches | TODO | | | |
+| CE-5034 GW-3 the look of glass | DONE — a translucent GlassLayer3D from GlassLook (Hrot.Look); the sound via EffectSpawnSystem on WindowBrokenEvent (new built-in Glass 7356) | Look 20/0; Presentation glass/damage/audio/effects/pack 47/0 (3 skip) under xvfb; frames match the mockup (scratchpad, not git) | GlassLookTests (red-proved), TheGlassWindowsDrawTests | DESIGN_Glass_Windows §6a as built |
+| CE-4670 drawing — openings, lights, head out, light switches | IN PROGRESS | | | |
 | CE-1980 / CE-3451 ②④ (DECIDED: ② build, ③ the rule moves into code — R-4297, ④ once in the egress shape) | TODO | | | |
