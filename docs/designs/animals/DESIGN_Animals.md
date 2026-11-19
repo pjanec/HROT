@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none — AN-7 amends Breaching B-D1 (a panicked big animal breaks a SMALL fence), approved R-4266
 related-designs:
+  - ../../DESIGN_Civilians_And_Crowd_Control.md — §10 here moves the civilian's fear, home and crowd membership onto components shared with animals (CE-4628)
   - ../weapons/DESIGN_Bows_And_Crossbows.md — the bow AR-10's mounted archers use, fired from the horse's seats (BW-8, CE-4649)
   - ../../DESIGN_Civilians_And_Crowd_Control.md — OWNS the fear model (`CivilianFearSystem`, §5d), the HSM Routine ⇄ Alarmed ⇄ flee / shelter, the crowd — the animal brain generalises it
   - ../../DESIGN_Vehicle_Breaching.md — OWNS `ContactBreach` and B-D1 (who may break a fence)
@@ -538,3 +539,34 @@ graph TD
 | AN-21a–c | Rabbit 715: freezes (crouched) until the 12 m PANIC zone, then a ZIGZAG `FleeStyle` of the one brain (legs 30–50°, 0.6–1.2 s, 25 % double jink, bending to the wood within 70 m) | freezes to the panic zone, not the flight distance (R-3106) |
 | AN-21f–h | Hunting dog 716 (a play of the one brain, never bites a person); Hunter 214 (`HuntingRulesDto` species list read by `Animals.MayEngage` + a `HunterSop` / `Hunt` reaction — game within 40 m, from where he stands); `an-rabbit-bolts`, `rabbit-hunt` (test-town's North Wood), `an-duck-hunt` (the shotgun-only hunter) | the hunter is a TYPE with a standing rule, never a PersonAttack order (an order walks him up to the game); the bag per hunter is not counted (CE-3468) |
 | ⭐ **CE-1958** an animal and a wall *(the user, `2026-11-17`: "pigs stuck in the fence — half the body each side, never gets out")* | ⭐ an animal is traced against walls by its BODY (`HullClearance.HasBody` — the hull's corner trace; `HasHull` stays the vehicle's, for backing out); an AI animal HELD at a wall TURNS ON THE SPOT toward its aim (`HullClearance.TurnInPlace`, 1.5 rad/s, shuffling back what the swinging corner would push in) — it still has no reverse. ⭐ An ENCLOSED area's HOME circle (`AnimalHome.Radius`) is the largest circle INSIDE its outline less 1.5 m of body room (`AnimalAreaSystem.HomeRadius`); an OPEN area keeps its reach (the farthest corner — its home is the animal's ground: 📐 the inner circle shrank the guard dog's yard 7.2 → 2.5 m and it never bit), and a herd member's spot round the herd's is kept in it (`AnimalBehavior.GrazeSpot`) | ⛔ SUPERSEDED: the home radius was the outline's FARTHEST VERTEX (the 12 m square pen: 8.5 m, its walls 6–8 m off) and the member's spot (+ up to 11 m spread) was never clamped ⇒ grazing spots past the pen's wall; the centre-only trace stopped a pig with half its body through. ⚠ A long thin PEN grazes within its narrow width (the trade-off — a polygon test would need the area's outline in the parallel brain phase). ✅ **CE-3471** *(terrain, `2026-11-18`)*: the pig that walked through the pen's wall was NOT moved elsewhere (every other position writer was swept: none moves an owned walker in x / y) — the guard itself let a point that landed EXACTLY on the wall's face through (a T = 0 crossing read as "already inside"); fixed in `HullClearance` (Motion Domains, the corner-trace row) · ⛔ SUPERSEDED: ~~⏳ CE-3471 … the mover is elsewhere, open~~ |
+
+## 10. Shared creature components — civilians and animals *(CE-4628, approved `2026-11-19`)*
+
+🔒 User, `2026-11-19`: *"Isn't it pretty similar to what animals are feeling? Is there any opportunity for unification … to create something that
+serves both the civilian and animals?"* · *"yes, hand it to ui"*. ⭐ No logic changes — what each system computes stays; WHERE it is kept moves. The
+one fear system (AN-2) already existed; this ends the interim second storage (L-A8, R-4278). Squads (`UnitSubordinate` / `UnitRoster`, the command
+chain — AR-9), soldiers' stress, and the two mode enums stay as they are.
+
+| component | on | content | replicated? | from |
+|---|---|---|---|---|
+| ⭐ **`Fear`** (shared) | every civilian and animal | `Value`, `FrightFrom` + `HasFrightFrom`, `LastFrightAt`, `HeardAt`, `Seen`, `EffectFrightUntil` | no (brain-local) | the union of `CivilianState`'s fear fields and the animal `Fear` |
+| ⭐ **`Home`** (shared) | every civilian and animal | `Centre`, `Radius`, `TetherMetres`, `Area`, `Enclosed` | — | `AnimalHome` renamed; replaces `CivilianState.Home` |
+| ⭐ **`GroupMember`** (shared) | a crowd or herd member | `Group` (entity) | — | `HerdMember.Herd` + the crowd's int `CrowdId` |
+| ⭐ **`Group`** (shared header) | a crowd or herd entity | `Kind` (Herd · Crowd), `Count`, `Centre`, `Lead` | — | the common part of `Crowd` and `HerdState` |
+| ⭐ **`Mood`** (shared, NEW) | every civilian and animal | `FearBand` (calm · uneasy · frightened · panic), `AngerBand` | ✅ yes | the animal `FearBand` + CE-2250's civilian mood (built here, not as a second record) |
+| `CivilianState` (trimmed) | a civilian | `Anger`, `Attitude`, `Instigator`, `HostileActAt`, `ForceSeenUntil`, `Mode`, `Focus` + `HasFocus` | no | — |
+| `AnimalState` (trimmed) | an animal | `Mode`, `Flags` | ✅ | `Species` read from the TKB (a per-type table built once, the `EntityClassTable.Chain` pattern), `FearBand` → `Mood` |
+| ⭐ **`AnimalTasks`** (animal-only) | an animal | `Intruder`, `Handler`, `Quarry`, `BoltUntil`, `NextZoneLookAt` | no | the non-fear fields that sat on `Fear` |
+| `HerdState` (trimmed) | the herd entity | `NextGrazing`, `Mode`, `Species` (a runtime herd has no TKB type) | — | — |
+| `Crowd` (trimmed) | the crowd entity | `MeanFear`, `MeanAnger`, `Focus` + `HasFocus`, `FormedAt` | — | `Id` retires (the entity is the id) |
+
+| ⚠ what the compiler does NOT catch — each a gate | |
+|---|---|
+| saved scenarios and recordings | `AnimalState` is saved and recorded — old files with animals must still load (a load-time migration of the removed fields) |
+| text paths | 📌 measured: `ua-civ-gathering` checks `CivilianState.CrowdId`, `df-civilian-ordered` checks `CivilianState.Fear` (×2); goldens of `war-party`, `rabbit-hunt`, `bw-mounted-archers` carry `Species` / `FearBand` — plus the HTTP debug API's JSON, the inspector / Watch and scripts |
+| the wire | `Mood` is a new descriptor; the animal state message changes; the ownership-group mapping for both (R-4295: the wire keeps its own types) |
+| parallel read declarations | moved fields change what the per-entity phases read — `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + the world guard on every touched system's rails |
+| adding the components | `Fear` and `Home` added where `CivilianState` is (`CivilianMind.Ensure`) and where the animal's are (`AnimalTkbTranslator`) — a missing one is a silent runtime default |
+| one save policy for `Home` | the civilian's home is brain-local and unsaved today, the animal's saved — choose one and say why |
+| goldens | the layout change moves goldens from t = 0 — re-captured, reported as a diff shape |
+
