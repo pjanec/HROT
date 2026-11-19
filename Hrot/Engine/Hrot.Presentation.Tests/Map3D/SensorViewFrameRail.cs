@@ -124,6 +124,7 @@ public sealed class SensorViewFrameRail
         using var n = new NvScene();
         n.View.SetMode(SceneSensor.NightVision);
         n.View.Noise = false; n.View.AutoGain = false;
+        n.S.Look(new Vector3(n.S.Spot.X, n.S.Spot.Y, n.S.Ground), 25f, 0.6f, 0.3f);
         n.Light(FullMoon);
         var before = n.Screen();
         var centre = new Vector2(before.W / 2f, before.H / 2f);
@@ -131,6 +132,7 @@ public sealed class SensorViewFrameRail
         n.Light(FullMoon);
         var after = n.Screen();
         n.Shot("nv-fire.png");
+        Assert.True(n.S.Effects.Drawn > 0, "the fire is drawn");
 
         float core = 0f;
         for (int y = (int)centre.Y - 40; y < centre.Y + 10; y++)
@@ -158,6 +160,7 @@ public sealed class SensorViewFrameRail
         using var n = new NvScene();
         n.View.SetMode(SceneSensor.NightVision);
         n.View.Noise = false;
+        n.S.Look(new Vector3(n.S.Spot.X, n.S.Spot.Y, n.S.Ground), 70f, 0.6f, 0.4f);
         n.Light(FullMoon);
         var before = n.Screen();
         n.Fire(new Vector2(0f, 0f), 12f);
@@ -165,6 +168,7 @@ public sealed class SensorViewFrameRail
         n.Light(FullMoon);
         var after = n.Screen();
         n.Shot("nv-gain.png");
+        Assert.True(n.S.Effects.Drawn > 0, "the fires are drawn");
         float farBefore = MeanIn(before, 20, before.H * 3 / 4, before.W / 4, before.H - 20), farAfter = MeanIn(after, 20, after.H * 3 / 4, after.W / 4, after.H - 20);
         _out.WriteLine($"far region with automatic gain: {farBefore:0.000} → {farAfter:0.000}");
         Assert.True(farAfter < farBefore * 0.9f, $"the gain dims the rest: {farBefore:0.000} → {farAfter:0.000}");
