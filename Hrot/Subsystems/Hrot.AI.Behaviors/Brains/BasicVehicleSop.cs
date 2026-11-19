@@ -28,6 +28,10 @@ namespace Hrot.AI.Behaviors.Brains
             public CrewHatchParams Hatch;
             /// <summary>⭐ CE-4670 D-10 B — the light discipline rule (standing, or an order's while it runs).</summary>
             public CrewLightsParams Lights;
+            /// <summary>⭐ CE-4670 VA-S5 — "pop smoke": a salvo on a launch at it or a hit it survived, then a cool-down.</summary>
+            public CrewSmokeParams Smoke;
+            /// <summary>⭐ CE-4670 VA-S5 — a guided missile launched at it (fresh, 3 s).</summary>
+            public SopSenseParams LaunchSense;
 
             public Blackboard()
             {
@@ -36,6 +40,8 @@ namespace Hrot.AI.Behaviors.Brains
                 ThreatSense = new SopSenseParams { Kind = SensorChange.FirstThreat, Seconds = 3f };
                 AirDefence  = new EngageAircraftParams { ClearSeconds = 10f, MinElevationDeg = 80f };
                 Hatch       = new CrewHatchParams();
+                Smoke       = new CrewSmokeParams();
+                LaunchSense = new SopSenseParams { Kind = SensorChange.MissileWarning, Seconds = 3f };
             }
         }
 
@@ -62,6 +68,12 @@ namespace Hrot.AI.Behaviors.Brains
                     Id("c4670000-0000-0000-0000-0000000000b1"))
                     .Label("Side step: the light discipline (never a row)")
                     .Comment("CE-4670 D-10 B (VA-3): an order carrying Lights overrides the vehicle's standing (authored) discipline while it runs; one ask per change, an event.")
+                .Inverter(side => side
+                    .Action(bb => bb.Smoke, VehicleCrewNodes.SmokeByThreat, Id("c4670000-0000-0000-0000-0000000000c2"))
+                        .Label("Smoke: one salvo at a launch at me, or a hit I survived"),
+                    Id("c4670000-0000-0000-0000-0000000000c1"))
+                    .Label("Side step: pop smoke (never a row)")
+                    .Comment("CE-4670 VA-S5 (VA-9): the dischargers fire at the threat's bearing, then a cool-down; never the weapon channel, so the gun's fire goes on. The move out of sight is the fight-from-cover row below.")
                 .Sequence(row => row
                     .Condition(bb => bb.AirSense, SopConditions.SensedFresh, Id("c4617000-0000-0000-0000-0000000000b2"))
                         .Label("Air threat (fresh, 3 s)")
@@ -106,6 +118,14 @@ namespace Hrot.AI.Behaviors.Brains
                         .Label("React: VehicleFightFromCover"),
                     Id("c2165000-0000-0000-0000-000000000020"))
                     .Label("Hit → fight from cover")
+                .Sequence(row => row
+                    .Condition(bb => bb.LaunchSense, SopConditions.SensedFresh, Id("c4670000-0000-0000-0000-0000000000d1"))
+                        .Label("Missile launched at me (fresh, 3 s)")
+                    .React(BehaviorNames.VehicleFightFromCover, ReactionUrgency.Hit, Id("c4670000-0000-0000-0000-0000000000d2"))
+                        .Label("React: VehicleFightFromCover"),
+                    Id("c4670000-0000-0000-0000-0000000000d0"))
+                    .Label("Launch at me → fight from cover")
+                    .Comment("CE-4670 VA-S5: a launch is answered like a hit — smoke (the side step above) and out of the shooter's sight before the missile arrives.")
                 .Sequence(row => row
                     .Condition(bb => bb.ThreatSense, SopConditions.SensedFresh, Id("c2165000-0000-0000-0000-000000000031"))
                         .Label("First threat (fresh, 3 s)")

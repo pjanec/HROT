@@ -77,7 +77,9 @@ namespace Hrot.SimHost.Tests
                                         ("memberDown", typeof(SopSenseParams)), ("areaAhead", typeof(SopAreaParams)), ("airSense", typeof(SopSenseParams)) },
             ["BasicPlatoonSop"] = new[] { ("reportReceived", typeof(SopSenseParams)), ("enemyNear", typeof(Fdp.Toolkit.Squad.Command.ElementReportedParams)) },
             ["BasicVehicleSop"] = new[] { ("airSense", typeof(SopSenseParams)), ("hitSense", typeof(SopSenseParams)), ("threatSense", typeof(SopSenseParams)),
-                                          ("airDefence", typeof(Hrot.AI.Behaviors.Brains.EngageAircraftParams)) },
+                                          ("airDefence", typeof(Hrot.AI.Behaviors.Brains.EngageAircraftParams)),
+                                          ("hatch", typeof(Hrot.AI.Behaviors.Brains.CrewHatchParams)), ("lights", typeof(Hrot.AI.Behaviors.Brains.CrewLightsParams)),   // ⭐ CE-4670 D-10
+                                          ("smoke", typeof(Hrot.AI.Behaviors.Brains.CrewSmokeParams)), ("launchSense", typeof(SopSenseParams)) },   // ⭐ CE-4670 VA-S5
             ["CivilianSop"] = null,
             ["InertSop"] = null,
             ["PilotSop"] = null,

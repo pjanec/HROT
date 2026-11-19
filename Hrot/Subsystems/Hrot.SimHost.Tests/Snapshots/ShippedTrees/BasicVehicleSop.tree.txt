@@ -7,18 +7,35 @@ variable AirSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"AirThreat","Sec
 variable HitSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"Hit","Seconds":3}
 variable ThreatSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"FirstThreat","Seconds":3}
 variable AirDefence Hrot.AI.Behaviors.Brains.EngageAircraftParams = {"ClearSeconds":10,"MinElevationDeg":80}
+variable Hatch Hrot.AI.Behaviors.Brains.CrewHatchParams = {"QuietSeconds":30,"Asked":0}
+variable Lights Hrot.AI.Behaviors.Brains.CrewLightsParams = {"Standing":0,"Override":0,"Asked":0,"Seen":0,"ReadFor":0}
+variable Smoke Hrot.AI.Behaviors.Brains.CrewSmokeParams = {"CooldownSeconds":30,"AnsweredLaunch":-1,"AnsweredHit":-1,"LastSalvo":-1000000000}
+variable LaunchSense Fdp.Toolkit.Behavior.SopSenseParams = {"Kind":"MissileWarning","Seconds":3}
 parse (empty) -> ok
+  c4670000-0000-0000-0000-0000000000a2 {"QuietSeconds":30,"Asked":0}
+  c4670000-0000-0000-0000-0000000000b2 {"Standing":0,"Override":0,"Asked":0,"Seen":0,"ReadFor":0}
+  c4670000-0000-0000-0000-0000000000c2 {"CooldownSeconds":30,"AnsweredLaunch":-1,"AnsweredHit":-1,"LastSalvo":-1000000000}
   c4617000-0000-0000-0000-0000000000b2 {"Kind":"AirThreat","Seconds":3}
   c2165000-0000-0000-0000-0000000000a2 {"Kind":"AirThreat","Seconds":3}
   c2165000-0000-0000-0000-0000000000a3 {"ClearSeconds":10,"MinElevationDeg":80}
   c2165000-0000-0000-0000-000000000011 {"Kind":"AirThreat","Seconds":3}
   c2165000-0000-0000-0000-000000000051 {"Kind":"Hit","Seconds":3}
   c2165000-0000-0000-0000-000000000021 {"Kind":"Hit","Seconds":3}
+  c4670000-0000-0000-0000-0000000000d1 {"Kind":"MissileWarning","Seconds":3}
   c2165000-0000-0000-0000-000000000031 {"Kind":"FirstThreat","Seconds":3}
 parse {} -> ok
 parse {"bogus":1} -> refused InvalidOperationException
 Selector c2165000-0000-0000-0000-000000000002 "Rows — first true wins"
   # A vehicle's reaction table (DESIGN_Vehicle_Exposure_Cycle §8): a drone first, then being hit, then contact; the idle row is last. Row order picks WHICH reaction; urgency decides whether it may interrupt what already runs (R-199).
+  Inverter c4670000-0000-0000-0000-0000000000a1 "Side step: the crew's hatch (never a row)"
+    # CE-4670 D-10 A (VA-4): ticked first every frame and inverted, so it never wins the selector — the rows below still choose the reaction. Asks the boarding arbiter (an event) only when the wanted state changes.
+    Action c4670000-0000-0000-0000-0000000000a2 call Hrot.AI.Behaviors.Brains.VehicleCrewNodes.HatchByThreat p:CrewHatchParams={"QuietSeconds":30,"Asked":0} "Commander's hatch: out while calm, in on a threat"
+  Inverter c4670000-0000-0000-0000-0000000000b1 "Side step: the light discipline (never a row)"
+    # CE-4670 D-10 B (VA-3): an order carrying Lights overrides the vehicle's standing (authored) discipline while it runs; one ask per change, an event.
+    Action c4670000-0000-0000-0000-0000000000b2 call Hrot.AI.Behaviors.Brains.VehicleCrewNodes.LightsByOrder p:CrewLightsParams={"Standing":0,"Override":0,"Asked":0,"Seen":0,"ReadFor":0} "Lights: the order's discipline while it runs, else the standing one"
+  Inverter c4670000-0000-0000-0000-0000000000c1 "Side step: pop smoke (never a row)"
+    # CE-4670 VA-S5 (VA-9): the dischargers fire at the threat's bearing, then a cool-down; never the weapon channel, so the gun's fire goes on. The move out of sight is the fight-from-cover row below.
+    Action c4670000-0000-0000-0000-0000000000c2 call Hrot.AI.Behaviors.Brains.VehicleCrewNodes.SmokeByThreat p:CrewSmokeParams={"CooldownSeconds":30,"AnsweredLaunch":-1,"AnsweredHit":-1,"LastSalvo":-1000000000} "Smoke: one salvo at a launch at me, or a hit I survived"
   Sequence c4617000-0000-0000-0000-0000000000b1 "Aircraft + a radar SAM → radar on, salvo, relocate"
     # CE-4617 (DESIGN_Radar_SAM RS-5): a radar SAM vehicle answers an air cue with its radar and a salvo, then switches off and relocates; an empty launcher falls through to the rows below.
     Condition c4617000-0000-0000-0000-0000000000b2 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"AirThreat","Seconds":3} "Air threat (fresh, 3 s)"
@@ -40,6 +57,10 @@ Selector c2165000-0000-0000-0000-000000000002 "Rows — first true wins"
   Sequence c2165000-0000-0000-0000-000000000020 "Hit → fight from cover"
     Condition c2165000-0000-0000-0000-000000000021 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"Hit","Seconds":3} "Hit (fresh, 3 s)"
     Action c2165000-0000-0000-0000-000000000022 sop React:VehicleFightFromCover:Hit "React: VehicleFightFromCover"
+  Sequence c4670000-0000-0000-0000-0000000000d0 "Launch at me → fight from cover"
+    # CE-4670 VA-S5: a launch is answered like a hit — smoke (the side step above) and out of the shooter's sight before the missile arrives.
+    Condition c4670000-0000-0000-0000-0000000000d1 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"MissileWarning","Seconds":3} "Missile launched at me (fresh, 3 s)"
+    Action c4670000-0000-0000-0000-0000000000d2 sop React:VehicleFightFromCover:Hit "React: VehicleFightFromCover"
   Sequence c2165000-0000-0000-0000-000000000030 "Contact → fight from cover"
     Condition c2165000-0000-0000-0000-000000000031 call Fdp.Toolkit.Behavior.SopConditions.SensedFresh p:SopSenseParams={"Kind":"FirstThreat","Seconds":3} "First threat (fresh, 3 s)"
     Action c2165000-0000-0000-0000-000000000032 sop React:VehicleFightFromCover:Contact "React: VehicleFightFromCover"

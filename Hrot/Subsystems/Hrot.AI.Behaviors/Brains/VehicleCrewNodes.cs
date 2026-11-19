@@ -34,6 +34,19 @@ namespace Hrot.AI.Behaviors.Brains
         public uint ReadFor;
     }
 
+    /// <summary>⭐ <c>CE-4670</c> VA-S5 — "pop smoke": the cool-down between salvos, and what was last answered (a launch's time, a hit's time)
+    /// and when the last salvo left.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CrewSmokeParams
+    {
+        /// <summary>No second salvo within this long of the last (s).</summary>
+        public float CooldownSeconds;
+        /// <summary>Runtime: the launch warning last answered (sim s) · the hit last answered · the last salvo.</summary>
+        public double AnsweredLaunch, AnsweredHit, LastSalvo;
+
+        public CrewSmokeParams() { CooldownSeconds = VehicleCrewNodes.SmokeCooldownSeconds; AnsweredLaunch = AnsweredHit = -1d; LastSalvo = -1e9; }   // finite: a blackboard is written as JSON
+    }
+
     /// <summary>
     /// ⭐⭐ <c>CE-4670</c> D-10 A (user-approved `2026-11-19`; Vehicle Appearance VA-4: <i>"a crew member's head out (observing, an order, the SOP) is a
     /// request"</i>) — the vehicle's SOP decides its commander's head-out: OUT while calm, IN (buttoned up) on a hit, a near miss, a first threat or a
@@ -102,6 +115,52 @@ namespace Hrot.AI.Behaviors.Brains
             byte want = p.Override != 0 ? p.Override : p.Standing;
             if (want == now || want == p.Asked) return NodeStatus.Success;   // already so, or asked (the owner applies it next frame)
             if (VehicleRequests.SwitchLights(world, self, (LightDiscipline)(want - 1), self)) p.Asked = want;
+            return NodeStatus.Success;
+        }
+
+        /// <summary>No second smoke salvo within this long of the last (s) — a screen lasts a minute; half of it is the crew's patience.</summary>
+        public const float SmokeCooldownSeconds = 30f;
+        /// <summary>A launch or a hit older than this is history, never a reason to pop smoke (s) — the SOP's "fresh".</summary>
+        public const double SmokeFreshSeconds = 3d;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4670</c> VA-S5 (VA-9: the discharger is backend's mount, "pop smoke" a behaviour) — the vehicle screens itself when THREATENED:
+        /// a guided missile launched at it (its brain's <see cref="Fdp.Toolkit.Combat.Components.MissileWarning"/> — the crew sees the launch) or a
+        /// hit it survived (its <c>SensorChange.Hit</c>, towards its top known threat). ONE salvo of its smoke dischargers
+        /// (<see cref="Fdp.Toolkit.Combat.Countermeasures.MountOfKind"/>) at the threat — the fan centred on its bearing — then nothing for
+        /// <see cref="SmokeCooldownSeconds"/>. ⭐ It never takes the weapon channel (the gun's own fire goes on): the round is shot directly
+        /// (<see cref="Fdp.Toolkit.Combat.Executors.FireAtPointExecutor.ShootAtPoint"/>, the dispenser's own way out). The move out of sight is the
+        /// fight-from-cover cycle's (it withdraws on a launch or a hit). Always Success. 📄 DESIGN_Vehicle_Appearance_State.md §6f.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus SmokeByThreat(ref CrewSmokeParams p, Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<RecentSenses>(self)) return NodeStatus.Success;
+            double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
+            ref readonly var senses = ref world.GetComponentRO<RecentSenses>(self);
+            System.Numerics.Vector3 at = default;
+            bool threat = false;
+            if (senses.TryGetLast(SensorChange.MissileWarning, out double launch) && launch > p.AnsweredLaunch && now - launch <= SmokeFreshSeconds
+                && world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.MissileWarning>()
+                && world.HasComponent<Fdp.Toolkit.Combat.Components.MissileWarning>(self))
+            {
+                p.AnsweredLaunch = launch;
+                at = world.GetComponentRO<Fdp.Toolkit.Combat.Components.MissileWarning>(self).From;
+                threat = true;
+            }
+            else if (senses.TryGetLast(SensorChange.Hit, out double hit) && hit > p.AnsweredHit && now - hit <= SmokeFreshSeconds)
+            {
+                p.AnsweredHit = hit;
+                threat = EqsTacticsNodes.TopAim(world, self, default, out var aim) && EqsTacticsNodes.ThreatPosition(world, self, in aim, out at);
+            }
+            if (!threat || now - p.LastSalvo < (p.CooldownSeconds > 0f ? p.CooldownSeconds : SmokeCooldownSeconds)) return NodeStatus.Success;
+            if (!Fdp.Toolkit.Combat.Countermeasures.MountOfKind(world, self, Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmokeDischarger,
+                                                                 out var mountEntity, out int mount, out _)) return NodeStatus.Success;
+            ref var weapon = ref world.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponState>(mountEntity);
+            if (weapon.Ammo <= 0) return NodeStatus.Success;
+            if (Fdp.Toolkit.Combat.Executors.FireAtPointExecutor.ShootAtPoint(world, self, mount, ref weapon, at, cooldownSeconds: 0f, dt: 0f,
+                    obeyRoe: true, obeyArc: false) == Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Firing)
+                p.LastSalvo = now;
             return NodeStatus.Success;
         }
 
