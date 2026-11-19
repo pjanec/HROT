@@ -59,6 +59,9 @@ Started at `d94af8e2f` (coordinator), marker `992d8d0c8`. Scope frozen at the di
 
 | gate | command | result |
 |---|---|---|
+| ⭐ CE-3490 breath rails (`2026-11-19`, R-8012) | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build --filter AirAttackNodesTests` · `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build --filter "FlameSystemTests\|AimAndFireExecutorTests"` | ✅ 41 / 0 · ✅ 161 / 0; each new rail red-proved by a mutant (8 mutants, 8 reds) |
+| ⭐ CE-3490 scenarios | `NO_BUILD=1 scripts/scenario-regression.sh dr-dragon-attack,dr-dragon-village,dr-dragon-holds` (+ under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) · `scripts/stepped-hash.py --threads 1,4,8 --scenario dr-dragon-attack --chunk 300` | ✅ 3/3, GOLDEN same · ✅ 3/3 under the checks (after the door-table reads were declared) · ✅ STATE EQUAL at 1/4/8 threads · the old `dr-dragon-breath`, `dr-dragon-flight`, five `fl-*` ✅ |
+| CE-3490 broad suites (after the backend merge) | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build` · `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests --no-build` | 5532 / 11 · 3091 / 11 — ⚠ none name this work: the S0 type rails (other lanes), PersonHands CE-3485 (backend's open row), MissionDirector; SimHost: the unit-relay params (agg-behaviors), system / NED-catalogue counts, Gameplay DDS placement, episode / load-phase (pass alone); the hosting snapshot's other lanes' drift — ⭐ its three air lines (+40 B, the breath state) updated here, nothing else |
 | contract rails | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --no-build --filter AggregateContractRails` | ✅ 5 / 0 |
 | routing rails | `dotnet test Hrot/Engine/Hrot.Core.Tests --no-build --filter ResolutionRoutingTableTests` | ✅ 6 / 0 (+ 4 registry) |
 | ST-0 ③ replication + recording | `Fdp.Toolkits.Tests --filter ~Aggregate` · `Hrot.SimHost.Tests --filter AggregateUnitReplicationTests` | ✅ 6 / 0 · ✅ 3 / 0 |
