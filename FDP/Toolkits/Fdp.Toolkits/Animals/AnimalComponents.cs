@@ -75,6 +75,11 @@ namespace Fdp.Toolkit.Animals
     public struct AnimalState
     {
         public AnimalMode Mode;
+        /// <summary>0 calm · 1 uneasy · 2 frightened · 3 panic — the fear system's <see cref="AnimalFear.Band"/> of the shared <c>Fear</c>, written ONCE per
+        /// frame at its pass and REPLICATED. ⭐ <c>CE-4628</c> (designs/animals/DESIGN_Animals.md §10b): KEPT, not moved to <c>Mood</c> — it is a DECISION
+        /// input (the panic breach reads it, on any node that runs the kinematics) at band 3's own threshold 0.75, which <c>Mood</c>'s quarters cannot say;
+        /// and read live off the brain-local <c>Fear</c> it changed when the herd's contagion fires (measured: three herd scenarios drifted).</summary>
+        public byte FearBand;
         public AnimalFlags Flags;
     }
 

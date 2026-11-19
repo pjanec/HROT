@@ -56,15 +56,16 @@ namespace Hrot.SimHost.Tests
                 w.AddComponent(cow, new AnimalState { Mode = AnimalMode.Calm });
                 egress.ScanAndPublish(w);
                 var first = Assert.Single(wire.Written);
-                // ⭐ CE-4628 — the wire keeps its FearBand and Species fields (R-4295) but the component no longer has them: written 0
+                // ⭐ CE-4628 — the wire keeps its Species field (R-4295) but the component no longer has it (the TKB type's): written 0
                 Assert.Equal((71, (byte)0, (byte)0), (first.EntityId, first.Species, first.FearBand));
                 egress.ScanAndPublish(w);
                 Assert.Single(wire.Written);                                  // unchanged: nothing sent
 
+                w.GetComponentRW<AnimalState>(cow).FearBand = 3;   // ⭐ CE-4628 §10b — the band stays, replicated
                 w.GetComponentRW<AnimalState>(cow).Mode = AnimalMode.Flee;
                 egress.ScanAndPublish(w);
                 Assert.Equal(2, wire.Written.Count);
-                Assert.Equal(((byte)0, (byte)AnimalMode.Flee), (wire.Written[1].FearBand, wire.Written[1].Mode));
+                Assert.Equal(((byte)3, (byte)AnimalMode.Flee), (wire.Written[1].FearBand, wire.Written[1].Mode));
             }
 
             var (other, _, theirs) = Node(primaryOwner: 2, localNode: 1);
@@ -85,14 +86,14 @@ namespace Hrot.SimHost.Tests
             {
                 w.AddComponent(cow, new AnimalState());   // the spawn's own calm state on this node
                 var sample = EntityAnimalStateEgressTranslator.ToSample(71, new AnimalState { Mode = AnimalMode.Flee, Flags = AnimalFlags.Calling });
-                sample.FearBand = 3; sample.Species = 9;   // a peer that still fills the wire's own fields: ignored on ingress
+                sample.FearBand = 3; sample.Species = 9;   // the band is the animal's; the species (the wire's own field) is ignored on ingress
                 using (var cmd = new EntityCommandBuffer())
                 {
                     new EntityAnimalStateIngressTranslator(null, map).Apply(in sample, cmd, w);
                     cmd.Playback(w);
                 }
                 var s = w.GetComponentRO<AnimalState>(cow);
-                Assert.Equal((AnimalMode.Flee, AnimalFlags.Calling), (s.Mode, s.Flags));
+                Assert.Equal((AnimalMode.Flee, (byte)3, AnimalFlags.Calling), (s.Mode, s.FearBand, s.Flags));
 
                 var flock = EntityFlockStateEgressTranslator.ToSample(71, new FlockState { Count = 31, InitialCount = 40, Seed = 7, Mode = FlockMode.Flying });
                 using (var cmd = new EntityCommandBuffer())

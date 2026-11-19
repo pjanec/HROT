@@ -185,15 +185,20 @@ namespace Fdp.Toolkit.Civilians
                 bool bolting = t != null && Animals.AnimalFear.UpdateBolt(in f, ref tasks, t, now);   // ⭐ AB-5 — the ridden horse
                 ref readonly var st = ref repo.GetComponentRO<Animals.AnimalState>(a);
                 var flags = bolting ? st.Flags | Animals.AnimalFlags.Bolting : st.Flags & ~Animals.AnimalFlags.Bolting;
-                if (st.Flags != flags)
-                {   // ⭐ CE-4628 — the fear band is no longer kept here (the replicated Mood carries how it seems; the lead writes it)
+                byte band = Animals.AnimalFear.Band(f.Value);   // ⭐ CE-4628 §10b — the replicated band stays (the panic breach's input), as before
+                if (st.FearBand != band || st.Flags != flags)
+                {
                     ref var w = ref repo.GetComponentRW<Animals.AnimalState>(a);
-                    w.Flags = flags;   // ⭐ replicated: every node's HUD shows the bolt; the local action row says why the controls went
-                    if (bolting) Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Locomotion(repo, a, 0, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Bolting,
-                        0f, Animals.AnimalFear.BoltSeconds);
+                    w.FearBand = band;
+                    if (w.Flags != flags)
+                    {
+                        w.Flags = flags;   // ⭐ replicated: every node's HUD shows the bolt; the local action row says why the controls went
+                        if (bolting) Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.Locomotion(repo, a, 0, Fdp.Toolkit.Behavior.Diagnostics.ActionReason.Bolting,
+                            0f, Animals.AnimalFear.BoltSeconds);
+                    }
                 }
-                // ⭐⭐ CE-4628 (designs/animals/DESIGN_Animals.md §10a) — how the animal SEEMS to every node: its fear in quarters on the replicated Mood (was
-                //   AnimalState.FearBand), written only when a quarter changes. An animal has no civilian mode and no anger.
+                // ⭐⭐ CE-4628 (designs/animals/DESIGN_Animals.md §10a) — how the animal SEEMS to every node: its fear in quarters on the replicated Mood (the face /
+                //   look's record; the decision band stays on AnimalState), written only when a quarter changes. An animal has no civilian mode and no anger.
                 Moods.Set(repo, a, CivilianMode.None, f.Value, 0f);
             }
         }

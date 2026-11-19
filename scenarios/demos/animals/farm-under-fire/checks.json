@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4623 AB-10 farm-under-fire (docs/designs/animals/DESIGN_Animals.md §6.2). The animals an area makes are named after it ('Pasture 1'..'Pasture 8', the flock 'Orchard birds'), so '*Pasture ' names the herd and not the area. Fear.Value (CE-4628: the band's edges are 0.15 uneasy, 0.4 frightened, 0.75 panic; the animals' fear is brain-local, so read it where the brains run) and TkbIdentity.TkbType 700 for cattle (the species is the TKB type's); enum fields compare by NAME (AnimalState.Mode Calm / Alert / Flee / Recover; FlockState.Mode Perched / Flying / Landed).",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4623 AB-10 farm-under-fire (docs/designs/animals/DESIGN_Animals.md §6.2). The animals an area makes are named after it ('Pasture 1'..'Pasture 8', the flock 'Orchard birds'), so '*Pasture ' names the herd and not the area. AnimalState.FearBand: 0 calm, 1 uneasy, 2 frightened, 3 panic; enum fields compare by NAME (AnimalState.Mode Calm / Alert / Flee / Recover; FlockState.Mode Perched / Flying / Landed).",
   "runFor": 80,
   "golden": {
     "every": 10
@@ -38,9 +38,9 @@
       "name": "the tank panics the herd",
       "on": "field",
       "who": "*Pasture ",
-      "path": "Fear.Value",
+      "path": "AnimalState.FearBand",
       "op": ">=",
-      "value": 0.75,
+      "value": 3,
       "quantifier": "atLeast:3"
     },
     {
@@ -85,9 +85,9 @@
       "name": "the birdsong stops (the flock is frightened)",
       "on": "field",
       "who": "Orchard birds",
-      "path": "Fear.Value",
+      "path": "AnimalState.FearBand",
       "op": ">=",
-      "value": 0.4,
+      "value": 2,
       "after": "the shots flush the flock"
     },
     {
