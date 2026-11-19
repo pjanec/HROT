@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-19
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved, fold both into the design", R-4296): VA-1…VA-12, LK-1…LK-7, with §3a (partial damage, how expressed) and LK-7 (effect categories + the DIS munition type); ids fixed at dispatch — `2026-11-18`: components 290 `VehicleOpenings` · 291 `VehicleLights`; descriptors 243 · 244 (`HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md`)
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules) · §7d CE-4670 our 3-D map draws openings + lights, the station's H / U (ui, as built)
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §6d rotors and engines as built (VA-S4) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules) · §7d CE-4670 our 3-D map draws openings + lights, the station's H / U (ui, as built)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -344,6 +344,30 @@ classDiagram
 
 Rails: `BodyPartDamageTests.CE4670_*` (2), `HealthStateSinceSystemTests.CE4670_*`, `VehicleLookTests` (4, 0 B), `EntityDamageEgressTranslatorTests.CE4670_*` (late joiner),
 `EntityDamageTranslatorTests.CE4670_*`, `VehicleDamageDrawTests` (3). Scenario: `scenarios/demos/platoons-and-vehicles/va-tank-kill-kinds`.
+
+## 6d. As built — rotors and engines *(VA-S4, CE-4670, backend, `2026-11-19`)*
+
+```mermaid
+stateDiagram-v2
+  [*] --> Off
+  Off --> Idle: crew aboard (Since only) - 0 to idle
+  Idle --> Running: moves off (Since = MotionSince) - idle to full
+  Running --> Idle: stops, crewed (Since = MotionSince) - full to idle
+  Running --> Off: stops, empty (Since = MotionSince) - full to 0
+  Idle --> Off: crew out (Since only) - idle to 0
+  Running --> Dead: killed - full to 0
+```
+*What the picture shows that prose hid:* the speed's STARTING point is not replicated, but each edge leaves a different pair of times — a stop writes
+`Since = MotionSince`, a crew change writes `Since` alone — so the reader knows which edge it is on from the two replicated times.
+
+| piece | as built |
+|---|---|
+| **`VehicleLook.RotorSpeed(world, v, now)`** (Hrot.Look) | 0..1: Running → 1 · Idle → `IdleSpeed` 0.6 · Off / Dead → 0, at full scale per the type's spin-up / spin-down seconds, from the state the edge left (the diagram); a state held from the scenario's start (`Since` ≤ 0) is at its target at once (a parked helicopter never runs down at load). ⛔ NO new component, nothing sent (VA-5). 0 B |
+| **`VehicleLook.EngineLevel`** | the same value — the engine sound follows the engine (one rule) |
+| the type data | `ThermalSignatureDto` (thermal's power plant, §4 "`Gen.PowerPlant` gains") + `SpinUpSeconds` · `SpinDownSeconds` (APPENDED); class defaults in `ThermalDefaults` — ground engines 2 s / 3 s, aircraft 20 s / 30 s (starter values) |
+| ⛔ deviation | the design read `FlightState` for "ground idle vs flight": `FlightState` is NOT replicated, so a replica could not match the owner — the engine state (Idle = stopped, Running = moving) carries it instead. ⚠ An uncrewed hull driven off from Off reads as from idle |
+| rails | `VehicleLookTests.CE4670_ARotorsSpeed_RunsUpAndDown_FromTheEngineStateAndItsTime` (red-proved twice: no time ⇒ red; no stop/crew distinction ⇒ red) · `_IsTheSameOnAReplica_AtEverySample` · `CE4670_TheRotorReader_AllocatesNothing` |
+| scenario | `ua-air-assault` + 2 rows: the UH-60's engine Running while it flies, Idle once landed and stopped |
 
 ## 7. The shared LOOK library — every renderer derives the same picture *(CE-4671, `2026-11-18`)*
 
