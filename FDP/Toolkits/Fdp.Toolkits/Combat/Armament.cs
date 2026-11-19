@@ -143,7 +143,7 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static bool FiresLethal(EntityRepository world, WeaponMountDto mount)
         {
-            if (mount.Category == WeaponCategory.Countermeasure) return false;
+            if (mount.Category.IsSelfProtection()) return false;   // ⭐ CE-4670 — a dispenser / smoke dischargers
             bool any = false;
             if (mount.AmmoGuid != 0) { any = true; if (IsLethal(world, unchecked((long)mount.AmmoGuid))) return true; }
             for (int i = 0; i < mount.Loadout.Count; i++)

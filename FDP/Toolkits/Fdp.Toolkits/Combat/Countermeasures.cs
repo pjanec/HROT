@@ -146,6 +146,11 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>The unit's dispenser mount — its entity (the unit for mount 0, a mount child otherwise), index and TKB mount.</summary>
         public static bool Dispenser(EntityRepository world, Entity unit, out Entity mountEntity, out int mountIndex, out WeaponMountDto mount)
+            => MountOfKind(world, unit, WeaponCategory.Countermeasure, out mountEntity, out mountIndex, out mount);
+
+        /// <summary>⭐ <c>CE-4670</c> (VA-S5) — the unit's first mount of <paramref name="category"/> (its smoke dischargers, its dispenser): its entity, index
+        /// and TKB mount. ONE walk of the unit's mounts (the dispenser's, generalised — ruling 9). 0 B (a stack span).</summary>
+        public static bool MountOfKind(EntityRepository world, Entity unit, WeaponCategory category, out Entity mountEntity, out int mountIndex, out WeaponMountDto mount)
         {
             mountEntity = Entity.Null; mountIndex = -1; mount = null!;
             if (!world.IsComponentTypeRegistered<WeaponState>()) return false;
@@ -155,7 +160,7 @@ namespace Fdp.Toolkit.Combat
             {
                 int index = mounts[i].Equals(unit) ? 0
                           : world.HasComponent<WeaponMountInfo>(mounts[i]) ? world.GetComponentRO<WeaponMountInfo>(mounts[i]).MountIndex : -1;
-                if (index < 0 || CombatTkb.MountOf(world, unit, index) is not { Category: WeaponCategory.Countermeasure } dto) continue;
+                if (index < 0 || CombatTkb.MountOf(world, unit, index) is not { } dto || dto.Category != category) continue;
                 mountEntity = mounts[i]; mountIndex = index; mount = dto;
                 return true;
             }

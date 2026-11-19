@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         {
             HasPowerPlant = true, BaseSignature = 0.2f, IdleHeat = 0.4f, RunningHeat = 0.8f,
             RunningHeatPerSecond = 0.01f, CooldownPerSecond = 0.002f,
+            SpinUpSeconds = 2f, SpinDownSeconds = 3f,   // ⭐ CE-4670 VA-S4 — a ground engine starts / stops in seconds (starter values)
         };
 
         private static readonly ThermalSignatureDto Wheeled = Engine with
@@ -40,6 +41,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         {
             PowerClass = ThermalPowerClass.Aircraft, HotEnd = HeatMarkEnd.Rear, BaseSignature = 0.25f, IdleHeat = 0.5f, RunningHeat = 0.9f,
             ReferenceSpeed = 60f, FireSeconds = 900f,
+            SpinUpSeconds = 20f, SpinDownSeconds = 30f,   // ⭐ CE-4670 VA-S4 — a rotor's run-up / run-down (starter values; a jet's spool is quicker, overridden per type)
         };
 
         /// <summary>

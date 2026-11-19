@@ -185,6 +185,77 @@ public sealed class BuildingNavTests
     }
 
     /// <summary>
+    /// ⭐⭐ CE-4674 (HANDOFF_Coordinator_To_Backend_Path_Retry) — a move that FAILED because its target was unreachable re-plans ONCE when the navmesh changes after
+    /// it failed: a mover that failed on the first mesh (target inside the closed house) is asked to re-plan after the rebake that opens the passage (the one
+    /// <c>RequestReplan</c>: a <c>PathReplannedEvent</c>, InProgress again); failing again on the new mesh it is NOT re-planned again (no storm); one that failed
+    /// on the newest mesh never is; a FailedBlocked move is not this rule's. 🔴 Red-proof: drop the sequence compare ⇒ the mover that failed on the new mesh
+    /// re-plans too; drop the <c>RequestReplan</c> ⇒ nobody does.
+    /// </summary>
+    [Fact]
+    public void CE4674_AMoveThatFailedUnreachable_ReplansOnce_WhenTheNavmeshChanges()
+    {
+        var (node, first, second) = TwoPublishes();
+        var pool = new TrajectoryPoolManager();
+        using var repo = Fdp.Toolkit.Navigation.Tests.NavigationTestWorldFactory.Create();
+        repo.SetSingletonManaged<INavmeshProvider>(node);
+
+        Entity Failed(NavigationResult result, uint failedAt, Vector3 at)
+        {
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new SimTransform { Position = at });
+            repo.AddComponent(e, new SimVelocity());
+            repo.AddComponent(e, new NavigationIntent { Mode = NavigationMode.PathToPoint, IntentId = 1, FinalDestination = new Vector3(25f, 25f, 0f), ArrivalRadius = 1f });
+            repo.AddComponent(e, new NavigationStatus { IntentId = 1, Result = result, NavmeshVersionObserved = failedAt });
+            repo.AddComponent(e, new FrustrationTicks());
+            return e;
+        }
+
+        var stale = Failed(NavigationResult.FailedUnreachable, first, new Vector3(25f, 2f, 0f));    // failed before the passage was cut
+        var fresh = Failed(NavigationResult.FailedUnreachable, second, new Vector3(5f, 2f, 0f));    // failed on the newest mesh
+        var blocked = Failed(NavigationResult.FailedBlocked, first, new Vector3(45f, 2f, 0f));      // stuck, not unreachable
+        var sys = new NavigationExecutionSystem(pool);
+
+        sys.Execute(repo, 0.016f);
+        repo.Bus.SwapBuffers();
+        Assert.Equal(new[] { stale }, repo.Bus.Read<PathReplannedEvent>().ToArray().Select(e => e.Target).ToArray());
+        Assert.Equal(1L, sys.MeshReplans);
+        Assert.Equal(NavigationResult.InProgress, repo.GetComponentRO<NavigationStatus>(stale).Result);
+        Assert.Equal(second, repo.GetComponentRO<NavigationStatus>(stale).NavmeshVersionObserved);
+        Assert.Contains(repo.Bus.Read<PathfindingRequestEvent>().ToArray(), r => (int)((ulong)r.RequestId >> 32) == stale.Index);
+        Assert.Equal(NavigationResult.FailedBlocked, repo.GetComponentRO<NavigationStatus>(blocked).Result);
+
+        // ⭐ still unreachable on the new mesh: it fails again AT the new sequence, and is not re-planned again until the mesh moves on
+        var st = repo.GetComponentRO<NavigationStatus>(stale);
+        st.Result = NavigationResult.FailedUnreachable;
+        repo.SetComponent(stale, st);
+        sys.Execute(repo, 0.016f);
+        repo.Bus.SwapBuffers();
+        Assert.Empty(repo.Bus.Read<PathReplannedEvent>().ToArray());
+        Assert.Equal(1L, sys.MeshReplans);
+        Assert.Equal(NavigationResult.FailedUnreachable, repo.GetComponentRO<NavigationStatus>(fresh).Result);
+    }
+
+    /// <summary>⭐ CE-4674 — the failure records the mesh it was planned on: an unreachable path result stamps the status with the result's tile sequence (the
+    /// sequence the re-plan rule compares). 🔴 Red-proof: drop the stamp ⇒ 0.</summary>
+    [Fact]
+    public void CE4674_AnUnreachableResult_RecordsTheMeshItFailedOn()
+    {
+        using var repo = Fdp.Toolkit.Navigation.Tests.NavigationTestWorldFactory.Create();
+        if (!repo.Bus.IsRegistered<PathfindingResultEvent>()) repo.RegisterEvent<PathfindingResultEvent>();
+        var results = new Fdp.Core.Collections.NativeArray<PathResult>(PathfindingBatchData.DefaultCapacity, Fdp.Core.Collections.Allocator.Persistent);
+        repo.SetSingleton(new PathfindingBatchData { Results = results });
+        var e = repo.CreateEntity();
+        repo.AddComponent(e, new NavigationIntent { Mode = NavigationMode.PathToPoint, IntentId = 3 });
+        repo.AddComponent(e, new NavigationStatus { IntentId = 3, Result = NavigationResult.InProgress });
+        repo.Bus.Publish(new PathfindingResultEvent { RequestId = (long)e.Index << 32, IsReachable = false, TileSequenceAtPlan = 42u });
+        repo.Bus.SwapBuffers();
+        new Fdp.Toolkit.Navigation.Systems.PathfindingResultMaterializationSystem().Execute(repo, 0.016f);
+        Assert.Equal(NavigationResult.FailedUnreachable, repo.GetComponentRO<NavigationStatus>(e).Result);
+        Assert.Equal(42u, repo.GetComponentRO<NavigationStatus>(e).NavmeshVersionObserved);
+        results.Dispose();
+    }
+
+    /// <summary>
     /// ⭐ The warm stamp check allocates 0 B: the compare that ends it (nothing changed) and the walk of a long path through changed tiles. 🔴 Red-proof: allocate in <c>CrossesChangedTile</c> (a list of
     /// tiles) ⇒ the byte count is not 0.
     /// </summary>
