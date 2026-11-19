@@ -60,7 +60,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────
 
-    private static ScenarioLoadStep MakeStep(
+    internal static ScenarioLoadStep MakeStep(   // ⭐ internal: LiveOverlayBakeTests' CE-5039 rail asks the same step
         string? json,
         FdpEventBus source,
         TerrainLoadService? terrain = null)
@@ -84,7 +84,7 @@ public sealed class ScenarioLoadStepTests : IDisposable
         => _serializer.Serialize(_goldRepo, new ScenarioHeader(SubsystemType)).ToJsonString();
 
     /// <summary>⭐ <c>CE-3228</c> — the step publishes on a bus; the request system would read it after the frame's swap.</summary>
-    private static FdpEventBus NewBus()
+    internal static FdpEventBus NewBus()
     {
         var bus = new FdpEventBus();
         bus.RegisterManaged<EntityCreationRequest>();
