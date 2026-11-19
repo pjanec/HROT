@@ -4,6 +4,7 @@ build-state: BUILT — FL-0…FL-4 (§7, §7a, §7b, §7c)
 updated: 2026-11-19
 current-answer: §0 the picture · §3 decisions (F-1…F-12, approved) · §5 slices · §7 / §7a / §7b / §7c as built (FL-1, FL-2, FL-3, FL-4)
 related-designs:
+  - ../fun/DESIGN_Dragon.md — the F-11 carrier: the breath on a dragon's neck turret; moves the jet's origin to the muzzle (DR-5) and keeps a carrier's riders out of its own jet (DR-6)
   - ../thermal/DESIGN_Thermal_Drivers.md — OWNS how fire is STORED and SENT (§3b TD-16 the coupling to damage, §3c the three FireState holders, §4b the BurnedArea mark, §4g BurnSystem as built); this design adds what LIGHTS it
   - ../vehicle-appearance/DESIGN_Vehicle_Appearance_State.md — §7 / §7a: Hrot.Look's effect rules and categories — the flame and the burning-ground look go through them
   - DESIGN_Weapon_Systems.md — mounts, stations and the TKB weapon rows a flamethrower is one more of
