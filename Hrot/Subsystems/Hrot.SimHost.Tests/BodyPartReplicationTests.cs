@@ -96,7 +96,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3219_F3_EffectState_WithCowering_ReachesTheOtherNode()
         {
-            var effects = new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)12.5, IrritatedUntil = (SimInstant)3, KnockedDownUntil = (SimInstant)7.25, Cowering = 1 };
+            var effects = new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)12.5, IrritatedUntil = (SimInstant)3, KnockedDownUntil = (SimInstant)7.25, Cowering = 1, BurningUntil = (SimInstant)9.5 };   // ⭐ CE-4635 — the burning man rides along
             var sample = EntityEffectStateEgressTranslator.ToSample(44, effects);
 
             var (node, unit, map) = Node(44);
@@ -110,6 +110,7 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44, effects with { Cowering = 0 }));
+            Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44, effects with { BurningUntil = (SimInstant)0 }));   // ⭐ CE-4635 — burning out is a change
         }
 
         /// <summary>⭐ <c>CE-4617</c> (B-1, RS-10) — a radar's emission reaches the other node with its tracked target as THAT node's entity (by network

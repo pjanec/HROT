@@ -952,6 +952,7 @@ namespace Hrot.NED.Descriptors
         public double IrritatedUntil;
         public double KnockedDownUntil;
         public byte Cowering;   // ⭐ ui finding F-3 (civilians design §7.6) — appended: 1 while the behaviour has the person cower
+        public double BurningUntil;   // ⭐ CE-4635 (R-3111, flame weapons F-4) — appended: until when the person is on fire
     }
 
     // ⭐ CE-4617 (B-1, RS-10; docs/designs/air-attack/DESIGN_Radar_SAM.md) — a radar's EMISSION, the carrier's brain owner → every node: the radar

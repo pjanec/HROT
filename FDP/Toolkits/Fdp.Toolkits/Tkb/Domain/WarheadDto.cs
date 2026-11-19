@@ -24,6 +24,10 @@ namespace Fdp.Toolkit.Tkb.Domain
         Stun = 6,
         /// <summary>⭐ <c>CE-3219</c> part 3 — a smoke round: a cloud that blocks sight (<see cref="WarheadDto.CloudRadiusM"/>), no harm.</summary>
         Smoke = 7,
+        /// <summary>⭐ <c>CE-4635</c> / <c>CE-4637</c> (R-3111, flame weapons F-5, F-6) — INCENDIARY: a flamethrower's fuel (its jet: <see cref="WarheadDto.FlameRangeM"/>,
+        /// <see cref="WarheadDto.FlameHalfAngleDeg"/>) or a napalm bomb (its burning ellipse: <see cref="WarheadDto.AreaLengthM"/> × <see cref="WarheadDto.AreaWidthM"/>);
+        /// both burn for <see cref="WarheadDto.BurnSeconds"/>. Appended.</summary>
+        Incendiary = 8,
     }
 
     /// <summary>When a warhead detonates. v1: impact and time (W-4); airburst is later.</summary>
@@ -151,6 +155,19 @@ namespace Fdp.Toolkit.Tkb.Domain
         public bool Silent { get; init; }
 
         [JsonIgnore]
+        /// <summary>⭐ CE-4635 (flame weapons F-6) — an incendiary jet's reach (m); 0 = not a jet (a napalm bomb).</summary>
+        public float FlameRangeM { get; init; }
+        /// <summary>⭐ CE-4635 — the jet cone's half-angle (degrees).</summary>
+        public float FlameHalfAngleDeg { get; init; }
+        /// <summary>⭐ CE-4635 / CE-4637 — how hard what it lights burns, 0..1 (0 ⇒ 1): the spots' <c>FireState</c> intensity, the exposure rate.</summary>
+        public float FlameIntensity { get; init; }
+        /// <summary>⭐ CE-4637 (flame weapons F-5) — a napalm strike's burning ellipse along the flight line: its length and width (m).</summary>
+        public float AreaLengthM { get; init; }
+        /// <summary>⭐ CE-4637 — the ellipse's width (m).</summary>
+        public float AreaWidthM { get; init; }
+        /// <summary>⭐ CE-4635 / CE-4637 — how long what it lights burns (s): a napalm spot, the burning fuel where a jet ends.</summary>
+        public float BurnSeconds { get; init; }
+
         public bool HasAreaEffect => BlastInjuryRadiusM > 0f || FragmentRadiusM > 0f;
 
         /// <summary>⭐ <c>CE-3219</c> part 3 — the burst leaves a gas / smoke cloud.</summary>

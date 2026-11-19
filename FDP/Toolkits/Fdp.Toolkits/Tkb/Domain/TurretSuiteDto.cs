@@ -85,6 +85,10 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// towards, bursting <c>Range</c> metres out — each round's burst is the existing smoke cloud. ⛔ NOT a weapon (no target, no damage): self-protection,
         /// like <see cref="Countermeasure"/> (<see cref="WeaponCategories.IsSelfProtection"/>). Appended.</summary>
         SmokeDischarger = 15,
+        /// <summary>⭐ <c>CE-4635</c> (R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md F-1, F-6) — a FLAMETHROWER (man-portable or vehicle-mounted;
+        /// a dragon's breath, CE-4634): a burst throws no round — the jet is the mount's burst record (<c>WeaponAmmo</c> last shot) aimed by
+        /// <c>WeaponPosture</c>, its reach from the munition's <see cref="WarheadDto.FlameRangeM"/> (<c>FlameJets.TryGet</c>). Fuel counts as rounds. Appended.</summary>
+        Flamethrower = 16,
     }
 
     /// <summary>⭐ <c>CE-4670</c> (VA-S5) — the ONE answer to "is this mount a weapon at all?" (ruling 9: the readers each tested

@@ -2,6 +2,7 @@
 state: LIVE
 build-state: BUILT (L-2, CE-4364) — baselines below; L-4 adds its findings to §5
 updated: 2026-11-10 (§7.8 N-2 budget kept, egress by translator, replica probe · §7.7 P-1 parallel EQS built, the worker sweep · §7.6 C-1 + G-1 built and re-measured · §7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
+stale-below: ⚠ every baseline dated before 2026-11-14 (§4, the scale-1 tables in §5, the §5.4 cost rows) was measured SERIAL — before the parallel programme merged (`e4af862f6`, 2026-11-14) — and as the ONE-SIDE march (`--sides 1`); history, not a comparison. ⭐ The current baseline is the 2026-11-19 two-side table in §5.4 (parallel simulation ON, threaded node off on these headless nodes)
 current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost) · ⭐ §7 on a physical many-core machine (2026-11-10, LATEST: the EQS cadence, the GC-bound bake, the frame split; §7.6 C-1 + G-1 built; §7.7 P-1 built)
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: the showcase scenario sized to this rig's budget (R-4192), measured with it
@@ -117,7 +118,7 @@ python3 scripts/scale-rig.py --terrain scale-1 --men 1000 --vehicles 50 --aircra
 HROT_SCALE_RIG=1 dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter Category=Scale
 ```
 
-## 4. Baselines *(Release, this cloud VM: 4 cores, 15 GB; orchestrator + cgf + simhost on the one VM; `--sides 1`; warm-up 20 s, measured 30 s sim; real-time factor 1.0 in every run)*
+## 4. Baselines — ⛔ HISTORY: serial, one side (before the 2026-11-14 parallel merge); the current baseline is §5.4's 2026-11-19 table *(Release, this cloud VM: 4 cores, 15 GB; orchestrator + cgf + simhost on the one VM; `--sides 1`; warm-up 20 s, measured 30 s sim; real-time factor 1.0 in every run)*
 
 | terrain | load | cgf work / garbage / peak | simhost work / garbage / peak | top cost (ms) | top garbage (B / frame) | movers moved |
 |---|---|---|---|---|---|---|
@@ -231,12 +232,28 @@ up to 6 m east / 2 m north of a random ROAD point (`scale-rig.py` `scenario()`),
 
 ### 5.4 Still over budget — each a row with its numbers *(the biggest first)*
 
+⛔ **The rows directly below are 2026-11-10 (serial, one side) — history; the 2026-11-19 two-side table after them is the current baseline.**
+
 | cost at 1 000 men (cgf / simhost) | owner | row |
 |---|---|---|
 | `RecorderTickSystem` 18.7 ms + 0.2 MB / frame (cgf) | the recorder (backend's recording storage) | CE-3425 |
 | `BrainTickSystem` 14.6 ms (cgf) | behaviors (the brain) | CE-3425 |
 | `CycloneEgressSystem` 8.8 / 9.0 ms + `CycloneNetworkIngressSystem` 0.15 MB / frame | network egress (backend) | CE-3425 |
 | the warm load ≈ 36 s on a 4-core VM shared by three nodes (≈ 19.5 s alone) | measured on a 1-machine cluster; the budget is per node on its own machine | — |
+
+⭐ **Re-measured `2026-11-19` (backend, CE-3425 / CE-4395) — TWO SIDES FIGHTING** (`--sides 2`, the rig's default; the rows above are the one-side march, so not the same load), Release, 4 cores, recording off, load **33.0 s**:
+
+| | cgf work · garbage | simhost work · garbage | top costs |
+|---|---|---|---|
+| Debug, before | 869 ms · 4.1 MB | 1 069 ms · 2.7 MB | ⛔ **simhost `ConvoyLeadSystem` 683 ms** — every kinematic body carries a default Column `FormationController`, and the lead pass scanned every follower per lead (~1 M a frame); fixed `ba5bb322c` (one per-frame leader index, [DESIGN_Road_Convoy §6](designs/vehicle-tactics/DESIGN_Road_Convoy.md)) |
+| **Release, after** | **130.2 ms · 283 KB** | **59.8 ms · 1.86 MB** | cgf: `BrainTickSystem` 33.6, `WeaponDispatcherSystem` 15.6, `CycloneEgressSystem` 14.2 + 7.3, `StressSystem` 10.2 · simhost: [bg] `EqsSolverSystem` 160.9 ms / run and **1.69 MB / frame of garbage** (gc 86 / 37 / 19 in the window), [bg] `PathfindingSolverSystem` 26.7, `CycloneEgressSystem` 17.3 |
+| **Release, + the EQS sight once per tick** (`f1f4fc09b`) | **116.3 ms · 257 KB** | **52.3 ms · 402 KB** (EQS garbage 1.69 MB → 147 KB; its run 161 → 114 ms) | cgf: `BrainTickSystem` 29.9, `WeaponDispatcherSystem` 13.5, `CycloneEgressSystem` 12.0 + 6.2, `StressSystem` 10.2 · simhost: [bg] `EqsSolverSystem` 114 ms / run, `CycloneEgressSystem` 15.4 |
+
+⭐ **Fixed after it (`2026-11-19`):** the EQS sight (`EqsTerrainSight.Sight`) rebuilt every vehicle's cover box for EVERY batch of every sight test (a query, a list, a prism and a name per vehicle) — `CheapLineOfSightTest` + `ThreatExposureTest` ~385 KB / frame of the 1.69 MB; now one sight per thread per tick (same view, tick and world query ⇒ the same boxes). Rail `StaticObstacleTests.CE3425_TheSight_*` (red-proved).
+
+⭐ **CPU-traced the same day (Release, two sides, `HROT_QUERY_TIMINGS=0` — the timer on or off moved cgf only 116.3 → 116.7 ms, within the noise):** cgf spent **18.4 s of CPU in the 15 s window — ~1.2 cores** — while its frame took 116 ms: the frame is mostly WAITING for a core (three nodes and SimHost's background EQS on 4 cores), so these per-node wall times overstate a node on its own machine (the budget's basis). Where cgf's CPU goes: `BrainTickSystem` 18.7 % (~16 ms CPU a frame), `CycloneEgressSystem` 13.1 %, `WeaponDispatcherSystem` 6.1 %, `StressSystem` 4.7 %. Self time is spread — no lever above 5 %: `ParallelReadCheck.OtherUnmanagedRO` 4.8 % (the parallel phases' cross-entity read routing, not a debug check — from `Injury.StateOf`, `UnitSensors.OfTemplateCore`, `PartsOf`, `EvaluateCandidates`, `CombatTkb.TryGetTemplate`), `UnderFire.FriendNear` 4.3 % (already grid-based, CE-2410; asked per man per frame), `PartIndex.PartsOf` 2.9 %, dictionary lookups ~5 %, `NativeChunkTable.EnsureChunkAllocated` 3.5 % (its committed-chunk fast path, inlined in every `HasComponent` — not an allocation). ⚠ The first trace (timer on) put 11.6 % of self CPU in `QueryTimings.Begin` — the A/B above shows that is not frame time; do not chase it. Tooling fixed to get here: `perf-stress.py` `--trace` never traced on Linux (`node_pid` wanted a command line starting `dotnet `, and `DOTNET_ROOT` defaulted to a folder without a runtime) — both fixed, and dotnet-trace's own output now lands beside the trace.
+
+⚠ Measuring trap found on the way: `scripts/cluster-node.sh` killed by `pgrep -f 'ClusterRunner[.]dll'`, which also matched the CALLER (a `scale-rig.py --runner-dll …ClusterRunner.dll`, a shell holding that path) — the rig killed itself before the load. The patterns now match only a `dotnet … ClusterRunner.dll` command line.
 
 ## 6. ⭐ The world-query timings — the TERRAIN's cost apart from the logic's *(`CE-3427`, backend `2026-11-10`; build-state: BUILT)*
 

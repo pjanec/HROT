@@ -70,7 +70,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// <summary>The wire form (the test seam).</summary>
         internal static EntityEffectState ToSample(int netId, in EffectState s) => new()
         {
-            EntityId = netId, StunnedUntil = s.StunnedUntil, IrritatedUntil = s.IrritatedUntil, KnockedDownUntil = s.KnockedDownUntil, Cowering = s.Cowering,
+            EntityId = netId, StunnedUntil = s.StunnedUntil, IrritatedUntil = s.IrritatedUntil, KnockedDownUntil = s.KnockedDownUntil, Cowering = s.Cowering, BurningUntil = s.BurningUntil,
         };
 
         public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
@@ -127,7 +127,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 && AuthorityExtensions.IsRecordedOwner(repo, unit, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
             cmd.AddComponent(unit, new EffectState
             {
-                StunnedUntil = (SimInstant)d.StunnedUntil, IrritatedUntil = (SimInstant)d.IrritatedUntil, KnockedDownUntil = (SimInstant)d.KnockedDownUntil, Cowering = d.Cowering,
+                StunnedUntil = (SimInstant)d.StunnedUntil, IrritatedUntil = (SimInstant)d.IrritatedUntil, KnockedDownUntil = (SimInstant)d.KnockedDownUntil, Cowering = d.Cowering, BurningUntil = (SimInstant)d.BurningUntil,
             });
         }
 

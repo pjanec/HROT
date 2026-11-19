@@ -17,7 +17,27 @@ namespace Fdp.Toolkit.Terrain
         float ResistanceMmRhaPerMetre,
         float SoundAttenuationDb,
         bool BlocksMovement,
-        string? ThermalClass = null);   // ⭐ CE-4662 (Thermal Drivers TD-9) — one of TerrainThermalClass.All: what an image generator's thermal model makes of this surface
+        string? ThermalClass = null,   // ⭐ CE-4662 (Thermal Drivers TD-9) — one of TerrainThermalClass.All: what an image generator's thermal model makes of this surface
+        float? BurnSecondsOverride = null)   // ⭐ CE-4635 (R-3111, flame weapons F-7) — materials.json "burnSeconds": how long it burns once lit; null ⇒ by ThermalClass
+    {
+        /// <summary>⭐ CE-4635 / CE-4637 (flame weapons F-7) — how long this surface burns once a flame or napalm lights it (s); 0 = it does not burn.
+        /// The material's own <c>burnSeconds</c>, else by its thermal class (<see cref="TerrainBurn.SecondsOf"/>).</summary>
+        public float BurnSeconds => BurnSecondsOverride ?? TerrainBurn.SecondsOf(ThermalClass);
+    }
+
+    /// <summary>⭐ CE-4635 / CE-4637 (R-3111, flame weapons F-7) — the default burn time of a thermal class: wood burns long, grass and
+    /// dense vegetation briefly, everything else not at all. ONE table; a material may override it (<c>burnSeconds</c>).</summary>
+    public static class TerrainBurn
+    {
+        public const float WoodSeconds = 600f, VegetationSeconds = 120f;
+
+        public static float SecondsOf(string? thermalClass) => thermalClass switch
+        {
+            "wood" => WoodSeconds,
+            "grass" or "dense-vegetation" => VegetationSeconds,
+            _ => 0f,
+        };
+    }
 
     /// <summary>
     /// ⭐⭐ CE-4662 (📄 docs/designs/thermal/DESIGN_Thermal_Drivers.md TD-9) — the FIXED list of thermal classes a terrain material or surface names
@@ -124,8 +144,11 @@ namespace Fdp.Toolkit.Terrain
                 string? thermal = o["thermalClass"]?.GetValue<string>();
                 if (thermal != null && !TerrainThermalClass.IsKnown(thermal))
                     throw new ArgumentException($"Material library '{source}': '{name}'.thermalClass '{thermal}' is not one of {string.Join(", ", TerrainThermalClass.All)}.");
+                float? burn = o["burnSeconds"] is JsonNode b ? (float)b.GetValue<double>() : null;   // ⭐ CE-4635 (flame weapons F-7)
+                if (burn < 0f)
+                    throw new ArgumentException($"Material library '{source}': '{name}'.burnSeconds must be ≥ 0 (got {burn.Value.ToString(CultureInfo.InvariantCulture)}).");
                 yield return new TerrainMaterial(name, sight, F("resistanceMmRhaPerM", 0f), F("soundDb", 0f),
-                    o["blocksMovement"]?.GetValue<bool>() ?? true, thermal);
+                    o["blocksMovement"]?.GetValue<bool>() ?? true, thermal, burn);
             }
         }
 

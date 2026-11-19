@@ -323,7 +323,10 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtAirArena),          // ⭐ CE-10000 (AC-10) — the air-combat arena
                     D(Hrot.NED.Descriptors.EDescriptorType.dtAggregateUnit),     // ⭐ CE-8001 — a stochastic unit's state
                     D(Hrot.NED.Descriptors.EDescriptorType.dtUnitSlotTable),     // ⭐ CE-8001 — its slot table
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtUnitHoldings) },    // ⭐ CE-8001 — its holdings
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtUnitHoldings),      // ⭐ CE-8001 — its holdings
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtFireState),         // ⭐ CE-4657 (thermal TD-16) — fire spots, beside Health — bound 2026-11-18, never listed
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtVehicleOpenings),   // ⭐ CE-4670 (VA-S2) — hatches, doors, ramps — the same
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtVehicleLights) },   // ⭐ CE-4670 (VA-S3) — the lights — the same
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),
@@ -335,7 +338,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtLookState),          // ⭐ CE-3252 (LD-E) — where a person looks, the Muscle turns the head
                     D(Hrot.NED.Descriptors.EDescriptorType.dtSpawnLevel),         // ⭐ CE-3271 (Q94 D) — the birth level, resolved where the position is owned
                     D(Hrot.NED.Descriptors.EDescriptorType.dtUnderFire),          // ⭐ CE-1223 — when a man was last under fire (Muscle's stamp)
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtFighterPilotState) }, // ⭐ CE-10000 (AC-2) — a fighter's g / GCAS / live threat
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtFighterPilotState),   // ⭐ CE-10000 (AC-2) — a fighter's g / GCAS / live threat
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtHeatSource) },        // ⭐ CE-4657 (thermal TD-6) — the heat drivers, written where it moves — bound 2026-11-18, never listed
             map.DescriptorsOf(Fdp.Core.NodeRole.MuscleGround).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtEqsResult) },

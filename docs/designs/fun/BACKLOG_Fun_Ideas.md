@@ -4,6 +4,7 @@ updated: 2026-11-16
 current-answer: the whole file — the fun-pack IDEA backlog (not a design: each idea becomes one when it is picked)
 stale-below: nothing
 related-designs:
+  - ../weapons/DESIGN_Flame_Weapons.md — the shared flame (S-1, S-2) the dragon's breath (F-11) reuses
   - ../weapons/DESIGN_Bows_And_Crossbows.md — F-1 / F-2 / F-8's engine half: arrows in flight, stuck in surfaces and bodies, mounted archers, the archery target (CE-4649)
   - ../air-attack/DESIGN_Air_Combat.md — the jet dogfight: its pilot (mode 8, GCAS), MissileDefence and AirCombat behaviour are what F-25 (WWI) reuses with biplane numbers
   - ../../blueprints/RULINGS.md — R-4281: the fun pack is separated by CONVENTION (`scenarios/fun/`, its own content folders; shared engine pieces stay shared)
