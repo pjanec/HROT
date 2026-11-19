@@ -62,7 +62,7 @@ namespace Hrot.Editor.Director
         public static readonly IReadOnlyList<string> WindowStates = new[] { "intact", "cracked", "broken" };
 
         /// <summary>⭐ <c>CE-4624</c> — what a <c>knowledge</c> cue's <c>is</c> may say.</summary>
-        public static readonly IReadOnlyList<string> KnowledgeStates = new[] { "Marked", "Suspected", "KnownClear", "KnownMined", "Unknown" };
+        public static readonly IReadOnlyList<string> KnowledgeStates = new[] { "Marked", "Suspected", "KnownClear", "KnownMined", "Unknown", "Lane" };   // ⭐ CE-2443 — Lane: the COUNT of cleared lanes the side holds on the field (MF-10)
 
         public static readonly IReadOnlyList<string> Ops = new[] { "==", "!=", "<", "<=", ">", ">=", "in", "contains" };
 

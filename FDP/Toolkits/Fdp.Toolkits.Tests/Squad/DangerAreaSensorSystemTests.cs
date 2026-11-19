@@ -426,6 +426,37 @@ namespace Fdp.Toolkit.Tests.Squad
             Assert.Equal(0, DangerAlongRouteSolve.MinefieldAreas(w, throughUnknown, 3, table, into));   // another side knows nothing of it
         }
 
+        /// <summary>
+        /// ⭐ CE-2443 (DESIGN_Minefields MF-10) — the end of the chain: the side MARKED the field (every cell reads known-mined, the lane's included) and cleared a
+        /// LANE (its lane record). A route along the lane reports NO minefield; a route beside it still does; another side's lane is not this side's passage.
+        /// </summary>
+        [Fact]
+        public void CE2443_AMarkedField_TheSidesOwnClearedLane_IsAPassage_NotAMinefieldAhead()
+        {
+            using var w = new EntityRepository();
+            w.RegisterComponent<SimTransform>(); w.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>(); w.RegisterComponent<Fdp.Toolkit.Scenario.EntityGuid>();
+            w.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldKnowledge>(); w.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldLanes>();
+            w.RegisterManagedComponent<Fdp.Toolkit.Terrain.Tests.TestAreaOutline>();
+            var guid = System.Guid.NewGuid();
+            var field = w.CreateEntity();
+            w.AddComponent(field, new SimTransform { Position = new Vector3(100, 0, 0), Rotation = Quaternion.Identity });
+            w.AddComponent(field, new Fdp.Toolkit.Terrain.Minefield { Type = Fdp.Toolkit.Terrain.MineType.AntiPersonnel, SpacingM = 5f });
+            w.AddComponent(field, new Fdp.Toolkit.Scenario.EntityGuid(guid));
+            w.SetManagedComponent(field, new Fdp.Toolkit.Terrain.Tests.TestAreaOutline { Points = new[] { new Vector2(-20, -50), new Vector2(20, -50), new Vector2(20, 50), new Vector2(-20, 50) } });
+            var k = new Fdp.Toolkit.Terrain.MinefieldKnowledge();
+            k.Header.Subject = guid; k.Header.SidePlus1 = 2; k.Header.Kind = Fdp.Toolkit.Terrain.PlaceKnowledgeKind.Minefield; k.Header.Marked = 1;
+            w.AddComponent(w.CreateEntity(), k);
+            var lanes = new Fdp.Toolkit.Terrain.MinefieldLanes { Field = guid };
+            Assert.True(lanes.TryAdd(new Fdp.Toolkit.Terrain.LaneItem(guid, new Vector2(70, 0), new Vector2(130, 0), 5f, 2)));   // Friend's lane along y = 0
+            Assert.True(lanes.TryAdd(new Fdp.Toolkit.Terrain.LaneItem(guid, new Vector2(70, 30), new Vector2(130, 30), 5f, 3)));  // another side's lane along y = 30
+            w.AddComponent(w.CreateEntity(), lanes);
+            var table = Fdp.Toolkit.Terrain.PlaceKnowledgeTable.Of(w);
+            var into = new DangerAreaDescriptor[4];
+            Assert.Equal(0, DangerAlongRouteSolve.MinefieldAreas(w, new[] { new Vector3(0, 0, 0), new Vector3(200, 0, 0) }, 2, table, into));    // through its own lane
+            Assert.Equal(1, DangerAlongRouteSolve.MinefieldAreas(w, new[] { new Vector3(0, -20, 0), new Vector3(200, -20, 0) }, 2, table, into)); // beside it: the field
+            Assert.Equal(1, DangerAlongRouteSolve.MinefieldAreas(w, new[] { new Vector3(0, 30, 0), new Vector3(200, 30, 0) }, 2, table, into));   // the other side's lane
+        }
+
         [Fact]
         public void CE2224_KeepHandles_KeepsOnlyAnAreaThatIsStillListed()
         {

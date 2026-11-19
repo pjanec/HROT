@@ -80,6 +80,25 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public const float MinefieldSampleMetres = 5f;
 
         [ThreadStatic] private static System.Collections.Generic.List<Vector2>? t_outline;
+        [ThreadStatic] private static System.Collections.Generic.List<Fdp.Toolkit.Terrain.LaneItem>? t_lanes;
+
+        /// <summary>
+        /// ⭐ <c>CE-2443</c> (DESIGN_Minefields MF-10) — <paramref name="p"/> lies in a cleared lane of the field that side <paramref name="sidePlus1"/> − 1 knows (a lane
+        /// record of its side): the lane is SUBTRACTED from the field, so walking it is no minefield ahead. ⚠ A marked field reads every cell known-mined
+        /// (<see cref="Fdp.Toolkit.Terrain.PlaceKnowledgeTable"/>), lane cells included — the lane records are what say "clear here".
+        /// </summary>
+        public static bool InKnownLane(System.Collections.Generic.List<Fdp.Toolkit.Terrain.LaneItem> lanes, byte sidePlus1, Vector2 p)
+        {
+            for (int i = 0; i < lanes.Count; i++)
+            {
+                var l = lanes[i];
+                if (l.SidePlus1 != sidePlus1) continue;
+                var d = l.B - l.A; float len2 = d.LengthSquared();
+                float t = len2 < 1e-6f ? 0f : Math.Clamp(Vector2.Dot(p - l.A, d) / len2, 0f, 1f);
+                if (Vector2.DistanceSquared(l.A + d * t, p) <= l.Width * l.Width * 0.25f) return true;
+            }
+            return false;
+        }
 
         /// <summary>
         /// ⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-9, KG-7) — one <see cref="DangerAreaKind.Minefield"/> area per field where <paramref name="route"/> first enters a cell
@@ -87,18 +106,22 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// and call engineers). The planner prices such cells very high (KR-10), so a route here is one with no way round. Returns how many it wrote. Cold per solve (2 s).
         /// ⭐ CE-2443 (KG-7: "when it cannot (no way round, or the order goes through), the route's danger sensor reports a Minefield area") — measured on
         /// mf-clear-lane-and-cross: after a strike the side SUSPECTS only the cells round the blast; a route back in sidestepped them through cells it knew nothing of,
-        /// so no area, no halt, no engineers — and a second mine. ⛔ SUPERSEDED: "a cell it knows as suspected or mined". A lane's cells are known CLEAR: walking a lane reports none.
+        /// so no area, no halt, no engineers — and a second mine. ⛔ SUPERSEDED: "a cell it knows as suspected or mined". A lane the side cleared (its lane record, MF-10) reports none — a marked field reads every cell known-mined, the lane included.
         /// </summary>
         public static int MinefieldAreas(EntityRepository repo, ReadOnlySpan<Vector3> route, byte sidePlus1, Fdp.Toolkit.Terrain.PlaceKnowledgeTable knowledge, Span<DangerAreaDescriptor> into)
         {
             if (sidePlus1 == 0 || into.Length == 0 || route.Length < 2 || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.Minefield>()) return 0;
             int side = sidePlus1 - 1, n = 0;
             var outline = t_outline ??= new System.Collections.Generic.List<Vector2>(16);
+            var lanes = t_lanes ??= new System.Collections.Generic.List<Fdp.Toolkit.Terrain.LaneItem>(8);
+            bool laneRecords = repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.MinefieldLanes>();
             foreach (var field in repo.Query().With<Fdp.Toolkit.Terrain.Minefield>().With<Fdp.Core.SimTransform>().Build())
             {
                 if (n >= into.Length) break;
                 if (!knowledge.KnowsAny(side, field) || !Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.TryOutline(repo, field, outline, out var anchor)) continue;
                 var grid = Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.Grid(repo.GetComponentRO<Fdp.Toolkit.Terrain.Minefield>(field), anchor, outline);
+                lanes.Clear();
+                if (laneRecords && Fdp.Toolkit.Terrain.MinefieldIds.TryGuid(repo, field, out var fieldGuid)) Fdp.Toolkit.Terrain.MinefieldLanesSystem.LanesOf(repo, fieldGuid, lanes);
                 Vector3 safe = route[0];
                 bool found = false;
                 float before = 0f;   // ⭐ the route's length up to segment i (behaviors, CE-4624 MS-B4: the "within N m" reaction reads DistanceAlongRoute)
@@ -111,7 +134,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
                     {
                         var p = Vector3.Lerp(a, b, k / (float)steps);
                         var p2 = new Vector2(p.X, p.Y);
-                        if (Fdp.Toolkit.Terrain.MinePattern.Inside(outline, p2) && Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.CellOf(grid, p2, out int c, out int r)
+                        if (Fdp.Toolkit.Terrain.MinePattern.Inside(outline, p2) && !InKnownLane(lanes, sidePlus1, p2)   // ⭐ CE-2443 (MF-10) — the side's own lane is a passage
+                            && Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.CellOf(grid, p2, out int c, out int r)
                             && knowledge.Knows(side, field, c, r) != Fdp.Toolkit.Terrain.MineCellKnowledge.KnownClear)   // ⭐ CE-2443 (KG-7) — any cell of a field the side KNOWS OF that it does not know CLEAR
                         {
                             into[n++] = new DangerAreaDescriptor
