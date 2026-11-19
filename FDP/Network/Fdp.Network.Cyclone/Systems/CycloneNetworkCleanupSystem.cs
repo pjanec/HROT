@@ -17,38 +17,53 @@ namespace Fdp.Network.Cyclone.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class CycloneNetworkCleanupSystem : IEcsModuleSystem, Fdp.Core.Orchestration.IRetractionAckSource
     {
+        [Fdp.Core.NotState("translator list injected in ctor, never mutated")]
         private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;
+        [Fdp.Core.ProtocolCache("owned net ids awaiting wire dispose; re-swept by network id whenever `EntityRepository.ClearGeneration` moves (CE-3329 W1), `WorldEpoch.Ended` disposes them all")]
         private readonly Dictionary<int, Entity> _trackedEntities = new();
+        [Fdp.Core.WorldDerived("scratch — the sweep's ids-in-this-world, cleared before each refill")]
         private readonly Dictionary<long, bool> _present = new();   // ⭐ CE-3329 W1 — this frame's networked ids → owned here?
+        [Fdp.Core.WorldDerived("scratch cleared before each refill")]
         private readonly List<int> _gone = new();
+        [Fdp.Core.ProtocolCache("owned lightweight rounds awaiting wire dispose; re-learnt by the sweep at a world replacement")]
         private readonly Dictionary<int, Entity> _trackedLightweight = new();   // LR-2 — the subset with no lifecycle
+        [Fdp.Core.WorldDerived("the `EntityRepository.ClearGeneration` seen-count — the CE-3329 W1 sweep trigger itself (like `*._epoch`)")]
         private uint _clearGeneration;   // ⭐ CE-3329 W1 — EntityRepository.ClearGeneration at the last sweep
+        [Fdp.Core.WorldDerived("the delta query's horizon; a `GlobalVersion` that went backwards forces a sweep")]
         private uint _lastRunVersion;    // GlobalVersion at the last run — the delta query's horizon
         private EntityQuery? _query;
         private EntityRepository? _queryWorld;
         private int _worldEpoch;   // ⭐ CE-2101 — tracked ids belong to ONE world (WorldEpoch)
+        [Fdp.Core.WorldDerived("per-translator profiling data; diagnostic only")]
         private readonly Dictionary<IDescriptorTranslator, SystemProfileData> _translatorProfileData = new();
 
         public IReadOnlyList<IDescriptorTranslator> Translators => _translators;
 
         /// <summary>⭐ CE-3329 W1 — ids disposed by the sweep (absent after an in-place world replacement). Diagnostics, rails.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int SweptDisposes { get; private set; }
 
         /// <summary>⭐ CE-3329 W1 — ids forgotten because another node owns them now (a hand-over): never disposed.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int ForgottenHandedOver { get; private set; }
 
         /// <summary>⭐ CE-3329 W1 — how many full sweeps ran: one per in-place world replacement, never one per frame.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int Sweeps { get; private set; }
 
         /// <summary>⭐ CE-4079 ② — descriptor instances this node's writers let go of because the grantee confirmed (F7). Diagnostics, rails.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter (CE-4079 ②) — read by tests and diagnostics only")]
         public int ReleasedHandedOver { get; private set; }
         
         // ⭐⭐ CE-4079 ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — the writers whose acknowledgements a node waits for before it reports
         //   prepared / seek-done. Found ONCE, here, on the translators themselves: every translator holds its own writers, and a translator
         //   added later is covered without anyone remembering to list it (the silent-default trap).
+        [Fdp.Core.NotState("the writers whose acknowledgements a node awaits (CE-4079 ④): found once on the injected translators in the ctor, never mutated afterwards")]
         private readonly List<(string Name, Func<TimeSpan, bool> Wait)> _ackWaiters = new();
+        [Fdp.Core.WorldDerived("the `ClearGeneration` the last sweep covered (CE-4079 ④) — re-derived by the next sweep; the replay handlers wait for it to catch up with the world's")]
         private volatile uint _sweptClearGeneration;
 
         /// <inheritdoc />

@@ -973,6 +973,33 @@ public sealed class AudioTests
         Assert.Equal(1, Puffs(EffectTkbCatalog.ImpactPuffLarge));                // a push makes no dust
     }
 
+    /// <summary>
+    /// ⭐ CE-5034 (glass windows GW-3, D-8; DESIGN_Glass_Windows §5a) — a pane SHATTERED 20 m off (a <c>WindowBrokenEvent</c>, as every node receives it) is the sound of breaking
+    /// glass the listener hears once it arrives — once. 🔴 Red-proof: drop the <c>TrackWindows</c> call ⇒ nothing played.
+    /// </summary>
+    [Fact]
+    public void CE5034_AShatteredPane_IsHeardAsBreakingGlass_Once()
+    {
+        var (world, tkb) = World();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.WindowBrokenEvent>();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        var (layer, output) = Listening(world, tkb, me);
+        world.Bus.Publish(new Fdp.Toolkit.Terrain.WindowBrokenEvent { Building = 0, Panel = 3, Opening = 0, X = -20f, Y = 0f, Z = 1.5f });
+        world.Bus.SwapBuffers();
+        var spawner = new EffectSpawnSystem();
+        spawner.Execute(world, 0.016f);
+        Assert.Equal(1, spawner.WindowsBroken);
+        layer.Update(0.016f);
+        layer.Update(0.2f);   // 20 m: ~0.06 s of travel
+        var glass = Assert.Single(output.Played, v => v.Clip == SoundTkbCatalog.Glass);
+        Assert.True(glass.Pan < -0.5f, "20 m to his left");
+        world.Bus.SwapBuffers();
+        spawner.Execute(world, 0.016f);
+        layer.Update(0.2f);
+        Assert.Single(output.Played, v => v.Clip == SoundTkbCatalog.Glass);   // once
+        Assert.NotEmpty(SoundSynthesizer.Make(SoundSynth.Glass));
+    }
+
     private static (EntityRepository World, ITkbDatabase Tkb) World()
     {
         var world = new EntityRepository();

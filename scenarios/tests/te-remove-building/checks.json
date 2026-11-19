@@ -1,0 +1,46 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · docs/DESIGN_Terrain_Base_Edits.md §7 (CE-5027 BE-1, CE-5030 BE-4) — a baked house removed by a scenario edit: a man walks straight through where it stood. Golden off until a measured run shows it repeats.",
+  "runFor": 30,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the Walker crosses the old footprint",
+      "on": "field",
+      "who": "Walker",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 105
+    },
+    {
+      "name": "he never turns north off the line (the house's walls are gone)",
+      "never": {
+        "on": "field",
+        "who": "Walker",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 105
+      }
+    },
+    {
+      "name": "he never turns south off the line",
+      "never": {
+        "on": "field",
+        "who": "Walker",
+        "path": "SimTransform.Position.1",
+        "op": "<",
+        "value": 102
+      }
+    },
+    {
+      "name": "he ends within 1.5 m of (117,103.5)",
+      "on": "near",
+      "who": "Walker",
+      "point": [
+        117,
+        103.5
+      ],
+      "within": 1.5,
+      "atEnd": true
+    }
+  ]
+}

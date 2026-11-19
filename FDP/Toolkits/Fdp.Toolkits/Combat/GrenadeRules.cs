@@ -40,6 +40,39 @@ namespace Fdp.Toolkit.Combat
         /// <summary>The damage that takes a standard man down: 70 of his 100 — below the 30 % line he is incapacitated (CE-2155).</summary>
         public const float DownDamage = 70f;
 
+        /// <summary>CB-30 — no throw when a friend would be stunned longer than this (s).</summary>
+        public const float FriendStunSeconds = 0.5f;
+        /// <summary>CB-70 — fragments still getting through a wall above this share count as reaching the man (the same transmission the
+        /// area effect applies, <see cref="AreaEffect.FragmentTransmission"/>).</summary>
+        public const float FragmentsThrough = 0.05f;
+        /// <summary>A man's body point the prediction is made at: his chest (m above his feet).</summary>
+        public const float ChestHeight = 1.2f;
+
+        /// <summary>
+        /// ⭐ CB-70 — would a friend standing at <paramref name="friend"/> (his feet) be hurt by <paramref name="warhead"/> bursting at
+        /// <paramref name="burst"/>? A stun: the predicted seconds (EffectSeconds × blast fall-off × the closed barrier between) above
+        /// <see cref="FriendStunSeconds"/>. Fragmentation: within its lethal radius and fragments getting through what lies between. ⚠ The terrain
+        /// shadow is left out — it only ever shrinks the effect, so leaving it out errs safe. No world query ⇒ no barrier (errs safe too).
+        /// ⭐⭐ <c>CE-2452</c> — moved here from behaviors' <c>GrenadeCheck</c> (which routes to it): the room drill, the hidden-target throw and an
+        /// aimed area round judge a friend by ONE law, the wall he stands behind counted.
+        /// </summary>
+        public static bool Hurts(Fdp.Toolkit.World.IWorldQuery? query, WarheadDto warhead, Vector3 burst, Vector3 friend,
+                                 System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing> scratch)
+        {
+            var chest = friend + new Vector3(0f, 0f, ChestHeight);
+            float r = Vector3.Distance(burst, chest);
+            float reach = MathF.Max(warhead.BlastInjuryRadiusM, warhead.FragmentRadiusM);
+            if (r > reach) return false;
+            scratch.Clear();
+            query?.Trace(burst, chest, Fdp.Toolkit.World.TracePurpose.Fire, scratch);
+            float barrier = query == null ? 1f : AreaEffect.ClosedBarrierTransmission(scratch);
+            if (warhead.Kind == WarheadKind.Stun)
+                return warhead.EffectSeconds * AreaEffect.BlastFalloff(r, warhead.BlastLethalRadiusM, warhead.BlastInjuryRadiusM) * barrier > FriendStunSeconds;
+            float lethal = LethalRadius(warhead);
+            float through = query == null ? 1f : AreaEffect.FragmentTransmission(scratch, warhead.FragmentPenetrationMm);
+            return r <= lethal && through > FragmentsThrough;
+        }
+
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<WarheadDto, StrongBox> s_lethal = new();
         private sealed class StrongBox { public float Value; }
 

@@ -68,6 +68,24 @@ namespace Hrot.ScenarioEditor.Gizmos
             var kindColour = TerrainFeatureLook.ColourOf(f.Kind);
             byte layer = DebugTraceLayers.TacticalGraphics;
 
+            // ⭐⭐ CE-5030 BE-4 part 2 (📄 docs/DESIGN_Terrain_Base_Edits.md §5; mockup docs/UX/terrain-base-edits.svg) — a REMOVE edit is drawn as the building it took away: a dashed ghost of its
+            //   footprint (the merged world's record of it, TerrainWorld.Removed) with a "removed" chip, the whole outline its pick (a click selects the edit; Delete restores the building)
+            System.Span<char> target = stackalloc char[64];   // the label compared in place: 0 B per frame (R-2084)
+            if (f.Kind == TerrainFeature.Edit && template is "remove" or "" && RemovedOf(view, target[..f.Target.CopyTo(target)]) is { } gone)
+            {
+                var fp = gone.Footprint;
+                var ghost = selected ? SelectedColour : RemovedGhost;
+                for (int i = 0; i < fp.Length; i++)
+                {
+                    var a = fp[i]; var b = fp[(i + 1) % fp.Length];
+                    draw.DrawLine(new Vector3(a.X, a.Y, 0f), new Vector3(b.X, b.Y, 0f), ghost, selected ? 2.4f : 1.6f, layer: layer, style: LineStyle.Dashed);
+                }
+                var c = Centre(fp);
+                draw.DrawTextLong(c.X, c.Y, RemovedChip, RemovedChipText, style: GizmoTextStyle.Backdrop);
+                EntityPresentationGizmoShared.EmitPickSegments(draw, view, entity, fp, Vector2.Zero, isClosed: true, layer);
+                return;
+            }
+
             bool hasLine = view.HasManagedComponent<EditablePolyline>(entity);
             if (TerrainFeatureLook.IsPoint(f.Kind, template) || !hasLine)
             {
@@ -97,6 +115,26 @@ namespace Hrot.ScenarioEditor.Gizmos
                 draw.DrawLine(new Vector3(a.X, a.Y, 0f), new Vector3(b.X, b.Y, 0f), colour, selected ? 2.4f : 1.4f, layer: layer, style: selected ? LineStyle.Solid : LineStyle.Dashed);
             }
             EntityPresentationGizmoShared.EmitPickSegments(draw, view, entity, cache.Points, Vector2.Zero, closed, layer);   // the whole feature, as ONE
+        }
+
+        /// <summary>⭐ CE-5030 — the ghost of a removed building (grey-white, dashed), and its chip.</summary>
+        public static readonly Rgba32 RemovedGhost = new(225, 225, 230, 220), RemovedChipText = new(255, 150, 140, 255);
+        public const string RemovedChip = "removed";
+
+        private static TerrainRemovedBuilding? RemovedOf(ISimulationView view, System.ReadOnlySpan<char> label)
+        {
+            if (label.Length == 0 || view is not EntityRepository repo || !repo.HasSingletonManaged<TerrainWorld>()) return null;
+            if (repo.GetSingletonManaged<TerrainWorld>() is not { } terrain) return null;
+            var removed = terrain.Removed;
+            for (int i = 0; i < removed.Count; i++) if (label.SequenceEqual(removed[i].Label.AsSpan())) return removed[i];
+            return null;
+        }
+
+        private static Vector2 Centre(Vector2[] p)
+        {
+            var c = Vector2.Zero;
+            for (int i = 0; i < p.Length; i++) c += p[i];
+            return p.Length == 0 ? c : c / p.Length;
         }
 
         private static ulong Key(Vector3 at, int version, int count)

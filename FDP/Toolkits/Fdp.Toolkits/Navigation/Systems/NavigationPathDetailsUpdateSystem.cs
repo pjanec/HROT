@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Navigation.Systems
         private readonly BrainPathRegistry _brainRegistry;
 
         // Scratch buffer for waypoint copy; avoids per-event heap allocation.
+        [Fdp.Core.WorldDerived("fixed scratch buffer")]
         private readonly NavWaypoint[] _waypointScratch;
 
         /// <param name="muscleRegistry">Source of stored waypoints (Muscle side).</param>

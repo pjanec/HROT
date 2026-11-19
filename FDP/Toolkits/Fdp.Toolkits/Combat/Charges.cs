@@ -169,6 +169,7 @@ namespace Fdp.Toolkit.Combat
     public sealed class ChargeSystem : IEcsModuleSystem
     {
         /// <summary>Charges set off on this node (rails read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Detonated { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -184,9 +185,11 @@ namespace Fdp.Toolkit.Combat
         private EntityQuery? _timers;
         private EntityRepository? _for;
         private int _epoch;
+        [Fdp.Core.FrameScratch("list of due charges: cleared at 203 and filled from this frame query")]
         private readonly System.Collections.Generic.List<Entity> _due = new();
 
         /// <summary>Timers that came due on this node (rails read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of fired charge timers")]
         public long TimersFired { get; private set; }
 
         private void TickTimers(EntityRepository world)

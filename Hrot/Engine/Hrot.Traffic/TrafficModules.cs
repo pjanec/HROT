@@ -69,22 +69,36 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
     private readonly DdsParticipant? _participant;
     private readonly NetworkEntityMap? _entityMap;
     private readonly NodeId _localNodeId;
+    [Fdp.Core.WorldDerived("car poses scratch cleared/refilled on resolve from wire")]
     private readonly List<TrafficCarPose> _cars = new();
+    [Fdp.Core.WorldDerived("ped poses scratch cleared/refilled on resolve from wire")]
     private readonly List<TrafficPedPose> _peds = new();
+    [Fdp.Core.WorldDerived("per-sender pedestrian reconstructors rebuilt from wire stream")]
     private readonly Dictionary<(int Owner, uint Source), TrafficPedMirror> _pedMirrors = new();
+    [Fdp.Core.WorldDerived("scratch cleared before each refill")]
     private readonly List<(int, uint)> _stalePedMirrors = new();
+    [Fdp.Core.WorldDerived("scratch cleared every frame")]
     private readonly HashSet<(int, uint)> _livePedMirrors = new();
+    [Fdp.Core.SessionState("per-source pedestrian wire reconstruction, refilled by the incoming stream (session, a restore leaves it)")]
     private DdsMultiSourcePedSubscriber? _pedDds;
+    [Fdp.Core.WorldDerived("per-sender car reconstructors rebuilt from wire stream")]
     private readonly Dictionary<(int Owner, uint Source), TrafficMirror> _mirrors = new();
+    [Fdp.Core.WorldDerived("scratch cleared every frame")]
     private readonly HashSet<(int, uint)> _liveMirrors = new();
+    [Fdp.Core.WorldDerived("scratch cleared before each refill")]
     private readonly List<(int, uint)> _staleMirrors = new();
     private TrafficReplicas? _replicas;
     private EntityRepository? _replicaWorld;
     private int _epoch;
+    [Fdp.Core.WorldDerived("one-frame signal: the world was put back (CE-3325 B2) — consumed and cleared by the next tick")]
     private bool _restored;
+    [Fdp.Core.SessionState("per-source vehicle wire reconstruction, refilled by the incoming stream (session, a restore leaves it)")]
     private DdsMultiSourceSubscriber? _dds;
+    [Fdp.Core.WorldDerived("wire-silence clock derived each frame from SilenceClock")]
     private double _wireNow;
+    [Fdp.Core.WorldDerived("wall-clock silence timer for DDS sources; empty restarts timeout only")]
     private SilenceClock _silence;
+    [Fdp.Core.WorldDerived("wall-clock perf timing / silence timer; no sim decisions")]
     private readonly System.Diagnostics.Stopwatch _wall = System.Diagnostics.Stopwatch.StartNew();
 
     /// <summary>
@@ -99,12 +113,17 @@ public sealed class TrafficMirrorSystem : IEcsModuleSystem, Fdp.Interfaces.IRepl
     public static DdsMultiSourceSubscriber NewSubscriber(DdsParticipant participant, Func<double> clusterSeconds)
         => new(participant, stampWithSimTime: true, sourceTimeoutSeconds: SilentSourceSeconds, clockSeconds: clusterSeconds);
     private TrafficNetCache? _net;
+    [Fdp.Core.NotState("static road-net lane lookup built from network")]
     private NetworkLaneSource? _netLanes;
     private TrafficSession? _adopted;
+    [Fdp.Core.WorldDerived("traffic-light table re-derived from wire each frame")]
     private IReadOnlyDictionary<int, byte> _lights = EmptyLights;
+    [Fdp.Core.WorldDerived("resolve cadence gate; NaN forces re-resolve")]
     private double _lastResolved = double.NaN;
+    [Fdp.Core.WorldDerived("SUMO session restart counter in session key (SUMO engine state itself is X in TrafficRuntime)")]
     private int _generation;
     private TrafficFrame? _frame;
+    [Fdp.Core.NotState("static empty sentinel dictionary")]
     private static readonly Dictionary<int, byte> EmptyLights = new();
 
     /// <param name="runtime">Non-null on a node that SERVES traffic (the traffic node, the editor).</param>

@@ -74,17 +74,22 @@ public sealed class NedReplicationModule : INedReplicationModule
     // ── Ghost lifecycle deps (IG role — GhostPromotionSystem) ─────────────────
     private readonly ITkbDatabase?         _tkbDb;
     private readonly EntityLifecycleModule? _lifecycleModule;
+    [Fdp.Core.NotState("translator pack assigned once in ctor, never mutated")]
     private readonly IReadOnlyList<ITkbEntityTranslator>? _tkbEntityTranslators;
     private readonly BehaviorRegistry? _behaviorRegistry;   // ⭐ CE-3048 — the Brain hand-over starts behaviours by name
     // CE-288 (C2): self-heal sink — records a peer that missed the short phase-1 probe as !fdp.reliable-init.
     private readonly System.Action<int>? _onPeerUnsupported;
 
     // ── Translator lists ───────────────────────────────────────────────────────
+    [Fdp.Core.NotState("translator pack assigned once in ctor, never mutated")]
     private readonly IEnumerable<INetworkTranslator> _sharedTranslators;
+    [Fdp.Core.NotState("translator pack assigned once in ctor, never mutated")]
     private readonly IEnumerable<FdpIDescriptorTranslator>? _kinematicTranslators;
     // ⭐ AQ93 §14 G2 (R-4023) — a node that SERVES traffic reads the bodies' NavigationIntent (read-only): a vehicle handed to SUMO
     //   says so in its intent, and the shadow car is spawned where SUMO runs. Not built when the Muscle pack already reads it.
+    [Fdp.Core.NotState("translator pack assigned once in ctor, never mutated")]
     private readonly IEnumerable<FdpIDescriptorTranslator>? _trafficTranslators;
+    [Fdp.Core.NotState("translator pack assigned once in ctor, never mutated")]
     private readonly IEnumerable<FdpIDescriptorTranslator>? _cognitiveTranslators;
 
     // ── Reliable-init construction barrier (CE-283, §3a.4) ────────────────────
@@ -650,6 +655,7 @@ public sealed class NedReplicationModule : INedReplicationModule
     }
 
     /// <summary>⭐ Set once, on the first tick that hands this module a world.</summary>
+    [Fdp.Core.NotState("one-shot idempotent registration of pairings into world map on first tick")]
     private bool _contributedDescriptorPairings;
 
     /// <summary>

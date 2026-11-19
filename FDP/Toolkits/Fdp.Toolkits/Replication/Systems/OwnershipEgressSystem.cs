@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Replication.Systems
         private readonly NodeId _localNodeId;
 
         // Cache to track changes: Entity -> (PackedKey -> OwnerNodeId)
+        [Fdp.Core.ProtocolCache("last-published ownership per entity for egress change detection")]
         private readonly Dictionary<Entity, Dictionary<long, int>> _lastKnownOwnership = new();
         private int _epoch;   // ⭐ CE-3294 — the world the state below describes (the ownership last published)
 

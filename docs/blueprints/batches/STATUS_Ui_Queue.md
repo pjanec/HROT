@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — running HANDOFF_Coordinator_To_Ui_Bug_Queue.md under PROTOCOL_Autonomous_Lanes.md
-updated: 2026-11-18 10:45 UTC
+updated: 2026-11-19
 current-answer: §1
 -->
 
@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-4671 LK-S2 (HANDOFF_Coordinator_To_Ui_Look_Library, row 2) — PersonLook out of Outfits / Wardrobe / KitFromTkb into Hrot.Look (RGBA, no Raylib). LK-S1 done.
+idle — waiting for a handoff (Queue 3 done `2026-11-19`: CE-5034 terrain's layer + ui's glass sound, CE-4670 drawing, CE-3451 ②③④, CE-1980 triaged; lanes fetched at coordinator `99978c0df`, nothing new for ui).
 
 ## 2. The queue (in order)
 
@@ -41,7 +41,7 @@ IN PROGRESS: CE-4671 LK-S2 (HANDOFF_Coordinator_To_Ui_Look_Library, row 2) — P
 | CE-1475 SumoNetPlacementTests F5/E1 on a Czech Windows | DONE | the fixture wrote culture commas; one invariant helper | Traffic SumoNetPlacementTests 19/19 + a cs-CZ rail (red-proved) | — (test only) |
 | CE-1046 + CE-1038 LiveFromReplay under load; SimHost test count varies | CE-1046 PARTLY (frame waits; still 1/11 red under load, stays FlakyFact) · CE-1038 DONE — not reproduced | 2 full --blame runs: 3064/3064 reported, same failures; 9+1 pre-existing reds → CE-1980 (red at 1bc1cc911^) | LiveFromReplayTests 10/11 under full load | — |
 | CE-4671 LK-S1 — Hrot.Look + EffectRules out of EffectSpawnSystem; HUD feeds out | DONE | a pure refactor: same types, places, order | Hrot.Look.Tests 3/3 (red-proved); Presentation effects + self-check 66/66; frame rails 240/246 (the 6 reds identical on the pre-change binary); CGF / editor pinned orders; full solution | design §7b |
-| CE-4671 LK-S2 — PersonLook into Hrot.Look | IN PROGRESS | | | |
+| CE-4671 LK-S2 — PersonLook into Hrot.Look | DONE (KitFromTkb deferred to LK-S3, reason in §7c) | outfit rules + the seed / side / colour reads + Resolve's person half; Rgba; 20 map draw sites convert | PersonOutfitsRail parity (every person type × 4) + Look.Tests 4/4 (red-proved); outfit/kit rails 318/319 (MotorcycleModelRail: TKB seat count 3 vs 2, content not touched here); frame rails 262/267 (the pre-existing 5); full solution | design §7c |
 
 ## 3. Taken from new handoffs
 - HANDOFF_Coordinator_To_Ui_Moved_Rows.md at 2026-11-18 15:20 (merged coordinator `fa5748b18`): CE-3468 · CE-2438 · CE-1473+CE-3451 · CE-1475 · CE-1046+CE-1038, in that order; §6a scenarios per row proportionate.
@@ -53,3 +53,13 @@ IN PROGRESS: CE-4671 LK-S2 (HANDOFF_Coordinator_To_Ui_Look_Library, row 2) — P
 
 ## 5. Gates (rule 8)
 - CE-1133/1978: `Hrot.Presentation.Tests` RtsCommandToolTests · TheMenusAreGolden · MenuOrdersTests · Keymap · OrderMenu 63/0; `Hrot.Editor.Tests` OrderVocabularyTests 10/0. Goldens re-captured: only order ids + Convoy rows.
+
+
+## Queue 3 — HANDOFF_Coordinator_To_Ui_Waiting_Work.md (taken 2026-11-18 23:05)
+
+| row | state | finding | gates | design |
+|---|---|---|---|---|
+| CE-5034 GW-3 the look of glass | DONE BY TERRAIN (the coordinator reassigned it; the ui handoff withdrawn) — ui's parallel build (5f845eeb4) REMOVED at the merge of terrain; ui's one addition kept: the breaking-glass SOUND (EffectSpawnSystem.TrackWindows → SoundEvents.Glass, built-in 7356) | GlassFrameRail + AudioTests (see the merge commit) | AudioTests.CE5034_AShatteredPane_IsHeardAsBreakingGlass_Once | DESIGN_Glass_Windows §5a (+ HISTORY) |
+| CE-4670 drawing — openings, lights, head out, light switches | DONE — the socket rule in Hrot.Look (VehicleSockets), the body layer's fittings, the commander's periscope eye, the station's H / U + HUD lines | Look 23/0 (+VehicleSockets); Presentation CrewControls/Fittings/PossessionStation/Keymap/MineClearer/Map3D 318/0 under xvfb; frames vs the mockup (scratchpad) | VehicleSocketsTests, CrewControlsTests (red-proved), VehicleFittingsFrameRail | DESIGN_Vehicle_Appearance_State §7d (+ as built); mockup UX/vehicle-openings-lights.svg | | | |
+| CE-3451 ②③④ (DECIDED: ② build, ③ the rule moves into code — R-4297, ④ once in the egress shape; the decision's "CE-1980" = this) | DONE — attributes on the fields (849 rows migrated, 358 classified), the ledger retired, 7 + 23 world-boundary fixes, ④ IL-checked (36 of 45 reds were stale rows), 11 C listed as CE-1981 | the three rails green (`Hrot.ClusterRunner.Tests`); full solution build; feature suites (see the commit) | `IngressPendingForgetsTheLastWorldTests` (red-proved); ② red-proved | DESIGN_System_State_Inventory §9; NOTE_Ui_To_All_Lanes_State_Attributes |
+| CE-1980 the nine pre-existing `Hrot.SimHost.Tests` reds (handoff row 3 names it) | TRIAGED — 2 now pass, 1 fixed by ui (ReplayBrowser → Orchestrator: `NodeIdRanges` → `Hrot.Core`), 7 handed back to their lanes (NOTE), ST0 flaky (measured) | OneBootstrapImplementationRails 5/0; Orchestrator NodeId 8/0; ReplayBrowser builds | — | NOTE_Ui_To_All_Lanes_SimHost_Rails_Drifted |

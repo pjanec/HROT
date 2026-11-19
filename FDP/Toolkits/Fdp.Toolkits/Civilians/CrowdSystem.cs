@@ -115,32 +115,51 @@ namespace Fdp.Toolkit.Civilians
     [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class CrowdSystem : IEcsModuleSystem
     {
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _civs = new();
+        [Fdp.Core.WorldDerived("scratch rebuilt from query each frame")]
         private readonly List<Vector3> _at = new();
+        [Fdp.Core.WorldDerived("scratch cleared each frame")]
         private readonly List<Vector3> _incidents = new();
+        [Fdp.Core.FrameScratch("scratch — cleared each frame before use")]
         private readonly List<Entity> _incidentOf = new();
+        [Fdp.Core.WorldDerived("union-find scratch reinitialised each frame")]
         private int[] _parent = Array.Empty<int>();
         // ⭐ the 500-civilian scaling fix (backend note NOTE_Backend_To_Behaviors_CrowdSystem_Scaling): every pair this system compares is
         // within CellMetres, so a 3 × 3 block of cells holds every partner — the passes are linear in the crowd, not quadratic.
         private const float CellMetres = 20f;   // ≥ LinkMetres and ContagionMetres
+        [Fdp.Core.WorldDerived("spatial cell index rebuilt each frame")]
         private readonly Dictionary<long, List<int>> _cells = new();
+        [Fdp.Core.WorldDerived("list pool for cell index scratch")]
         private readonly Stack<List<int>> _cellPool = new();
+        [Fdp.Core.WorldDerived("neighbour scratch cleared per query")]
         private readonly List<int> _near = new();
+        [Fdp.Core.WorldDerived("scratch refilled each frame")]
         private int[] _root = Array.Empty<int>();
+        [Fdp.Core.WorldDerived("scratch refilled each frame from components")]
         private CivilianMode[] _mode = Array.Empty<CivilianMode>();
+        [Fdp.Core.WorldDerived("scratch refilled each frame from components")]
         private byte[] _instigator = Array.Empty<byte>();
+        [Fdp.Core.WorldDerived("group scratch rebuilt each frame")]
         private readonly Dictionary<int, List<int>> _groups = new();
+        [Fdp.Core.WorldDerived("vote scratch cleared per group")]
         private readonly Dictionary<int, int> _votes = new();
         // ⭐ R-3039 S1 — DERIVED each frame from the world, not remembered: each crowd entity carries its id (Crowd.Id), and the next id
         //   is one past every id a crowd or a member still holds — so a checkpoint restored into a fresh system neither duplicates a crowd
         //   entity nor reissues an id in use. 📄 docs/DESIGN_System_State_Inventory.md §6 #9.
+        [Fdp.Core.FrameScratch("R-3039 S1 — rebuilt at the top of each run from the Crowd entities")]
         private readonly Dictionary<int, Entity> _crowdEntity = new();
+        [Fdp.Core.WorldDerived("live-ids scratch cleared each Assign")]
         private readonly HashSet<int> _live = new();
+        [Fdp.Core.WorldDerived("R-3039 S1: derived every frame — one past every id a crowd or member holds — was C")]
         private int _nextId = 1;
         // ⭐ CE-2241 ② (§5m PV-1) — the security forces standing this frame: where, and which way they face
+        [Fdp.Core.WorldDerived("scratch cleared each frame")]
         private readonly List<Vector3> _police = new();
+        [Fdp.Core.WorldDerived("scratch cleared each frame")]
         private readonly List<Vector3> _policeFacing = new();
         // ⭐ PV-2 — the members a new effect landed on this frame
+        [Fdp.Core.WorldDerived("scratch cleared each frame")]
         private readonly List<int> _forced = new();
 
         /// <summary>The crowd entity of id <paramref name="crowdId"/> on this node, or <see cref="Entity.Null"/>.</summary>

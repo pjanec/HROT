@@ -49,8 +49,11 @@ namespace Fdp.Toolkit.Combat.Systems
         public const int LyingCap = 256;
 
         // ⭐ CE-4649 — the lying rounds, oldest first (an array and a count: no allocation, no LINQ — R-2084). Per node: the system runs once on the shooter's node.
+        [Fdp.Core.WorldDerived("the landed rounds held for the lying cap, oldest first; reset at the world epoch; emptied, only the cleanup order changes")]
         private readonly Entity[] _lying = new Entity[LyingCap];
+        [Fdp.Core.WorldDerived("the count of _lying (reset with it at the world epoch)")]
         private int _lyingCount;
+        private int _worldEpoch;
 
         /// <summary>How many rounds this node holds as lying (the rail reads it).</summary>
         public int LyingCount => _lyingCount;
@@ -108,6 +111,7 @@ namespace Fdp.Toolkit.Combat.Systems
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _lyingCount = 0;   // ⭐ R-4297 ② (CE-1980) — a world replacement (a reload reuses the handles, a restore) forgets the rounds it held as lying
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // ⭐ CE-3329 P2 — a replay: the recording owns the world (DESIGN_Replay_Time_Axis_And_Review §12l)
             // ⭐ CE-3293 S5 (R-3036 rule 8) — no hand pause gate: [TickMode(WhenTimeAdvances)] keeps this system off a frame that does not advance
 
@@ -135,6 +139,9 @@ namespace Fdp.Toolkit.Combat.Systems
             // ⭐ CE-1128 (docs/DESIGN_Visual_Effects.md §10) — the surfaces rounds mark, for the map hosts' puffs and marks
             var impacts = repo.Bus.IsRegistered<Contracts.RoundImpactNotification>() ? (t_impacts ??= new List<RoundImpact>()) : null;
             bool guided = repo.IsComponentTypeRegistered<GuidedRound>();   // ⭐ M4
+            // ⭐ CE-5033 (glass windows GW-2, D-4) — the panes rounds pass, for the window's hits; only with a world that has glass
+            var paneWorld = terrain is Fdp.Toolkit.Terrain.TerrainWorldQuery twq && twq.World.PaneLeaves.Count > 0 && repo.Bus.IsRegistered<Fdp.Toolkit.Terrain.WindowHitEvent>() ? twq.World : null;
+            var panes = paneWorld != null ? (t_panes ??= new List<PaneHit>()) : null;
 
             var query = repo.Query()
                 .With<BallisticProjectile>()
@@ -251,8 +258,16 @@ namespace Fdp.Toolkit.Combat.Systems
                         proj.Muzzle = proj.PreviousPosition; proj.FrontDamage = proj.Damage; proj.FrontPenetration = proj.Penetration;
                         proj.TerrainFlags |= 1;
                     }
+                    // ⭐ CE-5033 — firing OUT: once per round, on its first segment (bit 2 — a round FireProcessingSystem spawns already has its muzzle, bit 1)
+                    if ((proj.TerrainFlags & 2) == 0)
+                    {
+                        proj.TerrainFlags |= 2;
+                        if (paneWorld != null) ShatterPanesAtTheMuzzle(repo, cmd, paneWorld, (Fdp.Toolkit.Terrain.TerrainWorldQuery)terrain, in proj);
+                    }
                     impacts?.Clear();
-                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref proj.FrontDamage, ref proj.FrontPenetration, out float stopT, null, impacts);
+                    panes?.Clear();
+                    bool stopped = TerrainPenetration.Carry(terrain, proj.PreviousPosition, tf.Position, ref proj.FrontDamage, ref proj.FrontPenetration, out float stopT, null, impacts, panes);
+                    if (panes is { Count: > 0 }) PublishPaneHits(cmd, paneWorld!, in proj, panes);
                     if (stopped)
                     {
                         end = System.Numerics.Vector3.Lerp(proj.PreviousPosition, tf.Position, stopT);
@@ -342,6 +357,7 @@ namespace Fdp.Toolkit.Combat.Systems
             }
         }
 
+        [Fdp.Core.WorldDerived("thread-static scratch list")]
         [ThreadStatic] private static List<RoundImpact>? t_impacts;
 
         /// <summary>
@@ -350,6 +366,66 @@ namespace Fdp.Toolkit.Combat.Systems
         /// passed); a ground stop adds a Stop facing up. ⛔ A WARHEAD round's stop is not marked here: its burst draws the explosion and the
         /// scorch (VE-I step 1).
         /// </summary>
+        /// <summary>The distance (m) from the muzzle within which a pane breaks on the first round — a man firing OUT through it (D-4).</summary>
+        public const float FireOutShatterMetres = 1.5f;
+
+        [Fdp.Core.FrameScratch("thread-static pane-hit list reused per call")]
+        [ThreadStatic] private static List<PaneHit>? t_panes;
+        [Fdp.Core.FrameScratch("thread-static muzzle-pane list reused per call")]
+        [ThreadStatic] private static List<Fdp.Toolkit.Terrain.TerrainWorld.FireCrossing>? t_muzzlePanes;
+
+        /// <summary>The height (m) above a shooter's feet his chest — where the gun is held — is taken at.</summary>
+        public const float ShooterChestM = 1.4f;
+
+        /// <summary>
+        /// ⭐ CE-5033 (glass windows D-4, "a man firing out") — a man at a window pushes his BARREL through the opening: 📐 measured on <c>gw-fire-out</c>, the
+        /// muzzle stood 0.28 m OUTSIDE the wall, so his rounds never crossed the pane. ⇒ on a round's first segment, every pane between the shooter's chest and
+        /// the muzzle (and within <see cref="FireOutShatterMetres"/> of the muzzle) shatters. ⛔ No allocation in the steady state (a thread's list).
+        /// </summary>
+        private static void ShatterPanesAtTheMuzzle(EntityRepository repo, Fdp.Interfaces.IEntityCommandBuffer cmd, Fdp.Toolkit.Terrain.TerrainWorld world,
+                                                    Fdp.Toolkit.Terrain.TerrainWorldQuery query, in BallisticProjectile proj)
+        {
+            if (!repo.IsAlive(proj.Shooter) || !repo.HasComponent<SimTransform>(proj.Shooter)) return;
+            var feet = repo.GetComponentRO<SimTransform>(proj.Shooter).Position;
+            var chest = new System.Numerics.Vector3(feet.X, feet.Y, feet.Z + ShooterChestM);
+            var muzzle = (System.Numerics.Vector3)proj.Muzzle;
+            if (System.Numerics.Vector3.DistanceSquared(chest, muzzle) > FireOutShatterMetres * FireOutShatterMetres * 4f) return;   // not a man holding this gun
+            var list = t_muzzlePanes ??= new List<Fdp.Toolkit.Terrain.TerrainWorld.FireCrossing>();
+            world.QueryFire(chest, muzzle, list, query.Doors);
+            for (int i = 0; i < list.Count; i++)
+            {
+                var c = list[i];
+                if (c.Kind != Fdp.Toolkit.Terrain.TerrainWorld.PaneKind || c.Piece < 0) continue;
+                var at = System.Numerics.Vector3.Lerp(chest, muzzle, c.T);
+                if (System.Numerics.Vector3.Distance(at, muzzle) > FireOutShatterMetres) continue;
+                var (panel, opening) = world.PaneOf(c.Piece - world.Prisms.Count);
+                if (panel < 0 || world.Panels[panel].Building < 0) continue;
+                cmd.PublishEvent(new Fdp.Toolkit.Terrain.WindowHitEvent
+                {
+                    Building = world.Panels[panel].Building, Panel = panel, Opening = opening, Shatter = 1, Source = proj.Shooter,
+                });
+            }
+        }
+
+        /// <summary>⭐ CE-5033 (D-4) — one <see cref="Fdp.Toolkit.Terrain.WindowHitEvent"/> per pane the segment passed: a hit with its crack, or a shatter when the muzzle is at the pane.</summary>
+        private static void PublishPaneHits(Fdp.Interfaces.IEntityCommandBuffer cmd, Fdp.Toolkit.Terrain.TerrainWorld world, in BallisticProjectile proj, List<PaneHit> panes)
+        {
+            for (int i = 0; i < panes.Count; i++)
+            {
+                var (panel, opening) = world.PaneOf(panes[i].Piece - world.Prisms.Count);
+                if (panel < 0 || world.Panels[panel].Building < 0) continue;
+                var at = panes[i].At;
+                var (u, v) = Fdp.Toolkit.Terrain.WindowDamages.PaneUv(world, panel, opening, at);
+                bool fireOut = System.Numerics.Vector3.Distance((System.Numerics.Vector3)proj.Muzzle, at) <= FireOutShatterMetres;
+                cmd.PublishEvent(new Fdp.Toolkit.Terrain.WindowHitEvent
+                {
+                    Building = world.Panels[panel].Building, Panel = panel, Opening = opening, U = u, V = v,
+                    Shatter = fireOut ? (byte)1 : (byte)0, Source = proj.Shooter,
+                });
+            }
+            panes.Clear();
+        }
+
         private static void PublishImpacts(Fdp.Interfaces.IEntityCommandBuffer cmd, in BallisticProjectile proj, List<RoundImpact> impacts,
                                            System.Numerics.Vector3 end, bool groundStop)
         {

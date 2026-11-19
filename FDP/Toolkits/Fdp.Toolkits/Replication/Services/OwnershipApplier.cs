@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Replication.Services
     /// </list>
     /// <para>Idempotent: applying the same (E, K, N) again changes nothing — ⭐ and WRITES nothing (CE-4519: no table version moves on a repeat).</para>
     /// </summary>
+    [Fdp.Core.NotState("node id and descriptor map fixed at ctor")]
     public sealed class OwnershipApplier
     {
         private readonly NodeId                     _localNodeId;

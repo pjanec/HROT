@@ -23,6 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly DdsWriter<EntityMaster> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly NodeId _localNodeId;
+        [Fdp.Core.ProtocolCache("already-published-once set; empty re-announces EntityMaster, harmless")]
         private readonly HashSet<int> _publishedNetIds = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
@@ -33,6 +34,7 @@ namespace Hrot.Map.Common.Replication.Egress
         public TranslatorDirection Direction => TranslatorDirection.Egress;
 
         // Targets: NetworkIdentity (50) + TkbIdentity (65)
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly IReadOnlyList<int> _targetIds =
             new int[] { GlobalComponentIds.NetworkIdentity, GlobalComponentIds.TkbIdentity };
         public IReadOnlyList<int> TargetComponentIds => _targetIds;

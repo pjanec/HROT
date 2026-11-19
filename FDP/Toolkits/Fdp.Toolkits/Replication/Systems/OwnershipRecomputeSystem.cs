@@ -62,15 +62,20 @@ namespace Fdp.Toolkit.Replication.Systems
         private readonly NodeId                    _localNodeId;
         private readonly DescriptorOwnershipMap _descriptorMap;
 
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly HashSet<Entity> _touched = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity>    _order   = new();
 
         // Parts pass: every non-master descriptor with its components (translator targets + group links), built once.
+        [Fdp.Core.NotState("descriptor table built once from static descriptor map")]
         private (long Ordinal, int[] Components)[]? _descriptorComponents;
         // ⭐ CE-3244 — the same components as masks: one per descriptor, and their union. The two per-frame passes test a whole
         //   entity, then a whole descriptor, with a few 512-bit operations instead of a presence + claim lookup per component.
         //   📐 300 civilians: 600 parts × 36 descriptors + 301 roots × 36 cost 8–9 ms/frame on SimHost and CGF.
+        [Fdp.Core.NotState("bit masks built once from static descriptor map")]
         private BitMask512[]? _descriptorMasks;
+        [Fdp.Core.NotState("bit mask built once from static descriptor map")]
         private BitMask512 _anyDescriptorComponent;
         private EntityQuery? _parts;
         private EntityQuery? _roots;
@@ -83,12 +88,15 @@ namespace Fdp.Toolkit.Replication.Systems
         }
 
         /// <summary>Diagnostics: descriptors skipped because their present components were only partly claimed.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int SplitDescriptorsSkipped { get; private set; }
 
         /// <summary>Diagnostics: components added after birth that took the record's "mine".</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public int LateComponentsClaimed { get; private set; }
 
         /// <summary>Diagnostics: part component claims the parts pass changed.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public int PartClaimsChanged { get; private set; }
 
         public void Execute(ISimulationView view, float dt)
@@ -138,8 +146,10 @@ namespace Fdp.Toolkit.Replication.Systems
         //   structural change already arrives as an event the first pass handles (OwnershipUpdate, ConstructionOrder ⇒ Touch ⇒ Recompute) — a
         //   part follows its ROOT's record, so a touched root re-visits its parts. ⚠ `>=`: a world that never ticks (a unit rail) visits all,
         //   as before; the first run (version 0) visits all.
+        [Fdp.Core.WorldDerived("change-scan watermark: first run (0) visits all; derived incremental-scan marker (CE-2390)")]
         private uint _lastRunVersion;
         /// <summary>⭐ CE-2390 — the roots and parts the two scans examined in the last run (a rail proves a quiet frame examines none).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic count of entities examined last run, reset at line 136")]
         public int ScannedLastRun { get; private set; }
         private bool Changed(EntityRepository repo, Entity e) => repo.GetMetadata(e.Index).LastChangeTick >= _lastRunVersion;
 

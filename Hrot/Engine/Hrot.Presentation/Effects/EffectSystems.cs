@@ -46,6 +46,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <summary>⭐ CE-1113 (§6v AD-V6) — the highest a burst may be above the ground and still scorch it (m).</summary>
     public const float DecalMaxBurstHeight = Hrot.Look.Effects.EffectRules.DecalMaxBurstHeight;   // ⭐ CE-4671 LK-S1 — the rule's
 
+    [Fdp.Core.FrameScratch("scratch — rebuilt from the query on every housekeeping pass")]
     private readonly List<(double BornAt, Entity Entity)> _decals = new();
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
@@ -61,6 +62,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     internal bool RecordsHits => Hrot.Common.Infrastructure.HudFeatures.RecordsHitFeedback(FeatureGate?.Invoke());
 
     /// <summary>Effects made in the last tick, by kind — the rail's counter.</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
     public int Spawned { get; private set; }
 
     /// <summary>
@@ -83,6 +85,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     }
 
     /// <summary>⭐ CE-4600 — barriers broken / bumped open whose dust was spawned (a rail).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of contact-break effects")]
     public int ContactBreaks { get; private set; }
 
     /// <summary>
@@ -106,6 +109,26 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         }
     }
 
+    /// <summary>⭐ CE-5034 — panes heard shattering this frame (a rail).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of broken-window effects, reset at 121")]
+    public int WindowsBroken { get; private set; }
+
+    /// <summary>
+    /// ⭐ CE-5034 (glass windows GW-3, D-8; 📄 docs/DESIGN_Glass_Windows.md §6a) — every <see cref="Fdp.Toolkit.Terrain.WindowBrokenEvent"/> of this frame (raised where the window
+    /// was decided, carried to every node by its event id) queues the breaking glass for the player's audio. The shards' flight is the 3-D map's (<c>GlassLayer3D</c>, a state
+    /// change it sees); the AI's hearing is the sim's own (<c>SoundEmissionSystem</c>).
+    /// </summary>
+    private void TrackWindows(ISimulationView view, EntityRepository world)
+    {
+        WindowsBroken = 0;
+        if (!world.Bus.IsRegistered<Fdp.Toolkit.Terrain.WindowBrokenEvent>()) return;
+        foreach (ref readonly var g in view.ReadEvents<Fdp.Toolkit.Terrain.WindowBrokenEvent>())
+        {
+            Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Glass(new Vector3(g.X, g.Y, g.Z)));
+            WindowsBroken++;
+        }
+    }
+
     public void Execute(ISimulationView view, float deltaTime)
     {
         Spawned = 0;
@@ -119,6 +142,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         Housekeep(world, cmd, tkb);
         MoveDecoys(world, now);   // ⭐ CE-1115
         TrackContacts(view, world, cmd, tkb, now);   // ⭐ CE-4600 (B-3b, V-17)
+        TrackWindows(view, world);   // ⭐ CE-5034 (GW-3, D-8)
 
         if (world.Bus.IsRegistered<WeaponFireNotification>())
         {
@@ -196,6 +220,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     }
 
     /// <summary>⭐ <c>CE-1194</c> — landings drawn as dust only in the last tick (the rail's counter).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostics counter")]
     public int InertLandings { get; private set; }
 
     /// <summary>⭐ <c>CE-1194</c> — a thrown inert item (moved to the shared rule, CE-4671 LK-S1: <see cref="Hrot.Look.Effects.EffectRules.IsInertHandItem"/>).</summary>
@@ -211,6 +236,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     public static Quaternion MarkRotation(Vector3 normal) => Hrot.Look.Effects.EffectRules.MarkRotation(normal);
 
     /// <summary>Impact marks made in the last tick — the rail's counter (CE-1129).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostics counter")]
     public int ImpactsDrawn { get; private set; }
 
     /// <summary>
@@ -290,6 +316,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     private static Vector3 AimPointOf(ISimulationView view, Entity shooter)
         => view is EntityRepository world && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, shooter, out var p) ? p : Vector3.Zero;
 
+    [Fdp.Core.FrameScratch("effect specs list: cleared before each rule output (103,172,195,212)")]
     private readonly List<Hrot.Look.Effects.EffectSpec> _specs = new();   // ⭐ CE-4671 LK-S1 — the rule's output, reused (0 B steady)
 
     /// <summary>⭐ CE-4671 LK-S1 — an effect entity for every spec the shared rule gave, in its order (the order effects were always made).</summary>
@@ -354,14 +381,18 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 [TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class WreckSpawnSystem : IEcsModuleSystem
 {
+    [Fdp.Core.WorldDerived("visual edge memory (first seen never burns); designed to drop on replay/world change")]
     private readonly Dictionary<Entity, bool> _wasDestroyed = new();
+    [Fdp.Core.WorldDerived("scratch cleared before each pass")]
     private readonly HashSet<Entity> _seen = new();
+    [Fdp.Core.WorldDerived("scratch cleared before each use")]
     private readonly List<Entity> _gone = new();
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
     private int _epoch;   // ⭐ CE-3294 — the world _wasDestroyed describes
 
     /// <summary>Effect entities made in the last tick — the rail's counter.</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
     public int Spawned { get; private set; }
 
     public void Execute(ISimulationView view, float deltaTime)

@@ -42,12 +42,15 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly NodeId _localNodeId;
 
         // Keyed by commander net ID. Value = list of subordinate entities waiting for that commander.
+        [Fdp.Core.ProtocolCache("deferred commander assignments awaiting spawn of commander; cleared on world epoch move")]
         private readonly Dictionary<long, List<(Entity Subordinate, TacticalDesignation Designation, FireTeam Team)>> _pendingSubordinates = new();
 
         // Keyed by subordinate net ID. Used when the subordinate itself has not yet spawned.
+        [Fdp.Core.ProtocolCache("deferred assignments awaiting spawn of subordinate; cleared on world epoch move")]
         private readonly Dictionary<long, (int CommanderNetId, TacticalDesignation Designation, FireTeam Team)> _pendingUnspawnedSubordinates = new();
 
         // Fired by NetworkEntityMap when a new entity is registered. Used to drain both pending queues.
+        [Fdp.Core.WorldDerived("registration-event queue drained and cleared every PollIngress")]
         private readonly List<int> _recentlyRegistered = new();
         private int _worldEpoch;   // ⭐ CE-3076 — per-id bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
 

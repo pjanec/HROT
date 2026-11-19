@@ -203,6 +203,11 @@ namespace Hrot.AI.Behaviors.Brains
                         .Sequence(posted => posted
                             .Condition(bb => bb.Peek, PostureNodes.PostedWithThreat)
                             .StatefulAction(bb => bb.Peek, bb => bb.PeekState, PeekAndFireNodes.PeekAndFire))
+                        // ⭐⭐ CE-3463 — and with NOTHING to fight, a man at a frame post watches from it, leaned out (D-2l DA-80), whatever the
+                        //   decision says (its AdvanceAndAttack wins with no enemy and never leans: he stood behind the wall, blind)
+                        .Sequence(watch => watch
+                            .Condition(bb => bb.Peek, PostureNodes.AtFramePost)
+                            .StatefulAction(bb => bb.Peek, bb => bb.FrameWatchState, PostureNodes.HoldWatch))
                         .Sequence(advance => advance
                             .StatefulCondition(bb => bb.IsAdvance, bb => bb.Choice, UtilityNodes.IsOption)
                             .ObserverSelector(approach => approach

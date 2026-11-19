@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Combat.Systems
         //   here: a checkpoint restored into a fresh system carries them on.
 
         /// <summary>Irritant hits this node published (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Pulses { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

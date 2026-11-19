@@ -137,10 +137,13 @@ namespace Fdp.Toolkit.Civilians
     public sealed class CustodySystem : IEcsModuleSystem
     {
         /// <summary>Asks refused here (not in reach, not complying, nothing to apply) — rails and diagnostics read it.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public long Refused { get; private set; }
         /// <summary>Searches broken off (the soldier left, the man stopped complying).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Aborted { get; private set; }
         /// <summary>Searches finished.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Searched { get; private set; }
 
         /// <inheritdoc/>

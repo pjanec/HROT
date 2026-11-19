@@ -24,14 +24,17 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
     /// <summary>⭐ Q-1 (POC 2 of the parallel simulation; DESIGN_Parallel_Simulation §10.2) — stamp a blueprint blackboard's chunk only when a slot's
     /// bytes changed, not whenever a slot ran. Opt-in: <c>HROT_BP_STAMP_ON_CHANGE=1</c>; settable for tests.</summary>
+    [field: Fdp.Core.NotState("an experiment switch (`HROT_BP_STAMP_ON_CHANGE`), fixed at start-up (exp/perf)")]
     public static bool StampOnChange { get; set; } = EnvVars.Read(EnvVars.HrotBpStampOnChange) == "1";
     /// <summary>A larger payload is stamped as before (the compare would cost more than the false change it saves).</summary>
     private const int MaxComparedPayload = 16 * 1024;
+    [Fdp.Core.WorldDerived("scratch — one slot's payload copied before its tick and compared after (stamp on change, exp/perf); filled per slot")]
     private byte[] _before = new byte[256];   // ⭐ reused, grown, never shrunk — 0 B per steady tick
     private readonly IReloadLogSink    _logSink;
 
     // ⭐ O3a / B3: one query per tier, built FROM the ladder, index-aligned with
     //   BlueprintTierTable.Ascending. ⛔ Was three named fields and three named methods.
+    [Fdp.Core.WorldDerived("cached queries built on first tick")]
     private EntityQuery?[]? _tierQueries;
 
     /// <summary>

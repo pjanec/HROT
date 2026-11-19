@@ -43,6 +43,7 @@ namespace Fdp.Toolkit.Combat.Systems
     [TickMode(TickPolicy.WhenTimeAdvances)]
     public class FireProcessingSystem : IEcsModuleSystem
     {
+        [Fdp.Core.WorldDerived("scratch refilled per shot")]
         private readonly System.Collections.Generic.List<Vector3> _bodyPoints = new(3);   // ⭐ P-2 scratch (main thread)
 
         public void Execute(ISimulationView view, float deltaTime)

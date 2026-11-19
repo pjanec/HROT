@@ -155,6 +155,17 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             Write(ref s.Weapon, 0, ActionReason.None, Entity.Null, 0f, 0f, Now(world));
         }
 
+        /// <summary>⭐ <c>CE-4669</c> — no locomotion action runs: the LOCOMOTION row says nothing instead of keeping the last executor's
+        /// word (the weapon row's CE-2333, for the move). 📐 live real-1: men that never moved read "moving" — a move stopped from outside,
+        /// a dead man's (CE-4668), a lost CanMove all left the last "moving" standing. A no-op when the row is already clear.</summary>
+        public static void ClearLocomotion(EntityRepository world, Entity unit)
+        {
+            if (!world.IsComponentTypeRegistered<ActionStatus>() || !world.HasComponent<ActionStatus>(unit)) return;
+            if (world.GetComponentRO<ActionStatus>(unit).Locomotion.Reason == ActionReason.None) return;
+            ref var s = ref world.GetComponentRW<ActionStatus>(unit);
+            Write(ref s.Locomotion, 0, ActionReason.None, Entity.Null, 0f, 0f, Now(world));
+        }
+
         /// <summary>Sets <paramref name="unit"/>'s LOCOMOTION row.</summary>
         public static void Locomotion(EntityRepository world, Entity unit, ushort actionId, ActionReason reason,
             float progress = 0f, float needed = 0f)

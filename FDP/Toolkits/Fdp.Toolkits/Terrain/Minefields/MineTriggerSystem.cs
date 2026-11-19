@@ -71,11 +71,17 @@ namespace Fdp.Toolkit.Terrain
             public float Width;
             public byte SidePlus1;
         }
+        [Fdp.Core.SimulationMemory("per-clearer lane in progress: Entry, Exit, Width, side; EndLane publishes LaneCleared from it")]
         private readonly Dictionary<Entity, ClearState> _clearers = new();
+        private int _worldEpoch;
         private EntityQuery? _clearQuery;
+        [Fdp.Core.FrameScratch("mines-cleared batch rows: filled from _batchCount 0 and flushed at end of the pass (545)")]
         private readonly short[] _batchRow = new short[MinesCleared.MaxMines];
+        [Fdp.Core.FrameScratch("mines-cleared batch cols: filled from _batchCount 0 and flushed at end of the pass (545)")]
         private readonly short[] _batchCol = new short[MinesCleared.MaxMines];
+        [Fdp.Core.FrameScratch("batch count reset to 0 by Flush at the end of each pass")]
         private int _batchCount;
+        [Fdp.Core.NotState("line-charge ballistics read once lazily from the TKB (ReadAmmo)")]
         private float _lcPen, _lcDmg;
 
         private sealed class FieldCache
@@ -89,25 +95,39 @@ namespace Fdp.Toolkit.Terrain
             public int Stamp;
         }
 
+        [Fdp.Core.WorldDerived("per-field outline/bounds cache refreshed each frame (Stamp) and cleared on world move")]
         private readonly Dictionary<Entity, FieldCache> _fields = new();
+        [Fdp.Core.WorldDerived("previous position per body for the swept test; a body seen later starts from its first sight")]
         private readonly Dictionary<Entity, Vector2> _last = new();
+        [Fdp.Core.WorldDerived("per-body mass memo recomputed on demand")]
         private readonly Dictionary<Entity, float> _mass = new();
+        [Fdp.Core.FrameScratch("mines fired this frame: cleared at 134 each run")]
         private readonly HashSet<long> _firedThisFrame = new();
+        [Fdp.Core.ProtocolCache("mines struck, awaiting their strike record in the world (PendingSeconds=20): in-flight, cleared at world move")]
         private readonly Dictionary<long, float> _pending = new();
+        [Fdp.Core.WorldDerived("cache of mines already gone, re-derived from the strike records via IsGone")]
         private readonly HashSet<long> _gone = new();
+        [Fdp.Core.FrameScratch("outline buffer filled by TryOutline per field refresh")]
         private readonly List<Vector2> _scratch = new();
+        [Fdp.Core.FrameScratch("the dead keys to drop this run: cleared before each pass")]
         private readonly List<Entity> _stale = new();
+        [Fdp.Core.FrameScratch("expired pending keys: cleared at 567 inside Expire")]
         private readonly List<long> _expired = new();
         private EntityQuery? _fieldQuery, _bodyQuery;
         private EntityRepository? _queryRepo;
+        [Fdp.Core.WorldDerived("refresh stamp marking which cached fields still exist this frame")]
         private int _stamp, _frame;
+        [Fdp.Core.NotState("flag: munition ballistics already read from the TKB")]
         private bool _ammoRead;
+        [Fdp.Core.NotState("munition ballistics value read once lazily from the TKB (ReadAmmo)")]
         private float _apPen, _apDmg, _atPen, _atDmg;
 
         /// <summary>Mines set off since the system was built (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of mine strikes")]
         public long Struck { get; private set; }
 
         /// <summary>⭐ MS-T4 — mines cleared by a plough, a flail or a line charge since the system was built (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of cleared mines (used as a before/after delta in one pass)")]
         public long Cleared { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -116,6 +136,7 @@ namespace Fdp.Toolkit.Terrain
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<Minefield>() || !repo.IsComponentTypeRegistered<SimTransform>() || !repo.IsComponentTypeRegistered<PhysicsCollider>()) return;
             if (!repo.Bus.IsRegistered<MineStruck>() || !repo.Bus.IsRegistered<DetonationNotification>()) return;
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(repo, ref _worldEpoch)) _queryRepo = null;   // ⭐ R-4297 ② (CE-1980) — a world replacement (a reload reuses the handles, a restore) forgets the per-field, per-body and per-clearer caches (rebuilt below)
             if (!ReferenceEquals(repo, _queryRepo))
             {
                 _fieldQuery = repo.Query().With<Minefield>().With<SimTransform>().Build();
@@ -347,6 +368,7 @@ namespace Fdp.Toolkit.Terrain
                 Penetration = anti ? _atPen : _apPen, Damage = anti ? _atDmg : _apDmg,
                 Ammo = anti ? Minefields.MunitionAntiTank : Minefields.MunitionAntiPersonnel,
                 TravelX = 0f, TravelY = 0f, TravelZ = anti ? 1f : 0f,
+                TriggeredBy = anti ? Entity.Null : body,   // ⭐ CE-4654 D-3 — the man who stepped on it: the area effect maims exactly him
             });
         }
 

@@ -197,6 +197,7 @@ namespace Fdp.Toolkit.Replay
         /// <summary>⭐ CE-3329 P1 (row 7) — the recording's wall ↔ sim map, built once from the frame index (no frame decoded);
         /// <see cref="ReplayTimeMap.Empty"/> for a listener or a v6 recording.</summary>
         public ReplayTimeMap TimeMap => _timeMap ??= _playback != null ? ReplayTimeMap.FromRecording(_playback) : ReplayTimeMap.Empty;
+        [Fdp.Core.WorldDerived("the recording's sim/wall time map (CE-3329 P1), derived lazily from the file's frame index")]
         private ReplayTimeMap? _timeMap;
 
         /// <summary>⭐ CE-3329 (§9f) — the recording's checkpoint marks (its <c>.meta.json</c>); empty for a listener.</summary>

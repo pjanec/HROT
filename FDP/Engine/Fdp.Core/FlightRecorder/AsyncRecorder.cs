@@ -15,6 +15,7 @@ namespace Fdp.Core.FlightRecorder
     /// Implements FDP-DES-004 design for non-blocking snapshot capture.
     /// **Zero-allocation after initialization** on hot path.
     /// </summary>
+    [Fdp.Core.WorldDerived("flight-recorder output buffers/counters; not simulation state")]
     public class AsyncRecorder : IDisposable
     {
         private const int BUFFER_SIZE = 32 * 1024 * 1024; // 32MB Buffer — the STARTING size of each frame buffer

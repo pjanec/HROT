@@ -27,6 +27,7 @@ namespace Hrot.Network.Translators
     /// so one DDS sample covers the entire cluster's routing table for a single entity.
     /// </para>
     /// </summary>
+    [Fdp.Core.NotState("translator with only readonly fields (endpoint, ids); classified on its own")]
     public sealed class DeferredTakeOwnershipEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<DeferredTakeOwnership>? _writer;

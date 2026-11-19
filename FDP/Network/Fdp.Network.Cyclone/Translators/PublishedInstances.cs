@@ -31,6 +31,7 @@ namespace Fdp.Network.Cyclone.Translators
     }
 
     /// <inheritdoc cref="PublishedInstances"/>
+    [Fdp.Core.ProtocolCache("the egress record: what this writer published (the send-on-change cache and the delete list); OnFrame forgets it on WorldEpoch.Moved (CE-4007)")]
     public sealed class PublishedInstances<T> where T : struct
     {
         private readonly Action<T>? _write, _dispose, _unregister;   // null ⇒ a writer-less test seam: nothing goes on the wire

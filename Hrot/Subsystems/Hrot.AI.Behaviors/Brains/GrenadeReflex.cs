@@ -350,9 +350,13 @@ namespace Hrot.AI.Behaviors.Brains
     public sealed class GrenadeDangerSystem : IEcsModuleSystem
     {
         private readonly bool _gateOnAuthority;
+        [Fdp.Core.WorldDerived("scratch — rebuilt every frame by GrenadeDanger.Lying (CE-2360)")]
         private readonly List<LiveGrenade> _rounds = new();
+        [Fdp.Core.SimulationMemory("(man,round) pairs that already reacted to a lying grenade: one-shot per pair, cleared only when no rounds")]
         private readonly HashSet<(ulong Man, ulong Round)> _reacted = new();
+        [Fdp.Core.SimulationMemory("per replica round FirstAt/Last/StillSince: the fuze already elapsed is computed from FirstAt (Lying)")]
         private readonly Dictionary<ulong, ReplicaSighting> _seen = new();
+        [Fdp.Core.FrameScratch("scratch — cleared before each grenade's pass and filled from this frame's world")]
         private readonly List<(Entity Man, float Distance)> _near = new();
         private EntityQuery? _people;
 

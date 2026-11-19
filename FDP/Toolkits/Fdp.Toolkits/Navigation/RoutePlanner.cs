@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Navigation
     /// <para>⭐ One instance per caller thread: the waypoint list and the router's search arrays are reused (R-220).</para>
     /// 📄 docs/designs/navig-2/Navigation_Design_v2_0.md §5.2a.
     /// </summary>
+    [Fdp.Core.WorldDerived("reusable scratch point/traversal lists; planner config")]
     public sealed class RoutePlanner
     {
         /// <summary>

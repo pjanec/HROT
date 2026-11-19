@@ -41,6 +41,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Crash,
         /// <summary>⭐ CE-4623 (animals AU-8) — an ANIMAL sound (a call, a bark, hooves, wings), generated from its species and line (<c>AnimalSoundCatalog</c>, ids 7800–7895). Appended.</summary>
         Animal,
+        /// <summary>⭐ CE-5034 (glass windows GW-3, D-8) — a PANE SHATTERED: a sharp crack, then glass tinkling down. Appended.</summary>
+        Glass,
     }
 
     /// <summary>

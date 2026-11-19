@@ -52,6 +52,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly FdpEventBus _eventBus;
         private readonly GhostCreationSystem _ghostCreationSystem;
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
+        [Fdp.Core.ProtocolCache("replica-round net-ids to destroy on dispose; re-derivable from LightweightRound tag; epoch-cleared")]
         private readonly HashSet<long> _lightweight = new();   // ⭐ LR-2 — the replicated rounds this node holds, destroyed on dispose
         private EntityRepository? _world;
 

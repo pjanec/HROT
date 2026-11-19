@@ -99,6 +99,20 @@ namespace Hrot.Look.Vehicles
         }
 
         /// <summary>
+        /// ⭐ CE-4670 (§6a head out, §7d D-3 / D-5) — is a crewman's head out of opening <paramref name="id"/> (a hatch marked <see cref="OpeningSlot.CrewExposed"/>
+        /// by the boarding arbiter)? By the opening's TKB id, like <see cref="OpeningProgress"/>; false when there is no such opening.
+        /// </summary>
+        public static bool CrewExposed(EntityRepository world, Entity vehicle, byte id)
+        {
+            if (!world.IsComponentTypeRegistered<VehicleOpenings>() || !world.HasComponent<VehicleOpenings>(vehicle)) return false;
+            var openings = VehicleOpeningsCatalog.Of(TypeOf(world, vehicle));
+            ref readonly var state = ref world.GetComponentRO<VehicleOpenings>(vehicle);
+            for (int i = 0; i < openings.Length && i < state.Count; i++)
+                if (openings[i].Id == id) return state.Slots[i].CrewExposed;
+            return false;
+        }
+
+        /// <summary>
         /// VA-4 — opening <paramref name="id"/>'s animation progress at <paramref name="now"/> (0 closed … 1 open), for the opening with that TKB id (a renderer
         /// maps its model by id / socket, never by slot). Delegates to <see cref="VehicleOpenings.Progress"/> — THE one progress rule — with the type's open seconds.
         /// 0 when the vehicle has no openings, or no opening with that id.

@@ -89,7 +89,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtEntityGuid;
         private readonly DdsReader<EntityStableGuid>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("received samples waiting for their entity to exist (waiting ingress)")]
         private readonly Dictionary<int, Guid> _waiting = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("ids applied this pass: cleared at the top of each ingress pass")]
         private readonly List<int> _applied = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityStableGuid>();
@@ -111,6 +114,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _waiting.Clear(); }   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the samples waiting for their entity (they named the old world)
             if (_reader is not null)
             {
                 using var loan = _reader.Take();

@@ -53,11 +53,15 @@ from outside does (the user, another session, a scheduled task). All sessions sh
 ① commit the row (only your own files, by path) and push your branch
 ② rewrite your status file (§4) and push it
 ③ git fetch origin coordinator behaviors backend terrain ui convoy
-④ ⭐ NEW WORK FOR YOU? — git diff --name-only HEAD...origin/coordinator -- docs/blueprints/batches/ | grep -E "To_<Lane>|To_All|DECISIONS_<Lane>"
+④ ⭐ NEW WORK FOR YOU? — from EVERY lane, not only coordinator, and case-INSENSITIVE (📌 `2026-11-18`: terrain's `HANDOFF_Terrain_To_UI_*`
+   and backend's "drawing is yours" notes sat unseen while ui reported idle):
+   for b in coordinator backend behaviors terrain ui convoy; do git diff --name-only HEAD...origin/$b -- docs/blueprints/batches/; done \
+     | sort -u | grep -iE "To_<Lane>|To_All|DECISIONS_<Lane>"
    a new HANDOFF_*_To_<Lane>_* or STEER_* ⇒ append its rows to your queue at the priority IT states (a STEER pre-empts; a handoff goes
    after your current one unless it says "first"); record "taken" in your status;
    a new **DECIDED** answer in DECISIONS_<Lane>.md ⇒ the SKIPPED row goes back into your queue (it counts as new work, idle or not)
-⑤ read every NOTE_*_To_<Lane>_* new since your last loop; answer a REQUEST (do it next if small, else queue it and say when)
+⑤ read every NOTE_*_To_<Lane>_* new since your last loop (from every lane, as ④); a note that hands you work ("drawing it is yours") IS a
+   request: queue it like a handoff row — ⛔ never report idle with an unanswered request in a note
 ⑥ merge what moved: git merge origin/coordinator, and every lane branch whose work yours touches (MERGE, never rebase); then
    `dotnet restore` the test projects you run (a merge can add a package — the stale-binary trap); conflicts keep BOTH sides
 ⑦ pick the next row that is NOT blocked (§3); a blocked or decision row is skipped, never waited on

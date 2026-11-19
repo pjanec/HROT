@@ -22,14 +22,17 @@ namespace Hrot.Presentation.Systems
     [TickMode(TickPolicy.EveryFrame)]
     public class CanvasMenuUpdateSystem : IEcsModuleSystem
     {
+        [Fdp.Core.NotState("static readonly menu item object")]
         private static readonly object MeasureItem = new { id = 200, label = "Measurement Tool" };
 
         private readonly AddEntityAction? _addEntity;
+        [Fdp.Core.WorldDerived("cache of menu JSON key; rebuilt on miss")]
         private (bool Available, string? Reason, bool Paste)? _builtFor;
 
         /// <summary>⭐ A5 C3 (📄 docs/UX/DESIGN_Entity_Copy_Paste.md §4) — whether this map's clipboard holds a copy: the menu then offers <i>Paste</i>
         /// (it arms the ONE paste tool, greyed with Add Entity's reason). Set by the map pack beside the clipboard; null ⇒ no Paste.</summary>
         public System.Func<bool>? CanPaste { get; set; }
+        [Fdp.Core.WorldDerived("cached menu JSON; rebuilt on miss")]
         private string _json = "";
 
         /// <summary>Creates the system. <paramref name="addEntity"/> is the map's shared Add Entity action

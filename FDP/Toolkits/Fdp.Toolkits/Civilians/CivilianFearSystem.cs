@@ -136,9 +136,12 @@ namespace Fdp.Toolkit.Civilians
         }
 
         // ⭐ CE-4623 AB-3 — the frame's threats for the flight zone: reused, grown never shrunk (0 B in the steady state)
+        [Fdp.Core.FrameScratch("threat array refilled from n=0 in the gather each run")]
         private Animals.AnimalFear.Threat[] _threats = new Animals.AnimalFear.Threat[64];
         /// <summary>⭐ CE-4649 part D (AN-21f) — the frame's hunters (positions), gathered with the threats: a hunting dog's handler is the nearest one. Reused, grown never shrunk.</summary>
+        [Fdp.Core.FrameScratch("this run's hunters: the count reset to 0 each run, refilled from this frame's world")]
         private (Entity Who, System.Numerics.Vector3 At)[] _hunters = new (Entity, System.Numerics.Vector3)[16];
+        [Fdp.Core.FrameScratch("hunter count reset to 0 at line 226 each run")]
         private int _nHunters;
         /// <summary>A hunting dog follows a hunter this near (m) and takes a fleeing animal this near for quarry (m).</summary>
         public const float HandlerReachM = 250f, QuarryReachM = 45f;

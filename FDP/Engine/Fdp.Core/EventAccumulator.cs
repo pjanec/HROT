@@ -24,6 +24,7 @@ namespace Fdp.Core
     /// <para>Keys are the caller's frame numbers (the kernel passes the live world's <c>GlobalVersion</c>); they must increase.
     /// A key that does not is a new timeline: the history restarts and every reader starts over at 0.</para>
     /// </summary>
+    [Fdp.Core.NotState("the event history modules read (the bus's own), not world state; Restart forgets it at a discontinuity")]
     public sealed class EventAccumulator
     {
         /// <summary>The default slot capacity: non-empty frames (or merged runs of them) a slow reader may fall behind by.</summary>

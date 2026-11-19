@@ -35,6 +35,7 @@ namespace Hrot.Editor.Systems;
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
 [TickMode(TickPolicy.EveryFrame)]
+[Fdp.Core.NotState("a system/module, classified on its own")]
 public sealed class EditorZoneAuthoringSystem : IEcsModuleSystem
 {
     private readonly Func<Hrot.Common.EntityCreation.EntityCreation?> _creation;

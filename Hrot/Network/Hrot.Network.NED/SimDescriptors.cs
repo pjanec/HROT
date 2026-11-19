@@ -146,6 +146,41 @@ namespace Hrot.NED.Descriptors
         [DdsManaged] public List<DdsWallBreach> Breaches;
     }
 
+    /// <summary>⭐ CE-5033 (glass windows GW-2) — one damaged window of <see cref="EntityWindowDamage"/>: its panel WITHIN the building (LOCAL, as a breach's), its opening on
+    /// that panel, its hits (1, 2; 3 = broken) and its two cracks (u, v on the pane, 0..255).</summary>
+    [DdsStruct]
+    public partial struct DdsWindow
+    {
+        public int Panel;
+        public byte Opening;
+        public byte Hits;
+        public byte U0;
+        public byte V0;
+        public byte U1;
+        public byte V1;
+    }
+
+    // ⭐ CE-5033 (docs/DESIGN_Glass_Windows.md D-3) — a building's damaged window panes, on its damage entity, published by the node that decided them and applied on every
+    //   other node (DoorStates.Windows unions every such entity). The KEY rides along (the EntityBuildingDamage shape). Reliable + TransientLocal + KeepLast(1): a late
+    //   joiner gets every damaged window.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityWindowDamage
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The SENDER's index of the building (diagnostic only: a receiver resolves it by <see cref="Key"/>).</summary>
+        public int Building;
+
+        /// <summary>The terrain-object key, <c>"&lt;terrain&gt;/&lt;building label&gt;"</c>.</summary>
+        public string Key;
+
+        [DdsManaged] public List<DdsWindow> Windows;
+    }
+
     /// <summary>⭐ CE-4591 (P-4) — one crater of <see cref="EntityGroundDamage"/>: its centre (terrain-local — the same terrain on every node, no index to resolve), its bowl, rim and birth.</summary>
     [DdsStruct]
     public partial struct DdsCrater
@@ -1979,6 +2014,8 @@ namespace Hrot.NED.Descriptors
         public byte  Family;
         /// <summary>⭐ CE-3283 — the TKB type that made it (a weapon / a munition), when the ear told it; 0 otherwise. A TYPE, never an entity.</summary>
         public long  Signature;
+        /// <summary>⭐ CE-4666 (D-8) — 1 when heard FROM an opening or a corner (the point is the way in, not the source).</summary>
+        public byte  Via;
     }
 
 }

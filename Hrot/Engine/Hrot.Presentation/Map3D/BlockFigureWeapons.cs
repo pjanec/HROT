@@ -144,32 +144,32 @@ public static partial class BlockFigure
         {
             // a box part runs along its x (-0.5 stock … 0.5 muzzle); y across, z up — in fractions of the part
             case HeldLook.MachineGun:
-                into.Add(new PartDetail(WeaponIndex, new(-0.06f, 0f, -0.95f), new(0.13f, 1.5f, 1.1f), olive));    // the box magazine
-                into.Add(new PartDetail(WeaponIndex, new(0.36f, 0f, -0.70f), new(0.24f, 0.45f, 0.35f), metal));   // the bipod, folded
+                into.Add(new PartDetail(WeaponIndex, new(-0.06f, 0f, -0.95f), new(0.13f, 1.5f, 1.1f), (olive).ToRgba()));    // the box magazine
+                into.Add(new PartDetail(WeaponIndex, new(0.36f, 0f, -0.70f), new(0.24f, 0.45f, 0.35f), (metal).ToRgba()));   // the bipod, folded
                 break;
             case HeldLook.ScopedRifle:
-                into.Add(new PartDetail(WeaponIndex, new(-0.02f, 0f, 1.05f), new(0.30f, 1.0f, 0.75f), metal));    // the scope
+                into.Add(new PartDetail(WeaponIndex, new(-0.02f, 0f, 1.05f), new(0.30f, 1.0f, 0.75f), (metal).ToRgba()));    // the scope
                 break;
             // a tube runs along its unit z (0 rear … 1 muzzle); its x is DOWN (−x up), y across, in diameters
             case HeldLook.Rpg:
-                into.Add(new PartDetail(WeaponIndex, new(0f, 0f, 1.10f), new(1.7f, 1.7f, 0.24f), olive));          // the warhead
-                into.Add(new PartDetail(WeaponIndex, new(0.85f, 0f, 0.48f), new(1.1f, 0.6f, 0.10f), metal));      // the grip
+                into.Add(new PartDetail(WeaponIndex, new(0f, 0f, 1.10f), new(1.7f, 1.7f, 0.24f), (olive).ToRgba()));          // the warhead
+                into.Add(new PartDetail(WeaponIndex, new(0.85f, 0f, 0.48f), new(1.1f, 0.6f, 0.10f), (metal).ToRgba()));      // the grip
                 break;
             case HeldLook.Manpads:
-                into.Add(new PartDetail(WeaponIndex, new(0.95f, 0f, 0.62f), new(1.1f, 0.8f, 0.10f), metal));      // the grip stock / battery
-                into.Add(new PartDetail(WeaponIndex, new(0f, 0f, 1.01f), new(1.15f, 1.15f, 0.03f), metal));       // the seeker cap
+                into.Add(new PartDetail(WeaponIndex, new(0.95f, 0f, 0.62f), new(1.1f, 0.8f, 0.10f), (metal).ToRgba()));      // the grip stock / battery
+                into.Add(new PartDetail(WeaponIndex, new(0f, 0f, 1.01f), new(1.15f, 1.15f, 0.03f), (metal).ToRgba()));       // the seeker cap
                 break;
             case HeldLook.MissileTube when posture != WeaponPostureKind.Aimed:
-                into.Add(new PartDetail(WeaponIndex, new(-0.15f, 0.70f, 0.55f), new(0.8f, 0.55f, 0.20f), metal)); // the sight
+                into.Add(new PartDetail(WeaponIndex, new(-0.15f, 0.70f, 0.55f), new(0.8f, 0.55f, 0.20f), (metal).ToRgba())); // the sight
                 break;
         }
         QuiverDetails(inHands, into);   // ⭐ CE-1976 (BW-10) — a bow's quiver / a crossbow's bolt case
         if (!HeldWeapons.IsSlungShown(slung) && !(inHands == HeldLook.Mortar && posture == WeaponPostureKind.AtEase)) return;
         // on his back, upright, sticking out above his shoulder (the torso box: −x is his back, z up)
         bool mortar = slung == HeldLook.Mortar || inHands == HeldLook.Mortar;
-        into.Add(new PartDetail(TorsoIndex, new(-0.66f, -0.18f, 0.30f), new(mortar ? 0.36f : 0.30f, mortar ? 0.24f : 0.20f, 1.65f), olive));
+        into.Add(new PartDetail(TorsoIndex, new(-0.66f, -0.18f, 0.30f), new(mortar ? 0.36f : 0.30f, mortar ? 0.24f : 0.20f, 1.65f), (olive).ToRgba()));
         if (mortar)   // its baseplate, at the bottom of the pack
-            into.Add(new PartDetail(TorsoIndex, new(-0.62f, 0f, -0.30f), new(0.12f, 0.95f, 0.55f), metal));
+            into.Add(new PartDetail(TorsoIndex, new(-0.62f, 0f, -0.30f), new(0.12f, 0.95f, 0.55f), (metal).ToRgba()));
     }
 
     /// <summary>⭐ CE-1173 (U12) — a toy's orange; ⭐ CE-1174 (U13) — a less-lethal weapon's yellow band.</summary>
@@ -181,8 +181,8 @@ public static partial class BlockFigure
     /// </summary>
     public static void MarkingDetail(HeldMarking marking, List<PartDetail> into)
     {
-        if (marking == HeldMarking.Toy) into.Add(new PartDetail(WeaponIndex, Vector3.Zero, new Vector3(1.04f, 1.12f, 1.12f), ToyOrange));
-        else if (marking == HeldMarking.LessLethal) into.Add(new PartDetail(WeaponIndex, new(0.18f, 0f, 0f), new(0.12f, 1.25f, 1.25f), LessLethalYellow));
+        if (marking == HeldMarking.Toy) into.Add(new PartDetail(WeaponIndex, Vector3.Zero, new Vector3(1.04f, 1.12f, 1.12f), (ToyOrange).ToRgba()));
+        else if (marking == HeldMarking.LessLethal) into.Add(new PartDetail(WeaponIndex, new(0.18f, 0f, 0f), new(0.12f, 1.25f, 1.25f), (LessLethalYellow).ToRgba()));
     }
 
     /// <summary>The two ends (body metres) of a part drawn by <see cref="Limb"/>: A its start, B its end.</summary>

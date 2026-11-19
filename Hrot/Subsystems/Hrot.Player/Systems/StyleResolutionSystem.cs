@@ -46,6 +46,7 @@ namespace Hrot.Player.Systems;
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
 [TickMode(TickPolicy.EveryFrame)]
+[Fdp.Core.NotState("a system/module, classified on its own")]
 public class StyleResolutionSystem : IEcsModuleSystem
 {
     private readonly MapUserConfig _userConfig;
@@ -64,6 +65,7 @@ public class StyleResolutionSystem : IEcsModuleSystem
     public ChangeGate Gate => _gate;
 
     /// <summary>How many entity walks actually ran (the gate skipped the rest) — for rails and diagnostics.</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of passes")]
     public int Passes { get; private set; }
 
     public StyleResolutionSystem(MapUserConfig userConfig, int localNodeId = 0)

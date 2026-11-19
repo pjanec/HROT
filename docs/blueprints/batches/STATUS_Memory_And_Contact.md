@@ -119,5 +119,5 @@ another unit's live claim happened ONCE. ⇒ the recovery is a rare-case fix-up 
 ⇒ ⭐ **sizing F-10 (callout de-duplication): new contacts arrive in BURSTS** — up to 96 units on one tick at the first sighting, 16 in a 900 s
 fight, ~25 every 10 s in the rig (a sensor period) ⇒ the de-dup at command playback must expect tens of same-tick callouts, not one or two.
 ⛔ **Found on the way — CE-3444:** in `uc-urban-battle` entity 60 re-commits its cover claim on 1 742 ticks from 20 s to 181 s, cycling four hide
-points 2–9 m apart — a unit thrashing between cover points (`HROT_CONTACT_PROBE_DETAIL=1` names it). Filed for the behaviors lane.
+points 2–9 m apart — a unit thrashing between cover points (`HROT_CONTACT_PROBE_DETAIL=1` names it). Filed for the behaviors lane. ✅ **`2026-11-19` (behaviors): not reproduced — the same probe at `behaviors@5e9c88d90` records 19 commits in the whole run (CE-3444 closed).**
 

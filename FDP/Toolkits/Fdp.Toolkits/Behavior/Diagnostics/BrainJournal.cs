@@ -69,6 +69,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         ParseFailed,
         /// <summary>⭐ <c>CE-4621</c> M-3 (CD-3) — the unit's current order forbids what the reaction does (<c>BehaviorConduct</c>).</summary>
         ForbiddenByOrder,
+        /// <summary>⭐ <c>CE-4668</c> — the unit is dead (Health 0): it runs nothing (OVERVIEW §8a).</summary>
+        Dead,
     }
 
     /// <summary>⭐ CE-4306 (edit framework F5) — the user's words for a <see cref="BrainRefusal"/>: the ONE text an order's refusal outcome carries.</summary>
@@ -85,6 +87,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             BrainRefusal.IsTheSop => "it is the unit's SOP",
             BrainRefusal.ParseFailed => "its parameters did not parse",
             BrainRefusal.ForbiddenByOrder => "its order forbids it",
+            BrainRefusal.Dead => "the unit is dead",
             _ => "refused",
         };
     }

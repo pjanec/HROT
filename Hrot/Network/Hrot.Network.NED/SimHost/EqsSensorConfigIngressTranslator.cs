@@ -31,17 +31,22 @@ namespace Hrot.Network.NED.SimHost
         private readonly NetworkEntityMap _entityMap;
         // Dictionary-cached entity lookup: (ParentNetworkId, LocalChildIndex) -> child ghost entity.
         // Avoids ECS query scans inside the polling loop (O(1) steady-state lookup).
+        [Fdp.Core.WorldDerived("carrier lookup cache; every hit revalidated via IsCarrierOf, else world scan")]
         private readonly Dictionary<(int ParentNetId, int ChildIndex), Entity> _childGhostCache = new();
 
         // ⭐ Samples whose parent or context-slot entities are not on this node YET. DDS Take() consumes
         // a sample, and the Brain re-sends only on change — so a sample applied too early (or dropped
         // because its parent was missing) would leave the sensor without its area FOREVER. Each poll
         // retries these; a sample leaves the set once its parent and every named slot resolve.
+        [Fdp.Core.ProtocolCache("config samples held until parent/slots resolve; epoch-cleared, resent on change only")]
         private readonly Dictionary<(int ParentNetId, int ChildIndex), Pending> _pending = new();
+        [Fdp.Core.WorldDerived("scratch cleared and refilled in ApplyPending")]
         private readonly List<(int ParentNetId, int ChildIndex)> _resolvedKeys = new();
         // Carriers created through the command buffer and not yet visible in the world.
+        [Fdp.Core.ProtocolCache("carriers created via command buffer not yet in world; epoch-cleared")]
         private readonly HashSet<(int ParentNetId, int ChildIndex)> _awaitingPlayback = new();
         // ⭐ CE-492 — per instance, the newest source time taken; an older sample is stale (two writers after an authority move).
+        [Fdp.Core.ProtocolCache("newest-source-time per instance for stale-sample drop; empty re-accepts old samples")]
         private readonly SourceTimeOrder<(int ParentNetId, int ChildIndex)> _order = new();
 
         private struct Pending
@@ -63,6 +68,7 @@ namespace Hrot.Network.NED.SimHost
         // ⭐ CE-3002 / R-179 — the config names its solver; only that node builds a carrier. 📄
         //   DESIGN_Ownership_Groups_And_Grants.md §5.8.
         private readonly NodeId _localNodeId;
+        [Fdp.Core.ProtocolCache("solver already written to ownership record; empty re-applies idempotently")]
         private readonly Dictionary<(int ParentNetId, int ChildIndex), int> _recordedSolver = new();
         private OwnershipApplier? _applier;
         private int _worldEpoch;   // ⭐ CE-3076 — per-key bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
@@ -359,6 +365,7 @@ namespace Hrot.Network.NED.SimHost
 
         /// <summary>Configs refused for malformed JSON / an unknown kind (R-186 M′) — never half-configured.</summary>
         public long RefusedConfigCount { get; private set; }
+        [Fdp.Core.WorldDerived("warn-once set for refused configs")]
         private readonly HashSet<(int ParentNetId, int ChildIndex)> _refusalLogged = new();
 
         private bool TryDecode((int ParentNetId, int ChildIndex) key, in EqsSensorConfigTopic data, out SensorEntryDto? config)

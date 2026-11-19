@@ -55,6 +55,7 @@ namespace Fdp.Toolkit.Replay
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class PlaybackTickSystem : IEcsModuleSystem
     {
         /// <summary>
@@ -87,9 +88,11 @@ namespace Fdp.Toolkit.Replay
         /// ⭐ The replay timeline's zero, in wall-clock ticks — the CLUSTER's, set from each seek. 0 = not yet known: the
         /// node's own first frame is used.
         /// </summary>
+        [field: Fdp.Core.SessionState("session state (the replay controller's own clock and mode, driven by its commands — not the world): cluster replay anchor sent by master on each seek")]
         public long AnchorWallTicks { get; set; }
 
         /// <summary>What this node is doing for the current replay moment.</summary>
+        [field: Fdp.Core.SessionState("session state (the replay controller's own clock and mode, driven by its commands — not the world): replay span mode (listening/restoring), re-derived each tick")]
         public ReplaySpanState State { get; private set; } = ReplaySpanState.Unsettled;
 
         /// <summary>The anchor in use: the cluster's when known, else this recording's first frame, else 0.</summary>
@@ -172,6 +175,7 @@ namespace Fdp.Toolkit.Replay
 
         // ⭐ CE-4056 — the clock's reading (seconds after the zero) when a seek was applied; cleared once the clock moves. The clock's own
         //   reading, not anchor + clock: the anchor may be set around the seek.
+        [Fdp.Core.SessionState("session state (the replay controller's own clock and mode, driven by its commands — not the world): the clock reading while a seek round completes; cleared once the clock moves (CE-4056)")]
         private double? _heldWhileClockAt;
 
         private void HoldUntilTheClockMoves() => _heldWhileClockAt = _timeController.GetCurrentState().TotalTime;

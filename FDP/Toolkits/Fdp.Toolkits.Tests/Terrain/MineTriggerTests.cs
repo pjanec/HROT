@@ -105,6 +105,7 @@ namespace Fdp.Toolkit.Terrain.Tests
             var d = Assert.Single(_bursts);
             Assert.Equal(Minefields.MunitionAntiPersonnel, d.Ammo);
             Assert.True(d.Target.IsNull);
+            Assert.Equal(man, d.TriggeredBy);   // ⭐ CE-4654 D-3 — the burst names the man who set it off (the area effect maims exactly him)
             Assert.Equal(0f, d.HitX, 3); Assert.Equal(0f, d.HitY, 3);
         }
 

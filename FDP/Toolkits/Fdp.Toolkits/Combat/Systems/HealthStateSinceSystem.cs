@@ -21,6 +21,7 @@ namespace Fdp.Toolkit.Combat.Systems
         private EntityQuery? _health;
 
         /// <summary>Stamps this node made (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of stamps")]
         public long Stamped { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

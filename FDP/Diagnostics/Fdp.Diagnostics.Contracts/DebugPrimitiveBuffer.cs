@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
     // Thread-safe append-only buffer of DebugPrimitive values.
     // Pre-allocated at construction; no per-frame heap allocation on the draw path.
     // When capacity is exhausted, primitives are silently dropped (DroppedCount tracks overflow).
+    [Fdp.Core.WorldDerived("debug-draw scratch with persistent re-emit lifetimes; diagnostics only")]
     public sealed class DebugPrimitiveBuffer : IDebugDrawBuilder
     {
         private DebugPrimitive[] _primitives;   // ⭐ CE-1470 — grows (never shrinks) at a frame reset after a frame that overflowed

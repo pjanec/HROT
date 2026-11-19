@@ -24,11 +24,15 @@ public class HierarchyOrderSystem : IEcsModuleSystem, IDisposable
         public uint TopologyVersion; // Dirty flag
     }
 
+    [Fdp.Core.WorldDerived("sort-dirty flag; starts true, recompute from VisHierarchyNode")]
     private bool _isDirty = true;
+    [Fdp.Core.WorldDerived("topological-sort output buffer rebuilt from VisHierarchyNode")]
     private NativeArray<Entity> _buffer;
+    [Fdp.Core.WorldDerived("count of sorted buffer; reset and refilled on each sort")]
     private int _bufferCount;
     
     // Cycle detection
+    [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
     private readonly HashSet<Entity> _visited = new();
     private int _epoch;   // ⭐ CE-3294 — the world the sorted buffer describes
 

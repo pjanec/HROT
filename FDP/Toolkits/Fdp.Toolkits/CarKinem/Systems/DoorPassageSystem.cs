@@ -42,17 +42,23 @@ namespace CarKinem.Systems
 
         private readonly TrajectoryPoolManager _pool;
         // ⭐ R-3039 S1 — each walker's passage is on the walker (DoorPassage), not here: a checkpoint restored into a fresh system carries it on.
+        [Fdp.Core.WorldDerived("door entity cache, re-found by key; cleared on WorldEpoch")]
         private readonly Dictionary<string, Entity> _doorEntities = new(System.StringComparer.Ordinal);
         private int _epoch;   // ⭐ CE-3294 — the world the door-entity cache below describes
+        [Fdp.Core.WorldDerived("scratch cleared before each use")]
         private readonly List<Entity> _stale = new();
         // ⭐ CE-4040 — per door this frame, the walker whose TURN it is: in reach, not yet through, nearest the door's centre
+        [Fdp.Core.FrameScratch("whose turn it is at each doorway, rebuilt every frame (CE-4040)")]
         private readonly Dictionary<int, (Entity Who, float Distance)> _turn = new();
 
+        [Fdp.Core.WorldDerived("frame stamp for stale sweep; only compared within frame")]
         private int _frame;
 
         /// <summary>Open commands this system raised (a rail and diagnostics read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public long OpenCommandsSent { get; private set; }
         /// <summary>Replans this system requested because a door ahead could not be passed.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public long DoorReplans { get; private set; }
 
         public DoorPassageSystem(TrajectoryPoolManager pool) => _pool = pool;

@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Hub
     // Bounded memory: at most one entry per active gizmo instance.
     //
     // Design: DESIGN.md §2.3
+    [Fdp.Core.WorldDerived("pending UI state mailbox for gizmo UI")]
     public sealed class LocalGizmoUiStateTransport : IGizmoUiStatePublisher
     {
         private readonly ConcurrentDictionary<uint, GizmoUiState> _pending = new();

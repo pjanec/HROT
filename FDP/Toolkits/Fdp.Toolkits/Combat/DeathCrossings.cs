@@ -13,6 +13,7 @@ namespace Fdp.Toolkit.Combat
     /// instance: <see cref="Crossed"/> (alive → dead) or <see cref="Changed"/> (any state → another, ⭐ <c>CE-4661</c>: the injury state's time,
     /// <c>HealthStateSinceSystem</c>) — the same rule (a change is something SEEN to change; first sight is none).
     /// </summary>
+    [Fdp.Core.WorldDerived("which bodies this system saw alive; forgets on a new world epoch and in a replay - a body first seen dead makes no crossing")]
     public sealed class DeathCrossings
     {
         private readonly Dictionary<Entity, byte> _last = new();

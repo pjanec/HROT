@@ -66,6 +66,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <c>BlueprintTierTable.Ascending</c>; an entry is <c>null</c> where that tier is not
         /// registered on this world, so the walk must skip nulls.
         /// </summary>
+        [Fdp.Core.WorldDerived("cached queries built on first tick")]
         private EntityQuery?[]? _tierQueries;
 
         /// <summary>
@@ -74,11 +75,14 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// ⭐ ONE dictionary for both paradigms, which is correct by construction: an entity has ONE
         /// brain, selected by <c>BehaviorState.BrainTier</c>.
         /// </summary>
+        [Fdp.Core.ProtocolCache("terminal-event published-once latch; cleared on WorldEpoch")]
         private readonly Dictionary<int, uint> _publishedTerminalForInstanceId = new();
         private int _worldEpoch;   // ⭐ CE-3076 — the dedup records belong to ONE world (WorldEpoch, CE-2101)
 
         // Reusable buffers for the stale-entry sweep; avoids per-frame heap allocation.
+        [Fdp.Core.WorldDerived("scratch cleared each sweep")]
         private readonly HashSet<int> _seenThisFrame = new();
+        [Fdp.Core.WorldDerived("scratch cleared each sweep")]
         private readonly List<int>    _staleKeys     = new();
 
         /// <summary>
@@ -117,6 +121,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <c>SensorChangedEvent</c> (the SOP slot's wake). ⚠ Its tick still receives ONE frame's dt (<c>Run</c> passes the frame's), so a
         /// dt-integrating timer inside a brain runs slow — measured, not fixed (docs/DESIGN_Evaluation_Cost_And_Cadence.md §3 D6). 0 = off.
         /// </summary>
+        [Fdp.Core.NotState("static experimental configuration value")]
         public static float ExperimentalSoldierCadence =
             float.TryParse(EnvVars.Read(EnvVars.HrotSoldierCadence), System.Globalization.NumberStyles.Float,
                            System.Globalization.CultureInfo.InvariantCulture, out var cadenceSeconds) && cadenceSeconds > 0f ? cadenceSeconds : 0f;
@@ -158,6 +163,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 throw new InvalidOperationException(
                     $"{nameof(BrainTickSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
+
+            RetireTheDead(repo);   // ⭐⭐ CE-4668 — serial, before either path (it clears slots — structural)
 
             // ⭐⭐⭐ DISCOVERY IS THE TIER WALK — the shape BlueprintTickSystem has had since B3, and
             //   which BTree adopted in O7c-②. 📐 There is no brain COMPONENT left to query on: both
@@ -291,6 +298,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>⭐ N-11 — the brains run as a per-entity parallel phase: with the engine's parallel simulation (<c>HROT_PARALLEL_SIM=1</c>,
         /// <see cref="ParallelEntities.Enabled"/> — the switch every converted per-entity system follows) or the threaded node
         /// (<c>HROT_THREADED_KERNEL=3</c>). Off by default; tests set it.</summary>
+        [Fdp.Core.NotState("static switch choosing the parallel brain phase, read from the environment/kernel gate")]
         public static bool Parallel = (ParallelEntities.Enabled || Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds)
             && EnvVars.Read(EnvVars.HrotSerialBrains) != "1";   // ⭐ N-15 — the measuring switch: this phase alone serial
 
@@ -303,7 +311,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             public int Reader;   // the cadence reader (-1: an every-frame brain, no window)
         }
 
+        [Fdp.Core.FrameScratch("per-tick due array filled from n=0 and cleared after the tick (366)")]
         private Due[] _due = new Due[64];
+        [Fdp.Core.FrameScratch("per-tick due entity array filled from n=0 each run")]
         private Entity[] _dueEntities = new Entity[64];
 
         private const int StatusShift = 2;   // Deferred.Code = due index << 2 | status (0 running, 1 success, 2 failure)
@@ -362,7 +372,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         }
 
         private EntityRepository? _phaseRepo;
+        [Fdp.Core.FrameScratch("delta copied at the phase start (361) and read only inside the phase")]
         private float _phaseDelta;
+        [Fdp.Core.FrameScratch("time copied at the phase start (361) and read only inside the phase")]
         private double _phaseNow;
 
         /// <summary>② — one unit's tick on its batch thread (Run's parallel half).</summary>
@@ -419,7 +431,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         private const int NoWindow = -1;
         private EventAccumulator? _history;
         private EventAccumulator? _readersHistory;
+        [Fdp.Core.WorldDerived("entity to cadence-history reader id registrations, re-registered on demand (ReaderOf)")]
         private readonly Dictionary<int, (Entity Entity, int Reader)> _cadenceReaders = new();
+        [Fdp.Core.WorldDerived("counter scheduling the stale-reader sweep every 300 ticks")]
         private int _cadenceSweep;
 
         /// <summary>The cadence readers held now — a rail reads it to prove an indefinite sleep or a dead slot releases its reader.</summary>
@@ -462,6 +476,42 @@ namespace Fdp.Toolkit.Behavior.Systems
             else ReleaseCadenceReader(entity.Index);   // asleep until woken: it reads nothing, so it must not pin the history
         }
 
+        private EntityQuery? _deadQuery;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4668</c> (📐 live street fight, real-1: two men at Health 0 showed <c>doing = Break</c> from 470 s on, Locomotion
+        /// "moving") — a DEAD unit (Health 0, <c>CombatLife.IsAlive</c>) runs NOTHING (OVERVIEW §8a): the task a man was running when he died
+        /// is ended (journal <c>TaskEnded</c>, the finished event), the task it paused is dropped (never resumed), and his move is stopped.
+        /// ⛔ SUPERSEDED: death stripped his move and fire (<c>HealthApplicationSystem.StopTheDown</c>) but the brain went on ticking the
+        /// task. A man DOWN but alive (incapacitated) is untouched here. Only where this node owns his brain; no allocation in the steady state.
+        /// </summary>
+        private void RetireTheDead(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>()) return;
+            _deadQuery ??= repo.Query().With<BehaviorState>().With<Fdp.Toolkit.Combat.Components.Health>().WithOwnedWhen<BehaviorState>(_gateOnAuthority).Build();
+            foreach (var e in _deadQuery)
+            {
+                if (repo.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Current > 0f) continue;
+                ref readonly var b = ref repo.GetComponentRO<BehaviorState>(e);
+                bool paused = repo.TryGetTable(typeof(PausedTask), out _) && repo.HasManagedComponent<PausedTask>(e);
+                if (b.ActiveBehaviorHash == BehaviorIds.None && !paused) continue;
+                if (paused) BehaviorIngressSystem.DropPausedTask(repo, e, _registry);
+                if (b.ActiveBehaviorHash != BehaviorIds.None)
+                {
+                    var origin = b.Origin; int hash = b.ActiveBehaviorHash;
+                    repo.Bus.Publish(new BehaviorFinishedEvent { Entity = e, Result = NodeStatus.Failure, Origin = origin });
+                    Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.Write(repo, e, Fdp.Toolkit.Behavior.Diagnostics.BrainJournalKind.TaskEnded,
+                        a: hash, origin: (byte)origin, urgency: (byte)NodeStatus.Failure);
+                    BehaviorIngressSystem.Clear(repo, e, _registry);
+                }
+                if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.LocomotionChannel>() && repo.HasComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e))
+                {
+                    ref var ch = ref repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
+                    if (ch.ActiveAction != 0) { ch.ActiveAction = 0; ch.Status = NodeStatus.Failure; }
+                }
+            }
+        }
+
         private void ReleaseCadenceReader(int entityIndex)
         {
             if (!_cadenceReaders.Remove(entityIndex, out var held)) return;
@@ -474,6 +524,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             _cadenceReaders.Clear();
         }
 
+        [Fdp.Core.FrameScratch("dead reader keys: cleared at 523 before each sweep")]
         private readonly List<int> _deadCadence = new();
 
         private void SweepStaleCadenceReaders(EntityRepository repo)
@@ -495,7 +546,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         public const double SopTickPeriod = 0.2;
 
         private EntityQuery? _sopQuery;
+        [Fdp.Core.WorldDerived("per-frame wake set cleared each tick")]
         private readonly HashSet<int> _sopWokenThisFrame = new();
+        [Fdp.Core.WorldDerived("fallback clock only when no GlobalTime singleton; every host has GlobalTime")]
         private double _sopClock;
 
         private void TickSopSlots(EntityRepository repo, float deltaTime, double now)
@@ -517,6 +570,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 ref var sop = ref repo.GetComponentRW<SopState>(entity);
                 if (sop.SopHash == BehaviorIds.None || sop.SopFaulted != 0) continue;
+                if (!Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, entity)) continue;   // ⭐ CE-4668 — a dead unit's SOP proposes nothing
 
                 // ⭐ CE-2382 (D7) — the SOP slot's cadence is the SAME rule as the task slot's (CadenceGate), on its own fields
                 byte wake = sop.SopWake != 0 || _sopWokenThisFrame.Contains(entity.Index)
@@ -670,6 +724,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         private static readonly int S_Execute = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.Execute (whole)");
         private static readonly int S_Sops = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.TickSopSlots (whole)");
         private static readonly int S_Sweep = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("brain.SweepStaleDedupEntries");
+        [Fdp.Core.WorldDerived("per-definition slot-index memo (ConditionalWeakTable), recomputed on demand")]
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<BehaviorDefinition, int[]> _defSlots = new();
 
         private static int DefinitionSlot(string family, BehaviorDefinition def)
@@ -766,6 +821,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>The layout each running behaviour started with — keyed by <c>entity.Index</c>, valid only for the recorded
         /// <c>(InstanceId, behaviour hash)</c>; <c>Pending</c> = a restart was requested for that instance. Swept with the
         /// terminal dedup.</summary>
+        [Fdp.Core.WorldDerived("reload layout baseline; empty just re-records it")]
         private readonly Dictionary<int, (uint InstanceId, int Behavior, ulong Layout, bool Pending)> _blueprintLayout = new();
 
         /// <summary>

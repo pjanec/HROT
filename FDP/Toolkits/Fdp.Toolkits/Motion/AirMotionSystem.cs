@@ -15,12 +15,14 @@ namespace Fdp.Toolkit.Motion
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class AirMotionSystem : IEcsModuleSystem
     {
         /// <summary>⭐ Air Ops slice 2 — the routes a <c>FollowRoute</c> intent names (<see cref="NavigationIntent.RouteEntityId"/>); the
         /// host supplies it (Hrot.Core's route source). Null ⇒ a route order hovers, awaiting a path.</summary>
         public IRouteSource? RouteSource { get; init; }
 
+        [Fdp.Core.WorldDerived("scratch refilled per route read")]
         private readonly System.Collections.Generic.List<NavRouteWaypoint> _waypoints = new();
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -199,6 +201,7 @@ namespace Fdp.Toolkit.Motion
     /// Muscle (<c>SimHostCoreLogicPack</c>). ⚠ The per-domain OWNERSHIP role (<c>MuscleAir</c>, MD-B) is not built: the ownership table
     /// allows a component in one group only (CE-3199) — until that is decided, an air body's position stays with its creator.
     /// </summary>
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class AirMotionModule
     {
         public AirMotionModule(params IEcsModuleSystem[] after) : this(null, after) { }

@@ -46,8 +46,12 @@ namespace Hrot.CGF.Systems
         private static readonly AuthoredPosts NoAuthoredPosts = default;
 
         private readonly bool _gateOnAuthority;
+        [Fdp.Core.WorldDerived("per-unit defence plan, re-begun from the world when missing or Stale (Begin)")]
         private readonly Dictionary<Entity, Plan> _plans = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("the dead units to drop this run: cleared before it is filled")]
         private readonly List<Entity> _gone = new();
+        [Fdp.Core.FrameScratch("fallback posts recomputed by FallbackPosts before each use")]
         private readonly Vector3[] _fallback = new Vector3[SlotCrew.MaxSlots];
         private EntityQuery? _units;
         private EntityRepository? _queriesFor;
@@ -62,6 +66,7 @@ namespace Hrot.CGF.Systems
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AggregateUnit>() || !repo.IsComponentTypeRegistered<UnitSlotTable>()
                 || !repo.IsComponentTypeRegistered<PlannedPosts>()) return;
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : 0d;
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(repo, ref _worldEpoch)) _plans.Clear();   // ⭐ R-4297 ② (CE-1980) — a world replacement (a reload reuses the handles, a restore) forgets the defence plans held per unit (their asks died with the world)
             if (!ReferenceEquals(_queriesFor, repo))
             {
                 _units = repo.Query().With<AggregateUnit>().With<UnitSlotTable>().With<SimTransform>().WithOwnedWhen<AggregateUnit>(_gateOnAuthority).Build();
@@ -127,6 +132,7 @@ namespace Hrot.CGF.Systems
         }
 
         // per TKB database (weakly held), type → its split creates units; thread-safe (rails run worlds in parallel); no allocation once filled
+        [Fdp.Core.WorldDerived("static per-TKB memo of which types split into units, recomputed on demand")]
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, System.Collections.Concurrent.ConcurrentDictionary<Fdp.Core.TkbTypeId, bool>> s_splitsIntoUnits = new();
 
         /// <summary>A seek moved the clock back past this plan's last step, or the recorded plan is not this one ⇒ start again.</summary>

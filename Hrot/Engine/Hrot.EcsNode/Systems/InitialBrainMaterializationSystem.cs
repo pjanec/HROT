@@ -21,6 +21,7 @@ namespace Hrot.SimHost.Systems
     [TickMode(TickPolicy.EveryFrame)]
     public sealed class InitialBrainMaterializationSystem : IEcsModuleSystem
     {
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _done = new();
 
         /// <summary>Intents turned into orders since construction (a test / diagnostics probe).</summary>

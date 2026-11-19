@@ -19,6 +19,7 @@ namespace Fdp.Network.Cyclone.Egress
         public EgressPipelineLaunchSystem(int workers = 0) => _workers = workers;
 
         /// <summary>The pipeline this system launches (after its first run).</summary>
+        [field: Fdp.Core.WorldDerived("⭐ CE-3427 N-1 — the world's pipeline, looked up on the first run")]
         public EgressPipeline? Pipeline { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

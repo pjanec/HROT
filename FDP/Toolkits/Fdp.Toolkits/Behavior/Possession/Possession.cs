@@ -195,9 +195,11 @@ namespace Fdp.Toolkit.Behavior.Possession
         }
 
         /// <summary>Possessions started (a rail and diagnostics read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Possessed { get; private set; }
 
         /// <summary>⭐ R-4096 — requests refused because another live station holds the unit, or it carries a player of another side.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Refused { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

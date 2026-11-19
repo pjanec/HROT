@@ -37,6 +37,7 @@ namespace Fdp.Toolkit.Lifecycle.Systems
         /// <see cref="Fdp.Toolkit.Replay.ReplayState"/>; ⛔ SUPERSEDED: an injected <c>Func&lt;bool&gt;? IsReplayActive</c>.</para>
         /// </summary>
 
+        [Fdp.Core.WorldDerived("the WorldEpoch restore count last seen — the R-3039 S3 trigger itself (§8)")]
         private int _restoresSeen = -1;
 
         public LifecycleSystem(EntityLifecycleModule manager)

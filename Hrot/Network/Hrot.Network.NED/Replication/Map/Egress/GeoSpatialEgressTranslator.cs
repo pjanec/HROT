@@ -29,9 +29,12 @@ namespace Hrot.Map.Common.Replication.Egress
         /// shadow from the replica (= the live world at the launch) and queues what it would write; <see cref="ApplyDeferred"/> writes them
         /// on the live world at the next join, before the next sync. Reused, never shrunk (R-2084).
         /// </summary>
+        [Fdp.Core.WorldDerived("⭐ CE-3427 N-1 — the shadow writes of the last off-frame scan, applied on the live world at the next join (then empty)")]
         private (Entity Entity, NetworkTransform Shadow, bool Attach)[] _deferred = new (Entity, NetworkTransform, bool)[256];
+        [Fdp.Core.WorldDerived("⭐ CE-3427 N-1 — how many of `_deferred` are pending")]
         private int _deferredCount;
 
+        [Fdp.Core.WorldDerived("log-once trace set; no effect on simulation")]
         private readonly HashSet<int> _tracedNetIds = new();
         private readonly NodeId _localNodeId;
 
@@ -41,6 +44,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// ECS component IDs that authority-gate this descriptor.
         /// SimTransform (0), NetworkTransform (52), NetworkVelocity (53).
         /// </summary>
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly IReadOnlyList<int> _targetIds = new int[]
         {
             GlobalComponentIds.SimTransform,

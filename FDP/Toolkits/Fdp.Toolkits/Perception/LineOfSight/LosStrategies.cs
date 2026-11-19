@@ -393,6 +393,7 @@ namespace Fdp.Toolkit.Perception.LineOfSight
     /// <see cref="TerrainWorldLosStrategy"/>. ⚠ Not the raycast batch (<c>RaycastSolverSystem</c> is 2-D and resolves a tick later).
     /// <para>Build once per batch (<see cref="Build"/>), then ask per line; not thread-safe — one instance per caller.</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("collider list/index rebuilt from world at each Build() call")]
     public sealed class ColliderOcclusion
     {
         private readonly List<(Entity E, Vector3 P, float R, float H)> _colliders = new();

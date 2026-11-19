@@ -77,9 +77,11 @@ namespace Hrot.CGF
         // Brain+Muscle node register them twice.
 
         /// <summary>Systems to wrap in TogglableInputGroup.</summary>
+        [field: Fdp.Core.NotState("system list assembled once in ctor")]
         public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
 
         /// <summary>Systems to wrap in TogglableSimulationGroup.</summary>
+        [field: Fdp.Core.NotState("system list assembled once in ctor")]
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
 
         /// <summary>

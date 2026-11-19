@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     [TickMode(TickPolicy.EveryFrame)]
     public sealed class GlobalGizmoManager : IEcsModuleSystem
     {
+        [Fdp.Core.WorldDerived("id counter for editor tool anchors, not stored in sim components")]
         private static long _nextId = 0;
 
         /// <summary>
@@ -42,6 +43,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         public const long ToolAnchorIdBase = 1L << 40;
 
         private readonly IDebugDrawBuilder _drawBuilder;
+        [Fdp.Core.WorldDerived("on-demand tool gizmos, visual/editor only")]
         private readonly Dictionary<long, IEntityStatefulGizmo> _activeGizmos = new();
         private readonly GizmoFocusRegistry _focus;
         private readonly FdpEventBus? _interactionBus;

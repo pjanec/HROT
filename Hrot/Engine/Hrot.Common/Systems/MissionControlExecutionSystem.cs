@@ -47,6 +47,7 @@ namespace Hrot.Common.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class MissionControlExecutionSystem : IEcsModuleSystem, IIntentClearProvider
     {
         private const string EntityNotFoundMessage = "ERR_ENTITY_NOT_FOUND";
@@ -73,6 +74,7 @@ namespace Hrot.Common.Systems
 
         // ⭐ R-3039 S1 — each mission's version is on its queue (MissionPlanQueue.Version) and its task order on its plan
         //   (ActiveMissionPlan.TaskOrder), not here: a checkpoint restored into a fresh system carries both on.
+        [Fdp.Core.ProtocolCache("command intents waiting for their entity to be ready; retried with frame budget")]
         private readonly Queue<(MissionControlIntent Intent, int FramesLeft)> _retryQueue = new();
         private int _worldEpoch;   // ⭐ CE-3076 — per-id state belongs to ONE world (WorldEpoch, CE-2101)
 

@@ -68,6 +68,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                         channel.DispatchedInstanceId = channel.ActionInstanceId;
                     }
                     channel.Status = NodeStatus.Failure;
+                    Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.ClearLocomotion(repo, entity);   // ⭐ CE-4669 — no move runs: never a stale "moving"
                     continue;
                 }
 
@@ -103,6 +104,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                 //      under normal conditions (e.g. HasArrived=0, IsAlive=true, ReplanGate not yet open).
                 // This invariant is verified in each Phase 3 executor's tests.
                 // See BATCH-07 Q4 for analysis.
+
+                // ⭐ CE-4669 — no move action (stopped from outside, a dead man's channel, CE-4668): the row says nothing, never the last "moving"
+                if (channel.ActiveAction == 0) { Fdp.Toolkit.Behavior.Diagnostics.ActionStatusOf.ClearLocomotion(repo, entity); continue; }
 
                 // Execute: drive the current action each tick.
                 if (channel.ActiveAction != 0 && channel.Status == NodeStatus.Running)

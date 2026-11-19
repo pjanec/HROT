@@ -8,6 +8,7 @@ namespace Fdp.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.BeforeSync)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class GhostCreationSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;
@@ -38,6 +39,7 @@ namespace Fdp.Toolkit.Replication.Systems
         /// **12/12 green** — while none asserts it has an EFFECT. 📌 A green rail over a live defect
         /// (<c>R-142</c> ③): they test the setter, and the setter is all there is.</para>
         /// </summary>
+        [field: Fdp.Core.WorldDerived("replay-mode flag toggled by load handler; never read anywhere")]
         public bool BypassLifecycle { get; set; } = false;
 
         public GhostCreationSystem(NetworkEntityMap entityMap)

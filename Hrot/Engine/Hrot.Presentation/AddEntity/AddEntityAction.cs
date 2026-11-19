@@ -22,6 +22,7 @@ namespace Hrot.UI.Common.AddEntity;
 /// <para>⭐ Built by <c>MapInteractionPack</c> from <c>MapInteractionContext.AddEntity</c>, so every map host gets the
 /// same one. The three dependencies are resolved at CALL time — hosts build their spawn adapter after the map.</para>
 /// </summary>
+[Fdp.Core.NotState("menu action; delegates and ids fixed at construction")]
 public sealed class AddEntityAction
 {
     private readonly Func<ITkbDatabase?> _tkb;

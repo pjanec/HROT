@@ -23,6 +23,7 @@ namespace Hrot.Network.NED.CGF
     {
         private readonly DdsReader<DangerAreaResultTopic>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.WorldDerived("cache of child sensor entity; revalidated by IsChildSensor on every hit")]
         internal readonly Dictionary<(int ParentNetId, int ChildIndex), Entity> _childEntityCache = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DangerAreaResultTopic>();

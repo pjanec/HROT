@@ -8,6 +8,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.UndoRedo
     /// Manages undo/redo history for gizmo interactions.
     /// Not thread-safe — call only from the ECS/render thread.
     /// </summary>
+    [Fdp.Core.WorldDerived("editor gizmo undo/redo history; not simulation")]
     public sealed class GizmoUndoStack
     {
         private readonly Stack<IGizmoUndoRecord> _undoStack = new();

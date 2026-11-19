@@ -45,18 +45,27 @@ public sealed class NodeBreakpointEvaluator : IEcsModuleSystem
     private readonly Func<int, NodeDebugMetadata[]?> _metadataOf;
     private readonly Func<int, (HsmDefinitionBlob Blob, MachineMetadata Meta)?> _hsmOf;
     private readonly Func<EntityRepository, Entity, bool, bool>? _arm;
+    [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): the marked steps' breakpoints in the debugger manager, keyed by mark (the editor's open documents; CE-1323)")]
     private readonly Dictionary<string, BreakpointId> _registered = new(StringComparer.Ordinal);
+    [Fdp.Core.WorldDerived("scratch cleared at top of each sync (CE-1323)")]
     private readonly HashSet<string> _seen = new(StringComparer.Ordinal);
+    [Fdp.Core.WorldDerived("scratch cleared before each use (CE-1323)")]
     private readonly List<string> _gone = new();
+    [Fdp.Core.WorldDerived("ring cursors per unit; forgotten at the world boundary / a restore (WorldEpoch.Moved) and re-seeded at \"first sight\" (CE-1323)")]
     private readonly Dictionary<Entity, ushort> _btreePos = new();
+    [Fdp.Core.WorldDerived("ring cursors per unit; forgotten at the world boundary / a restore (WorldEpoch.Moved) and re-seeded at \"first sight\" (CE-1323)")]
     private readonly Dictionary<Entity, ushort> _hsmPos = new();
+    [Fdp.Core.WorldDerived("cache of resolved steps, refilled on demand (CE-1323)")]
     private readonly Dictionary<BreakpointId, (int Hash, object? Def, ResolvedStep? Step)> _resolved = new();
+    [Fdp.Core.WorldDerived("units this evaluator armed, re-derived from the mounted steps each frame; forgotten at the world boundary (WorldEpoch.Moved) (CE-1323)")]
     private readonly HashSet<Entity> _armedHere = new();
     private int _epoch;   // WorldEpoch generation last seen (R-3039)
+    [Fdp.Core.WorldDerived("scratch cleared per unit (CE-1323)")]
     private readonly List<(Breakpoint Bp, ResolvedStep Step)> _forUnit = new();
 
     /// <summary>Why a mounted step resolves to nothing for the behaviour it names (shown by the API / list), by breakpoint.</summary>
     public IReadOnlyDictionary<BreakpointId, string> Unresolved => _unresolved;
+    [Fdp.Core.WorldDerived("diagnostic: why a step resolves to nothing; refilled with the cache (CE-1323)")]
     private readonly Dictionary<BreakpointId, string> _unresolved = new();
 
     /// <param name="metadataOf">Names a running tree's nodes (node index → VisualId); defaults to the registry's tree blob — the ONE

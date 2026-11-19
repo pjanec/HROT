@@ -189,6 +189,19 @@ assault crosses; it stops only once the assault holds a foothold.*
 support's order is now `SupportByFire`). **R-2106 numbers:** arrival 12 m / 60 s, post match 25 m, shift depth 30 m, flanks 25 m, ≤ 4 posts —
 would change with a live run showing the posts off the windows, or the arrival too strict for a covered position.
 
+#### 9.1a `CE-4667` (D-7, user-approved `2026-11-18`) — the base of fire's two exits *(behaviors, `2026-11-19`; build-state: BUILT)*
+
+📌 Measured on real-1: Blue Squad 2 kept `Suppress` for 434 s with every man "out of ammo" and every contact at hp 0. The play's one exit was the
+platoon's lift, which never came. The platoon's lift is unchanged; `SupportByFire.Run` gains two exits of its own:
+
+| exit | when | then |
+|---|---|---|
+| **(a)** a man is empty | his rounds are gone (`StaffComposerSystem.RoundsOf` = 0 of a counted weapon) | he holds with return fire where he is (`CombatPosture`); the rest keep firing |
+| **(b)** the posts are down | for `TargetsDownSeconds` (10 s), every post that has KNOWN contacts within `PostLiveMetres` (25 m) has none still in the fight (`SquadContacts.IsEnemy`) | every man holds where he is; PROGRESS `TargetsDown` (appended to `ProgressKind`) goes to the platoon; one of them back in the fight ⇒ the fire resumes |
+
+⚠ A post with NO known contact near it keeps the blind fire: AU-1's premise (a base of fire rarely sees a man in a window) is unchanged.
+⇒ the stop needs the men there to be known DOWN, never merely unseen. Rails: `SquadManeuverTests.CE4667_*` (SupportByFire suite).
+
 ### 9.2 AU-2 — the approach in contact, the crossing smoke, suppression established *(R-2107, lane decision — for the user's review)*
 
 | piece | as built | where |

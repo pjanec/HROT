@@ -78,7 +78,8 @@ namespace Fdp.Toolkit.Replay
             //   entities (measured with a plain re-roll). The undo ring is the ONLY user of the Authored set (autosave and the world-change check read other sets), so this changes nothing any file or recording holds.
             || id == ComponentType<Fdp.Toolkit.Terrain.DoorState>.ID
             || id == ComponentTypeRegistry.GetId(typeof(Fdp.Toolkit.Terrain.TerrainObjectKey))   // managed: by the registry
-            || id == ComponentType<Fdp.Toolkit.Terrain.BuildingDamage>.ID;
+            || id == ComponentType<Fdp.Toolkit.Terrain.BuildingDamage>.ID
+            || id == ComponentType<Fdp.Toolkit.Terrain.WindowDamage>.ID;   // ⭐ CE-5033 — the same entity's windows
 
         internal Func<int, bool>? Filter => Types switch
         {

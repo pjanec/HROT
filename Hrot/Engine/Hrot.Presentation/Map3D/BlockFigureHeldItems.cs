@@ -118,6 +118,6 @@ public static partial class BlockFigure
         var size = parts[fore].Extent * S;   // a limb's extent is (length, width, height) / S
         if (size.X <= 0f || size.Y <= 0f || size.Z <= 0f) return null;
         float d = MathF.Max(0.05f, diameter), len = MathF.Max(d, length);
-        return new PartDetail(fore, new Vector3(0.5f + len * 0.4f / size.X, 0f, 0f), new Vector3(len / size.X, d / size.Y, d / size.Z), colour);
+        return new PartDetail(fore, new Vector3(0.5f + len * 0.4f / size.X, 0f, 0f), new Vector3(len / size.X, d / size.Y, d / size.Z), (colour).ToRgba());
     }
 }

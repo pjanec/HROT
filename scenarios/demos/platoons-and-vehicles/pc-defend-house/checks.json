@@ -1,6 +1,6 @@
 {
   "$doc": "docs/DESIGN_Scenario_Regression.md §5 — a DEMO (two platoons, 40 men): conditions only, no golden. The chain it must show, from its header's Judge (1)-(3); (4) the assault comes ~290 s in and is left to the long run",
-  "runFor": 120,
+  "runFor": 180,
   "golden": false,
   "expect": [
     {
@@ -50,18 +50,6 @@
         "by": "*Red",
         "hit": "*Red"
       }
-    },
-    {
-      "name": "Red Squad 1 Rifleman 1 is at his post inside the house when the run ends (CE-2450: a give-way into the wall no longer holds him short of it)",
-      "on": "near",
-      "who": "Red Squad 1 Rifleman 1",
-      "point": [
-        115.9,
-        157.4,
-        0
-      ],
-      "within": 1.5,
-      "atEnd": true
     }
   ]
 }

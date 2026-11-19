@@ -37,12 +37,14 @@ public readonly record struct TrafficBody(int NetworkId, TrafficBodyKind Kind, d
 [TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
 {
+    [Fdp.Core.WorldDerived("log throttle for SUMO told-vehicle count")]
     private int _toldVehicles = -1, _toldPersons = -1;
 
     /// <summary>A person's disc radius when its footprint names no width.</summary>
     public const float PersonRadius = 0.4f;
 
     private readonly TrafficRuntime _runtime;
+    [Fdp.Core.WorldDerived("scratch cleared in Gather each frame")]
     private readonly List<TrafficBody> _scratch = new();
 
     public TrafficBodyFeedSystem(TrafficRuntime runtime) => _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));

@@ -121,7 +121,7 @@ namespace Fdp.Toolkit.Terrain
                     {
                         var c = fire[i];
                         into.Add(new TraceCrossing(c.T, c.PathMetres, c.ResistanceMmRha, c.TopZ, IsClosedBarrier(c.Kind, c.Building),
-                            c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.EntryNormal, ExitNormal = c.ExitNormal });   // ⭐ CE-1128
+                            c.Kind, c.Label, c.Material, c.Building, c.Storey) { EntryNormal = c.EntryNormal, ExitNormal = c.ExitNormal, Piece = c.Piece });   // ⭐ CE-1128; CE-5033 — the piece (a pane names its window)
                     }
                     // ⭐ CE-4369 (S4, R-4190 T-6) — the woods: ONE crossing where the line first enters a wood, stopping a share of rounds
                     //   whatever their penetration (no resistance, not a barrier). Only the FIRE purpose — the round path; QueryFire's other

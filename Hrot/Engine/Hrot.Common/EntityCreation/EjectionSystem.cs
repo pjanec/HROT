@@ -31,10 +31,13 @@ namespace Hrot.Common.EntityCreation
     public sealed class EjectionSystem : IEcsModuleSystem
     {
         // ⭐ R-3039 S1 — who has ejected is on the aircraft (EjectionDone), not here: a checkpoint restored into a fresh system still knows.
+        [Fdp.Core.WorldDerived("per-TKB-type ejection descriptor cache from static template data")]
         private readonly Dictionary<long, EjectionDto?> _byType = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _toEject = new();
 
         /// <summary>Ejections this node made (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostics counter of ejections made")]
         public long Ejections { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

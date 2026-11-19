@@ -10,6 +10,7 @@ namespace Fdp.Core.FlightRecorder
     /// Advanced playback controller with seeking, fast-forward, and rewind capabilities.
     /// Maintains frame index for random access.
     /// </summary>
+    [Fdp.Core.WorldDerived("replay file cursor; PlaybackTickSystem re-seeks by wall time when reset")]
     public class PlaybackController : IDisposable
     {
         private readonly FileStream _fileStream;

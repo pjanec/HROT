@@ -37,6 +37,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         private static readonly long LightsKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
         /// <summary>Light switches this node applied (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of light requests applied")]
         public long Requests { get; private set; }
 
         /// <summary>True when this node writes <paramref name="vehicle"/>'s lights (the <c>dtVehicleLights</c> owner) — the transport's owner test too. ⛔ A ghost
@@ -50,6 +51,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         }
         private EntityQuery? _vehicles;
         private EntityRepository? _for;
+        [Fdp.Core.WorldDerived("step-gate reset on world change (63); derived from sim time")]
         private long _lastStep = long.MinValue;
 
         public void Execute(ISimulationView view, float deltaTime)

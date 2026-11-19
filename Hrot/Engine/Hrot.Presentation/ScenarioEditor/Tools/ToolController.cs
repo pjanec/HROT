@@ -27,6 +27,7 @@ namespace Hrot.ScenarioEditor.Tools
     /// <c>Kernel.Initialize()</c> and null them on teardown, and CGF does not build them at all when
     /// headless. A captured instance would be permanently null on those paths.</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("armed-tool modal stack; editor UI, not simulation")]
     public sealed class ToolController : IToolController
     {
         private readonly Dictionary<string, (ToolDescriptor Descriptor, ToolActivation Activate)> _tools =

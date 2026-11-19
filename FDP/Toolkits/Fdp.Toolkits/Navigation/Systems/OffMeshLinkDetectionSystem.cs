@@ -38,6 +38,7 @@ namespace Fdp.Toolkit.Navigation.Systems
         private readonly float _lookaheadDistance;
 
         // Scratch buffer for waypoint look-ahead (reused each tick, sized for 8 waypoints).
+        [Fdp.Core.WorldDerived("fixed scratch buffer")]
         private readonly NavWaypoint[] _waypointScratch = new NavWaypoint[8];
 
         /// <summary>

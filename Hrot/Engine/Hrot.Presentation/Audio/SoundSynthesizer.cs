@@ -41,6 +41,7 @@ namespace Hrot.UI.Common.Audio
                 SoundSynth.ImpactSoft => Finish(ImpactSoft(ref r)),
                 SoundSynth.ImpactHard => Finish(Ricochet(ref r)),
                 SoundSynth.Crash => Finish(Explosion(ref r, 1.8f, 0.04f, 0.3f, 48f, 0.35f, debris: 28)),   // ⭐ CE-4600 (B-3b) — a dull blow (no blast's crack), then rubble falling
+                SoundSynth.Glass => Finish(Glass(ref r)),   // ⭐ CE-5034 — a crack, then tinkling
                 SoundSynth.Footsteps => Loop(Footsteps(ref r, 1f + LoopFade)),
                 SoundSynth.WheeledEngine => Loop(Engine(ref r, 2f + LoopFade, 60f, clankHz: 0f)),
                 SoundSynth.TrackedEngine => Loop(Engine(ref r, 2f + LoopFade, 45f, clankHz: 9f)),
@@ -306,6 +307,28 @@ namespace Hrot.UI.Common.Audio
                 float f = 2600f - 900f * MathF.Min(1f, t / 0.5f);
                 phase += 2f * MathF.PI * f / SampleRate;
                 b[i] = 0.7f * MathF.Sin(phase) * Env(t, 0.15f) + r.Next() * Env(t, 0.004f);
+            }
+            return b;
+        }
+
+        /// <summary>⭐ CE-5034 — a pane shattering: a bright crack of high noise, then shards tinkling down (short high pings at random, thinning out).</summary>
+        private static float[] Glass(ref Rng r)
+        {
+            var b = Buf(1.2f);
+            float prev = 0f;
+            for (int i = 0; i < b.Length; i++)
+            {
+                float t = T(i), n = r.Next();
+                b[i] = 0.9f * (n - prev) * Env(t, 0.03f);   // differenced noise: the high crack
+                prev = n;
+            }
+            for (int k = 0; k < 40; k++)
+            {
+                float at = 0.02f + 0.9f * MathF.Pow(0.5f * (r.Next() + 1f), 1.6f);
+                float hz = 3000f + 3500f * 0.5f * (r.Next() + 1f);
+                float amp = 0.35f * (1f - at);
+                int i0 = (int)(at * SampleRate);
+                for (int i = i0; i < b.Length; i++) { float t = T(i) - at; if (t > 0.08f) break; b[i] += amp * Sin(hz, t) * Env(t, 0.012f); }
             }
             return b;
         }

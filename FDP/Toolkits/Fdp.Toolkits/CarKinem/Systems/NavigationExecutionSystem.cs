@@ -85,6 +85,7 @@ namespace CarKinem.Systems
         public NavigationExecutionSystem(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => _pool = trajectoryPool;
 
         /// <summary>Paths this system asked to replan because a tile they cross changed (rails / diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of tile replans, only incremented and exposed as a property")]
         public long TileReplans { get; private set; }
 
         /// <summary>How far apart (as a share of the tile edge) a path is sampled for the tiles it crosses: a quarter tile, so no tile it passes through is skipped.</summary>

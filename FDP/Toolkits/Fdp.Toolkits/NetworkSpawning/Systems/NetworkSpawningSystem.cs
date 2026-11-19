@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class NetworkSpawningSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkbDb;
@@ -27,6 +28,7 @@ namespace Fdp.Toolkit.NetworkSpawning.Systems
         private readonly NetworkEntityMap _networkMap;
         private readonly INetworkIdAllocator _idAllocator;
         private readonly NodeId _localNodeId;
+        [Fdp.Core.NotState("injected translator list, set in ctor")]
         private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
         private readonly Action<EntityRepository, Entity, bool>? _onEntitySpawned;
 

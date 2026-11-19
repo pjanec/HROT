@@ -49,13 +49,17 @@ namespace Hrot.CGF.Systems
         private readonly Func<string, bool> _isBehaviour;
         private EntityQuery? _units, _orderUnits, _children;
         private EntityRepository? _queriesFor;
+        [Fdp.Core.NotState("plays hashes built from configuration in the constructor, readonly")]
         private readonly int[] _stochasticPlays;
         private const string SquadDefendPlayName = "SquadDefend";
 
         /// <summary>How many orders the order arm re-issued (diagnostics, rails).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of reissued plays")]
         public int Reissued { get; private set; }
         /// <summary>How many tasks the arms cleared (an order with no play at the new resolution, a stale reaction).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of cleared plays")]
         public int Cleared { get; private set; }
+        [Fdp.Core.WorldDerived("step-gate timestamp derived from sim time")]
         private SimInstant _last = (SimInstant)(-1.0);
 
         public UnitResolutionFitSystem(BehaviorRegistry registry, bool gateOnAuthority = false)

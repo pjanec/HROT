@@ -31,11 +31,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
         // ⚠ NOT readonly: the registry is mutable (Register/RegisterGlobal append), so these are grown
         // in Execute when it has. See EnsureCaches — CE-188.
+        [Fdp.Core.WorldDerived("visibility cache recomputed every frame")]
         private bool[] _globalVisibilityCache;
+        [Fdp.Core.WorldDerived("visibility cache recomputed every frame")]
         private bool[] _globalRulesVisibilityCache;
 
         // ⭐ CE-2394 — per rule, the entity indices that match it this frame (reused; grown, never shrunk)
+        [Fdp.Core.WorldDerived("per-rule match lists reused when the match pass is skipped (_matchValid): a cache of this view")]
         private int[][] _matches = System.Array.Empty<int[]>();
+        [Fdp.Core.WorldDerived("per-rule match counts: cache beside _matches, zeroed on a recompute")]
         private int[] _matchCount = System.Array.Empty<int>();
 
         private void EnsureMatchLists(int ruleCount)
@@ -48,6 +52,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         }
 
         /// <summary>Max wall-clock budget in ms for entity iteration. 0 = unlimited.</summary>
+        [field: Fdp.Core.NotState("a setting copied from GlobalDebugSettings")]
         public float MaxGizmoFrameMs { get; set; } = 0f;
 
         /// <summary>
@@ -56,13 +61,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// With more matched entities than this, a rule refreshes a slice of them per frame (interleaved by entity index) — period
         /// <c>1 + (matched − 1) / FreshEntitiesPerFrame</c>, capped at <see cref="MaxHeldFrames"/> + 1. Needs a <see cref="DebugPrimitiveBuffer"/>.
         /// </summary>
+        [field: Fdp.Core.NotState("configuration property: fresh entities per frame for the held draw")]
         public int FreshEntitiesPerFrame { get; set; }
 
         /// <summary>⭐ CE-2402 — the most frames an entity's picture may be held before it is drawn fresh again.</summary>
+        [field: Fdp.Core.NotState("configuration property: maximum frames a rule picture is held")]
         public int MaxHeldFrames { get; set; } = 3;
 
         private readonly DebugPrimitiveBuffer? _buffer;
+        [Fdp.Core.WorldDerived("per-rule hold state for gizmo draw throttling (presentation cache)")]
         private RuleHold?[] _holds = System.Array.Empty<RuleHold?>();
+        [Fdp.Core.WorldDerived("gizmo frame counter used for hold scheduling")]
         private int _frame;
 
         /// <summary>
@@ -119,20 +128,29 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         //   Rules that declare nothing: today's path, untouched. HROT_CHANGE_GATE=0 ⇒ every gate answers Full.
         private readonly ChangeGate _matchGate = new();      // no position input (no view filter)
         private readonly ChangeGate _matchGatePos = new();   // + SimTransform: the in-view test reads positions
+        [Fdp.Core.WorldDerived("signature of the active rule set for the match-pass skip cache")]
         private long _matchSig, _lastViewVersion;
+        [Fdp.Core.WorldDerived("validity flag of the cached match pass, cleared on WorldEpoch move (280)")]
         private bool _matchValid;
         private int _epoch;   // ⭐ CE-4342 — the WorldEpoch generation the match lists belong to (DESIGN_Paused_And_Stepped_Execution §7f)
+        [Fdp.Core.WorldDerived("max entity index of the cached match pass")]
         private int _lastMaxIndex, _lastOutOfView;
+        [Fdp.Core.WorldDerived("cached per-rule declared inputs, rebuilt on demand when rule count grows")]
         private GizmoInputs?[] _ruleInputs = System.Array.Empty<GizmoInputs?>();
+        [Fdp.Core.WorldDerived("count of rules whose inputs were cached: cache validity marker")]
         private int _ruleInputsFor;
+        [Fdp.Core.WorldDerived("per-rule reusable picture cache for gizmo drawing")]
         private RulePicture?[] _pics = System.Array.Empty<RulePicture?>();
 
         /// <summary>⭐ CE-1480 G5 — false ⇒ every rule is drawn every frame whatever it declares (the ungated reference of the equivalence rails; same as <c>HROT_CHANGE_GATE=0</c> for the rules, per system).</summary>
+        [field: Fdp.Core.NotState("configuration property: honour declared inputs")]
         public bool HonourDeclaredInputs { get; set; } = true;
 
         /// <summary>Frames on which the match pass was skipped (rails / diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of skipped match passes")]
         public int MatchPassesSkipped { get; private set; }
         /// <summary>Rule pictures re-appended instead of drawn (rails / diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of reused rule pictures")]
         public int RulePicturesReused { get; private set; }
 
         /// <summary>
@@ -254,12 +272,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         public IGizmoViewFilter? ViewFilter { get; set; }
 
         // ⭐ CE-4388 — the frame's active rules as plain arrays (grown with the rule count, never per frame)
+        [Fdp.Core.FrameScratch("active-rule index list: filled from 0 each Execute (line 339)")]
         private int[] _activeIndex = System.Array.Empty<int>();
+        [Fdp.Core.FrameScratch("active-rule masks: filled from 0 each Execute (line 339)")]
         private BitMask512[] _activeMask = System.Array.Empty<BitMask512>();
+        [Fdp.Core.FrameScratch("active-rule off-screen flags: filled from 0 each Execute (line 339)")]
         private bool[] _activeOff = System.Array.Empty<bool>();
 
         /// <summary>⭐ CE-4388 — entities the last frame found out of view (tested at most once each), and rules skipped for the zoom (rails, telemetry).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic count of entities out of view")]
         public int EntitiesOutOfView { get; private set; }
+        [field: Fdp.Core.WorldDerived("diagnostic count of rules skipped for zoom")]
         public int RulesSkippedForZoom { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

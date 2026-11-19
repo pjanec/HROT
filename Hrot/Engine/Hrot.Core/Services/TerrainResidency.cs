@@ -34,6 +34,7 @@ namespace Hrot.Map.Common.Services;
 /// <para>📄 <c>docs/DESIGN_Cluster_Load_Phase.md</c> §4.1c, <c>L5</c> ·
 /// <c>docs/DESIGN_Terrain_Zones_And_Assets.md</c> §2.1d, §2.1e ①–③.</para>
 /// </summary>
+[Fdp.Core.WorldDerived("loaded terrain plus obstacle bake derived from StaticObstacle entities, rebaked on signature change")]
 public sealed class TerrainResidency
 {
     /// <summary>Everything a prepare built, waiting for a commit to publish it.</summary>
@@ -662,6 +663,8 @@ public sealed class TerrainResidency
         var replaced = world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
         if (replaced != null) RemapDamageEntities(world, replaced, bake.World);
         world.SetSingletonManaged(bake.World);
+        // ⭐ CE-5028 (BE-2, Base Edits D-4) — the terrain's entities follow the new world: a removed building's doors and damage go, a gained door gets its entity
+        if (!ReferenceEquals(replaced, bake.World)) Hrot.Map.Common.ClusterLoad.TerrainObjectReconcile.Reconcile(world, bake.World, replacing: replaced != null);
         _navmesh?.Publish(bake.Navmesh);
         world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(
             bake.Cover ?? Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(bake.World));
@@ -678,6 +681,11 @@ public sealed class TerrainResidency
             var d = world.GetComponentRO<BuildingDamage>(e);
             string? key = world.HasManagedComponent<TerrainObjectKey>(e) ? world.GetComponent<TerrainObjectKey>(e).Key : null;   // ⭐ CE-3439 — by the entity's own key (an Unpack re-keys it)
             if (BuildingDamages.Remap(ref d, from, to, key)) world.SetComponent(e, d);
+            if (world.IsComponentTypeRegistered<WindowDamage>() && world.HasComponent<WindowDamage>(e))   // ⭐ CE-5033 — the same entity's windows, by the same rule
+            {
+                var w = world.GetComponentRO<WindowDamage>(e);
+                if (WindowDamages.Remap(ref w, from, to, key)) world.SetComponent(e, w);
+            }
         }
     }
 

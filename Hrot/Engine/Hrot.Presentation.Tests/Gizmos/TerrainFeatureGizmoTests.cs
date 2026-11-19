@@ -204,4 +204,47 @@ public sealed class TerrainFeatureGizmoTests : IDisposable
         now += TerrainDrawGhost.SafetyMs + 1;
         Assert.Equal(0, Drawn());
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-5030 BE-4 part 2 (📄 docs/DESIGN_Terrain_Base_Edits.md §5; mockup "after Remove") — a REMOVE edit, the toolbar open, draws the building it took away: its footprint DASHED (the
+    /// merged world's <see cref="TerrainWorld.Removed"/> record — the world no longer has the building), a <c>removed</c> chip, and the whole outline as the edit's pick; the Details facts
+    /// read the same record (levelled to its floor, its doors). Closed ⇒ nothing. 🔴 Red-proof: drop <c>Removed</c> from the merge ⇒ the ghost falls back to the dot ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE5030_ARemoveEdit_DrawsTheRemovedBuildingsGhost_AndItsFacts()
+    {
+        var @base = TerrainWorldParser.Parse(
+            "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[0,0,120,60],\"groundZ\":0},\"features\":[" +
+            "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"B\",\"building\":{\"footprint\":[[0,0],[10,0],[10,8],[0,8]],\"storeys\":[{\"height\":3,\"walls\":[{\"from\":[0,0],\"to\":[10,0],\"openings\":[{\"kind\":\"door\",\"at\":5,\"width\":1,\"doorId\":\"front\"}]},{\"from\":[10,0],\"to\":[10,8]},{\"from\":[10,8],\"to\":[0,8]},{\"from\":[0,8],\"to\":[0,0]}]}]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[20,20]}}]}",
+            "range");
+        var parts = FeatureExpander.OfKind(TerrainFeature.Edit, "e1", "remove", 0f, 0f, 0u, new Vector2(25f, 24f), Array.Empty<Vector2>(), @base, new TerrainAssets(), Array.Empty<string?>(), target: "B");
+        var overlay = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(@base, parts).ToJsonString(), "range", new TerrainAssets(), @base.Height);
+        var merged = TerrainWorldMerge.Merge(@base, overlay);
+        var gone = Assert.Single(merged.Removed);
+        Assert.Equal("B", gone.Label); Assert.Equal(1, gone.Doors); Assert.Equal(4, gone.Footprint.Length);
+        _w.RegisterManagedComponent<TerrainWorld>();
+        _w.SetSingletonManaged(merged);
+
+        var edit = Feature(TerrainFeature.Edit, new Vector2(25f, 24f), 77, template: "remove");
+        var f = _w.GetComponentRO<TerrainFeature>(edit); f.Target = new Fdp.Core.FixedString64("B"); _w.SetComponent(edit, f);
+        var gizmo = new TerrainFeatureGizmo();
+        var closed = new DebugPrimitiveBuffer(); gizmo.Draw(_w, edit, closed);
+        Assert.Empty(All(closed));
+
+        TerrainLock.SetOpen(_w, true);
+        var b = new DebugPrimitiveBuffer(); gizmo.Draw(_w, edit, b);
+        var lines = Lines(b);
+        Assert.Equal(4, lines.Length);                                                 // the footprint, closed
+        Assert.All(lines, l => { Assert.Equal(LineStyle.Dashed, l.LineStyle); Assert.Equal(TerrainFeatureGizmo.RemovedGhost, l.Color); });
+        Assert.Contains(All(b), p => p.Shape == DebugPrimitiveShape.Text);              // the "removed" chip
+        Assert.DoesNotContain(All(b), p => p.Shape == DebugPrimitiveShape.Sphere);     // not the handle dot
+        Assert.All(Picks(b), p => Assert.Equal(77, (int)p.BoxAnchorId));
+        Assert.Equal(4, Picks(b).Length);
+
+        var facts = TerrainFeatureOps.FactsOf(_w, edit);
+        Assert.Equal("Remove building", facts.Action);
+        Assert.Equal("B  (baked)", facts.Building);
+        Assert.Equal("levelled to 0.0 m", facts.Ground);
+        Assert.Equal("1 door · its damage", facts.GoesWithIt);
+    }
 }

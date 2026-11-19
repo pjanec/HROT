@@ -72,18 +72,24 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         /// </summary>
         private readonly DebugPrimitiveBuffer? _stampBuffer;
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
+        [Fdp.Core.WorldDerived("gizmo visuals reconciled from components; torn down on world reset")]
         private readonly Dictionary<Entity, List<CompiledGizmoInstance>> _activeGizmos;
+        [Fdp.Core.WorldDerived("visibility cache recomputed every frame")]
         private readonly bool[] _globalVisibilityCache;
         private readonly GizmoUndoStack? _undoStack;
         private readonly IActiveViewProvider? _breakpointManager;
 
         /// <summary>Max wall-clock budget in ms for step 4. 0 = unlimited.</summary>
+        [field: Fdp.Core.NotState("a setting copied from GlobalDebugSettings")]
         public float MaxGizmoFrameMs { get; set; } = 0f;
 
         // Time-slice state: ordered entity list and current offset for carry-over.
+        [Fdp.Core.WorldDerived("iteration list mirroring active gizmos")]
         private readonly List<Entity> _entityList = new();
+        [Fdp.Core.WorldDerived("time-slice cadence cursor for gizmo budget")]
         private int _timeSliceOffset = 0;
         private int _epoch;   // ⭐ CE-3294 — the world the gizmo instances belong to
+        [Fdp.Core.WorldDerived("the world restores the gizmo instances were already re-adopted for (CE-4342); a watcher of `WorldEpoch.RestoresOf`, like `_epoch`")]
         private int _restoresSeen;   // ⭐ CE-4342 — how many in-place restores of that world the instances have seen (WorldEpoch.RestoresOf)
 
         // ⭐⭐⭐ Exclusive-focus tracking. R-144 / §6.2b: the slot is a SHARED GizmoFocusRegistry, so
@@ -100,6 +106,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         // On-demand gizmos injected externally (e.g. EntityRotatorGizmo activated via context
         // menu). Keyed by entity; always drawn while the entity is alive; not governed by
         // GizmoRegistry rules or the selection predicate.
+        [Fdp.Core.WorldDerived("injected editor gizmos, visual only")]
         private readonly Dictionary<Entity, IEntityStatefulGizmo> _injectedGizmos = new();
 
         // ---- On-demand gizmo management ------------------------------------------------

@@ -39,15 +39,21 @@ namespace Fdp.Toolkit.Terrain
         public const int PendingTimeoutTicks = 3600;
 
         /// <summary>Items written into an entity (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of items written (Applied)")]
         public long Applied { get; private set; }
         /// <summary>Creation requests published.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of creation requests (Requested)")]
         public long Requested { get; private set; }
         /// <summary>How many cells are waiting on a creation request (rails).</summary>
         public int PendingCount => _pending.Count;
 
         private sealed class Pending { public int CellX, CellY, Age; public readonly List<TItem> Later = new(); }
+        [Fdp.Core.ProtocolCache("cells waiting on an entity-creation request, with items queued: request in flight (Pending)")]
         private readonly Dictionary<long, Pending> _pending = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("keys resolved this drain: cleared at the top of DrainPending")]
         private readonly List<long> _done = new();
+        [Fdp.Core.FrameScratch("items of this tick: cleared in Execute before ReadItems")]
         private readonly List<TItem> _items = new();
         private EntityQuery? _query;
         private EntityRepository? _queryRepo;
@@ -65,6 +71,7 @@ namespace Fdp.Toolkit.Terrain
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pending.Clear();   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the record entities asked for (the requests died with the world)
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<TRecord>()) return;
             if (_pending.Count > 0) DrainPending(repo);

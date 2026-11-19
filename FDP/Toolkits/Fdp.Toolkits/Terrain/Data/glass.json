@@ -1,0 +1,5 @@
+{
+  "//": "CE-5033 (glass windows GW-2, D-4; docs/DESIGN_Glass_Windows.md) — a burst SHATTERS every unbroken window pane within either radius: the PRESSURE wave, blastPerCbrtKg x cbrt(kg) of the warhead's explosive (through walls), or its FRAGMENTS, within fragmentShatterM of a fragmenting warhead with a clear line to the pane. Starting values (R-5068) — a playtest changes them.",
+  "blastPerCbrtKg": 6.0,
+  "fragmentShatterM": 8.0
+}

@@ -10,6 +10,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
     // Idempotent: a second alive sample from the same node ID is ignored.
     //
     // Design: DESIGN.md §5
+    [Fdp.Core.WorldDerived("connected-terminal id set, re-derived from events; gizmo UI only")]
     internal sealed class GizmoCapabilitiesTracker
     {
         private readonly GizmoExecutionController _controller;

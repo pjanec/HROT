@@ -21,7 +21,7 @@ public sealed class EverySystemStateFieldIsClassifiedTests
     public EverySystemStateFieldIsClassifiedTests(ITestOutputHelper output) => _out = output;
 
     /// <summary>The C / X rows the inventory holds today — the moves still to do (S1, S2). It may only shrink.</summary>
-    public const int PendingMoves = 7;
+    public const int PendingMoves = 19;
 
     [Fact]
     public void EveryFieldThatCanCarryStateBetweenFrames_IsClassified()
@@ -42,33 +42,49 @@ public sealed class EverySystemStateFieldIsClassifiedTests
     }
 
     /// <summary>
-    /// ⭐⭐ <c>R-3039</c> S3 (docs/DESIGN_System_State_Inventory.md §8) — a class-B field is protocol RE-DERIVED at a world replacement, so
-    /// its owner must react to one: <c>WorldEpoch.Moved</c> (directly or through <c>OnWorldBoundary</c> / <c>ForgetLastWorld</c>) or the
-    /// ELM's <c>OnWorldReplaced</c>. ⚠ <c>AfterRestore.Run</c> raises the signal once; nobody calls the owners. Session state that a restore
-    /// leaves by design (the cluster, the transport) is class S and needs no hook. ⚠ A TEXT check on the row's evidence file: it proves the
-    /// hook exists, not that it clears the right field (the ELM has a behavioural rail, <c>APreviewLeavesNoTraceTests.R3039_*</c>).
-    /// 🔴 Red-proof: a B row on an owner with no hook ⇒ red (15 owners failed it before S3).
+    /// ⭐ R-4297 — a TOOL, not a gate: with <c>HROT_STATE_DUMP=&lt;file&gt;</c> set, writes every field the probe walks as a tab-separated line — key, kind, held type,
+    /// the declaring type's full name, the field's name, and the class / source / reason that classifies it (attribute, ledger row, or none). What a lane runs to see
+    /// which of its fields still need an attribute. A no-op otherwise.
+    /// </summary>
+    [Fact]
+    public void Dump()
+    {
+        var path = System.Environment.GetEnvironmentVariable("HROT_STATE_DUMP");
+        if (string.IsNullOrEmpty(path)) return;   // a tool: nothing to do without the variable
+        var r = SystemStateProbe.Check(SystemStateProbe.ReadInventory(Path.Combine(TestRepo.Root, "docs", "DESIGN_System_State_Inventory.md")));
+        var rows = r.Classified.ToDictionary(p => p.Hit.Key, p => p.Row);
+        using var w = new StreamWriter(path!);
+        foreach (var h in r.Hits)
+        {
+            rows.TryGetValue(h.Key, out var row);
+            string field = h.Key[(h.Key.LastIndexOf('.') + 1)..];
+            w.WriteLine(string.Join('\t', h.Key, h.Kind, h.TypeKey, h.Declaring?.FullName ?? "", field, row?.Class ?? "", row == null ? "none" : row.Attribute ?? "row:" + row.Key,
+                                    (row?.Reason ?? "").Replace('\t', ' ')));
+        }
+        _out.WriteLine($"{r.Hits.Count} fields dumped to {path}");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R-3039</c> S3 / ⭐ <c>R-4297</c> ④ (docs/DESIGN_System_State_Inventory.md §8, §9) — a class-B field is protocol RE-DERIVED at a world replacement, so its
+    /// owner must react to one, in its COMPILED code: <c>WorldEpoch.Moved</c> / <c>Ended</c>, the egress shared shape <c>PublishedInstances&lt;T&gt;.OnFrame</c>
+    /// (it forgets on <c>WorldEpoch.Moved</c>, CE-4007), or <c>OnWorldBoundary</c> / <c>ForgetLastWorld</c> / the ELM's <c>OnWorldReplaced</c>. Session state (S) needs
+    /// no hook. ⛔ Was a TEXT search of each row's evidence file: 36 of its 45 reds were rows naming fields CE-4007 had already moved into the shared shape.
+    /// 🔴 Red-proof: an ingress translator's <c>WorldEpoch.Moved</c> clear of <c>_pending</c> removed ⇒ red.
     /// </summary>
     [Fact]
     public void EveryProtocolField_IsReDerivedAtAWorldReplacement()
     {
-        var root = TestRepo.Root;
-        var row = new System.Text.RegularExpressions.Regex(
-            @"^\|\s*`(?<key>[^`]+)`\s*\|\s*\*\*B\*\*\s*\|[^|]*\|\s*(?<ev>[^|:\s]+)");
-        var hook = new System.Text.RegularExpressions.Regex(@"WorldEpoch\.|OnWorldBoundary|ForgetLastWorld|OnWorldReplaced");
+        var r = SystemStateProbe.Check(SystemStateProbe.ReadInventory(Path.Combine(TestRepo.Root, "docs", "DESIGN_System_State_Inventory.md")));
         var missing = new System.Collections.Generic.List<string>();
-        int rows = 0;
-        foreach (var line in File.ReadLines(Path.Combine(root, "docs", "DESIGN_System_State_Inventory.md")))
+        int b = 0;
+        foreach (var (hit, row) in r.Classified)
         {
-            var m = row.Match(line);
-            if (!m.Success || m.Groups["key"].Value.Contains('*')) continue;
-            rows++;
-            var file = Path.Combine(root, m.Groups["ev"].Value);
-            if (!File.Exists(file)) { missing.Add($"{m.Groups["key"].Value} — evidence file {m.Groups["ev"].Value} not found"); continue; }
-            if (!hook.IsMatch(File.ReadAllText(file))) missing.Add($"{m.Groups["key"].Value} ({m.Groups["ev"].Value})");
+            if (row.Class != "B" || hit.Declaring == null) continue;
+            b++;
+            if (!WorldBoundaryProbe.ReactsToWorldReplacement(hit.Declaring)) missing.Add(hit.Key);
         }
-        _out.WriteLine($"{rows} B rows checked");
-        Assert.True(rows > 50, $"only {rows} B rows read — the table moved");
+        _out.WriteLine($"{b} B fields checked");
+        Assert.True(b > 50, $"only {b} B fields found — the probe is not finding the tree");
         Assert.True(missing.Count == 0,
             $"{missing.Count} class-B fields whose owner never reacts to a world replacement (WorldEpoch.Moved) — clear or re-derive them "
             + "there, or classify them S if a restore must leave them:\n  " + string.Join("\n  ", missing));

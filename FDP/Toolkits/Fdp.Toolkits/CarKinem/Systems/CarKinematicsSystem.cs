@@ -36,15 +36,20 @@ namespace CarKinem.Systems
                 _perfStopwatch = new System.Diagnostics.Stopwatch();
         }
 
+        [Fdp.Core.WorldDerived("wall-clock perf timing / silence timer; no sim decisions")]
         private System.Diagnostics.Stopwatch? _perfStopwatch;
+        [Fdp.Core.WorldDerived("perf-log accumulator, diagnostic only")]
         private double _totalUpdateTime = 0;
+        [Fdp.Core.WorldDerived("perf-log frame counter, diagnostic only")]
         private int _updateCount = 0;
         
+        [field: Fdp.Core.NotState("config property, default false, never written by system")]
         public bool EnablePerformanceLogging { get; set; } = false;
         
         /// <summary>
         /// For testing/debugging purposes.
         /// </summary>
+        [field: Fdp.Core.NotState("config property, default false, never written by system")]
         public bool ForceSerial { get; set; } = false;
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -133,6 +138,7 @@ namespace CarKinem.Systems
             }
         }
         
+        [Fdp.Core.WorldDerived("static declare-once latch (component declaration), no effect on outcome")]
         private static bool s_declared;
 
         /// <summary>⭐ N-15 — what the avoidance reads on OTHER bodies that this loop also writes: served from the tick-start view (declared once,
@@ -170,7 +176,9 @@ namespace CarKinem.Systems
         // ⭐ CE-4621 MC-2 — the surface-class grid and what it was built from (the terrain world, the road network's segment count)
         private Fdp.Toolkit.Terrain.SurfaceClassGrid? _surface;
         private Fdp.Toolkit.Terrain.TerrainWorld? _surfaceWorld;
+        [Fdp.Core.WorldDerived("road-count stamp of the cached road surface: rebuilt from world on mismatch (CarKinematics.cs:187)")]
         private int _surfaceRoads = -1;
+        [Fdp.Core.WorldDerived("built-flag of the lazily built road surface cache: reset when roads change")]
         private bool _surfaceBuilt;
 
         /// <summary>⭐ CE-4621 MC-2 — the grid this tick's moves read (null: none built — no factored type, or no terrain and no roads).</summary>
@@ -191,10 +199,15 @@ namespace CarKinem.Systems
             _surface = Fdp.Toolkit.Terrain.SurfaceClassGrid.Build(_terrainWorld, in roads);
             _surfaceBuilt = true;
         }
+        [Fdp.Core.NotState("set once in Initialize from component registration")]
         private bool _clampFlags;
+        [Fdp.Core.NotState("set once in Initialize from component registration")]
         private bool _recovery;
+        [Fdp.Core.NotState("set once in Initialize from component registration")]
         private bool _health;
+        [Fdp.Core.NotState("registration test read once at construction: is ConvoyTrail registered")]
         private bool _convoy;
+        [Fdp.Core.NotState("registration test read once at construction: is AnimalState registered")]
         private bool _animals;
 
         /// <summary>⭐ R-249 — whether the movement model puts <paramref name="entity"/> on the surface: its ground-clamping flag, else yes.</summary>
@@ -1175,6 +1188,7 @@ namespace CarKinem.Systems
         public const float HullProbeM = 0.5f;
 
         /// <summary>⭐ CE-3286 — one list PER THREAD: the update runs ForEachParallel (the single shared list since CE-2198 was a latent race).</summary>
+        [Fdp.Core.WorldDerived("thread-static scratch list for trace results")]
         [ThreadStatic] private static System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>? t_crossings;
 
         /// <summary>⭐ CE-2059 — the arrival tolerance at a trajectory's end when the move set no <c>ArrivalRadius</c>.</summary>

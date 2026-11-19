@@ -22,7 +22,7 @@ namespace Hrot.UI.Common.Map3D;
 /// (<see cref="LogicalStance"/>), sized from the TKB and coloured by its <see cref="VisualData.ColorHex"/>. Units draw nothing —
 /// their members draw themselves. Nothing in 2-D.
 /// </summary>
-public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
+public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
 {
     private static readonly Color Dark = new(46, 46, 42, 255);
     private static readonly Color Glass = new(70, 92, 112, 255);
@@ -64,7 +64,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                                            PersonSex Sex = PersonSex.Unspecified, Wardrobe? Wardrobe = null);
 
     /// <summary>⭐ CE-1099 (§6q O-3) — a person shorter than this (m) is a child: drawn with a larger head.</summary>
-    public const float ChildHeight = 1.5f;
+    public const float ChildHeight = Hrot.Look.People.PersonLook.ChildHeight;   // ⭐ CE-4671 LK-S2
 
     /// <summary>⭐ CE-1099 — how much larger a child's head is than the figure's scaled one.</summary>
     public const float ChildHead = 1.3f;
@@ -213,7 +213,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// base mixed half and half with the mean of its three tones.</summary>
     public static Color FarColour(in Outfit outfit, Color fallback)
     {
-        var c = Outfits.ColourOfPart(outfit, BlockFigure.TorsoIndex) ?? fallback;
+        var c = Outfits.ColourOfPart(outfit, BlockFigure.TorsoIndex).ToColor() ?? fallback;
         if (outfit.Camo == CamoPattern.None) return c;
         var (t1, t2, t3) = Outfits.CamoTones(outfit.Camo);
         static byte Mix(byte b, byte a1, byte a2, byte a3) => (byte)((b + (a1 + a2 + a3) / 3) / 2);
@@ -232,7 +232,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (look.Family == VisualFamily.Person)
         {
             long seed = SeedOf(world, e, hasNet);
-            var outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit, look.Elderly, look.Sex, look.Wardrobe);
+            var outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look).ToRgba(), SideOf(world, e), look.Kit, look.Elderly, look.Sex, look.Wardrobe);
             colour = FarColour(outfit, colour);
             var stance = LogicalStance.Of(world, e);
             if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) stance = StanceId.Prone;   // a dead man lies
@@ -262,6 +262,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         MortarsDrawn = 0;
         ChargeLightsDrawn = 0;
         EjectionSeatsDrawn = 0;
+        OpeningsDrawn = CrewOutDrawn = 0; _lightsNow.Clear();   // ⭐ CE-4670
         _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
@@ -345,12 +346,13 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             {
                 crewEye = CrewEye(look.Family, size);
                 if (crewEye == null) { _drawn.Add(e); continue; }
+                crewEye = CommanderEye(world, e, look.Family, crewEye.Value, tkb, type);   // ⭐ CE-4670 (§7d D-5) — head out only when he is
             }
             var colour = ColourOf(world, e, look.Colour);
             bool animal = VisualFamilies.IsAnimal(look.Family);   // ⭐ CE-4623
             if (animal && !HasOwnColour(world, e, look)) colour = AnimalCoats.Of(look.Family, SeedOf(world, e, hasNet));   // a seeded coat, the same on every host
             if (look.Family == VisualFamily.WheeledCar)   // ⭐ CE-1100 (§6q O-6) — every personal car its own paint
-                colour = Outfits.CarColour(SeedOf(world, e, hasNet), type, HasOwnColour(world, e, look) ? colour : null);
+                colour = Outfits.CarColour(SeedOf(world, e, hasNet), type, HasOwnColour(world, e, look) ? colour.ToRgba() : null).ToColor();
             // ⭐ CE-1085 (§6n N-3) — a weapon a man CARRIES is drawn on his back, after every figure is placed (pass 2)
             if (look.Family == VisualFamily.WeaponSystem && CarrierOf(world, e) is { } bearer)
             {
@@ -532,7 +534,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             {
                 long seed = SeedOf(world, e, hasNet);
                 camoSeed = Outfits.CamoSeed(seed);
-                outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit,
+                outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look).ToRgba(), SideOf(world, e), look.Kit,
                                      look.Elderly, look.Sex, look.Wardrobe);
                 Outfits.Details(outfit.Value, seed, _details);
                 // ⭐ CE-1177 (People Display U16) — his face shows how he feels (pain, anger, fear, alarm), close up
@@ -552,6 +554,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
                       geometry, carriage, shader, rounds);
             _damageMask = 0; _turretThrown = false;
+            // ⭐ CE-4670 (§7d) — its hatches, doors and ramps as the replicated state has them, a head out of a hatch, its lit lights (a wreck: none)
+            if (vehicleBody && !wreck && look.Family != VisualFamily.WeaponSystem)
+                DrawFittings(world, e, tkb != null && tkb.TryGetByType(type, out var fittingType) ? fittingType : null, parts, size, pivots, pose, motion,
+                             kitToBody, body, colour, shader, simTime);
             _expression = Vector3.Zero;
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
             if (mortarFired) DrawMortar(e, body, colour, shader);   // ⭐ CE-1236 — after the figure: its muzzle is the shot's
@@ -582,6 +588,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         DrawCarried(world, shader);   // ⭐ CE-1085 — pass 2 (⭐ CE-4555 — no per-frame closure: a wreck is read inside)
         DrawRopes(world, shader, simTime);   // ⭐ CE-1119 (§6w AB-V5) — pass 3: the fast ropes, and the cut ones lying where they fell
         _batch.Flush(shader, _applySurface ??= d => _surface.Apply(LitShader.Shared, d));   // ⭐ CE-4555 (§6ak.2) — everything above, one instanced call per mesh
+        DrawLightPoints();   // ⭐ CE-4670 (§7d D-4) — the lit lights, unlit, after the lit batch
         BodyDrawStats.Record(_batch.DrawCalls, _batch.Instances, BodiesDrawn, DoorsDrawn);
         BodyDrawStats.RecordBands(BodiesFull, BodiesFar, BodiesHidden, DoorsHidden);
         if (_recordPick) _pick.End();
@@ -627,13 +634,13 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 Matrix4x4 local;
                 if (look.Family == VisualFamily.Person)
                 {
-                    var dress = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, ownFar ?? (look.TypeColoured ? farColour : null), ForceId.Neutral, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
+                    var dress = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, (ownFar ?? (look.TypeColoured ? farColour : null)).ToRgba(), ForceId.Neutral, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
                     farColour = FarColour(dress, farColour);
                     local = FarBox(StanceId.Standing, look.Soldier, size);
                 }
                 else
                 {
-                    if (look.Family == VisualFamily.WheeledCar) farColour = Outfits.CarColour(a.Key, a.TkbType, ownFar ?? (look.TypeColoured ? farColour : null));
+                    if (look.Family == VisualFamily.WheeledCar) farColour = Outfits.CarColour(a.Key, a.TkbType, (ownFar ?? (look.TypeColoured ? farColour : null)).ToRgba()).ToColor();
                     else if (ownFar is { } oc) farColour = oc;
                     var centre = look.Geometry is { } g ? new Vector3(g.BodyCentreX, g.BodyCentreY, g.BodyCentreZ) : new Vector3(0f, 0f, size.Z * 0.5f);
                     local = Matrix4x4.CreateScale(size) * Matrix4x4.CreateTranslation(centre);
@@ -656,7 +663,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             {
                 parts = BlockFigure.Parts(StanceId.Standing, look.Soldier, WeaponPostureKind.AtEase, WeaponPostureKind.AtEase, 1f);
                 motion = Stepping(motion, StanceId.Standing);
-                outfit = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, own ?? (look.TypeColoured ? colour : null), ForceId.Neutral,
+                outfit = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, (own ?? (look.TypeColoured ? colour : null)).ToRgba(), ForceId.Neutral,
                                      look.Kit, look.Elderly, look.Sex, look.Wardrobe);
                 Outfits.Details(outfit.Value, a.Key, _details);
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
@@ -664,7 +671,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             else
             {
                 (parts, pivots) = PlacedKit(KitOf(look), a.TkbType, tkb, size);
-                if (look.Family == VisualFamily.WheeledCar) colour = Outfits.CarColour(a.Key, a.TkbType, own ?? (look.TypeColoured ? colour : null));
+                if (look.Family == VisualFamily.WheeledCar) colour = Outfits.CarColour(a.Key, a.TkbType, (own ?? (look.TypeColoured ? colour : null)).ToRgba()).ToColor();
                 else if (own is { } c) colour = c;
             }
             var geometry = look.Geometry;
@@ -721,7 +728,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             var model = HrotToRaylib.ModelFromHrot(placed);
             var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
             bool partWrecked = wreck || (_damageMask != 0 && VehicleDamageDraw.Destroyed(_damageMask, part));   // ⭐ CE-4670 — a destroyed part is drawn dark
-            var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, partWrecked);   // ⭐ CE-1099
+            var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn.ToColor() : PartColour(part.Colour, colour, partWrecked);   // ⭐ CE-1099
             if (look.Toy && !wreck) tint = part.Colour == ColourRole.Dark ? new Color(200, 90, 15, 255) : BlockFigure.ToyOrange;   // ⭐ CE-1173 (U12)
             // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face; ⭐ CE-4555 (§6ak D-4, D-5) — as this instance's data, into the batch
             Submit(mesh, model, tint, Paint(outfit, pi, part.Face, camoSeed));
@@ -733,7 +740,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                     var d = _details[k];
                     var local = Matrix4x4.CreateScale(d.Extent) * Matrix4x4.CreateTranslation(d.Centre);
                     if (d.Turned) local *= BlockFigure.FaceFrame(headFace);
-                    Submit(_cube, HrotToRaylib.ModelFromHrot(local * placed), d.Colour, BodySurface.PlainData);
+                    Submit(_cube, HrotToRaylib.ModelFromHrot(local * placed), d.Colour.ToColor(), BodySurface.PlainData);
                     DetailsDrawn++;
                 }
             for (int k = 0; k < stains; k++)   // ⭐ CE-1098 (§6p) — the blood spots on this part
@@ -1914,7 +1921,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (face != FaceOn.None)
         {
             FacesPainted++;
-            return BodySurface.FaceData(face, o.Face, o.Hair, _expression);
+            return BodySurface.FaceData(face, o.Face, o.Hair.ToColor(), _expression);
         }
         if (o.Camo != CamoPattern.None && index is >= 0 and <= 9 and not BlockFigure.HeadIndex)
         {
@@ -1925,7 +1932,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 CamoPattern.Woodland => SurfaceKind.Woodland,
                 CamoPattern.Desert => SurfaceKind.Desert,   // ⭐ CE-1235
                 _ => SurfaceKind.Fleck,
-            }, t1, t2, t3, camoSeed);
+            }, t1.ToColor(), t2.ToColor(), t3.ToColor(), camoSeed);
         }
         return BodySurface.PlainData;
     }
@@ -1975,7 +1982,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         {
             var d = heads[i];
             if (d.Shade == FaceShade.Hair && outfit?.HairStyle == HairStyle.None) continue;
-            Submit(_cube, HrotToRaylib.ModelFromHrot(BlockFigure.FaceDetail(d, on, head)), FaceColour(d.Shade, uniform, outfit?.Hair), BodySurface.PlainData);
+            Submit(_cube, HrotToRaylib.ModelFromHrot(BlockFigure.FaceDetail(d, on, head)), FaceColour(d.Shade, uniform, (outfit?.Hair).ToColor()), BodySurface.PlainData);
             FaceDetailsDrawn++;
         }
     }
@@ -2019,11 +2026,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     /// <summary>⭐ CE-1098 / CE-1099 — a man's seed: his network id (the same on every node), else his entity index.</summary>
     private static long SeedOf(EntityRepository world, Entity e, bool hasNet)
-        => hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is int net && net != 0 ? net : e.Index;
+        => hasNet ? Hrot.Look.People.PersonLook.SeedOf(world, e) : e.Index;   // ⭐ CE-4671 LK-S2 — the look library's seed (one owner)
 
     /// <summary>⭐ CE-1099 (§6q O-4) — his side (replicated <see cref="EntityInfo.ForceId"/>); Neutral where there is none.</summary>
-    private static ForceId SideOf(EntityRepository world, Entity e)
-        => world.IsComponentTypeRegistered<EntityInfo>() && world.HasComponent<EntityInfo>(e) ? world.GetComponentRO<EntityInfo>(e).ForceId : ForceId.Neutral;
+    private static ForceId SideOf(EntityRepository world, Entity e) => Hrot.Look.People.PersonLook.SideOf(world, e);   // ⭐ CE-4671 LK-S2
 
     /// <summary>⭐ CE-1099 (§6q O-1) — true when his colour is HIS (authored on the entity, or named by his type), not the family default.</summary>
     private static bool HasOwnColour(EntityRepository world, Entity e, in TypeLook look) => look.TypeColoured || HasEntityColour(world, e);
@@ -2035,22 +2041,16 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// spawned entity (<c>PresentationTkbTranslator</c>), so his own is one that DIFFERS from the type's.
     /// </summary>
     public static Color? OwnColourOf(EntityRepository world, Entity e, in TypeLook look)
-    {
-        var colour = ColourOf(world, e, look.Colour);
-        if (!look.Soldier || look.Kit == PersonKit.Security) return HasOwnColour(world, e, look) ? colour : null;
-        return HasEntityColour(world, e) && !(look.TypeColoured && SameColour(colour, look.Colour)) ? colour : null;
-    }
+        => Hrot.Look.People.PersonLook.OwnColourOf(world, e, FactsFrom(look)).ToColor();   // ⭐ CE-4671 LK-S2 — the look library's rule (one owner)
+
+    /// <summary>⭐ CE-4671 LK-S2 — a type look's person half, as the look library's facts.</summary>
+    private static Hrot.Look.People.PersonFacts FactsFrom(in TypeLook look)
+        => new(look.Soldier, look.Child, look.Kit, look.Elderly, look.Sex, look.Wardrobe, look.Colour.ToRgba(), look.TypeColoured);
 
     private static bool SameColour(Color a, Color b) => a.R == b.R && a.G == b.G && a.B == b.B;
 
     /// <summary>⭐ CE-1235 — true when the ENTITY itself names a colour (authored appearance or visual data), whatever his type says.</summary>
-    private static bool HasEntityColour(EntityRepository world, Entity e)
-    {
-        if (world.IsComponentTypeRegistered<EntityAppearance>() && world.HasComponent<EntityAppearance>(e) && world.GetComponentRO<EntityAppearance>(e).HasColour)
-            return true;
-        return world.IsComponentTypeRegistered<VisualData>() && world.HasComponent<VisualData>(e)
-            && ParseHex(world.GetComponentRO<VisualData>(e).ColorHex) != null;
-    }
+    private static bool HasEntityColour(EntityRepository world, Entity e) => Hrot.Look.People.PersonLook.HasEntityColour(world, e);   // ⭐ CE-4671 LK-S2
 
     private readonly List<PartDetail> _details = new(8);
 
@@ -2074,8 +2074,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public static Color FaceColour(FaceShade shade, Color uniform, Color? hair = null) => shade switch
     {
         FaceShade.Hair => hair ?? new Color(62, 44, 32, 255),
-        FaceShade.Cap => Outfits.PoliceUniform,          // ⭐ CE-1172 (U11)
-        FaceShade.CapBand => Outfits.CapBand,
+        FaceShade.Cap => Outfits.PoliceUniform.ToColor(),          // ⭐ CE-1172 (U11)
+        FaceShade.CapBand => Outfits.CapBand.ToColor(),
         FaceShade.Peak => new Color(16, 16, 18, 255),
         FaceShade.Visor => new Color(150, 172, 196, 255),
         _ => new Color((byte)(uniform.R * 0.72f), (byte)(uniform.G * 0.72f), (byte)(uniform.B * 0.72f), (byte)255),
@@ -2233,18 +2233,18 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             size *= tall / size.Z;
         }
         var typeColour = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex);
-        var person = family == VisualFamily.Person ? t.GetDescriptor<PersonDto>() : null;   // ⭐ CE-4648 — who the type IS (age, sex)
+        // ⭐ CE-4671 LK-S2 — the PERSON half (child, kit, elderly, sex, wardrobe) is the look library's (PersonLook.FactsOf, one owner, cached per type): a gateway
+        //   resolves a man as the map does. CE-4648 (OF-2) a stated age band decides a child, else his height; CE-1162 the type says who he is; OF-7 the wardrobe once per type
+        var facts = family == VisualFamily.Person ? Hrot.Look.People.PersonLook.FactsOf(t) : null;
         return new TypeLook(family, size, typeColour ?? DefaultColour(family), VisualFamilies.IsSoldier(t), geometry, weapon,
-                            // ⭐ CE-4648 (OF-2) — a type that states its age band is a child by it; one that does not, by its height (as it always was)
-                            TypeColoured: typeColour != null, Child: family == VisualFamily.Person && (person != null ? person.Age == AgeBand.Child : size.Z < ChildHeight),
-                            Kit: family == VisualFamily.Person ? VisualFamilies.PersonKitOf(t) : PersonKit.Civilian,   // ⭐ CE-1162
-                            // ⭐ CE-1162 (U1-b) — the TYPE says who he is (PersonDto, backend F-4): an elderly person is dressed and greyed as one
-                            Elderly: family == VisualFamily.Person && t.GetDescriptor<PersonDto>()?.Age == AgeBand.Elderly,
+                            TypeColoured: typeColour != null, Child: facts?.Child ?? false,
+                            Kit: facts?.Kit ?? PersonKit.Civilian,
+                            Elderly: facts?.Elderly ?? false,
                             // ⭐ CE-1173 (People Display U12) — a weapon-system type that looks like a gun and fires nothing: drawn orange
                             Toy: family == VisualFamily.WeaponSystem && t.GetDescriptor<WeaponSuiteDto>()?.Mounts.Any(HeldWeapons.IsToy) == true,
                             Style: family == VisualFamily.WheeledCar ? CarKits.Parse(t.GetDescriptor<VisualDefinitionDto>()?.BodyStyle) : null,   // ⭐ CE-1457
-                            Sex: person?.Sex ?? PersonSex.Unspecified,
-                            Wardrobe: family == VisualFamily.Person ? Wardrobe.Of(t.GetDescriptor<OutfitDto>()) : null);   // ⭐ CE-4648 (OF-7) — flattened once per type
+                            Sex: facts?.Sex ?? PersonSex.Unspecified,
+                            Wardrobe: facts?.Wardrobe);
     }
 
     /// <summary>
@@ -2293,16 +2293,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>⭐ CE-1033 S5c (§3.7) — the body colour: the entity's own <see cref="EntityAppearance"/> (scenario / per spawn) →
     /// the TKB's <c>VisualData.ColorHex</c> → the family default.</summary>
     public static Color ColourOf(EntityRepository world, Entity e, Color fallback)
-    {
-        if (world.IsComponentTypeRegistered<EntityAppearance>() && world.HasComponent<EntityAppearance>(e))
-        {
-            var a = world.GetComponentRO<EntityAppearance>(e);
-            if (a.HasColour) return new Color(a.R, a.G, a.B, (byte)255);
-        }
-        if (!world.IsComponentTypeRegistered<VisualData>() || !world.HasComponent<VisualData>(e)) return fallback;
-        string hex = world.GetComponentRO<VisualData>(e).ColorHex;
-        return ParseHex(hex) ?? fallback;
-    }
+        => Hrot.Look.People.PersonLook.ColourOf(world, e, fallback.ToRgba()).ToColor();   // ⭐ CE-4671 LK-S2 — the look library's read (one owner)
 
     /// <summary>⭐ W2 (VE-O) — the colour a part is drawn: its role's shade of the body colour, or, on a WRECK, near-black for every
     /// role — the roles keep a few steps apart so the burnt-out shape still reads.</summary>
@@ -2333,7 +2324,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     public static Color DefaultColour(VisualFamily family) => family switch
     {
-        VisualFamily.Person => new Color(96, 110, 72, 255),
+        VisualFamily.Person => Hrot.Look.People.PersonLook.DefaultColour.ToColor(),   // ⭐ CE-4671 LK-S2
         VisualFamily.Tank => new Color(112, 120, 82, 255),
         VisualFamily.Afv => new Color(122, 116, 84, 255),
         VisualFamily.WheeledCar => new Color(72, 104, 168, 255),
@@ -2356,14 +2347,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     };
 
     /// <summary><c>#RRGGBB</c> or <c>#RRGGBBAA</c> (alpha ignored — bodies are opaque); null for anything else.</summary>
-    public static Color? ParseHex(string? hex)
-    {
-        if (string.IsNullOrWhiteSpace(hex)) return null;
-        var s = hex.AsSpan().Trim().TrimStart('#');   // ⭐ CE-4555 — a span: every body's colour is read each frame (0 B)
-        if ((s.Length != 6 && s.Length != 8) || !uint.TryParse(s[..6], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
-            return null;
-        return new Color((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, (byte)255);
-    }
+    public static Color? ParseHex(string? hex) => Hrot.Look.Rgba.FromHex(hex).ToColor();   // ⭐ CE-4671 LK-S2 — the look library's parser (one owner)
 
     private static float? Positive(params float?[] values)
     {

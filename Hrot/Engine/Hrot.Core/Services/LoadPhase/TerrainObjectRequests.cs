@@ -29,11 +29,11 @@ public static class TerrainObjectRequests
     /// <summary>One request per door of <paramref name="world"/> that has no entity yet, in key order.</summary>
     /// <param name="saved">⭐ 5e — the scenario's <c>TerrainObjects</c> door states (key → state); a door it names starts in that
     /// state, every other door as the terrain authored it. A saved key this terrain does not define is reported and ignored.</param>
-    public static List<EntityCreationRequest> ForDoors(TerrainWorld world, ISet<string> existingKeys, INetworkIdAllocator idAllocator,
+    /// <param name="idAllocator">The load's id allocator; ⭐ CE-5028 — null for a door a live commit adds (<see cref="TerrainObjectReconcile"/>): the creation system allocates.</param>
+    public static List<EntityCreationRequest> ForDoors(TerrainWorld world, ISet<string> existingKeys, INetworkIdAllocator? idAllocator,
         IReadOnlyDictionary<string, TerrainDoorState>? saved = null)
     {
         if (world == null) throw new ArgumentNullException(nameof(world));
-        if (idAllocator == null) throw new ArgumentNullException(nameof(idAllocator));
         if (saved != null)
             foreach (var key in saved.Keys)
                 if (world.DoorIndexOf(key) < 0)
@@ -51,7 +51,7 @@ public static class TerrainObjectRequests
             {
                 RequestId             = Guid.NewGuid(),
                 TkbType               = (Fdp.Core.TkbTypeId)(TkbEntityTypes.Door),
-                PreAllocatedNetworkId = idAllocator.AllocateId(),
+                PreAllocatedNetworkId = idAllocator?.AllocateId() ?? 0,
                 IsTransient           = true,
                 InitialComponents     = new List<object>
                 {
@@ -84,21 +84,21 @@ public static class TerrainObjectRequests
         foreach (var (key, building, entities) in BuildingDamageLoad.Resolve(world, saved, warn))
         {
             if (existingKeys.Contains(key)) continue;   // a re-commit never doubles a building's damage
-            var b = world.Buildings[building];
-            foreach (var d in entities)
+            var anchor = WallGroups.Anchor(world, building);
+            for (int i = 0; i < entities.Count; i++)
+            {
+                var initial = new List<object> { new SimTransform { Position = anchor, Rotation = Quaternion.Identity }, entities[i], new TerrainObjectKey { Key = key } };
+                // ⭐ CE-5033 (glass windows GW-2) — the saved windows ride the building's first entity; the others carry none
+                initial.Add(i == 0 ? BuildingDamageLoad.WindowsOf(world, building, saved[key], warn) : new WindowDamage { Building = building });
                 requests.Add(new EntityCreationRequest
                 {
                     RequestId             = Guid.NewGuid(),
                     TkbType               = (Fdp.Core.TkbTypeId)BuildingDamages.TkbType,
                     PreAllocatedNetworkId = idAllocator.AllocateId(),
                     IsTransient           = true,
-                    InitialComponents     = new List<object>
-                    {
-                        new SimTransform { Position = new Vector3(b.Position, b.BaseZ), Rotation = Quaternion.Identity },
-                        d,
-                        new TerrainObjectKey { Key = key },
-                    },
+                    InitialComponents     = initial,
                 });
+            }
         }
         return requests;
     }

@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Modules
         private readonly GizmoUiStateHub _uiHub;
         private readonly IGizmoUiStatePublisher? _ddsUiPublisher;
         private readonly IEcsModuleSystem? _primitivePublisherSystem;
+        [Fdp.Core.NotState("translators created once in ctor from factory")]
         private readonly IReadOnlyList<INetworkTranslator> _translators;
 
         // Exposed so tests can drive lifecycle detection without a live DDS participant.

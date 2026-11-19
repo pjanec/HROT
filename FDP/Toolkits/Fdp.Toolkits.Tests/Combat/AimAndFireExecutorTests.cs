@@ -2587,6 +2587,58 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(NodeStatus.Running, channel.Status);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2452</c> (I-4's L-2 rule on the AIMED path too) — the engagement chose the M67 (mount 1) against a man 18 m off: with a
+        /// friend 3 m from him (inside the M67's 7.6 m lethal radius) the RIFLE (mount 0, on the unit) fires instead; with the rifle empty the
+        /// M67 stands (nothing else to fire); a friend 9 m off (outside it), or none, changes nothing. 📐 <c>rf-wall-hugger</c>: an aimed M67
+        /// burst among the thrower's own squad (164–202 at 3.4 m). ✅ Red-proof: <c>SpareFriends</c> returning its index unjudged ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData("no friend", 1)]
+        [InlineData("friend 3 m from him", 0)]
+        [InlineData("friend 3 m, rifle empty", 1)]
+        [InlineData("friend 9 m from him", 1)]
+        public void CE2452_AnAimedGrenade_WithAFriendInItsBurst_GivesWayToTheRifle(string why, int expected)
+        {
+            var at = new Vector3(0f, 18f, 0f);
+            var (unit, grenade, _, target) = Grenadier(at);
+            SetSight(unit, target, visual: true);
+            if (why.StartsWith("friend"))
+            {
+                var friend = SpawnTarget(at + new Vector3(why.Contains("9 m") ? 9f : 3f, 0f, 0f));
+                _world.AddComponent(friend, new EntityInfo { ForceId = (Fdp.Core.ForceId)1 });
+            }
+            if (why.Contains("rifle empty"))
+            {
+                ref var rifle = ref _world.GetComponentRW<WeaponState>(unit);
+                rifle.Ammo = 0;
+            }
+            Entity mount = grenade;
+            int fired = AimAndFireExecutor.SpareFriends(_world, unit, target, 1, ref mount);
+            Assert.Equal(expected, fired);
+            Assert.Equal(expected == 0 ? unit : grenade, mount);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2452</c> — the friend check counts the WALL (the room drill's CB-70 law, <see cref="GrenadeRules.Hurts"/>): a man hugging
+        /// the brick house's south wall from outside, a friend 1.9 m from him INSIDE behind it — the M67 stands (the wall stops its fragments);
+        /// the same two with no house — the rifle. ✅ Red-proof: the trace left out (a flat radius, the old <c>FriendlyInBurst</c>) ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(true, 1)]
+        [InlineData(false, 0)]
+        public void CE2452_AFriendBehindAWall_DoesNotVetoTheGrenade_InTheOpenHeDoes(bool house, int expected)
+        {
+            var at = new Vector3(25f, 19.6f, 0f);
+            var (unit, grenade, _, target) = Grenadier(at);
+            if (house) _world.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(Fdp.Toolkit.Terrain.Tests.BreachFixtures.BrickHouse, "range"));
+            SetSight(unit, target, visual: true);
+            var friend = SpawnTarget(new Vector3(25f, 21.5f, 0f));
+            _world.AddComponent(friend, new EntityInfo { ForceId = (Fdp.Core.ForceId)1 });
+            Entity mount = grenade;
+            Assert.Equal(expected, AimAndFireExecutor.SpareFriends(_world, unit, target, 1, ref mount));
+        }
+
         // ── CE-2360 I-4 (AQ102 R2-4, R-2073) — WHICH grenade the hidden-target throw picks ───────────────────────────────────────
 
         private const long Stun = 6037;

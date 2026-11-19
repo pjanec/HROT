@@ -56,9 +56,13 @@ namespace Fdp.Toolkit.Squad.Command
         private EntityQuery? _commanders;
         // ⭐ CE-4518 (X-3) — this frame's heard launches, SORTED by the commander's index: a commander reads only its own run (binary search),
         //   instead of every unit walking every launch (O(units × launches)), and a phase thread reads it without a lock. Grown, never shrunk.
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private (Entity Commander, SoundContactEvent Heard)[] _launches = new (Entity, SoundContactEvent)[16];
+        [Fdp.Core.FrameScratch("count of launches collected this run: reset to 0 at line 97")]
         private int _launchCount;
+        [Fdp.Core.FrameScratch("the units of this run: refilled from index 0, read only below this run's count")]
         private Entity[] _units = new Entity[64];
+        [Fdp.Core.FrameScratch("per-unit sent counts: zeroed after being summed (line 144) within the same run")]
         private int[] _sent = new int[64];
 
 
@@ -212,6 +216,10 @@ namespace Fdp.Toolkit.Squad.Command
             for (int i = 0; i < squad.Contacts.Count && n < live.Length; i++)
             {
                 if (!SquadContacts.IsEnemy(repo, in pool[i])) continue;   // ⭐ CE-2353 — the one squad "enemy"
+                // ⭐ CE-4666 (D-8, user-approved) — heard only FROM an opening or a corner: where to LOOK, not where the enemy IS. 📌 Measured in
+                //   pc-defend-house: a shot 125 m off, heard through the reserve's own window, was SPOTted AT its post, and the platoon turned its
+                //   line to face that "flank" (DA-60), away from the attack
+                if ((pool[i].Flags & SquadContact.HeardThroughFlag) != 0) continue;
                 live[n++] = i;
             }
             var sum = Vector3.Zero;
@@ -349,6 +357,7 @@ namespace Fdp.Toolkit.Squad.Command
             }, now + ReportDelaySeconds);
         }
 
+        [Fdp.Core.NotState("static readonly constant array")]
         private static readonly ElementEquipment[] s_relayed = { ElementEquipment.IndirectFire, ElementEquipment.AirDefence };
 
         /// <summary>⭐ CE-2310 (HQ-3) — SPOT <paramref name="e"/> up, once per element place and flag.</summary>
