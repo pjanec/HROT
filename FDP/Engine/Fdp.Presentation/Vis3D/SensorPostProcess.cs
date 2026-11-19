@@ -280,7 +280,7 @@ void main()
         float lum = dot(c, NV_RESPONSE) + nir;
         // the automatic gain: the picture's mean (the halo target's last mip) brought toward the target — a flash in view pulls the rest down
         float mean = textureLod(halo, vec2(0.5), meanLevel).a;
-        float abc = clamp(targetMean / max(mean, 0.02), 0.25, 2.0);
+        float abc = targetMean > 0.0 ? clamp(targetMean / max(mean, 0.01), 0.25, 6.0) : 1.0;   // off: unity gain
         v = lum * abc * gain + h.r * 0.9;
     }
     else v = c.r;   // thermal (CE-1985): the scene pass writes the heat

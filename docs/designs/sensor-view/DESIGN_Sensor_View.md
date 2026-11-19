@@ -288,7 +288,7 @@ Queries: `search_code "[Cc]igarette|[Ss]moking|[Ss]moker"` (regex, 40) · grep `
 | **L-3** | ⭐ cheap ILLUMINATION: forward lights in `LitShader` — at most **16 per frame**, chosen on the CPU by `intensity × radius² / distance-to-camera²`; per fragment a smooth falloff `(1 − (d/r)²)²` × two-sided N·L, × a cone for a spot (headlamps, searchlight, landing light). Added to the normal view and to night vision (amplified by the gain); ⛔ NOT to thermal (light is not heat) | one loop over ≤ 16 uniforms; the instanced program shares the fragment source ⇒ bodies are lit too. ⛔ shadow maps (the expensive part); ⛔ deferred lighting (a second geometry pass) |
 | **L-4** | ⚠ no shadows ⇒ a light passes through walls — kept small where it matters: headlamp a 25 m spot (30° half-angle), tail / brake 2 m, interior 1.5 m, a blast 15–40 m by its charge for its first 0.3 s, a muzzle flash 6 m for 60 ms, a fire 3× its radius (flickering on its seed), a flare 120 m for its burn, an ember 0.4 m | accepted; the radius table is the tuning surface |
 | **L-5** | ⭐ the cigarette EMBER: a point at the cigarette's tip — computed by ONE function shared with the arm pose (`BlockFigure.CigaretteTip`, the same math as `IdleArms`, never a copy), glowing 0.4 resting and 1.0 while at his lips (the drag) on his own gesture clock; a tiny emissive sphere in every view and a 0.4 m light | 🔒 user; ⛔ a new component (the gesture and its clock are already replicated) |
-| **L-6** | the muzzle flash: the existing effect — a 6 m light for its 60 ms; saturated in thermal | 🔒 user |
+| **L-6** | the muzzle flash: the existing effect — a 6 m light for its 60 ms that lights the SHOOTER too (his face, his body: the same light model); saturated in thermal | 🔒 user, `2026-11-19`: *"yes muzzle flash lights the shooter"* |
 | **L-7** | `View ▸ Scene Lights` (checked, default ON) switches the illumination off for a slow machine; the sources stay SEEN | the cost is the user's call per machine |
 
 ### 9c. UML
@@ -332,7 +332,7 @@ twice to light the same frame.
 
 | | |
 |---|---|
-| the key | ⭐ **F4** cycles **normal → night vision → thermal → normal** (thermal skipped until CE-1985) — 📐 measured free in every scope (the F-keys in use: F2 rename, F3 the performance overlay, F6–F10 audio; `N` is the first person's message log) |
+| the key | ✅ **approved** (user, `2026-11-19`: *"F4 is fine"*) — ⭐ **F4** cycles **normal → night vision → thermal → normal** (thermal skipped until CE-1985) — 📐 measured free in every scope (the F-keys in use: F2 rename, F3 the performance overlay, F6–F10 audio; `N` is the first person's message log) |
 | where | a keymap row (`docs/UX/DESIGN_Input_And_Commands.md` K4): Global scope, read by the map's `SensorView` through a `KeymapReader` like `DebugKeys` — so it works on the map AND in first person, is listed in the Keyboard shortcuts window and can be rebound |
 | shown | the View ▸ Sensor View items show `F4`; the legend strip ends *"F4: next view"* |
 

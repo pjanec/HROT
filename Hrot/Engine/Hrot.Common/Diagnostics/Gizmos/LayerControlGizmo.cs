@@ -59,18 +59,18 @@ namespace Hrot.Common.Diagnostics.Gizmos
         private static readonly string[] ThermalPalettes = { "White-hot", "Black-hot", "Ironbow" };
 
         /// <summary>The submenu item (one JSON object, no trailing comma).</summary>
-        public static string Json(int state)
+        public static string Json(int state, string? shortcut = null)
         {
             int mode = state & 3, palette = (state >> 2) & 7;
             bool B(int bit) => (state & (1 << bit)) != 0;
-            string Item(int id, string label, bool? on, bool enabled = true)
+            string Item(int id, string label, bool? on, bool enabled = true, string? key = null)
                 => "{\"id\":" + id + ",\"label\":\"" + label + "\"" + (on is { } c ? ",\"checked\":" + (c ? "true" : "false") : "")
-                   + (enabled ? "" : ",\"enabled\":false") + "}";
+                   + (enabled ? "" : ",\"enabled\":false") + (key != null ? ",\"shortcut\":\"" + key + "\"" : "") + "}";
             string paletteName = mode == 2 ? ThermalPalettes[Math.Min(palette, 2)] : NvPalettes[Math.Min(palette, 1)];
             return "{\"label\":\"Sensor View\",\"children\":["
-                 + Item(GlobalActionIds.SensorViewOff, "Off", mode == 0) + ","
-                 + Item(GlobalActionIds.SensorViewNightVision, "Night Vision", mode == 1) + ","
-                 + Item(GlobalActionIds.SensorViewThermal, "Thermal", mode == 2, B(10)) + ","
+                 + Item(GlobalActionIds.SensorViewOff, "Off", mode == 0, key: shortcut) + ","
+                 + Item(GlobalActionIds.SensorViewNightVision, "Night Vision", mode == 1, key: shortcut) + ","
+                 + Item(GlobalActionIds.SensorViewThermal, "Thermal", mode == 2, B(10), key: shortcut) + ","
                  + "{\"separator\":true},"
                  + Item(GlobalActionIds.SensorPaletteNext, "Palette: " + paletteName, null, mode != 0) + ","
                  + Item(GlobalActionIds.SensorAutoGain, "Automatic Gain", B(9), mode != 0) + ","
@@ -464,14 +464,19 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         /// <summary>⭐ CE-1984 (DESIGN_Sensor_View D-10) — the View menu with the Sensor View submenu appended (<see cref="SensorViewMenu"/>); the
         /// string is rebuilt only when the menu's inputs change.</summary>
-        public string MainMenuJsonFor(bool ordersOffered, bool rtsOn, int? sensorState)
+        public string MainMenuJsonFor(bool ordersOffered, bool rtsOn, int? sensorState, string? sensorKey = null)
         {
             var baseJson = MainMenuJsonFor(ordersOffered, rtsOn);
             if (sensorState is not { } s) return baseJson;
-            if (ReferenceEquals(baseJson, _menuBase) && s == _menuSensor && _menuJson != null) return _menuJson;
-            _menuBase = baseJson; _menuSensor = s;
-            return _menuJson = baseJson.Substring(0, baseJson.Length - 3) + "," + SensorViewMenu.Json(s) + "]}]";   // "…}]}]": before the children's ']'
+            if (ReferenceEquals(baseJson, _menuBase) && s == _menuSensor && sensorKey == _menuKey && _menuJson != null) return _menuJson;
+            _menuBase = baseJson; _menuSensor = s; _menuKey = sensorKey;
+            return _menuJson = baseJson.Substring(0, baseJson.Length - 3) + "," + SensorViewMenu.Json(s, sensorKey) + "]}]";   // "…}]}]": before the children's ']'
         }
+
+        private string? _menuKey;
+
+        /// <summary>⭐ CE-1989 — the key that cycles the sensor view (shown on its menu items); unset = none shown.</summary>
+        public Func<string?>? SensorMenuKey { get; set; }
 
         private string? _menuBase, _menuJson;
         private int _menuSensor = -1;
@@ -619,7 +624,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             draw.EmitRaw(in maskPrim);
 
             // Inject "View > Tactical Map Layers..." into the host main menu bar.
-            draw.DrawMainMenuBinding(MainMenuJsonFor(Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view), RtsChecked?.Invoke() == true, SensorMenuState?.Invoke()));   // ⭐ CE-3171 · CE-4347
+            draw.DrawMainMenuBinding(MainMenuJsonFor(Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view), RtsChecked?.Invoke() == true, SensorMenuState?.Invoke(), SensorMenuKey?.Invoke()));   // ⭐ CE-3171 · CE-4347
 
             // Emit StructInspector panel when editing is active.
             if (_isEditing)

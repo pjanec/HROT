@@ -155,10 +155,10 @@ public enum SceneSensor : byte { None = 0, NightVision = 1, Thermal = 2 }
 /// <summary>⭐ <c>CE-1984</c> — the one rule for a self-luminous draw under a sensor view (D-4: seen, never lighting).</summary>
 public static class SceneSensors
 {
-    /// <summary>The colour a self-luminous thing is drawn in: itself on the normal view; under night vision near-white at its own opacity (a lamp,
+    /// <summary>The colour a self-luminous thing is drawn in: itself on the normal view; under night vision white and OPAQUE (a lamp,
     /// a flame, a flash saturates the tube and blooms in the post pass, whatever its colour — the tube sees red and near-infrared best).</summary>
     public static Raylib_cs.Color Emissive(this in RenderContext ctx, Raylib_cs.Color c)
-        => ctx.Sensor == SceneSensor.NightVision ? new Raylib_cs.Color((byte)255, (byte)255, (byte)255, c.A) : c;
+        => ctx.Sensor == SceneSensor.NightVision && c.A > 0 ? new Raylib_cs.Color((byte)255, (byte)255, (byte)255, (byte)255) : c;   // opaque: a translucent glow blended on the dark never reaches the bloom
 }
 
 /// <summary>

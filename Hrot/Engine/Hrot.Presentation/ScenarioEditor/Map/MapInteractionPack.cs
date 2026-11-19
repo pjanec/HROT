@@ -666,7 +666,7 @@ namespace Hrot.ScenarioEditor.Map
             canvas.PostProcess = sensorView.Post;
             canvas.AddLayer(sensorView);
             viewMode.Sensor = sensorView;
-            if (LayerControlOf.TryGetValue(buffer, out var sensorMenu)) sensorMenu.SensorMenuState = () => sensorView.MenuState;
+            if (LayerControlOf.TryGetValue(buffer, out var sensorMenu)) { sensorMenu.SensorMenuState = () => sensorView.MenuState; sensorMenu.SensorMenuKey = () => sensorView.CycleKey; }
             canvas.AddLayer(new Hrot.UI.Common.Map3D.WeatherSkyLayer(viewSwitch, worldProvider) { Sensor = sensorView });   // ⭐ CE-1146 — the weather's sky: the free camera at what it looks at, first person at the eye
             canvas.AddLayer(new Hrot.UI.Common.Map3D.RubberBandOverlay3D(viewSwitch, worldProvider));   // ⭐ CE-1136 — the 3-D marquee
             var stats = new Hrot.UI.Common.Map3D.MapStatsOverlay(viewSwitch, worldProvider, canvas.Camera);   // ⭐ CE-1262 — + the 2-D camera

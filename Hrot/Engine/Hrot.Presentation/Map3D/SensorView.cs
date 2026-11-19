@@ -22,10 +22,46 @@ public sealed class SensorView : IMapLayer
     private readonly MapViewSwitch _view;
     private readonly FdpEventBus? _bus;
 
-    public SensorView(MapViewSwitch view, FdpEventBus? bus)
+    public SensorView(MapViewSwitch view, FdpEventBus? bus, Fdp.Toolkit.Input.IChordInput? keys = null, Fdp.Toolkit.Input.Keymap? keymap = null)
     {
         _view = view ?? throw new ArgumentNullException(nameof(view));
         _bus = bus;
+        _keymap = keymap ?? Fdp.Toolkit.Input.Keymap.Process;
+        _keys = SensorViewKeys.Reader(_keymap, keys ?? new RaylibPressedKeys());
+    }
+
+    private readonly Fdp.Toolkit.Input.Keymap _keymap;
+    private int _keyVersion = -1;
+    private string? _cycleKey;
+
+    private readonly Fdp.Toolkit.Input.KeymapReader _keys;   // ⭐ CE-1989 — F4 (a keymap row, rebindable)
+
+    /// <summary>⭐ CE-1989 — the key that cycles the view as the keymap binds it now (the menu and the legend show it), e.g. <c>F4</c>.</summary>
+    public string? CycleKey
+    {
+        get
+        {
+            if (_keymap.Version != _keyVersion) { _keyVersion = _keymap.Version; _cycleKey = _keys.ChordOf(SensorViewKeys.Next); }   // re-read only on a rebind: 0 B per frame
+            return _cycleKey;
+        }
+    }
+
+    /// <summary>⭐ CE-1989 (DESIGN_Sensor_View §10) — the next view: normal → night vision → thermal (once offered) → normal.</summary>
+    public void Next() => SetMode(Mode switch
+    {
+        SceneSensor.None => SceneSensor.NightVision,
+        SceneSensor.NightVision => ThermalOffered ? SceneSensor.Thermal : SceneSensor.None,
+        _ => SceneSensor.None,
+    });
+
+    /// <summary>Raylib's keyboard as a device for the keymap's rows (only presses are asked), while a window runs.</summary>
+    private sealed class RaylibPressedKeys : Fdp.Toolkit.Input.IChordInput
+    {
+        public NodeEditor.Primitives.KeyModifiers Modifiers => NodeEditor.Primitives.KeyModifiers.None;
+        public bool IsDown(NodeEditor.Primitives.EditorKey source) => false;
+        public bool IsPressed(NodeEditor.Primitives.EditorKey source, bool allowRepeat = false)
+            => Raylib.IsWindowReady() && Fdp.Presentation.Input.RaylibKeyCodes.Of(source) is var code && code != 0 && Raylib.IsKeyPressed((KeyboardKey)code);
+        public float Value(NodeEditor.Primitives.EditorKey source) => 0f;
     }
 
     /// <summary>The shared post-process (the canvas' <see cref="Fdp.Toolkit.Vis2D.MapCanvas.PostProcess"/>).</summary>
@@ -62,6 +98,7 @@ public sealed class SensorView : IMapLayer
 
     public void Update(float dt)
     {
+        if (_keys.Pressed(SensorViewKeys.Next)) Next();   // ⭐ CE-1989 — F4, on the map and in first person
         if (_bus == null) return;
         foreach (ref readonly var e in _bus.Read<SensorViewMenuEvent>())
             Act(e.Action);
@@ -142,7 +179,7 @@ public sealed class SensorView : IMapLayer
     public Entity? PickEntity(Vector2 worldPos) => null;
 
     private string _legend = "";
-    private int _kMode = -1, _kPalette, _kLux, _kMoonEl, _kMoonLit;
+    private int _kMode = -1, _kKeyVersion = -2, _kPalette, _kLux, _kMoonEl, _kMoonLit;
 
     /// <summary>The legend strip, top centre of the 3-D map, drawn after the post-process (sharp). Its text is rebuilt only when a shown number
     /// changes (0 B per steady frame).</summary>
@@ -151,10 +188,10 @@ public sealed class SensorView : IMapLayer
         if (!_view.Is3D || ctx.Sensor == SceneSensor.None) return;
         var vp = _view.Camera3D.Viewport;
         int kLux = (int)MathF.Round(MathF.Log10(MathF.Max(Lux, 1e-6f)) * 100f), kEl = (int)MoonElevationDeg, kLit = (int)(MoonIllumination * 100f);
-        if ((int)Mode != _kMode || Palette != _kPalette || kLux != _kLux || kEl != _kMoonEl || kLit != _kMoonLit)
+        if ((int)Mode != _kMode || _keyVersion != _kKeyVersion || Palette != _kPalette || kLux != _kLux || kEl != _kMoonEl || kLit != _kMoonLit)
         {
-            _kMode = (int)Mode; _kPalette = Palette; _kLux = kLux; _kMoonEl = kEl; _kMoonLit = kLit;
-            _legend = Mode == SceneSensor.NightVision ? NightVisionLegend() : "THERMAL";
+            _kMode = (int)Mode; _kKeyVersion = _keyVersion; _kPalette = Palette; _kLux = kLux; _kMoonEl = kEl; _kMoonLit = kLit;
+            _legend = (Mode == SceneSensor.NightVision ? NightVisionLegend() : "THERMAL") + (CycleKey is { } k ? $"  -  {k}: next view" : "");
         }
         int fs = 16, w = Raylib.MeasureText(_legend, fs) + 24;
         int x = (int)(vp.X / 2f - w / 2f), y = 34;
