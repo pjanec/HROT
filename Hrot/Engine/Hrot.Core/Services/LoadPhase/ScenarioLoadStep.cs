@@ -62,6 +62,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
     private readonly ScenarioBehaviorRemapper? _remapper;
     private readonly ReadOnlyMigrationAdapter? _readOnlyAdapter;
     private readonly TerrainLoadService? _terrainLoadService;
+    private System.Diagnostics.Stopwatch? _overlayWait;   // ⭐ CE-5039 — how long this load waited for the terrain overlay (said in the log)
 
     private IReadOnlyList<EntityCreationRequest>? _pendingRequests;
     private IReadOnlyDictionary<string, Fdp.Toolkit.Terrain.SavedBuildingDamage>? _pendingBuildingDamage;   // ⭐ CE-4391 S-4 — the scenario's saved building damage
@@ -343,6 +344,7 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         _pendingDescription   = null;
         _pendingName = _pendingHash = _pendingArgs = _pendingHeaderJson = null;
         _prepared             = false;
+        _overlayWait          = null;
     }
 
     /// <summary>
@@ -403,6 +405,26 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
         //    -driven round uses, so the two paths cannot drift.
         if (_terrainLoadService != null && world != null)
             _terrainLoadService.EnsureAllLoaded(world);
+
+        // ⑤ ⭐⭐ CE-5039 (DESIGN_Cluster_Load_Phase §11.10d) — the scenario's LIVE terrain overlay (its blocks and features, expanded live on the editor) is in the terrain: its first
+        //    bake has committed. 📌 Measured by terrain: the load said done ~0.6 s before that bake, so a unit whose target only the overlay makes reachable planned on the base mesh
+        //    and never retried (te-make-enterable red). ⭐ Static obstacles needed no such line — each is Constructing until the bake acks it (②); the overlay's blocks are not.
+        //    A node with no live overlay (every host but the editor) or a scenario with no blocks / features is not delayed.
+        if (world != null && world.HasSingletonManaged<Hrot.Map.Common.Services.StaticObstacleBakery>()
+            && world.GetSingletonManaged<Hrot.Map.Common.Services.StaticObstacleBakery>() is { } bakery && bakery.AwaitsLiveOverlay(world))
+        {
+            if (_overlayWait == null)
+            {
+                _overlayWait = System.Diagnostics.Stopwatch.StartNew();
+                FdpLog<ScenarioLoadStep>.Info("[LoadPhase/Scenario] the load waits for the scenario's terrain overlay to bake (CE-5039).");
+            }
+            return false;
+        }
+        if (_overlayWait is { } overlayWaited)
+        {
+            _overlayWait = null;
+            FdpLog<ScenarioLoadStep>.Info("[LoadPhase/Scenario] the scenario's terrain overlay is baked after {0:F1} s.", overlayWaited.Elapsed.TotalSeconds);
+        }
 
         return true;
     }

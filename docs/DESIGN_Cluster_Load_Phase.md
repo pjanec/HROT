@@ -23,6 +23,7 @@ known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.
 related-designs:
+  - docs/DESIGN_Terrain_Authoring.md — OWNS the editor's live terrain overlay (§18e-2); §11.10d here makes the load wait for its first bake (CE-5039)
   - docs/DESIGN_Node_Features.md — R-1046 / CE-3354 ③'s MapInLoad is migrated into the feature map3d.in-load (its S1)
   - docs/DESIGN_Player_Join.md — the join screens follow §11.8's lobby (the join starts once the Player is caught up)
   - blueprints/Architect_Question_110_Readiness_Protocol.md — owns the readiness PROTOCOL decisions (A–E) and the slice ids that §11 builds
@@ -2100,6 +2101,44 @@ and therefore its in-sync mark, until its map is built. Rail: `LoadPhaseChainTes
 ⚠ A map build FAILURE fails the catch-up, and K7 then leaves the Player out of sync until the next cluster commit or a restart.
 
 ⭐ **A re-prepare of the SAME exercise is idempotent** *(CE-3366, `2026-11-03`)*: on a loaded cluster the live load can outlast the master's C7 timeout, and the catch-up re-sends `PrepareState` with the SAME `ExerciseId` to a node that already prepared it — its recorder (`CreateNew`, deliberately loud) then refused its own first prepare's `node_<id>.fdp` and the cluster went to error. `EcsRecordReplayController.PrepareRecordingAsync` now returns at once when the node's ACTIVE recording is that exercise (one recording per exercise per node); ⛔ a different exercise, or the same one after `FinalizeRecordingAsync`, still reaches `CreateNew` and stays loud. Rail: `RecordReplayIntegrationTests.CE3366_ARePrepareOfTheSameExercise_IsIdempotent_ADifferentOrFinalizedOneStaysLoud` (red-proved: the guard removed). Tracker: [CE-3366](blueprints/Blueprint_Issues_Tracker.md).
+
+#### 11.10d ✅ AS-BUILT `2026-11-19` (ui, CE-5039) — the load waits for the scenario's LIVE terrain overlay *(DECISIONS_Terrain CE-5039, user `2026-11-19`: "approved")*
+
+📌 **Measured by terrain:** the editor's load reported done ~0.6 s BEFORE the first bake of its live overlay (the scenario's terrain blocks and features,
+expanded live by `StaticObstacleBakeSystem.LiveOverlay`, Terrain Authoring §18e-2). A unit whose target only the overlay makes reachable (a building
+made enterable, `te-make-enterable`) planned on the base mesh, failed, and never retried.
+
+```mermaid
+sequenceDiagram
+    participant Chain as LoadPhaseChain (each frame while Loading*)
+    participant Step as ScenarioLoadStep.IsResolved
+    participant Bakery as StaticObstacleBakery (world singleton)
+    participant Bake as StaticObstacleBakeSystem
+    participant Res as TerrainResidency
+    Bake->>Bakery: Overlay = LiveOverlay (null on every host but the editor)
+    Chain->>Step: IsResolved(world)
+    Step->>Step: ① requests read ② nothing Constructing ③ no intents ④ zone terrain resident
+    Step->>Bakery: ⑤ AwaitsLiveOverlay(world)
+    Bakery-->>Step: true while the overlay's signature ≠ the committed one, or the base moved
+    Step-->>Chain: false (the run gate, the loading screen, the HTTP "done" all wait)
+    Bake->>Res: CommitObstacles(bake with the overlay's parts)
+    Bake->>Bakery: CommittedOverlay = the bake's overlay signature, CommittedOverlayBase = BaseVersion
+    Chain->>Step: IsResolved(world) ⇒ true
+```
+
+*What the picture shows that prose hid:* the wait lives in the ONE scenario predicate (§4.1c), so the run gate (`RunGate.From`), the loading screen
+and the HTTP `/scenario/load/*` "done" (the master's Success, §11.10a) wait **by construction** — no host or surface adds its own check.
+
+| decision | why |
+|---|---|
+| ⑤ in `ScenarioLoadStep.IsResolved`, not a new `LoadPart` | the overlay IS the scenario's terrain and is known only once the scenario's entities exist; a separate part would be a second predicate over the same entities |
+| read through the `StaticObstacleBakery` singleton | the step needs no new dependency (a constructor parameter a host could forget — the silent-default pattern); the bake system, the one owner of the overlay bake, writes it |
+| static obstacles need no such line | each stays `Constructing` until the bake acks it, which ② already waits for; the overlay's blocks are not lifecycle participants |
+| no overlay ⇒ no wait | `AwaitsLiveOverlay` is false with no live overlay (every non-editor host: the compiled overlay arrives in the terrain itself) or an empty overlay signature |
+| a FAILED bake ends the wait | marked committed after the logged error — a load must never hang on its terrain (the obstacle rule) |
+
+Rail: `LiveOverlayBakeTests.CE5039_TheLoad_WaitsForTheLiveOverlaysFirstBake_AndANoOverlayLoadDoesNot` (red-proof: ⑤ removed). Acceptance:
+`scripts/scenario-regression.sh te-make-enterable`.
 
 ## 12. ⭐⭐⭐ `CE-2417` — **WHILE A NODE LOADS, A HEARTBEAT MEANS "THE LOAD IS ADVANCING"** *(design `2026-11-05`, behaviors; build-state: BUILT — §12.1)*
 
