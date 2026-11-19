@@ -1,0 +1,279 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: the DRAGON breathes fire from its mouth (CE-4634 D-1, docs/designs/fun/DESIGN_Dragon.md DR-4\u2026DR-6). On basic-desert a 'Dragon' (TKB 411) stands at (300, 300) facing east with a 'Pillion' rifleman aboard its firing seat; it breathes at (325, 300) (FireAtPoint, mount 0). 'Field Man 1' (322, 300) and 'Field Man 2' (330, 302) stand in the flame; 'Bystander' (325, 280) stands 20 m south, out of it. A hostile flamethrower man, 'Dragon Hunter' at (300, 285), flames the dragon's flank. Judge: the dragon spends its fire; both field men burn and Field Man 1 dies; the bystander is never hurt; the pillion is never hurt by his own dragon; the hunter spends fuel and the dragon is never hurt by his flame (a dragon is fireproof)."
+  },
+  "entities": {
+    "d4634000-0000-4000-8000-000000000101": {
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          3
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 411
+      },
+      "EntityInfo": {
+        "Name": "Dragon",
+        "ForceId": "Friend"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Params": {
+          "x": 325,
+          "y": 300,
+          "z": 1.2,
+          "mount": 0,
+          "rounds": 80,
+          "cooldownSeconds": 0.1
+        },
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d4634000-0000-4000-8000-000000000102"
+        ],
+        "Seats": [
+          1
+        ]
+      }
+    },
+    "d4634000-0000-4000-8000-000000000102": {
+      "SimTransform": {
+        "Position": [
+          298,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Pillion",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "d4634000-0000-4000-8000-000000000103": {
+      "SimTransform": {
+        "Position": [
+          322,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Field Man 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "d4634000-0000-4000-8000-000000000104": {
+      "SimTransform": {
+        "Position": [
+          330,
+          302,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Field Man 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "d4634000-0000-4000-8000-000000000105": {
+      "SimTransform": {
+        "Position": [
+          325,
+          280,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Bystander",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "d4634000-0000-4000-8000-000000000106": {
+      "SimTransform": {
+        "Position": [
+          300,
+          285,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2022
+      },
+      "EntityInfo": {
+        "Name": "Dragon Hunter",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Params": {
+          "x": 300,
+          "y": 300,
+          "z": 3,
+          "mount": 0,
+          "rounds": 60,
+          "cooldownSeconds": 0.1
+        },
+        "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    }
+  }
+}

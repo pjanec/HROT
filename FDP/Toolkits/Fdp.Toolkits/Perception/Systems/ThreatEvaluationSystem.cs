@@ -141,6 +141,9 @@ namespace Fdp.Toolkit.Perception.Systems
                 // ⭐ CE-4623 (found at AB-5) — is the target an aircraft (V8's air threat): its movement class, written at spawn only
                 .Unmanaged<Fdp.Toolkit.Motion.Locomotion>()
                 .Unmanaged<Fdp.Toolkit.Motion.Descent>()   // — and a man coming down a rope / under a canopy (Locomotions.Of reads it first)
+                // ⭐ CE-4634 (found by dr-dragon-breath under HROT_READ_CHECK) — is the remembered aircraft ON THE GROUND (AirContacts.IsAir → FlightGround):
+                //   its FlightState, written by its motion model, never inside this phase
+                .Unmanaged<Fdp.Toolkit.Motion.FlightState>()
                 // ⭐ CE-3453 (found by the animal feature scenarios) — is the track an animal (a calm one is no contact) or an animal AREA (never one)
                 .Unmanaged<Fdp.Toolkit.Animals.AnimalState>()
                 .Unmanaged<Fdp.Toolkit.Animals.AnimalArea>();

@@ -211,5 +211,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>⭐ <c>CE-4635</c> (DESIGN_Flame_Weapons §6) — a flamethrower's ROAR: weapon fire, heard once a second for as long as the burst lasts,
         /// at a shorter range than a rifle.</summary>
         Flame         = 9,
+        /// <summary>⭐ <c>CE-4634</c> (DESIGN_Dragon, the ui NOTE's sound) — a great BEAST's roar and wingbeat (a dragon): heard while it flies, far; the
+        /// listener's side plays the wingbeat by the wing pose and the roar on its own cues.</summary>
+        Roar          = 10,
     }
 }

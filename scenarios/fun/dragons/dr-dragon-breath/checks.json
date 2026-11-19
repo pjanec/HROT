@@ -1,0 +1,84 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4634 D-1 (DESIGN_Dragon DR-4\u2026DR-6): the breath from the mouth, never its own pillion, a dragon fireproof.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the dragon spends its fire",
+      "on": "field",
+      "who": "Dragon",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 590,
+      "before": 10
+    },
+    {
+      "name": "Field Man 1 burns",
+      "on": "field",
+      "who": "Field Man 1",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "before": 15
+    },
+    {
+      "name": "Field Man 2 burns",
+      "on": "field",
+      "who": "Field Man 2",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "before": 15
+    },
+    {
+      "name": "Field Man 1 dies",
+      "on": "field",
+      "who": "Field Man 1",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 38
+    },
+    {
+      "name": "the bystander out of the flame is never hurt",
+      "never": {
+        "on": "field",
+        "who": "Bystander",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "the pillion is never hurt by his own dragon",
+      "never": {
+        "on": "field",
+        "who": "Pillion",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "the hunter spends fuel",
+      "on": "field",
+      "who": "Dragon Hunter",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 90,
+      "before": 10
+    },
+    {
+      "name": "the dragon is never hurt by the hunter's flame",
+      "never": {
+        "on": "field",
+        "who": "Dragon",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 1500
+      }
+    }
+  ]
+}

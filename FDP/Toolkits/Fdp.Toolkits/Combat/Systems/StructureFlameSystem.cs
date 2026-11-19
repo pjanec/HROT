@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Combat.Systems
             foreach (var thrower in _throwers)
             {
                 if (!FlameJets.TryGet(repo, thrower, now, out var jet)) continue;
-                var origin = ShotOrigin.Eye(repo, thrower, out _);
+                var origin = FlameJets.Origin(repo, thrower, in jet);   // ⭐ CE-4634 DR-5 — from the mouth / nozzle when the type places one
                 var toAim = (Vector3)jet.AimPoint - origin;
                 if (toAim.LengthSquared() < 1e-6f) continue;
                 var dir = Vector3.Normalize(toAim);
