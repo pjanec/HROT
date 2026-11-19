@@ -1,10 +1,35 @@
 <!--STATUS
 state: LIVE — decisions the behaviors lane needs (PROTOCOL_Autonomous_Lanes §3), newest at the top
-updated: 2026-11-18
+updated: 2026-11-19
 current-answer: the whole file
 -->
 
 # DECISIONS — behaviors
+
+## D-9 · CE-2451 — an insurgent fires his RPG at a MAN: one rocket into the stack ends `ts-house-defenders`' clearance. Should the weapon brain keep the RPG for vehicles? *(2026-11-19)*
+
+**Measured (`ts-house-defenders`, editor, live probe, `/combat/detonations` + `/combat/shots`):**
+1. The six-man squad stacks at the front door (~39, 105–109).
+2. At ~9.1 s the Coward (Insurgent, TKB 2003: RPG-7 + rifle), in room A ~13 m away, fires his **RPG-7** (ammo 6009, shaped charge 0.73 kg) at Rifleman 1.
+3. It bursts 0.23 m from Rifleman 1. Riflemen 1 and 2 die; Rifleman 3 and the Leader take 40–55 blast damage, Rifleman 4 is hurt too. Only ONE rifle round was fired before it.
+4. Riflemen 3, 4 and 5 die by 36–67 s. The Leader (hp 59) walks away north.
+5. ⇒ nobody reaches closet E: the Waverer's two rows (breaks, surrenders) can never pass. *(My earlier "stall 9.5 m short" note was this, mis-read.)* The same insurgent type defends `bc-house-defended` (CE-2451) — likely the same root, not yet measured.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the brain picks the mount by a utility product (effectiveness × rounds-left × range) | ✅ `WeaponChoice.Choose` → `WeaponSelectionDecision` (`StarterPack/WeaponSelectionDecision.cs`) | ✅ Utility AI Demo §360: *"the 25 mm wins on infantry, the TOW on a tank"* |
+| nothing rules an AT round out against a man; vs a 100-hp man the RPG's effectiveness is 1 (one hit kills), so only rounds-left (ln 4 / ln 301 ≈ 0.24 vs the rifle's ≈ 0.84) holds it back ⇒ a near tie that tips with stance or hit chance | ✅ `StandardInputs.WeaponEffectivenessVsTarget` / `RoundsLeft` (`StandardInputs.cs:421, 480`); ⚠ the exact scores not printed | — |
+| the RPG is meant for vehicles | — | ✅ `UrbanCombatTkbCatalog` M5: *"and a rifle, for men (the RPG for vehicles: the weapon brain picks)"*; ✅ Aggregate Squad **R-3**: *"`WeaponChoice` already scores it 0 against men"* — ⛔ that premise is FALSE live, and no rail pins it |
+| 2003's mounts did not change recently | ✅ CE-4648 (`032465362`, 2026-11-17) moved them into one template, unchanged | — |
+
+**My lean: ① — make R-3 true: an anti-armour mount (shaped charge / ATGM / RPG round) scores 0 against an UNARMOURED target (a person) while another mount with rounds can hurt him.**
+- If it is his only loaded mount, he may still fire it (he does not stand idle).
+- Built as one weapon-selection consideration (or a factor inside the effectiveness input), with a rail: an RPG + rifle man at a 13 m soldier picks the rifle, at a tank picks the RPG, and with an empty rifle picks the RPG.
+- Cost: goldens move wherever RPG men face infantry (urban battle, ambushes). `ts-house-defenders` and `bc-house-defended` re-measured after.
+- ② raise `RoundsLeft`'s weight: still a soft tie, and it moves every other weapon choice (the 25 mm vs the TOW).
+- ③ keep it ("insurgents do fire RPGs at troops"): then R-3 and M5 are wrong and the two clearance scenarios need a rifle-only cast (type 2010). Realistic for a group in the open; not for one man at 13 m indoors (arming distance, back-blast — not modelled).
+
+⛔ Not built. Meanwhile `ts-house-defenders` stays red (CE-3462 row).
 
 ## D-8 · CE-4666 — a shot heard through our own window becomes an ENEMY at our window: SPOT → flank → the line faces away. Where should it stop? *(2026-11-18)*
 
