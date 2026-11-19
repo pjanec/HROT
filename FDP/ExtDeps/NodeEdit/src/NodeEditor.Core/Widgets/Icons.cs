@@ -170,6 +170,9 @@ public static class Icons
             case "terrain/roadblock": icon = new("\ue562", IconPalette.Orange); return true;   // RoadBarrier
             case "terrain/roads": icon = new("\uf018", IconPalette.Amber); return true;   // Road
             case "terrain/bridge": icon = new("\ue4c8", IconPalette.Blue); return true;   // Bridge
+            case "terrain/remove-building": icon = new("\uf1f8", IconPalette.Red); return true;   // Trash
+            case "terrain/make-enterable": icon = new("\uf0d0", IconPalette.Green); return true;   // WandMagicSparkles
+            case "terrain/add-door": icon = new("\uf52b", IconPalette.Teal); return true;   // DoorOpen
             case "clutter/car": icon = new("\uf1b9", IconPalette.Grey); return true;   // Car
             case "clutter/barrel": icon = new("\uf613", IconPalette.Amber); return true;   // OilCan
             case "clutter/crate": icon = new("\uf466", IconPalette.Orange); return true;   // Box
@@ -320,6 +323,9 @@ public static class Icons
         "terrain/roadblock",
         "terrain/roads",
         "terrain/bridge",
+        "terrain/remove-building",
+        "terrain/make-enterable",
+        "terrain/add-door",
         "clutter/car",
         "clutter/barrel",
         "clutter/crate",

@@ -72,6 +72,7 @@ public static class TerrainBirth
             TerrainFeature.Wall => "Wall", TerrainFeature.Fence => "Fence", TerrainFeature.Hedge => "Hedge", TerrainFeature.Wood => "Wood", TerrainFeature.Tree => "Tree",
             TerrainFeature.Scrub => "Scrub", TerrainFeature.Row => "Tree row", TerrainFeature.Group => "Tree group", TerrainFeature.Water => "Water", TerrainFeature.Bridge => "Bridge", TerrainFeature.Scatter => "Scatter",
             TerrainFeature.Ground => f.Template switch { "level" => "Level ground", "lower" => "Lowered ground", "ditch" => "Ditch", "at-ditch" => "Anti-tank ditch", "foxhole" => "Foxhole", _ => "Raised ground" },   // ⭐ CE-4592
+            TerrainFeature.Edit => f.Template switch { "enterable" => "Building made enterable", "door" => "Door added", _ => "Building removed" },   // ⭐ CE-5030 (BE-4)
             _ => "Terrain feature",
         };
 
@@ -113,6 +114,24 @@ public static class TerrainBirth
     /// Adds the <see cref="TerrainBlock"/> (<paramref name="tkbType"/> 8817) or <see cref="TerrainFeature"/> (8818) for <paramref name="spec"/> to <paramref name="components"/>, heading from
     /// <paramref name="rotation"/>; also its name (the recipe's / template's title) unless one is there. Never twice. ⛔ A spec of the other kind than the type adds nothing.
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-5030</c> BE-4 (📄 docs/DESIGN_Terrain_Base_Edits.md D-1, D-5) — a building EDIT is born naming the BAKED building under its click (<see cref="FeatureExpander.BaseBuildingAt"/>):
+    /// its <c>Target</c> set, its name the building's ("Removed: way/123"). False when the components hold an edit and no baked building stands there — the caller places NOTHING.
+    /// True for every other entity (nothing to do).
+    /// </summary>
+    public static bool ResolveEdit(TerrainWorld? baseWorld, System.Numerics.Vector2 at, List<object> components)
+    {
+        int i = components.FindIndex(c => c is TerrainFeature { Kind: TerrainFeature.Edit });
+        if (i < 0) return true;
+        var f = (TerrainFeature)components[i];
+        if (baseWorld == null || FeatureExpander.BaseBuildingAt(baseWorld, at) is not { } label) return false;
+        components[i] = f with { Target = new FixedString64(label) };
+        int n = components.FindIndex(c => c is EntityInfo);
+        string name = FeatureName((TerrainFeature.Edit, f.Template.ToString(), TerrainShape.Point)) + " · " + label;
+        if (n >= 0) components[n] = ((EntityInfo)components[n]) with { Name = new FixedString64(name.Length > 60 ? name[..60] : name) };
+        return true;
+    }
+
     public static void BornWith(long tkbType, string? spec, System.Numerics.Quaternion rotation, List<object> components, uint? seed = null, float extraHeadingDeg = 0f)
     {
         if (Parse(spec) is not { } p) return;

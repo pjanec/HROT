@@ -236,6 +236,9 @@ namespace Hrot.UI.Common.Adapters
                     Hrot.UI.Common.AddEntity.GameplayBirth.BornWith(cmd.TkbType, cmd.InitialComponents, cmd.InitialTransform?.Position);          // ⭐ Player Join S2-a — a Deploy Role is born with its DeployRole
                     if (terrainPlacement is not null)                                                              // ⭐ Terrain authoring U-2 — a block / house is born with its TerrainBlock / TerrainFeature: the seed its ghost showed, the heading the drag and R gave
                         Hrot.UI.Common.AddEntity.TerrainBirth.BornWith(cmd.TkbType, terrainSpec, cmd.InitialTransform?.Rotation ?? Hrot.ScenarioEditor.Gizmos.EntityPlacementGizmo.FacingNorth, cmd.InitialComponents, terrainPlacement.Seed, terrainPlacement.RotationDeg);
+                    // ⭐ CE-5030 (BE-4, Base Edits D-5) — a building edit names the BAKED building under the click; a click on no building places nothing
+                    var clickAt = cmd.InitialTransform?.Position ?? default;
+                    if (!Hrot.UI.Common.AddEntity.TerrainBirth.ResolveEdit(TerrainContext?.Invoke()?.Base, new System.Numerics.Vector2(clickAt.X, clickAt.Y), cmd.InitialComponents)) return;
 
                     NameNew(ref cmd);
 

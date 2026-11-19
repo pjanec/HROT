@@ -115,6 +115,20 @@ namespace Fdp.Toolkit.Terrain
             throw new ArgumentException($"[Terrain] {where}: unknown building edit '{action}' (remove, enterable, door).");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-5030</c> BE-4 (D-5, the terrain pick) — the label of the BAKED building at <paramref name="at"/> (world metres): a building record whose footprint holds the point
+        /// (a placed overlay house is not baked — its label carries a <c>/</c>), else a solid block prism's; null when none stands there.
+        /// </summary>
+        public static string? BaseBuildingAt(TerrainWorld world, Vector2 at)
+        {
+            foreach (var b in world.Buildings)
+                if (b.Footprint.Length >= 3 && !b.Label.Contains('/') && PolygonMath.Contains(b.Footprint, at)) return b.Label;
+            foreach (var p in world.Prisms)
+                if (p.Kind == TerrainPrismKind.Building && p.Building < 0 && p.Panel < 0 && p.Label is { } l && !l.Contains('/')
+                    && at.X >= p.Min.X && at.X <= p.Max.X && at.Y >= p.Min.Y && at.Y <= p.Max.Y && PolygonMath.Contains(p.Footprint, at)) return l;
+            return null;
+        }
+
         /// <summary>⭐ CE-5029 — how tall the base building <paramref name="label"/> stands above its floor: its pieces' highest top (a record's walls, or a solid block).</summary>
         public static float BaseHeight(TerrainWorld world, string label, float floorZ)
         {
