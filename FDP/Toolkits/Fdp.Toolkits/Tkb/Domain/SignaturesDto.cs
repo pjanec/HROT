@@ -82,6 +82,17 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         /// <summary>A person's clothing class (0 = none / not a person) — the image generator's emissivity hint; our sensor ignores it.</summary>
         public byte ClothingClass { get; init; }
+
+        // ── ⭐ CE-4670 (vehicle appearance VA-S4, VA-5; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §4 "Gen.PowerPlant gains") — how
+        //    fast the engine (and a rotor / propeller with it) comes up to speed and runs down; read by <c>VehicleLook.RotorSpeed</c>, never sent. APPENDED.
+
+        /// <summary>Seconds from stopped to full speed (an engine start, a rotor run-up); 0 ⇒ instant.</summary>
+        [EditUnit("s")]
+        public float SpinUpSeconds { get; init; }
+
+        /// <summary>Seconds from full speed to stopped (a shutdown, a rotor run-down); 0 ⇒ instant.</summary>
+        [EditUnit("s")]
+        public float SpinDownSeconds { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3062</c> — how far this entity's sounds carry (metres). 0 ⇒ that sound is not made.</summary>

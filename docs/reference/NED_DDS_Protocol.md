@@ -447,6 +447,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.NED.Descriptors.EntityGroundHeatMarks` | descriptor | yes: entity id | S | Hrot.Network.NED | One ground cell's warm vehicle STANDS (where an engine idled: place, heading, hull, the time it stood and left, engine seconds, power class) — the node that moves the vehicles → every node (`dtGroundHeatMarks` 242, CE-4664) |
 | `Hrot.NED.Descriptors.EntityVehicleOpenings` | descriptor | yes: entity id | S | Hrot.Network.NED | A vehicle's hatches / doors / ramps, in its type's opening order (≤ 8): `State` 0 Closed · 1 Opening · 2 Open · 3 Closing + `Since` (s) + `CrewExposed` (1 = a crewman's head is out — appended, VA-4) — the boarding arbiter (the passenger list's owner) → every node, on change; the animation's progress is computed from `Since` and the type's open seconds (`dtVehicleOpenings` 243, CE-4670 VA-S2) |
 | `Hrot.NED.Descriptors.EntityVehicleLights` | descriptor | yes: entity id | S | Hrot.Network.NED | A vehicle's or aircraft's lights: `OnMask` (bit i = the type's light group i), `Discipline` 0 Normal · 1 Convoy · 2 Blackout · 3 Off, `Since`, a searchlight's `SearchAz` / `SearchEl` (rad) — its Brain group (the light rule) → every node, on change; brake lights are derived, never sent (`dtVehicleLights` 244, CE-4670 VA-S3) |
+| `Hrot.NED.Descriptors.EntityWindowDamage` | descriptor | yes: entity id | S | Hrot.Network.NED | A building's damaged window panes, on its damage entity: the terrain-object `Key`, and per window `DdsWindow` (panel, opening, hits 1 · 2 · 3 = broken, two cracks u / v 0..255) — the node that decided them → every node; a late joiner gets them all (`dtWindowDamage` 245, CE-5033 — terrain lane; row added by backend `2026-11-19`) |
 | `Hrot.NED.Descriptors.WorldPos` | descriptor | yes: entity id | SL | Hrot.Network.NED | Local-ENU pose: position, quaternion, velocity, angular velocity, sim time (AQ107 D) |
 
 ### B. Interactions and events (fire, impact, damage, interaction) — 13
@@ -717,6 +718,7 @@ or its number differs.
 | 242 | `dtGroundHeatMarks` | `Hrot.NED.Descriptors.EntityGroundHeatMarks` |  |
 | 243 | `dtVehicleOpenings` | `Hrot.NED.Descriptors.EntityVehicleOpenings` |  |
 | 244 | `dtVehicleLights` | `Hrot.NED.Descriptors.EntityVehicleLights` |  |
+| 245 | `dtWindowDamage` | `Hrot.NED.Descriptors.EntityWindowDamage` |  |
 
 ## SUMO traffic — a separate protocol on the same domain
 
@@ -837,7 +839,37 @@ SISO-REF-010 (the Entity Appearance record), **not checked in this repo** — co
 | a barrel's heat | `EntityWeaponAmmo` (per mount, the last burst) | `BarrelHeat.At(HeatAtLastShot, LastShotAt, CoolPerSecond, now)` — linear cooling from the last shot |
 | **Hatch / ramp / door** (platform; hatch closed · popped · open, ramp up / down) | `EntityVehicleOpenings` + the type's openings (TKB / class template: kind, open seconds, socket) | progress `p = Progress(State, Since, OpenSeconds, now)` (0 closed … 1 open): a `Hatch` p = 0 ⇒ closed, 0 < p < 1 ⇒ popped, 1 ⇒ open; a `Ramp` p ≥ 0.5 ⇒ down; doors have no DIS bit (a direct reader maps the opening id → its model) — VA-11, CE-4670 |
 | **Lights** (head, tail, brake, blackout, interior, landing, nav, anti-collision, searchlight) | `EntityVehicleLights` + the type's light groups (kind per bit) | each group's kind → its DIS light bit when its `OnMask` bit is set; `Discipline` Blackout ⇒ the blackout bit; brake = derived from deceleration (not sent) — VA-11, CE-4670 |
+| ⭐ **Damage — the KILL KIND** (platform) *(VA-S6, CE-4670, `2026-11-19`)* | `EntityDamage.Destruction` (0 None · 1 KnockedOut · 2 BurntOut · 3 Catastrophic) | every kill ⇒ Damage **3 destroyed**; BurntOut ⇒ also **Flaming** while `EntityFireState` burns and **Smoking** for the type's smoulder seconds after (`VehicleLook.Smoking`); Catastrophic ⇒ destroyed + flaming — ⛔ DIS has NO turret-blown-off bit: a direct reader draws it from `VehicleLook.TurretThrown` |
+| ⭐ **Hatch, a crewman exposed** (platform) *(VA-S6)* | `EntityVehicleOpenings` (`DdsOpening.CrewExposed`, appended) | the hatch field's person-visible states: progress 0 ⇒ **1 closed** · 0 < p < 1 ⇒ **2 popped**, with `CrewExposed` **3 popped, person visible** · p = 1 ⇒ **4 open**, with `CrewExposed` **5 open, person visible** (the primary hatch = the type's first `Hatch` opening) |
+| ⭐ **Brake lights** *(VA-S6)* | none on the wire (velocity only, `WorldPos`) | the gateway keeps ONE `Hrot.Look.Vehicles.BrakeLights` tracker and asks `VehicleLook.Lights(world, v, now, tracker)` — the brake bit lit at ≥ 0.8 m/s² deceleration, held 0.5 s, Normal discipline only |
+| ⭐ **Rotor / engine speed** *(VA-S4)* | `EntityHeatSource` (state, `Since`, `MotionSince`) + the type's spin-up / spin-down seconds | no DIS appearance field; `VehicleLook.RotorSpeed(now)` 0..1 for a rotor's / propeller's animation and `EngineLevel` for its sound — every node computes the same |
 | warm ground where a vehicle stood | `EntityGroundHeatMarks` | ⛔ no DIS appearance field — an image generator's own input |
+
+#### Detonation result — our effect category → the DIS Detonation PDU *(VA-S6 / LK-7, CE-4670, `2026-11-19`)*
+
+⭐ Every `EffectSpec` (`Hrot.Look.Effects.EffectRules`, design §7a) carries the munition's DIS entity type (→ the PDU's **munition type**, as is) and our
+category **Kind × SizeClass (Small · Medium · Large · Huge) × Surface (Ground · Water · Building · Vehicle · Person · Air)** (→ the PDU's **detonation
+result**, by this table). 📐 The codes are SISO-REF-010's *Detonation Result* enumeration, pinned `2026-11-19` from two independent implementations that
+agree 0–33 — KDIS `EnumDetonationResult.h` and OpenDIS-7 `DetonationResult` (NPS); ⚠ not read from the SISO document itself.
+
+| our category (an `Explosion` / impact) | Small | Medium | Large · Huge |
+|---|---|---|---|
+| Surface **Ground** | 11 Dirt blast, small | 12 Dirt blast, medium | 13 Dirt blast, large |
+| Surface **Water** | 14 Water blast, small | 15 Water blast, medium | 16 Water blast, large |
+| Surface **Building** | 18 Building hit, small | 19 Building hit, medium | 20 Building hit, large |
+| Surface **Vehicle**, an explosive round | 7 HE hit, small | 8 HE hit, medium | 9 HE hit, large |
+| Surface **Vehicle**, a KINETIC round (no explosive — APFSDS, bullets) | 10 Armor-piercing hit | 10 | 10 |
+| Surface **Person** | 1 Entity impact | 1 | 1 |
+| Surface **Air** (a burst with nothing under it — an air-burst fuze, a flak round) | 25 Air burst | 25 | 25 |
+
+| other cases | code |
+|---|---|
+| a burst on an aircraft (Surface Vehicle, the target airborne) | 17 Air hit |
+| a SMOKE / tear-gas round's burst (`Kind` Smoke — the cloud is its own entity, `EntityAreaEffectCloud`) | 5 Detonation (the munition type says smoke) |
+| a mine-clearing line charge | 21 Mine-clearing line charge |
+| a round that did not burst | 6 None or no detonation (dud) — ⏳ HROT models no duds today |
+| anything else | 0 Other |
+
 
 ### SimNetGateway simplified model → real HROT types
 
