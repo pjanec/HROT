@@ -303,6 +303,8 @@ def live():
         a = g["actor"].get_actor_location()
         # from his side, looking at the middle of his line of fire (he faces −Y, the wall 9 m ahead)
         cam, look = unreal.Vector(a.x - 900, a.y - 350, 170.0), unreal.Vector(a.x, a.y - 400, 120.0)
+        if L.get("shots_taken", 0) >= 2:   # the last shot: a close-up of the muzzle from the side (the flash's shape)
+            cam, look = at + unreal.Vector(-160, 0, 20), at + d * 25
         UES().set_level_viewport_camera_info(cam, unreal.MathLibrary.find_look_at_rotation(cam, look))
         if now < L["until"]: return True
         if L["phase"] == "fire_aim":   # the side with nobody on it (the others stand at +X)
@@ -317,7 +319,7 @@ def live():
         if L.get("pending"):
             path, t = L["pending"]
             if not ((os.path.exists(path) and os.path.getsize(path) > 0) or now - t > 60):
-                if now >= L["next_shot"]: shot(g, at, d); L["next_shot"] = now + 0.1
+                shot(g, at, d)   # ⚠ while a picture is pending: a round EVERY frame — a flash lives 60 ms, the capture lands frames later
                 return True
             R["shots"].append(path if os.path.exists(path) else None); L["pending"] = None; L["shots_taken"] += 1
             L["until"] = now + 0.35

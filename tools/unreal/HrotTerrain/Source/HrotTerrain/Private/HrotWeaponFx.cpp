@@ -1,5 +1,6 @@
 // CE-4651 (U-16) — see the header.
 #include "HrotWeaponFx.h"
+#include "HrotShotRenderer.h"
 
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -46,49 +47,52 @@ FVector UHrotWeaponFx::FireShot(USceneComponent* Weapon, const FHrotShotFx& Fx, 
 	UWorld* World = Weapon->GetWorld();
 	const FTransform Muzzle = MuzzleTransform(Weapon, Fx.MuzzleSocket);
 	const FVector At = Muzzle.GetLocation(), Dir = Muzzle.GetRotation().GetForwardVector();
+	UHrotShotRenderer* R = UHrotShotRenderer::Get(Weapon);
+	// ⭐ EVERY shot: the flash and (1 round in TracerEvery) the tracer — instanced, one draw call each for the whole world
+	const int32 Round = R ? R->NextRound(Weapon) : 0;
+	if (R)
+	{
+		R->AddFlash(Muzzle);
+		if (R->TracerEvery <= 1 || Round % R->TracerEvery == 0)
+			R->AddTracer(At, Hits.Num() > 0 ? Hits[0] : At + Dir * 30000.0);   // a miss: out to 300 m
+	}
+	// NEAR the view only, under the per-frame budget: Lyra's Niagara extras (smoke and sparks at the muzzle, the shell) …
+	// ⭐ POOLED (AutoRelease): measured, a fresh Niagara component per spawn cost ~0.5 ms per spawn-per-frame (budget 24 ⇒ +14 ms at
+	// ~950 rounds/s); the flash, tracer and lights are free at that rate
+	const float ToView = R ? FVector::Dist(At, R->ViewLocation()) : 0.f;
 	const bool bSocket = !Fx.MuzzleSocket.IsNone() && Weapon->DoesSocketExist(Fx.MuzzleSocket);
 	auto Spawn = [&](UNiagaraSystem* System) -> UNiagaraComponent*
 	{
 		if (!System) return nullptr;
-		// one fresh system per shot (auto-destroyed when done) — ⚠ a pooled component per weapon is cheaper at volume
-		UNiagaraComponent* C = bSocket
+		return bSocket
 			? UNiagaraFunctionLibrary::SpawnSystemAttached(System, Weapon, Fx.MuzzleSocket, FVector::ZeroVector, FRotator::ZeroRotator,
-			                                               EAttachLocation::SnapToTarget, true, false)
-			: UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, System, At, Dir.Rotation(), FVector::OneVector, true, false);
-		return C;
+			                                               EAttachLocation::SnapToTarget, false, false, ENCPoolMethod::AutoRelease)
+			: UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, System, At, Dir.Rotation(), FVector::OneVector, false, false, ENCPoolMethod::AutoRelease);
 	};
-	// the same User.* parameters Lyra's B_WeaponFire sets
-	if (UNiagaraComponent* C = Spawn(Fx.MuzzleFlash))
+	const bool bNear = !R || ToView < R->NearRange;
+	using EX = UHrotShotRenderer::EExtra;
 	{
-		C->SetVariableVec3(TEXT("User.Direction"), Dir);
-		C->SetVariableBool(TEXT("User.Trigger"), true);
-		C->Activate(true);
-	}
-	UNiagaraComponent* Shell = nullptr;
-	if (Fx.ShellEject && Weapon->DoesSocketExist(TEXT("ShellEject")))
-		Shell = UNiagaraFunctionLibrary::SpawnSystemAttached(Fx.ShellEject, Weapon, TEXT("ShellEject"), FVector::ZeroVector, FRotator::ZeroRotator,
-		                                                     EAttachLocation::SnapToTarget, true, false);
-	else Shell = Spawn(Fx.ShellEject);
-	if (UNiagaraComponent* C = Shell)
-	{
-		if (Fx.ShellMesh) C->SetVariableStaticMesh(TEXT("User.ShellEjectStaticMesh"), Fx.ShellMesh);
-		C->SetVariableBool(TEXT("User.Trigger"), true);
-		C->Activate(true);
-	}
-	if (Fx.Tracer)   // a miss still shows its tracer: out to 300 m along the barrel
-	{
-		const TArray<FVector> Ends = Hits.Num() > 0 ? Hits : TArray<FVector>{ At + Dir * 30000.0 };
-		if (UNiagaraComponent* C = UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Fx.Tracer, At, Dir.Rotation(), FVector::OneVector, true, false))
+		if (UNiagaraComponent* C = (bNear && (!R || (R->bNearSmoke && R->TakeBudget(EX::Smoke)))) ? Spawn(Fx.MuzzleFlash) : nullptr)   // NS_WeaponFire: smoke and sparks (the flash is ours)
 		{
-			C->SetVariableVec3(TEXT("User.MuzzlePosition"), At);
-			UNiagaraDataInterfaceArrayFunctionLibrary::SetNiagaraArrayVector(C, TEXT("User.ImpactPositions"), Ends);
+			C->SetVariableVec3(TEXT("User.Direction"), Dir);
+			C->SetVariableBool(TEXT("User.Trigger"), true);
+			C->Activate(true);
+		}
+		UNiagaraComponent* Shell = (!bNear || (R && !(R->bNearShell && R->TakeBudget(EX::Shell)))) ? nullptr : (Fx.ShellEject && Weapon->DoesSocketExist(TEXT("ShellEject")))
+			? UNiagaraFunctionLibrary::SpawnSystemAttached(Fx.ShellEject, Weapon, TEXT("ShellEject"), FVector::ZeroVector, FRotator::ZeroRotator,
+			                                               EAttachLocation::SnapToTarget, false, false, ENCPoolMethod::AutoRelease)
+			: Spawn(Fx.ShellEject);
+		if (UNiagaraComponent* C = Shell)
+		{
+			if (Fx.ShellMesh) C->SetVariableStaticMesh(TEXT("User.ShellEjectStaticMesh"), Fx.ShellMesh);
 			C->SetVariableBool(TEXT("User.Trigger"), true);
 			C->Activate(true);
 		}
 	}
-	if (Hits.Num() > 0 && Fx.Impact)   // B_WeaponImpacts: positions, normals, how many, from where
+	// … and the impact (dust / chips where the round lands), within ImpactRange of the view
+	if (Hits.Num() > 0 && Fx.Impact && (!R || (R->bImpacts && FVector::Dist(Hits[0], R->ViewLocation()) < R->ImpactRange && R->TakeBudget(EX::Impact))))
 	{
-		if (UNiagaraComponent* C = UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Fx.Impact, Hits[0], FRotator::ZeroRotator, FVector::OneVector, true, false))
+		if (UNiagaraComponent* C = UNiagaraFunctionLibrary::SpawnSystemAtLocation(World, Fx.Impact, Hits[0], FRotator::ZeroRotator, FVector::OneVector, false, false, ENCPoolMethod::AutoRelease))
 		{
 			TArray<FVector> Normals = HitNormals;
 			while (Normals.Num() < Hits.Num()) Normals.Add((At - Hits[Normals.Num()]).GetSafeNormal());

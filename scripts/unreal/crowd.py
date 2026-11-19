@@ -22,6 +22,11 @@ def main():
     ap.add_argument("--people", choices=("demo", "soldiers"), default="demo",
                     help="demo: the City Sample crowd demo's people; soldiers: state-driven armed US soldiers (hrot_person)")
     ap.add_argument("--merge", action="store_true", help="soldiers: merge each body's parts into one mesh")
+    ap.add_argument("--fire", type=float, default=0.0, help="soldiers: each fires bursts at this many rounds/s (UHrotShotRenderer)")
+    ap.add_argument("--all-niagara", action="store_true", help="--fire: the old way (every extra spawned per shot), for comparison")
+    ap.add_argument("--impact-rate", type=float, default=None, help="--fire: impacts per second (UHrotShotRenderer.ImpactPerSecond)")
+    ap.add_argument("--max-lights", type=int, default=None, help="--fire: flash lights at once")
+    ap.add_argument("--only", choices=("smoke", "shell", "impact"), default=None, help="--fire: only this near extra (what each costs)")
     a = ap.parse_args()
     folder = os.path.abspath(a.export); name = os.path.basename(folder)
     views = {v["name"]: v for v in json.load(open(os.path.join(folder, f"{name}.views.json"), encoding="utf-8"))["views"]}
@@ -32,7 +37,9 @@ def main():
            "count": a.count, "steps": [int(x) for x in a.steps.split(",")], "centre": street["target"][:2], "radius": a.radius,
            "views": [views[k] for k in ("street", "village-aerial") if k in views], "shots": fwd(a.shots),
            "out": fwd(os.path.join(folder, "crowd-result.json")), "measureSeconds": 10, "settleSeconds": 15, "minFreeGb": a.min_free_gb,
-           "people": a.people, "merge": a.merge}
+           "people": a.people, "merge": a.merge, "fire": a.fire, "allNiagara": a.all_niagara,
+           "impactPerSecond": a.impact_rate, "maxLights": a.max_lights,
+           **({"nearSmoke": a.only == "smoke", "nearShell": a.only == "shell", "impacts": a.only == "impact"} if a.only else {})}
     jp = os.path.join(folder, "crowd-job.json"); json.dump(job, open(jp, "w"), indent=1)
     if os.path.exists(job["out"]): os.remove(job["out"])
     exe = os.path.join(a.engine, "Engine", "Binaries", "Win64", "UnrealEditor.exe")

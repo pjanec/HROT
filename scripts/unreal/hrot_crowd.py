@@ -119,6 +119,19 @@ def spawn_up_to(target):
             a.set_folder_path("Crowd"); a.set_actor_label(f"Person_{len(crowd):04d}")
         crowd.append(a)
     R["people"] = len(crowd)
+    if JOB.get("fire"):   # ⭐ every soldier fires bursts (UHrotShotRenderer's native driver — measures the shots, not Python)
+        r = unreal.HrotShotRenderer.for_world(crowd[0])
+        if JOB.get("allNiagara"):   # the comparison: the old way — every extra spawned per shot, no range, no budget
+            r.near_range = 1e9; r.impact_range = 1e9
+            r.smoke_per_second = r.shell_per_second = r.impact_per_second = 1e7
+        for k, prop in (("smokePerSecond", "smoke_per_second"), ("shellPerSecond", "shell_per_second"), ("impactPerSecond", "impact_per_second"),
+                        ("maxLights", "max_lights"), ("nearRange", "near_range"),
+                        ("nearSmoke", "near_smoke"), ("nearShell", "near_shell"), ("impacts", "impacts")):
+            if JOB.get(k) is not None: setattr(r, prop, JOB[k])   # the knobs: what each part of a shot costs
+        states = [a.get_component_by_class(unreal.HrotPersonState) for a in crowd]
+        r.start_test_fire([s for s in states if s], float(JOB["fire"]), 1.0, 1.0)
+        S["fire_start"] = (time.time(), 0)
+        log(f"firing: {len(states)} shooters, {JOB['fire']} rounds/s in 1 s bursts, 1 s pauses ({'all Niagara' if JOB.get('allNiagara') else 'instanced + near budget'}; budgets/s smoke {r.smoke_per_second:.0f} shell {r.shell_per_second:.0f} impact {r.impact_per_second:.0f}, lights {r.max_lights})")
     if JOB.get("people") == "soldiers":   # ⭐ check, never assume: who runs our animation and holds a visible weapon
         tally = {}
         for a in crowd:
@@ -172,6 +185,9 @@ def measure_tick(dt):
     """One phase at a time; True while there is work."""
     if not S.get("queue"): return False
     ph = S["queue"][0]
+    if "waitFile" in ph:
+        if (os.path.exists(ph["waitFile"]) and os.path.getsize(ph["waitFile"]) > 0) or time.time() > ph["until"]: S["queue"].pop(0)
+        return True
     if "spawn" in ph:
         spawn_up_to(ph["spawn"]); S["queue"].pop(0); return True
     now = time.time()
@@ -186,14 +202,22 @@ def measure_tick(dt):
     m = {"view": ph["view"]["name"], "people": ph["count"], "frames": len(d),
          "msMean": round(1000 * sum(d) / max(len(d), 1), 2), "msMedian": round(1000 * d[len(d) // 2], 2) if d else None,
          "ms95": round(1000 * d[int(len(d) * 0.95)], 2) if d else None, "editorGB": round(proc_gb(), 2)}
+    if S.get("fire_start") and S.get("crowd"):
+        r = unreal.HrotShotRenderer.for_world(S["crowd"][0])
+        t0, n0 = S["fire_start"]; m["roundsPerSecond"] = round((r.test_rounds_fired - n0) / max(time.time() - t0, 0.001))
+        m["liveFlashes"], m["liveTracers"], m["nearSpawnedLastFrame"] = r.live_flashes, r.live_tracers, r.near_spawned_last_frame
+        S["fire_start"] = (time.time(), r.test_rounds_fired)
     R["measure"].append(m)
     json.dump(R, open(JOB["out"], "w", encoding="utf-8"), indent=1)   # partial results survive a stop
-    log(f"{m['view']} with {m['people']} people: {m['msMean']} ms mean, {m['ms95']} ms p95, editor {m['editorGB']} GB")
+    log(f"{m['view']} with {m['people']} people: {m['msMean']} ms mean, {m['ms95']} ms p95, editor {m['editorGB']} GB"
+        + (f"; {m['roundsPerSecond']} rounds/s, {m['liveFlashes']} flashes / {m['liveTracers']} tracers live" if 'roundsPerSecond' in m else ""))
     if ph["count"]:
         path = os.path.join(JOB["shots"], f"crowd-{ph['count']}-{ph['view']['name']}.png").replace("\\", "/")
         if os.path.exists(path): os.remove(path)
         unreal.AutomationLibrary.take_high_res_screenshot(1920, 1080, path)
         R["shots"].append(path)
+        # ⚠ the capture lands frames later: hold this camera until the file exists (measured: the next view's camera was in it)
+        S["queue"].insert(1, {"waitFile": path, "until": time.time() + 30})
     S["queue"].pop(0)
     return True
 

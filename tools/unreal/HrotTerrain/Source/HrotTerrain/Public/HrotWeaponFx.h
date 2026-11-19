@@ -36,7 +36,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Weapon")
 	static FHrotShotFx LyraRifleFx();
 
-	/** One shot from `Weapon` (the weapon mesh in the person's hand): the flash at its muzzle, a tracer and an impact per hit
+	/** One shot from `Weapon` (the weapon mesh in the person's hand): the flash at its muzzle and 1 round in N a tracer (instanced,
+	 *  UHrotShotRenderer); near the view only and under a per-frame budget, Lyra's smoke / sparks / shell and the impact per hit
 	 *  (Hits / HitNormals in world space; no hits = a miss: flash, shell, a tracer out to 300 m, no impact). Returns the muzzle's world location. */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Weapon")
 	static FVector FireShot(USceneComponent* Weapon, const FHrotShotFx& Fx, const TArray<FVector>& Hits, const TArray<FVector>& HitNormals);
