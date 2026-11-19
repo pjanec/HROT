@@ -97,6 +97,8 @@ public sealed class TerrainFeatureDetailsView : IDetailsViewInstance
         ImGui.PushID(idScope); ImGui.PushID("terrain");
         float w = ImGui.GetFontSize() / 14f;
 
+        if (f.Kind == TerrainFeature.Edit) { DrawEdit(world, e); ImGui.PopID(); ImGui.PopID(); return; }   // ⭐ CE-5030 — a building edit has its own rows
+
         var family = TerrainFeatureOps.FamilyOf(f.Kind);
         if (family is not null)   // Kind — only within the SAME shape (a line stays a line, an area an area)
         {
@@ -164,6 +166,34 @@ public sealed class TerrainFeatureDetailsView : IDetailsViewInstance
         GateText = GateLineOf(world, e);
         if (GateText.Length > 0) { ImGui.TextDisabled(GateText); Rects["gate"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax()); }
         ImGui.PopID(); ImGui.PopID();
+    }
+
+    /// <summary>⭐ CE-5030 (BE-4 part 2, 📄 docs/DESIGN_Terrain_Base_Edits.md §5; mockup "Details — Building edit") — the edit's rows, then <b>Restore building</b> (deletes the edit, one
+    /// undo step — the shared delete, <see cref="Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity"/>) and <b>Show on map</b> (the shared centre command).</summary>
+    public TerrainFeatureOps.EditFacts Facts { get; private set; }
+
+    private void DrawEdit(EntityRepository world, Entity e)
+    {
+        var facts = Facts = TerrainFeatureOps.FactsOf(world, e);
+        ImGui.SeparatorText("Edit");
+        Row("Action", facts.Action, "action");
+        Row("Building", facts.Building, "building");
+        Row("Ground", facts.Ground, "ground");
+        Row("Goes with it", facts.GoesWithIt, "goes");
+        if (ImGui.Button("Restore building")) Hrot.ScenarioEditor.Systems.SelectionInteractionSystem.DeleteEntity(world, e);
+        Rects["restore"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+        ImGui.SameLine();
+        if (ImGui.Button("Show on map") && Fdp.Toolkit.Replication.Services.NetworkIdResolver.RuntimeNetworkIdOf(world, e) is > 0 and var net)
+            world.Bus.Publish(new Hrot.Common.Events.CenterOnEntityCommand { NetworkId = net });
+        Rects["show"] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+
+        void Row(string label, string value, string key)
+        {
+            FormGrid.BeginField(Form, label);
+            ImGui.TextUnformatted(value);
+            Rects[key] = (ImGui.GetItemRectMin(), ImGui.GetItemRectMax());
+            FormGrid.EndField();
+        }
     }
 
     /// <summary>The line the tab shows over several selected features ("4 features — walls, fences and hedges").</summary>

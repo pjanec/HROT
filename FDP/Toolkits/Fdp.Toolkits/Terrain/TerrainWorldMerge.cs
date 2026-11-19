@@ -37,6 +37,17 @@ namespace Fdp.Toolkit.Terrain
         /// in its panels, its baked collapse), and a SOLID BLOCK prism of that label (an imported solid house is only a prism, no record) goes too. Every remaining index is
         /// re-pointed (−1 stays −1); a label the world does not have is a warning, never an error (the base may have been re-imported). Pure; allocates only here.
         /// </summary>
+        /// <summary>⭐ CE-5030 — how many doors the building <paramref name="label"/> has (a solid block: none).</summary>
+        private static int DoorsOf(TerrainWorld world, string label)
+        {
+            int b = -1;
+            for (int i = 0; i < world.Buildings.Count; i++) if (world.Buildings[i].Label == label) { b = i; break; }
+            if (b < 0) return 0;
+            int n = 0;
+            foreach (var d in world.Doors) if (d.Panel >= 0 && d.Panel < world.Panels.Count && world.Panels[d.Panel].Building == b) n++;
+            return n;
+        }
+
         public static TerrainWorld Without(TerrainWorld world, IReadOnlyCollection<string> labels)
         {
             var set = labels as ISet<string> ?? new HashSet<string>(labels, StringComparer.Ordinal);
@@ -170,6 +181,9 @@ namespace Fdp.Toolkit.Terrain
                     throw new ArgumentException($"[Terrain] Cannot merge overlay into '{@base.Name}': door key '{d.Key}' exists in both the base terrain and the overlay '{overlay.SourceFolder}'.");
             // ⭐ CE-5025 BE-1 (📄 docs/DESIGN_Terrain_Base_Edits.md D-2) — the overlay REMOVES base buildings by label first: the base is compacted (the building
             //   record with its panels, prisms, walkables and doors, or a solid block prism of that label) and every base index re-pointed; then the overlay appends
+            var removed = new List<TerrainRemovedBuilding>(overlay.RemovedBuildings.Count);   // ⭐ CE-5030 — what was taken, as the base had it (the ghost, the Details)
+            foreach (var label in overlay.RemovedBuildings)
+                if (FeatureExpander.BaseFootprint(@base, label, out var footprint, out float floorZ)) removed.Add(new TerrainRemovedBuilding(label, footprint, floorZ, DoorsOf(@base, label)));
             if (overlay.RemovedBuildings.Count > 0) @base = Without(@base, overlay.RemovedBuildings);
             int panb = @base.Panels.Count, bb = @base.Buildings.Count;
             static int Off(int index, int by) => index < 0 ? index : index + by;
@@ -250,6 +264,7 @@ namespace Fdp.Toolkit.Terrain
                 Materials = @base.Materials,
                 Breaches = @base.Breaches,
                 BakedCollapsed = baked,
+                Removed = removed,   // ⭐ CE-5030
             };
             if (@base.Beyond is { } beyond) merged.AttachBeyond(beyond);
             return merged;

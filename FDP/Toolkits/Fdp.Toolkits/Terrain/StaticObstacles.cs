@@ -210,6 +210,7 @@ namespace Fdp.Toolkit.Terrain
                 Materials = terrain.Materials,
                 Breaches = terrain.Breaches,   // ⭐ CE-4391 S-1
                 Minefields = minefields is { Count: > 0 } ? minefields.Fields : terrain.Minefields,   // ⭐ CE-4624 MS-T3
+                Removed = terrain.Removed,   // ⭐ CE-5030 — the removed buildings' ghosts survive the obstacle bake
             };
             if (terrain.Beyond is { } beyond) derived.AttachBeyond(beyond);   // ⭐ CE-4122 — the ground beyond the terrain is the base's, kept
             return derived;

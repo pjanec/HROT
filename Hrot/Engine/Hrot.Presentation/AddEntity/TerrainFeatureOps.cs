@@ -18,6 +18,25 @@ public static class TerrainFeatureOps
     /// <summary>The kind's name as the tab shows it.</summary>
     public static string KindName(byte kind) => TerrainBirth.FeatureName((kind, "", TerrainShape.Point));
 
+    /// <summary>⭐ CE-5030 (BE-4 part 2, 📄 docs/DESIGN_Terrain_Base_Edits.md §5; mockup "Details — Building edit") — what the Details tab says about a building EDIT: its action, the building
+    /// (label, baked), the ground (a remove: levelled to the floor Z the base had) and what went with it (its doors, its damage). Read from the merged world's record of the removal.</summary>
+    public readonly record struct EditFacts(string Action, string Building, string Ground, string GoesWithIt);
+
+    public static EditFacts FactsOf(EntityRepository world, Entity e)
+    {
+        var f = world.GetComponentRO<TerrainFeature>(e);
+        string action = f.Template.ToString() ?? "", target = f.Target.ToString() ?? "";
+        string name = action switch { "enterable" => "Make enterable", "door" => "Add door", _ => "Remove building" };
+        TerrainRemovedBuilding? gone = null;
+        if (world.HasSingletonManaged<TerrainWorld>() && world.GetSingletonManaged<TerrainWorld>() is { } terrain)
+            foreach (var r in terrain.Removed) if (r.Label == target) { gone = r; break; }
+        string ground = gone is null ? "—"
+            : action is "enterable" or "door" ? "levelled to " + gone.FloorZ.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " m, the new house on it"
+            : "levelled to " + gone.FloorZ.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " m";
+        string goes = gone is null ? "—" : (gone.Doors == 1 ? "1 door" : gone.Doors.ToString(System.Globalization.CultureInfo.InvariantCulture) + " doors") + " · its damage";
+        return new EditFacts(name, target + "  (baked)", ground, goes);
+    }
+
     /// <summary>A feature the Terrain tab offers: a live <see cref="TerrainFeature"/> that is not a ground shape.</summary>
     public static bool IsEditable(EntityRepository world, Entity e)
         => world.IsAlive(e) && world.IsComponentTypeRegistered<TerrainFeature>() && world.HasComponent<TerrainFeature>(e)

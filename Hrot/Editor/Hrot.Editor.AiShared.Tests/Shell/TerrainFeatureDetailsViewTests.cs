@@ -257,6 +257,46 @@ public sealed class TerrainFeatureDetailsViewTests
     }
 
     /// <summary>
+    /// ⭐⭐ CE-5030 BE-4 part 2 (📄 docs/DESIGN_Terrain_Base_Edits.md §5; mockup <c>docs/UX/terrain-base-edits.svg</c> "Details — Building edit") — a REMOVE edit's tab in a REAL frame: the
+    /// <i>Edit</i> section with Action · Building · Ground · Goes with it (the mockup's order, one value column), then <b>Restore building</b> and <b>Show on map</b> on one row; no Kind row.
+    /// A click on Restore deletes the edit (the building comes back with the next bake). 🔴 Mutation: Restore not deleting ⇒ the alive assert fails. Shot: <c>ce5030-edit-details.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE5030_ARemoveEdit_ShowsTheMockupsRows_AndRestoreDeletesIt()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        var w = World();
+        w.RegisterManagedComponent<TerrainWorld>();
+        w.SetSingletonManaged(new TerrainWorld { Removed = new[] { new TerrainRemovedBuilding("way/48211211", new[] { new Vector2(0, 0), new Vector2(5, 0), new Vector2(5, 4.4f), new Vector2(0, 4.4f) }, 312.4f, 2) } });
+        var edit = Feature(w, TerrainFeature.Edit, "remove", 0f, 0, "Building edit 3", new Vector2(2, 2));
+        var f = w.GetComponentRO<TerrainFeature>(edit); f.Target = new FixedString64("way/48211211"); w.SetComponent(edit, f);
+        var view = new TerrainFeatureDetailsView(() => w, () => Recipes());
+        using var frame = UiFrameHarness.Begin(600, 300);
+        new EditorFontService().Initialize(1f, 1f);
+        void Draw()
+        {
+            ImGui.SetNextWindowPos(new Vector2(10, 10)); ImGui.SetNextWindowSize(new Vector2(460, 220));
+            ImGui.Begin("Details — Building edit 3##ce5030");
+            if (w.IsAlive(edit)) view.Draw(Context(edit), "rail");
+            ImGui.End();
+        }
+        frame.StepN(6, Draw);
+        string? shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS");
+        if (shots is { Length: > 0 }) { Directory.CreateDirectory(shots); frame.Screenshot(Path.Combine(shots, "ce5030-edit-details.png")); }
+
+        Assert.Equal(new TerrainFeatureOps.EditFacts("Remove building", "way/48211211  (baked)", "levelled to 312.4 m", "2 doors · its damage"), view.Facts);
+        var r = new Dictionary<string, (Vector2 Min, Vector2 Max)>(view.Rects);
+        Assert.True(r["action"].Max.Y <= r["building"].Min.Y && r["building"].Max.Y <= r["ground"].Min.Y && r["ground"].Max.Y <= r["goes"].Min.Y && r["goes"].Max.Y <= r["restore"].Min.Y,
+            "Action, Building, Ground, Goes with it, then the buttons");
+        Assert.Single(new[] { "action", "building", "ground", "goes" }.Select(k => (int)r[k].Min.X).Distinct());   // one value column
+        Assert.Equal((int)r["restore"].Min.Y, (int)r["show"].Min.Y);                                                // Restore · Show on map on one row
+        Assert.DoesNotContain(r.Keys, k => k.StartsWith("kind:"));
+
+        Click(frame, Draw, (r["restore"].Min + r["restore"].Max) * 0.5f);
+        Assert.False(w.IsAlive(edit));
+    }
+
+    /// <summary>
     /// ⭐ CE-5017 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-9) — a change over SEVERAL selected features is ONE undo step: three walls set to Hedge, then their height, each as one bracket
     /// (the per-entity steps nest inside); a feature of another family is not taken together. 🔴 Red-proof: <c>Apply</c> without its bracket ⇒ three "begin" per change.
     /// </summary>

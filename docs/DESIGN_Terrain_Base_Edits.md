@@ -247,6 +247,18 @@ Rails: `OpeningPlacerDoorRuleTests` (5), `BaseEditHouseTests` (2, the real gener
 
 Rail: `TerrainBakeTests.CE5031_ARemovedBaseHouse_IsGoneFromTheSavedTerrain` (the saved folder read on its own: no "B", no door, no remove part, the levelled ground kept), red-proved. ⚠ The made-enterable house in a SAVED terrain is not railed on its own — it rides the same append as every overlay feature, which `TheSavedFolder_ParsesToTheSameWorldAsTheMerge` covers.
 
+### 6e. As built — BE-4 *(terrain, `2026-11-19`)*
+
+| design said | as built — and why |
+|---|---|
+| the Buildings family, armed tools | part 1: `TerrainPick.EditPicks` (Remove building · Make enterable · Add door) on the Terrain strip, icons `terrain/remove-building` · `make-enterable` · `add-door`; spec `feature:16:<action>:Point`; a click is born naming the baked building under it (`TerrainBirth.ResolveEdit` → `FeatureExpander.BaseBuildingAt`, the SAME pick the hover uses), a click on open ground or an overlay house places nothing |
+| hover: outline amber, a tooltip naming it and the action | ⭐ ONE more branch of the placing ghost (`TerrainGhost.Compute` → `BuildingEditHover`), cached by `TerrainPlacement.Preview` (no per-frame work): the footprint outlined SOLID amber (`TerrainGhostShape.Highlight`), three lines — `Baked building · <label>[ · NO DOOR]` · `SOLID — no interior / enterable · n storeys · m²` · the verdict (green), or why not (amber: *Make enterable* on an enterable house, open ground). ⚠ The mockup's building TYPE (`shed`) is not shown: the world keeps no OSM type. ⚠ *Add door* does not refuse a shared wall in the hover — the generator places the door (its own rule) |
+| the ghost after *Remove*, only while the toolbar is open | ⭐ the merge RECORDS what it took (`TerrainWorld.Removed`: label, footprint, floor Z, doors; carried through the obstacle bake) — the merged world no longer has the building. `TerrainFeatureGizmo` draws a remove edit as that footprint DASHED with a `removed` chip, the outline its pick (a click selects the edit); closed toolbar ⇒ nothing (TE-18). Rejected: the footprint as the edit's `EditablePolyline` — it would get vertex handles and a second outline |
+| right-click → Restore building · Select the edit | ⚠ no context menu: a click on the ghost selects the edit, Delete or the Details' **Restore building** removes it (one undo step) |
+| the edit's Details | ⭐ the existing Terrain tab, an Edit branch: Action · Building (`label  (baked)`) · Ground (`levelled to Z m`) · Goes with it (`n doors · its damage`) · **Restore building** (the shared delete, `SelectionInteractionSystem.DeleteEntity`) · **Show on map** (the shared `CenterOnEntityCommand`); facts from `TerrainFeatureOps.FactsOf` |
+
+Rails: `BuildingEditBirthTests` (part 1) · `BuildingEditHoverTests` (4) · `TerrainFeatureGizmoTests.CE5030_ARemoveEdit_DrawsTheRemovedBuildingsGhost_AndItsFacts` · `TerrainFeatureDetailsViewTests.CE5030_ARemoveEdit_ShowsTheMockupsRows_AndRestoreDeletesIt` (a frame, under `xvfb-run -a`).
+
 ## 7. Acceptance *(the scenarios — R-4277, by §6a proportionate)*
 
 | scenario | expect rows |
