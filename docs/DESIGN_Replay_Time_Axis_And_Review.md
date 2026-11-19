@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING — ⭐ PW BUILT 2026-10-26 (§12f; CE-3331 closed) · P0 BUILT (§12g) · P1 core BUILT (§12h) · ⏸ P2 STOPPED — module-level declaration cannot work, lean per-system (§12i) · P3 BUILT (§12j) · was READY-TO-BUILD — ✅ every decision answered (R-3057…R-3063; §11f: the full checkpoint, D-A OVERTURNED — the review is ON the wire, §12 disposes every potential zombie at entry, at every seek and at exit). ✅ READY-TO-BUILD (2026-10-26): M1 / M4 / M5 answered (§7) — PW, then P0…P4 when scheduled. ⭐ PW (the wire, §8 rows 35–39) goes first: it also fixes CE-3331, a zombie hole in today's replay seeks and checkpoint restores. Principles ⭐ APPROVED 2026-10-26 (R-3057: R1…R12; R-3058: the axis switches at runtime; R-3059: no state change on a left click, any host; R-3060: the existing toolbar grown by two icons, the Replay Browser keeps its own controls; R-3061: the mode icon is an indicator)
-updated: 2026-10-30 (§12z — CE-4118: a live recording records the frame's READ buffer; a keyframe carries the unconsumed for a checkpoint) · 2026-10-28
+updated: 2026-11-19 (§12za — CE-5041: the replay pull follows the clock back) · 2026-10-30 (§12z — CE-4118: a live recording records the frame's READ buffer; a keyframe carries the unconsumed for a checkpoint) · 2026-10-28
 current-answer: ⭐ §12f–§12j what is built (PW, P0, P1, P3) and P2's stop · §12f PW as built · §11f the answers + §12 the wire · §0 the decision · §3 UML (§3a states, §3b classes, §3c the review's sequence) · §5 decisions · §7 build order · §8 the system changes · §9 the UI · §11 the review's findings (each now folded into a row of §8)
 stale-below: nothing
 known-rot: §11d's D-A lean (wire-silent) is OVERTURNED — §12. §1's claim rows and §2's INVENTORY predate §11 / §12 (the wire and checkpoint rows are in §12c with their file:line). replay-and-modules §2.2 / §2.3 ("IG nodes … do not record and do not replay") are SUPERSEDED — every recording node replays (R-4010) · ⛔ SUPERSEDED 2026-10-28 (R-4095): `BdcReplicationModule` (named beside `NedReplicationModule` as a mixed module) was removed with the BDC stack.
@@ -1376,7 +1376,7 @@ sequenceDiagram
 ```
 *What the picture shows that the prose hid:* the pull model is forward-only, and the clock moves a round LATER than the world — so only a seek
 BACK goes wrong (the harness's later seeks went forward). ✅ After a seek (by time or by frame) `PlaybackTickSystem` holds the seek's frame
-until the clock's reading changes (`HoldUntilTheClockMoves`). 📐 After: entry at 5 → 4.998, then back to 3 → 2.999, both at once. Rail
+until the clock's reading changes (`HoldUntilTheClockMoves`). ⚠ `2026-11-19` §12za: the hold alone could not tell a late earlier round's snap from its own — the pull now also follows the clock BACK. 📐 After: entry at 5 → 4.998, then back to 3 → 2.999, both at once. Rail
 `ReplayModuleTests.CE4056_A_seek_back_holds_until_the_clock_moves_to_it` (red before the fix).
 
 **CE-4057.** The return re-derives in-flight constructions (`EntityLifecycleModule.ResumeFromRestoredWorld`), and the gateway waits for peers
@@ -1590,6 +1590,36 @@ frame's events go with it. Not what CE-4118 measured (the behaviour events survi
 Rail: `RecordingModuleTests.CE4118_ALiveRunsInputPhaseEvents_AreRecorded_EachOnce_AndACheckpointCarriesOnlyTheUnconsumed` (the kernel's
 publish → swap → publish → record order; replayed, every event once; the keyframe's checkpoint carries only the unconsumed one) — red with
 `readBuffer: false`.
+
+### 12za. ✅ FIXED `2026-11-19` — a QUICK seek back pulled forward by the PREVIOUS round's late snap (CE-5041; amends §12r)
+
+**CE-5041.** Found by terrain running `--verify-replay` (`mf-knowledge-survives`), reproduced on the control `ua-civ-melee`: the replay check's
+shuffled seeks (H2) stood for 30 of 41 moments; the 11 others were each a seek BACK sent a few ms after the previous seek's world stood. 📐 Traced
+in `PlaybackTickSystem.Execute` (clock, held reading, cursor, world clock per frame):
+
+```mermaid
+sequenceDiagram
+  participant V as verifier / operator
+  participant N as node PlaybackTickSystem
+  participant C as master clock
+  V->>N: seek to 40 (round A)
+  N->>N: SeekTo 40 — the world stands at 40
+  Note over C: round A not complete — the clock still at 39
+  V->>N: seek BACK to 16 (round B), at once
+  N->>N: SeekTo 16 — hold (§12r), clock reading 39
+  C->>C: round A completes — SnapTo(40)
+  Note over N: "the clock moved" ⇒ released ⇒ pulled forward to 40
+  C->>C: round B completes — SnapTo(16)
+  Note over N: ⛔ before: 16 behind the cursor, forward-only ⇒ stuck at 40 · ✅ now: restore back to 16
+```
+*What the picture shows that the prose hid:* the clock trails the world by one round — measured by TWO in `mf-knowledge-survives` — so the
+hold cannot know which move is its own. ⚠ A first fix that held until the clock named the seek's own landing cut the failures to 3 of 41,
+and the remaining three were exactly the two-round lag (its "passed the landing from below" clause read a stale held reading). ⇒ the hold is
+not where correctness lives. ✅ **The pull follows the clock BOTH ways:** a clock standing behind the frame shown by more than half a 60 Hz
+frame (`PlaybackTickSystem.FrameToleranceTicks`) is restored back to (a keyframe seek, as Strategy B does forward); frame 0 is exempt (nothing
+earlier); the backward follow comes before the at-the-end return, so a replay on its last frame still follows a clock sent back. §12r's hold
+stays as it is — it now only saves a needless forward pull. Rails: `ReplayModuleTests.CE5041_A_quick_seek_back_lands_although_the_previous_rounds_late_snap_pulled_it_forward`
+(red without the backward follow) and §12r's own rail, unchanged. ✅ And `ClockTicks()` ROUNDS the clock's seconds to ticks: truncated, a clock snapped exactly onto a frame could name the tick before it, and the pull stopped one frame short (📌 `ua-civ-melee` stood at 26.9833 for 27 once the backward follow existed; the original report's `29.9833` was the same) — rail `CE5041_A_clock_on_a_frame_names_that_frame_despite_its_rounding`. ⚠ An operator clicking two seeks quickly had the same defect.
 
 ## ⭐ Naming in the code — AAR and DAR, not "Replay" and "Review" *(recorded `2026-11-08`, CE-4328 — a proposal for the user)*
 
