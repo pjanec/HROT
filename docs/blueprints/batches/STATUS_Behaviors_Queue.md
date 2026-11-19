@@ -13,7 +13,7 @@ Started at the merge of `origin/coordinator` (2026-11-18 09:00).
 ## 1. Now
 
 ⭐ **STEER taken (`STEER_Coordinator_To_Behaviors_Critical_Reload_And_Street_Fight.md`, user: critical):** CE-4665 (crowd slots never released after a reload — cross-lane into navigation) → then the street fight CE-4668 → CE-4667 → CE-4666 → CE-4669 (`HANDOFF_Coordinator_To_Behaviors_Street_Fight.md`), BEFORE the rest of the queue.
-CE-3464 paused at a safe point (no code changes): measured — the editor-tier run shows Pinned DOES fire (ammo 150→145) and lies 1.4 m from the wreck at 23–39 s, yet the checks fail both rows; a stepped (`/sim/run-to`) probe was running to tell a stepped-vs-played difference from a checks-reading defect. CE-3463 parked at 4/6.
+CE-3464 PARKED 2026-11-19 (stepped probe: three causes, tracker row). CE-3463 parked at 4/6.
 
 ## 2. The queue (in order)
 
@@ -40,7 +40,7 @@ CE-3464 paused at a safe point (no code changes): measured — the editor-tier r
 | CE-2450 posted man re-sends a move every ~4 s, never moves | ✅ DONE by backend's mover fix (`9a3365499`, merged) — the man reaches his post; `pc-defend-house` row added by backend | 9a3365499 | `CarKinematicsSystemTests.CE2450_*` | pc-defend-house |
 | CE-4670 (backend's note) a crewman's head-out + a vehicle's light discipline can be ASKED | ⏳ QUEUED — who decides is ours (VA-3/VA-4): SOP/ROE/order for blackout, an observation behaviour that puts the commander's head out (in under fire). `NOTE_Backend_To_Behaviors_Vehicle_HeadOut_And_Light_Discipline.md` | — | — | `va-crew-switches` |
 | CE-3463 the guard does not fire first | ⚠ 4/6 — three fixes (quiet frame post leans; frame arc faces out of the window; a frame move stopped from outside is re-sent) + the guard inside the 6 m ring; Blue South ✅. OPEN: after Blue South is down the lone guard never rotates to an east post (round < 2 posts or never runs — unmeasured) ⇒ Blue East unseen. Parked (R-106), next on return. Found CE-2449 (ia-house-hunt, pre-existing) | 922d6110a · d0c021f07 | `TacticsTreesTests.CE3463_*` · `SquadManeuverTests.CE3463_*` · `PeekAndFireNodesTests.CE3463_*` | `ia-area-defend` 4/6 |
-| CE-3464 a pinned man never fires, walks to the house | ⏸ PAUSED for the STEER — the live run shows him firing and at the wreck; the checks still fail (stepped vs played, or the check's read) | | | `rf-pinned-in-open` |
+| CE-3464 a pinned man never fires, walks to the house | ⏸ PARKED (R-106) 2026-11-19 — stepped probe: three causes — ① his BoundingOverwatch sends the last man to a post 36 m EAST, ② his weapon holds "not seen" (the window man's cadence, AQ102 §9.1), ③ a TS-6 break at 20 s holds him prone 32 s; the earlier "he fires, at the wreck" was a played run | | | `rf-pinned-in-open` |
 | CE-3465 no grenade at the wall-hugger | TODO | | | `rf-wall-hugger` |
 | CE-3444 a unit thrashes between cover points | TODO | | | `uc-urban-battle` |
 | CE-2442 no HQ answers an `Engineers` request | ✅ DONE via D-2 | | | |
