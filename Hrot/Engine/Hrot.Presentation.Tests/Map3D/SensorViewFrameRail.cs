@@ -108,6 +108,8 @@ public sealed class SensorViewFrameRail
         float moon = FrameToFrame(m1, m2), stars = FrameToFrame(s1, s2);
         _out.WriteLine($"grain: full moon {moon:0.0000}, starlight {stars:0.0000}; lux {n.View.Lux}");
         Assert.True(n.View.Post.Frames > 0, "the post-process ran");
+        // 🔴 seen red (`2026-11-19`): the halving chain's 1×1 target left rlgl's framebuffer at 1×1 — the next pass culled every body as Hidden
+        Assert.Equal(Raylib_cs.Raylib.GetScreenHeight(), Raylib_cs.Rlgl.GetFramebufferHeight());
         Assert.True(stars > 3f * moon, $"starlight grain {stars:0.0000} > 3 × full-moon grain {moon:0.0000}");
         n.View.Noise = false;
         n.Light(Starlight); var q1 = n.Screen(); n.Light(Starlight, 1); var q2 = n.Screen();

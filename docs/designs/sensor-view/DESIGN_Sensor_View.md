@@ -117,6 +117,7 @@ Queries: `search_graph name_pattern=".*(Thermal|Heat|Infrared|Temperature|Burn|S
 | ⛔ deviation from the mockup / §3 — and why | |
 |---|---|
 | the legend strip carries NO controls (the mockup's combo boxes and check boxes) — they are the View ▸ Sensor View submenu | a map layer draws with Raylib; ImGui windows are drawn per host — putting the controls in the shared View menu reaches every host by construction (the shared-and-unified rule) instead of N hosts each wiring a window. The strip shows the mode, the light (lux), the moon and the palette |
+| ⚠ raylib's `EndTextureMode` does not restore rlgl's framebuffer size | 📐 measured `2026-11-19`: the halving chain's last 1×1 target left it at 1×1 ⇒ the body layer's screen-size culling (`ViewFrustum.CurrentScale`) hid EVERY body in the next pass (the normal view after a sensor view; the next window in a test run — `VehicleFittingsFrameRail` red after `SensorViewFrameRail`). ⭐ `EndScene` restores it (`rlSetFramebufferWidth/Height`, declared — not bound by Raylib-cs 7.0.2); NV-1 asserts it |
 | a film frame while night vision is on is drawn NORMAL-coloured but lit by the night-vision light | the atmosphere is the scene's; the post-process is not around the film's pass (CE-1988) |
 
 ## 5. Thermal *(slice SV-2, CE-1985)*

@@ -63,6 +63,14 @@ namespace Fdp.Toolkit.Vis3D
         [System.Runtime.InteropServices.DllImport(Raylib.NativeLibName, EntryPoint = "rlBlitFramebuffer", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
         private static extern void BlitFramebuffer(int srcX, int srcY, int srcWidth, int srcHeight, int dstX, int dstY, int dstWidth, int dstHeight, int bufferMask);
 
+        /// <summary>rlgl's framebuffer size (what <c>Rlgl.GetFramebufferHeight</c> answers — the 3-D map's screen-size culling reads it, <c>ViewFrustum.CurrentScale</c>).
+        /// ⚠ raylib's <c>EndTextureMode</c> does NOT restore it: 📐 measured, the halving chain's last 1×1 target left it at 1×1, and every body of the NEXT pass —
+        /// the normal view after leaving a sensor view, or the next window — fell into the Hidden band. Not bound by Raylib-cs 7.0.2.</summary>
+        [System.Runtime.InteropServices.DllImport(Raylib.NativeLibName, EntryPoint = "rlSetFramebufferWidth", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        private static extern void SetFramebufferWidth(int width);
+        [System.Runtime.InteropServices.DllImport(Raylib.NativeLibName, EntryPoint = "rlSetFramebufferHeight", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+        private static extern void SetFramebufferHeight(int height);
+
         /// <inheritdoc/>
         public void BeginScene(Vector2 size)
         {
@@ -151,6 +159,7 @@ namespace Fdp.Toolkit.Vis3D
             SetFloat(_final, _fSpan, MathF.Max(0.5f, s.SpanC));
             Raylib.DrawTexturePro(_scene.Texture, new Rectangle(0, 0, w, -h), new Rectangle(0, 0, w, h), Vector2.Zero, 0f, Color.White);
             Raylib.EndShaderMode();   // flushes the batch with unit 1 still bound
+            SetFramebufferWidth(w); SetFramebufferHeight(h);   // ⚠ the frame's own size again (the chain left 1×1 — see SetFramebufferHeight)
             Rlgl.ActiveTextureSlot(2);
             Rlgl.DisableTexture();
             Rlgl.ActiveTextureSlot(1);
