@@ -165,7 +165,8 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 //   flash at a hand, no shot sound, no blast. 📐 Before: a stone has no effects of its own, so it drew the default small flash.
                 if (Fdp.Toolkit.Combat.PersonHands.Threw(view, in fire)) continue;
                 // ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-10) — the sound of it, queued only while an FPS station listens
-                if (Hrot.UI.Common.Audio.SoundEvents.Of(world) is { } heard && mount?.Category != WeaponCategory.Bomb)
+                if (Hrot.UI.Common.Audio.SoundEvents.Of(world) is { } heard && mount?.Category != WeaponCategory.Bomb
+                    && !Hrot.Look.Effects.EffectRules.IsFuelShot(mount))   // ⭐ CE-4635 — a flamethrower's fuel shot is no gunshot: its roar is a held loop (SoundSources.Movers)
                     heard.Add(new Hrot.UI.Common.Audio.SoundEvents.Shot(fire.Shooter, fire.WeaponIndex, fire.Origin != Vector3.Zero ? fire.Origin : at,
                         fired, mount?.DamagePerHit ?? 0f, FireStreams.IsAutomatic(mount),
                         view.HasComponent<TkbIdentity>(fire.Shooter) ? view.GetComponentRO<TkbIdentity>(fire.Shooter).TkbType : 0L));

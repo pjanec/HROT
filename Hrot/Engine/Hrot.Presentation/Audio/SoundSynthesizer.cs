@@ -42,6 +42,7 @@ namespace Hrot.UI.Common.Audio
                 SoundSynth.ImpactHard => Finish(Ricochet(ref r)),
                 SoundSynth.Crash => Finish(Explosion(ref r, 1.8f, 0.04f, 0.3f, 48f, 0.35f, debris: 28)),   // ⭐ CE-4600 (B-3b) — a dull blow (no blast's crack), then rubble falling
                 SoundSynth.Glass => Finish(Glass(ref r)),   // ⭐ CE-5034 — a crack, then tinkling
+                SoundSynth.FlameRoar => Loop(FlameRoar(ref r, 1f + LoopFade)),   // ⭐ CE-4635 — a held roar
                 SoundSynth.Footsteps => Loop(Footsteps(ref r, 1f + LoopFade)),
                 SoundSynth.WheeledEngine => Loop(Engine(ref r, 2f + LoopFade, 60f, clankHz: 0f)),
                 SoundSynth.TrackedEngine => Loop(Engine(ref r, 2f + LoopFade, 45f, clankHz: 9f)),
@@ -495,6 +496,30 @@ namespace Hrot.UI.Common.Audio
             var b = Buf(seconds);
             float brown = 0f;
             for (int i = 0; i < b.Length; i++) { float t = T(i); brown = 0.997f * brown + 0.04f * r.Next(); b[i] = 1.5f * brown + 0.05f * Sin(100f, t); }
+            return b;
+        }
+
+        /// <summary>⭐ CE-4635 — a flamethrower's roar: a low rumble (brown noise through a slow low-pass, wobbling), a hiss (high-passed noise, swelling and ebbing) and a few crackles
+        /// (short random pops). A loop: <see cref="Loop"/> cross-fades its tail into the start.</summary>
+        private static float[] FlameRoar(ref Rng r, float seconds)
+        {
+            var b = Buf(seconds);
+            float brown = 0f, low = 0f, hp = 0f;
+            for (int i = 0; i < b.Length; i++)
+            {
+                float t = T(i), n = r.Next();
+                brown = 0.995f * brown + 0.05f * n;
+                low += 0.04f * (brown - low);
+                hp = n - (hp + 0.35f * (n - hp));   // a crude high-pass: what the low-pass leaves of the noise
+                float swell = 0.75f + 0.25f * Sin(5f, t) * Sin(2.3f, t + 0.1f);
+                b[i] = (4.5f * low + 0.35f * hp * swell + 0.5f * Sin(48f, t) * (0.6f + 0.4f * Sin(7f, t))) * swell;
+            }
+            for (int k = 0; k < 14; k++)   // crackle: a short pop of noise at a random moment
+            {
+                int at = (int)(r.Unit() * (b.Length - 400)), len = 60 + (int)(r.Unit() * 240);
+                float amp = 0.25f + 0.5f * r.Unit();
+                for (int i = 0; i < len; i++) b[at + i] += amp * r.Next() * Env(T(i), 0.004f);
+            }
             return b;
         }
 

@@ -4,6 +4,7 @@ build-state: DESIGN
 updated: 2026-11-19
 current-answer: §0 the picture · §3 decisions (leans F-1…F-12) · §5 slices
 related-designs:
+  - ../audio/DESIGN_FPS_Audio.md — §10 how the mover loops (the flail, the flame roar) are held; §8 here owns the roar (CE-4635)
   - ../thermal/DESIGN_Thermal_Drivers.md — OWNS how fire is STORED and SENT (§3b TD-16 the coupling to damage, §3c the three FireState holders, §4b the BurnedArea mark, §4g BurnSystem as built); this design adds what LIGHTS it
   - ../vehicle-appearance/DESIGN_Vehicle_Appearance_State.md — §7 / §7a: Hrot.Look's effect rules and categories — the flame and the burning-ground look go through them
   - DESIGN_Weapon_Systems.md — mounts, stations and the TKB weapon rows a flamethrower is one more of
@@ -17,6 +18,10 @@ related-designs:
 *"Also some napalm bomb with adequate effect on the ground, both visual and damage."* · `2026-11-19`: *"the flamethrower (CE-4635) and napalm (CE-4637)
 design … could be given to backend"*.
 
+
+## 8. The sound — as ui builds it *(ui, `2026-11-19`; NOTE_Backend_To_Ui_Flamethrower_Sound_Answer; `build-state: BUILT`)*
+
+A flame burst is ONE roar (`SoundSourceClass.Flame = 9`, the FlamethrowerSoldier's firing class at 200 m), never a gunshot sample per fuel shot (600 a minute). Built exactly as the flail's loop is (CE-4624; [`DESIGN_FPS_Audio.md` §10](../audio/DESIGN_FPS_Audio.md)): a lit flamer (`FlameJets.TryGet`, the same reader the picture uses) is HELD as a `SoundTkbCatalog.FlameRoar` (7357, `SoundSynth.FlameRoar`, id checked free on every lane's catalogue) loop under `SoundSources.FlameKey`, standing still too, gain by the Flame range, pitch 1 × Doppler; the loop ends with the jet. ⛔ The fuel shot queues no `SoundEvents.Shot` and makes no muzzle flash — ONE predicate, `EffectRules.IsFuelShot` (`Hrot.Look`), asked by both. ⚠ As built: "a type that has a Flamethrower mount" is read from its acoustic signature (`FiringClass == Flame`, its `FiringAudibleRange`) — the cached per-type read the movers already do, no TKB mount walk; they are the same type by backend's contract. Rails: `AudioTests.Flame` (a lit flamer held at 150 m standing still, unlit not; no Shot sound for a fuel shot, a rifle's still; the clip is a seamless non-silent loop; a held flamer costs no more allocation than a held engine, R-2084) and `EffectRulesTests.CE4635_…` — each red-proved.
 
 ## 0. The picture
 
