@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-idle — waiting for a handoff (last: CE-4628 DONE `2026-11-19`).
+IN PROGRESS: the flame visuals (HANDOFF_Backend_To_Ui_Flame_Visuals, dispatched at backend `b24416363`, merged).
 
 ## 2. The queue (in order)
 
@@ -82,3 +82,9 @@ idle — waiting for a handoff (last: CE-4628 DONE `2026-11-19`).
 | row | state | finding | gates | design |
 |---|---|---|---|---|
 | re-capture `df-civilian-ordered` on the merged tree | DONE — merged coordinator (`98cc1fd89`; `cp-vbied` golden conflict: ours, then `GOLDEN same` on the merged tree) | diff shape: positions / health / shots / verdicts IDENTICAL; components: `Mood` → `Demeanour` (10 unit-snapshots — CE-4628 §10c's rename) and `FrustrationTicks` / `NavigationStatus` / `LocomotionChannel` (5 — backend's CE-3449 determinism fix); ⚠ cross-lane: `ComponentIdCatalogueTests` (coordinator's) now skips `/.claude/` — agent git worktrees there are second copies of the tree and doubled every id (both rails red on this machine, green after) | `df-civilian-ordered` PASS, `cp-vbied` PASS; `ComponentIdCatalogueTests` 2/2 | — |
+
+## Queue 6 — HANDOFF_Backend_To_Ui_Flame_Visuals.md (taken 2026-11-19)
+
+| row | state | finding | gates | design |
+|---|---|---|---|---|
+| U-1 the flame jet · U-2 every burning spot · U-3 a burning man · U-4 scorched ground · U-5 the effect data (CE-4635, CE-4637) | IN PROGRESS — step 1: inventory + the mockup (R-4143) | | | designs/weapons/DESIGN_Flame_Weapons.md §6 |
