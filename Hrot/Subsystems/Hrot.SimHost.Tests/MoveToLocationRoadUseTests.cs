@@ -36,6 +36,21 @@ namespace Hrot.SimHost.Tests
                 JsonSerializer.Serialize(new MoveToLocationParamsJsonDto { Location = new System.Numerics.Vector3(1, 2, 0), RoadUse = RoadUse.Prefer }, BehaviorParams.JsonOptions));
         }
 
+        /// <summary>⭐ CE-3483 — the one JSON factory code orders a move with (the hill attack's baseline, SimHost's click-to-move) is read
+        /// back by the resolver as the point it was given, under the CURRENT key and never the retired X / Y.</summary>
+        [Fact]
+        public void CE3483_TheOrderJson_ResolvesToThePointItWasGiven()
+        {
+            string json = MoveToLocationParamsJsonDto.Json(447.5f, -120.25f, 15f, 5f);
+            Assert.Contains("\"target\"", json);
+            Assert.DoesNotContain("\"X\"", json);
+            var block = CgfNodes.ConvertMoveTo(JsonSerializer.Deserialize<MoveToLocationParamsJsonDto>(json, BehaviorParams.JsonOptions));
+            Assert.Equal(447.5f, block.X, 3);
+            Assert.Equal(-120.25f, block.Y, 3);
+            Assert.Equal(15f, block.Speed, 3);
+            Assert.Equal(5f, block.ArrivalRadius, 3);
+        }
+
         [Fact]
         public unsafe void CE3130_TheMoveToLocationNode_IssuesTheMoveWithTheRoadUse()
         {

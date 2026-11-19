@@ -1209,6 +1209,8 @@ DERIVED instead of authored.
 
 > ⭐ **S0 item 5 — AS BUILT `2026-11-01` (backend).** Every authored params / predicate DTO now uses the reference types; `PickableGeoPoint` and `OrderGeo` are **deleted** (no geodetic form inside the engine, SR-135). Gated by `S0AuthoredTypesRailTests` (Fdp.Toolkits.Tests) — a bare `Vector2/3`, a `*NetworkId` integer, a lat/lon float, a Bearing-named float or an `EntityRef` in a `[ParamsDto]` / `SearchPredicateDto` fails it unless `Allowed` names the member WITH a reason (today: `T09Params.HomePosition`, `T41Params.Home` — test-only fixtures whose offsets are pinned).
 >
+> ⛔ **CE-3483 (`2026-11-19`, backend) — two CODE writers of a `MoveToLocation` order were missed:** the hill attack's baseline dispatch (`HillAttackCommanderNodes.Action_DispatchAllToBaseline`) serialised the blackboard struct and SimHost's click-to-move (`NedSimHostMissionSender`) formatted `{"X":…,"Y":…}` — keys this item retired, which the params parse IGNORES (only the load path refuses them, item 9) ⇒ the unit resolved to (0, 0). ⭐ Code now orders a move through ONE factory, `MoveToLocationParamsJsonDto.Json(x, y, speed, radius)` (the authored `target`), rails `MoveToLocationRoadUseTests.CE3483_*` and `HillAttackNodeTests.SC_HA010_4` (now reads every slot back through the resolver).
+>
 > | was | is | note |
 > |---|---|---|
 > | `EntityRef` / raw `*NetworkId` long | `EntityLink` | read through `.Ref`; `HullDownAttackParams` 48 → **88 B** (target @32 now 48 B, `GoAt` 40 → 80) — ⭐ **then 88 → 80 B with CE-4200 `2026-11-02`** (`EntityRef` is 4 B now: `EntityLink` 48 → **40**, `GoAt` @72) |

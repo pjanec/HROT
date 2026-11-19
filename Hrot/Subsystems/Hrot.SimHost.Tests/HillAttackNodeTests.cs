@@ -338,6 +338,20 @@ namespace Hrot.SimHost.Tests
             }
             // 4 distinct JSON strings (distinct positions)
             Assert.Equal(4, xs.Count);
+
+            // ⭐ CE-3483 — distinct strings are not enough: the RESOLVER must read each baseline slot back (the X / Y keys it once wrote
+            //   were retired by S0 item 5, so every tank resolved to (0, 0) while the strings still differed).
+            var slots = new System.Collections.Generic.HashSet<(float, float)>();
+            foreach (var ev in events)
+            {
+                var authored = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto>(ev.JsonParams!, Fdp.Toolkit.Behavior.BehaviorParams.JsonOptions);
+                var block = CgfNodes.ConvertMoveTo(authored);
+                Assert.Equal(100f, block.Y, 3);
+                Assert.Equal(15f, block.Speed, 3);
+                Assert.Equal(5f, block.ArrivalRadius, 3);
+                slots.Add((MathF.Round(block.X, 2), block.Y));
+            }
+            Assert.Equal(new System.Collections.Generic.HashSet<(float, float)> { (0f, 100f), (30f, 100f), (60f, 100f), (90f, 100f) }, slots);
         }
 
         /// <summary>SC-HA010-5: Condition_AreAllAtBaseline returns Running when any alive
