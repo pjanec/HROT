@@ -124,7 +124,7 @@ namespace Hrot.AI.Behaviors.Brains
             d.Threshold = way.Kind == (byte)BuildingPortalKind.Stair ? (byte)0 : (byte)1;
             if (d.HasDoor != 0) d.Door = new TerrainObjectRef(way.DoorKey);
             int inFight = 0;
-            for (int i = 0; i < ctx.Roster.Count; i++) if (ctx.Live(i, out _)) inFight++;
+            for (int i = 0; i < ctx.Roster.Count; i++) if (InDrill(in ctx, i, out _)) inFight++;
             d.Plan = way.Kind == (byte)BuildingPortalKind.Stair
                 ? RoomEntryPlan.PlanFrom(room.Corners, room.FloorZ, new Vector2(way.X, way.Y), way.SillZ, inFight)
                 : RoomEntryPlan.Plan(room.Corners, room.FloorZ, new Vector2(way.X, way.Y), way.Width, inFight,
@@ -347,7 +347,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
             {
-                if (d.OrderOf[i] == RoomDrillState.NotInIt || (d.Crossed & (1 << i)) != 0 || !ctx.Live(i, out var m)) continue;
+                if (d.OrderOf[i] == RoomDrillState.NotInIt || (d.Crossed & (1 << i)) != 0 || !InDrill(in ctx, i, out var m)) continue;
                 if (RecentSensesOf.Within(ctx.World, m, SensorChange.Hit, FiredOnSeconds)
                     || RecentSensesOf.Within(ctx.World, m, SensorChange.NearMiss, FiredOnSeconds)) return true;
             }
@@ -426,7 +426,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static unsafe bool ThrowerLive(ref RoomDrillState d, in SquadPlayContext ctx, out Entity man)
         {
             man = Entity.Null;
-            return d.Thrower >= 0 && ctx.Live(d.Thrower, out man);
+            return d.Thrower >= 0 && InDrill(in ctx, d.Thrower, out man);
         }
 
         /// <summary>CB-67, CB-68, CB-70 — the grenade, the thrower and the aim point; false when none is to be thrown.</summary>
@@ -442,7 +442,7 @@ namespace Hrot.AI.Behaviors.Brains
             int n = 0;
             for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
             {
-                if (!ctx.Live(i, out var m)) continue;
+                if (!InDrill(in ctx, i, out var m)) continue;
                 men[n++] = d.OrderOf[i] == RoomDrillState.NotInIt ? ctx.At(m) : d.Plan.Stack(d.OrderOf[i]);
             }
             var query = Fdp.Toolkit.World.WorldQuery.Of(ctx.World);
@@ -492,7 +492,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int k = 0; k < count; k++) if (k != 1) pref[p++] = byOrder[k];
             foreach (int i in pref[..p])
             {
-                if (!ctx.Live(i, out var m)) continue;
+                if (!InDrill(in ctx, i, out var m)) continue;
                 if (GrenadeCheck.Carried(ctx.World, m, kind, out mount, out _, out warhead)) { slot = i; return true; }
             }
             return false;
@@ -536,7 +536,7 @@ namespace Hrot.AI.Behaviors.Brains
             ushort live = LiveMask(in ctx);
             if ((d.Placed & ~live) == 0) { d.Placed &= live; return; }
             int inFight = 0;
-            for (int i = 0; i < ctx.Roster.Count; i++) if (ctx.Live(i, out _)) inFight++;
+            for (int i = 0; i < ctx.Roster.Count; i++) if (InDrill(in ctx, i, out _)) inFight++;
             if (inFight == 0) return;
             for (int i = 0; i < RoomDrillState.Capacity; i++) d.OrderOf[i] = RoomDrillState.NotInIt;
             Places(ref d, in ctx, inFight, d.Turn);
@@ -548,10 +548,17 @@ namespace Hrot.AI.Behaviors.Brains
             ws.Reissue = 1;
         }
 
+        /// <summary>⭐ <c>CE-2451</c> — a man who can take his part in the drill: in the fight AND not broken (fled, surrendered, collapsed —
+        /// <see cref="Fdp.Toolkit.Behavior.Components.Stresses.IsBroken"/>). CB-73 counts a man down out of the stack; a broken man can no more
+        /// take his place. 📌 `ts-house-defenders` (stepped, after D-9): a broken entry man, counted in by <c>ctx.Live</c> (casualties only), kept
+        /// the entry "not placed" for good — the room never cleared. ⛔ <c>ctx.Live</c> itself stays casualties only (the other plays, the SITREP).</summary>
+        private static bool InDrill(in SquadPlayContext ctx, int i, out Entity member)
+            => ctx.Live(i, out member) && !Fdp.Toolkit.Behavior.Components.Stresses.IsBroken(ctx.World, member);
+
         private static ushort LiveMask(in SquadPlayContext ctx)
         {
             ushort mask = 0;
-            for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++) if (ctx.Live(i, out _)) mask |= (ushort)(1 << i);
+            for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++) if (InDrill(in ctx, i, out _)) mask |= (ushort)(1 << i);
             return mask;
         }
 
@@ -583,7 +590,7 @@ namespace Hrot.AI.Behaviors.Brains
             float bestD = float.MaxValue;
             for (int i = 0; i < ctx.Roster.Count; i++)
             {
-                if (!ctx.Live(i, out var m)) continue;
+                if (!InDrill(in ctx, i, out var m)) continue;
                 float d = Vector3.Distance(ctx.At(m), room);
                 if (d < bestD) { bestD = d; best = m; }
             }
@@ -609,11 +616,11 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
             {
                 if (leaderOut && i == 0) continue;
-                if (ctx.Live(i, out _)) men[n++] = i;
+                if (InDrill(in ctx, i, out _)) men[n++] = i;
             }
             int shift = n == 0 ? 0 : (turn * Math.Max(1, d.Plan.Entry)) % n;
             for (int k = 0; k < n; k++) d.OrderOf[men[(k + shift) % n]] = (sbyte)k;
-            if (leaderOut && ctx.Live(0, out _)) d.OrderOf[0] = (sbyte)n;
+            if (leaderOut && InDrill(in ctx, 0, out _)) d.OrderOf[0] = (sbyte)n;
         }
 
         /// <summary>CB-54 — the next entry man goes <see cref="FlowSeconds"/> after the one before, ⭐ CE-2334 and not before every man
@@ -628,7 +635,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     int k = d.OrderOf[i];
                     if (k == RoomDrillState.NotInIt || k >= d.Released) continue;
-                    if ((d.Crossed & (1 << i)) != 0 || !ctx.Live(i, out _)) through++;
+                    if ((d.Crossed & (1 << i)) != 0 || !InDrill(in ctx, i, out _)) through++;
                 }
                 due = Math.Min(due, Math.Max(1, through + 1));
             }
@@ -647,7 +654,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
             {
                 int k = d.OrderOf[i];
-                if (k == RoomDrillState.NotInIt || k >= d.Plan.Entry || k >= d.Released || (d.Crossed & (1 << i)) != 0 || !ctx.Live(i, out var m)) continue;
+                if (k == RoomDrillState.NotInIt || k >= d.Plan.Entry || k >= d.Released || (d.Crossed & (1 << i)) != 0 || !InDrill(in ctx, i, out var m)) continue;
                 var at = ctx.At(m);
                 var flat = new Vector2(at.X, at.Y);
                 bool crossed = RoomEntryPlan.Inside(corners, flat) && Vector2.Dot(flat - d.Plan.Door, d.Plan.Into) >= CrossedMetres;
@@ -665,7 +672,7 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < ctx.Roster.Count && i < RoomDrillState.Capacity; i++)
             {
                 int k = d.OrderOf[i];
-                if (k == RoomDrillState.NotInIt || !ctx.Live(i, out var m)) continue;
+                if (k == RoomDrillState.NotInIt || !InDrill(in ctx, i, out var m)) continue;
                 if (k >= d.Plan.Entry) continue;
                 any = true;
                 var target = stack ? d.Plan.Stack(k) : d.Plan.Point(k);
