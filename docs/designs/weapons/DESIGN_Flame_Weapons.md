@@ -1,8 +1,8 @@
 <!--STATUS
-state: LIVE — ✅ APPROVED 2026-11-19 (R-3111); nothing built yet (HANDOFF_Coordinator_To_Backend_Reload_And_Fire_Weapons.md row 2)
-build-state: DESIGN
+state: LIVE — ✅ APPROVED 2026-11-19 (R-3111); FL-0, FL-1, FL-2 BUILT (§6, §7, §7a); FL-3 / FL-4 to build (CE-3487 / CE-3488)
+build-state: BUILDING — FL-0…FL-2 built (§7, §7a); FL-3 napalm, FL-4 buildings next
 updated: 2026-11-19
-current-answer: §0 the picture · §3 decisions (leans F-1…F-12) · §5 slices
+current-answer: §0 the picture · §3 decisions (F-1…F-12, approved) · §5 slices · §7 / §7a as built (FL-1, FL-2)
 related-designs:
   - ../thermal/DESIGN_Thermal_Drivers.md — OWNS how fire is STORED and SENT (§3b TD-16 the coupling to damage, §3c the three FireState holders, §4b the BurnedArea mark, §4g BurnSystem as built); this design adds what LIGHTS it
   - ../vehicle-appearance/DESIGN_Vehicle_Appearance_State.md — §7 / §7a: Hrot.Look's effect rules and categories — the flame and the burning-ground look go through them
@@ -267,6 +267,39 @@ renderer needs.
 | ~~FL-1's scenario moved to FL-2~~ | ⛔ REVERSED (user, `2026-11-19`: *"the feature is not done until it has a testing scenario"*): FL-1 ships the man-portable flamethrower TYPE (`UrbanCombatTkbCatalog.TkbFlamethrowerSoldier` 2022, his fuel `MunitionTkbCatalog.TkbFlameFuel` 6069: 40 m, 6°, 60 s, 10 shots a second, 90 shots) and **`fl-flamethrower-cone`** — 7 / 7, golden captured and repeating, and 7 / 7 under the parallel checks (read check + world guard). The flame tank and the ROE rule stay FL-2 |
 | ⭐ found BY the scenario, fixed | ① a mount with no loadout leaves `WeaponAmmo.Load0` 0 (the mount's own round) ⇒ `FlameJets` read no warhead — it now falls back to the mount's munition (rail `AMountWithNoLoadout_*`, red-proved); ② the barrel-heat model held the flamethrower "too hot" after 0.7 s (10 fuel shots a second) ⇒ `BarrelHeat`: a flamethrower has no barrel; ③ a man lit once burned 6 s and LIVED while the jet still played on him ⇒ each tick past the threshold extends his burning (the ignition counts once) |
 | "the stream's END leaves a burning-fuel spot" (F-3) | ⏳ with **FL-3**: a ground spot needs the cell-record holder napalm builds |
+
+## 7a. As built — FL-2 the ROE, the civilian hold, the flame tank *(backend, `2026-11-19`, CE-3486)*
+
+```mermaid
+sequenceDiagram
+  participant B as brain (AimAndFire / FireAtPoint executor)
+  participant F as ForceLevels
+  participant L as LineOfFire
+  participant M as muscle (FireProcessingSystem)
+  B->>F: Permits (force level) then IncendiaryPermits(ammo, mount)
+  F-->>B: RoeOf.Incendiary down the chain — Forbidden ⇒ HoldIncendiary, nothing spent
+  B->>L: BlockedByNeutral (the bullet's line) or NeutralInFlame (the flame's reach and cone)
+  L-->>B: a neutral in it ⇒ HoldNeutralOnLine, nothing spent
+  B->>M: WeaponFireIntent — a fuel shot (the jet lights from the burst record)
+```
+*What the picture shows that the prose hid:* both F-9 holds are on the BRAIN, before a fuel shot is spent — the jet lights from the brain's own
+round count (`WeaponAmmoMirrorSystem`), so a muscle refusal (where `Masked` lives) would have come after the flame was already lit.
+
+| piece | as built |
+|---|---|
+| **`Roe.Incendiary`** (`RoeIncendiary`: `IncendiaryUnset` ⇒ allowed · `IncendiaryForbidden` · `IncendiaryAllowed`) | appended to `Roe`, `SetRoeEvent`, `SavedRoe` (so the scenario's `Roe` block and the replicated brain intent carry it — no IDL change), `RoeSystem`, `BrainHandOverSystem`, `BehaviorProfileDto.DefaultRoeIncendiary`, the operator wire (`RoeDirectiveJson` `"Incendiary"`), the editor and `/entities/{id}` brain view; read by `RoeOf.Incendiary` down the chain of command like every ROE field. ⭐ A police / civil force needs nothing new: an incendiary round is LETHAL (`Armament.IsLethal`), so its NonLethal cap holds it already |
+| **`ForceLevels.IncendiaryPermits`** | an incendiary munition (warhead `Incendiary`, the loaded or the mount's own) is refused where the ROE forbids it — ⚠ self-defence does NOT lift it; asked at both places a round leaves (`AimAndFireExecutor.HoldOf` ⇒ `ActionReason.HoldIncendiary`, appended; `FireAtPointExecutor`) and by `AllowsMount`, so the weapon choice drops a forbidden flamethrower and a flame tank fights with its coax |
+| **`LineOfFire.NeutralInFlame`** (Protocol III's rule) | ⭐ ONE rule with AW-20's neutral-on-the-line (`NeutralOnLine`, the shared per-frame body grid, 0 B): the line run to the jet's FULL REACH (a flame does not stop at its target) with the cone as the spread (tan of the half-angle); held as `HoldNeutralOnLine` at the three AW-20 sites |
+| **the M67 flame tank** (`TkbEntityTypes.Tank_FlameM67` 117, DIS 1.1.225.1.20) | an M48 hull and turret: mount 0 a turret flamethrower (600 fuel shots, 10 a second), its fuel `MunitionTkbCatalog.TkbTankFlameFuel` 6070 (60 m, 5°, 60 s); the coax and smoke dischargers kept; side armour 76 mm ⇒ its own hull never catches fire; heard as `SoundSourceClass.Flame` |
+| rails | `AimAndFireExecutorTests.CE3486_AFlamethrower_IsHeld_WhileANeutralIsAnywhereInItsFlame` (🔴 red-proved: the flame stopped at the target) · `CE3486_TheRoesIncendiaryRule_ForbidsAFlame_DownTheChain_AndTheWeaponChoiceDropsIt` (🔴 red-proved: the rule always true) · `TacticalIntentIngressTranslatorTests.CE3251_*` (the wire carries `Incendiary`) |
+| scenarios | ✅ `fl-clear-the-bunker` (4 / 4): the tank flames a window of the CQB house; the man inside on its line is lit at 0.5 s and dies; the man just inside the wall, in the cone but behind brick, never burns · ✅ `fl-roe-holds` (9 / 9): each hold beside a CONTROL given the same order — the flamer with a civilian beyond his target never fires (his control does, and lights his target); the tank whose ROE forbids incendiaries never spends fuel (its control does) |
+
+| 📐 learned by the scenarios — for the drills (FL-5, behaviors) | |
+|---|---|
+| ⭐ **a flame clears a building by being thrown INTO THE OPENING** (`FireAtPoint`, mount 0, at the window) — it does not need to see who is inside | 📌 `FireAtTarget` at a man inside never engaged: the tank must see him first, and a man 4 m inside reads "not seen" |
+| ⚠ **the weapon choice prefers the coax to the flamethrower against a man** in the open (measured: 5 coax rounds, target dead at 0.7 s) | ⇒ when to burn is the DRILL's decision (FL-5), not the weapon scorer's; ⛔ not changed here |
+| a window's opening `at` is its START edge along the wall from its first corner (`TerrainOpening.At`) | 📌 the first placement hit brick — `/perception/los` names the panel a line crosses |
+| an unbroken GLASS pane passes sight (transmittance 1) and so the flame | a v2 question: should a flame break the pane (GW's shatter) |
 
 ## 8. The look — as ui builds it *(ui, `2026-11-19`; HANDOFF_Backend_To_Ui_Flame_Visuals; `build-state: BUILT` (ui, `2026-11-19`; as-built below, the design table under it is the plan and where they differ ⛔ the as-built wins); mockup [`UX/flame-visuals.svg`](../../UX/flame-visuals.svg), generated by `scripts/gen-flame-visuals-mockup.py`)*
 

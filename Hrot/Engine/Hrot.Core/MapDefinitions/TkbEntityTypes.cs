@@ -40,6 +40,10 @@ namespace Hrot.Map.Common
         /// <summary>⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a) — the MINE-CLEARING vehicle: an engineering tank with a plough / flail and a line-charge mount.
         /// DIS 1.1.*.9.2 (beside the bulldozer's 1.1.*.9.1), class <c>"MineClearer"</c>. ⛔ A permanent wire value. (Registered in MS-T4.)</summary>
         public const long Engineer_MineClearer = 116;
+        /// <summary>⭐ CE-3486 (flame FL-2; docs/designs/weapons/DESIGN_Flame_Weapons.md F-11) — the FLAME TANK (the M67, the M48's flamethrower variant): a
+        /// turret flamethrower in place of the gun, the coax and the smoke dischargers kept. DIS 1.1.225.1.20 (a tank; 20 HROT-local). ⛔ A permanent wire
+        /// value (117 measured free on every lane 2026-11-19).</summary>
+        public const long Tank_FlameM67 = 117;
 
         // ⛔ PERMANENT WIRE VALUES. ⭐ CE-4623 AB-1 (docs/designs/animals/DESIGN_Animals.md §4a, R-4269) — the ANIMALS: 700…711 the species
         //   (TKB order = AnimalSpecies, the sound block's species index), 712 the domestic animal AREA. 700–799 measured free on every lane 2026-11-16.

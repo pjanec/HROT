@@ -1,0 +1,46 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-3486 FL-2 (flame weapons \u00a75): a flame reaches into a building through its opening, a wall stops it.",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the tank spends fuel (a burst, no round)",
+      "on": "field",
+      "who": "Flame Tank",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 600,
+      "before": 20
+    },
+    {
+      "name": "Defender A is set alight through the window",
+      "on": "field",
+      "who": "Defender A",
+      "path": "EffectState.BurningUntil",
+      "op": ">",
+      "value": 0,
+      "before": 20
+    },
+    {
+      "name": "Defender A dies in the fire",
+      "on": "field",
+      "who": "Defender A",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 40
+    },
+    {
+      "name": "Defender At Wall never burns (the wall stops the flame)",
+      "never": {
+        "on": "field",
+        "who": "Defender At Wall",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    }
+  ]
+}

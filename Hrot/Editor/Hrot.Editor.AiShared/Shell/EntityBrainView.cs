@@ -98,7 +98,7 @@ public sealed record BrainSnapshot(
         if (Has<Roe>(view, unit))
         {
             ref readonly var e = ref view.GetComponentRO<Roe>(unit);
-            roe = $"fire {e.Fire}, reactions {e.Reactions}, force {e.ForceLevel} (set by {e.SetBy})";
+            roe = $"fire {e.Fire}, reactions {e.Reactions}, force {e.ForceLevel}, incendiary {e.Incendiary} (set by {e.SetBy})";
         }
 
         var rows = new List<BrainActionRow>(3);

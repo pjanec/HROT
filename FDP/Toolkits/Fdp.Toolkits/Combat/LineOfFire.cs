@@ -46,6 +46,30 @@ namespace Fdp.Toolkit.Combat
             return NeutralOnLine(world, shooter, target, world.GetComponentRO<SimTransform>(target).Position, sigma);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3486</c> (flame FL-2, F-9 — Protocol III's rule; docs/designs/weapons/DESIGN_Flame_Weapons.md) — a FLAMETHROWER is never released
+        /// while a NEUTRAL person is inside the flame it would throw toward <paramref name="aim"/>: the AW-20 rule (<see cref="NeutralOnLine"/>, the
+        /// shared body grid) with the line run to the jet's full REACH (the flame does not stop at the target) and the spread its cone
+        /// (tan of the half-angle). False for any other mount. 0 B per call.
+        /// </summary>
+        public static bool NeutralInFlame(EntityRepository world, Entity shooter, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Vector3 aim)
+        {
+            if (mount is not { Category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower } || !world.HasComponent<SimTransform>(shooter)) return false;
+            var warhead = loadedAmmo != 0 ? CombatTkb.WarheadOf(world, loadedAmmo) : CombatTkb.WarheadOf(world, mount);
+            if (warhead is not { FlameRangeM: > 0f } w) return false;
+            var a3 = world.GetComponentRO<SimTransform>(shooter).Position;
+            var d = new Vector2(aim.X - a3.X, aim.Y - a3.Y);
+            if (d.LengthSquared() < 1e-6f) return false;
+            d = Vector2.Normalize(d) * w.FlameRangeM;
+            float spread = MathF.Tan(w.FlameHalfAngleDeg * (MathF.PI / 180f));
+            return NeutralOnLine(world, shooter, Entity.Null, new Vector3(a3.X + d.X, a3.Y + d.Y, aim.Z), spread);
+        }
+
+        /// <summary>⭐ <c>CE-3486</c> — the same, toward a target entity (its position).</summary>
+        public static bool NeutralInFlame(EntityRepository world, Entity shooter, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Entity target)
+            => world.IsAlive(target) && world.HasComponent<SimTransform>(target)
+               && NeutralInFlame(world, shooter, mount, loadedAmmo, world.GetComponentRO<SimTransform>(target).Position);
+
         /// <summary>⭐ <c>AW-20</c> — the same hold toward a POINT (a burst at a remembered spot).</summary>
         public static bool BlockedByNeutral(EntityRepository world, Entity shooter, Vector3 point, float sigma)
             => NeutralOnLine(world, shooter, Entity.Null, point, sigma);

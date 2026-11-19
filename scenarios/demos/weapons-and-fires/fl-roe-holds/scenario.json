@@ -1,0 +1,388 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: the incendiary rules of engagement hold a flame (CE-3486 flame FL-2, F-9 approved R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md). On basic-desert, two holds, each beside a CONTROL given the same order without the reason to hold: (1) 'Flamer' (a FlamethrowerSoldier, FireAtTarget) faces 'Target A' 20 m east while 'Civilian Beyond' (neutral) stands 10 m behind the target - inside the 40 m flame though off a bullet's line to the target: as Protocol III, no flame with a civilian in it; its control 'Flamer Clear' faces 'Target C' with nobody behind. (2) 'Forbidden Tank' (an M67 whose ROE says IncendiaryForbidden) is ordered to flame the spot where 'Target B' stands; its control 'Allowed Tank' gets the same order at 'Target D'. Judge: the Flamer and the Forbidden Tank never spend fuel and Target A, Target B and the civilian are never hurt; the two controls spend fuel and set their targets alight."
+  },
+  "entities": {
+    "c3486000-0000-4000-8000-100000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2022
+      },
+      "EntityInfo": {
+        "Name": "Flamer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "FireAtTarget",
+        "Params": {
+          "targetNetworkId": "c3486000-0000-4000-8000-100000000002"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3486000-0000-4000-8000-100000000002": {
+      "SimTransform": {
+        "Position": [
+          320,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Target A",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3486000-0000-4000-8000-100000000003": {
+      "SimTransform": {
+        "Position": [
+          330,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 1101
+      },
+      "EntityInfo": {
+        "Name": "Civilian Beyond",
+        "ForceId": "Neutral"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "Idle",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c3486000-0000-4000-8000-100000000004": {
+      "SimTransform": {
+        "Position": [
+          300,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 117
+      },
+      "EntityInfo": {
+        "Name": "Forbidden Tank",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal",
+        "Incendiary": "IncendiaryForbidden"
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Params": {
+          "x": 330,
+          "y": 400,
+          "z": 1,
+          "mount": 0,
+          "rounds": 60,
+          "cooldownSeconds": 0.1
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3486000-0000-4000-8000-100000000005": {
+      "SimTransform": {
+        "Position": [
+          330,
+          400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Target B",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3486000-0000-4000-8000-100000000006": {
+      "SimTransform": {
+        "Position": [
+          300,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2022
+      },
+      "EntityInfo": {
+        "Name": "Flamer Clear",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "FireAtTarget",
+        "Params": {
+          "targetNetworkId": "c3486000-0000-4000-8000-100000000007"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3486000-0000-4000-8000-100000000007": {
+      "SimTransform": {
+        "Position": [
+          320,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Target C",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3486000-0000-4000-8000-100000000008": {
+      "SimTransform": {
+        "Position": [
+          300,
+          600,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 117
+      },
+      "EntityInfo": {
+        "Name": "Allowed Tank",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Params": {
+          "x": 330,
+          "y": 600,
+          "z": 1,
+          "mount": 0,
+          "rounds": 60,
+          "cooldownSeconds": 0.1
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3486000-0000-4000-8000-100000000009": {
+      "SimTransform": {
+        "Position": [
+          330,
+          600,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Target D",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -304,6 +304,9 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐ CE-2239 part 1 (CV-8, §5j FL-2) — the FORCE LEVEL, for a round at a point (no target ⇒ no self-defence lift); an operator decides himself
             if (obeyRoe && !selfProtection && !ForceLevels.Permits(world, unit, Entity.Null, ammo, CombatTkb.MountOf(world, firing, mountIndex)))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldForceLevel;
+            // ⭐ CE-3486 (flame F-9) — and the ROE's incendiary rule (an operator decides himself)
+            if (obeyRoe && !ForceLevels.IncendiaryPermits(world, unit, ammo, CombatTkb.MountOf(world, firing, mountIndex)))
+                return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldIncendiary;
             // ⭐ CE-3158 G3 — a DIRECT burst never flies through a friend (CE-321's rule, to a point); held like the aimed guard
             //   (Running, no round spent). An INDIRECT warhead (a mortar, a thrown grenade) arcs over them — exempt.
             //   ⭐ CE-3230 (H-5) — the warhead of the round that flies: the loaded one when there is one, else the mount's own
@@ -314,7 +317,8 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐ AW-20 (R-2026) — the AI's direct round neither, while a NEUTRAL person is on the line or in the spread (an operator — obeyRoe
             //   false — decides himself, as for the neutral target, CE-2233)
             if (obeyRoe && CombatTkb.MountOf(world, firing, mountIndex) is var aimed && roundWarhead is not { Indirect: true }
-                && LineOfFire.BlockedByNeutral(world, unit, point, HitModel.Sigma(world, firing, aimed, HitModel.Now(world))))
+                && (LineOfFire.BlockedByNeutral(world, unit, point, HitModel.Sigma(world, firing, aimed, HitModel.Now(world)))
+                    || LineOfFire.NeutralInFlame(world, unit, aimed, ammo, point)))   // ⭐ CE-3486 (flame F-9) — a flame: its whole cone
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNeutralOnLine;
             // ⭐ CE-2282 DA-L — the AI's round never ends inside a NoFire area of its chain (an operator — obeyRoe false — decides himself)
             if (obeyRoe && Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, unit, point))
