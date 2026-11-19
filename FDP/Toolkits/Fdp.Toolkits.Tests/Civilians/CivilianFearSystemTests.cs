@@ -1,6 +1,7 @@
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Civilians;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Perception.Tests;
 using Fdp.Toolkit.Tkb.Domain;
@@ -18,6 +19,10 @@ namespace Fdp.Toolkit.Civilians.Tests
         {
             var w = PerceptionTestWorldFactory.Create();
             if (!w.IsComponentTypeRegistered<CivilianState>()) w.RegisterComponent<CivilianState>();
+            // ⭐ CE-4628 — the shared creature components a civilian's mind brings with it
+            if (!w.IsComponentTypeRegistered<Creatures.Fear>()) w.RegisterComponent<Creatures.Fear>();
+            if (!w.IsComponentTypeRegistered<Home>()) w.RegisterComponent<Home>();
+            if (!w.IsComponentTypeRegistered<GroupMember>()) w.RegisterComponent<GroupMember>();
             if (!w.Bus.IsRegistered<SoundContactEvent>()) w.Bus.Register<SoundContactEvent>();
             if (!w.Bus.IsRegistered<SensorChangedEvent>()) w.Bus.Register<SensorChangedEvent>();
             if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.EffectState>()) w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
@@ -28,7 +33,7 @@ namespace Fdp.Toolkit.Civilians.Tests
         {
             var e = w.CreateEntity();
             w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-            if (civilian) w.AddComponent(e, new CivilianState());
+            if (civilian) CivilianMind.Ensure(w, e);   // ⭐ CE-4628 — his whole mind: CivilianState + Fear + Home + GroupMember
             return e;
         }
 
@@ -39,7 +44,7 @@ namespace Fdp.Toolkit.Civilians.Tests
             new CivilianFearSystem().Execute(w, dt);
         }
 
-        private static float Fear(EntityRepository w, Entity e) => w.GetComponentRO<CivilianState>(e).Fear;
+        private static float Fear(EntityRepository w, Entity e) => w.GetComponentRO<Creatures.Fear>(e).Value;
 
         /// <summary>
         /// ⭐⭐ <c>CE-2322</c> (AQ97 D1, R-2062) — the fear of a civilian on ANY task: a person of the Civilian class with no
@@ -60,8 +65,42 @@ namespace Fdp.Toolkit.Civilians.Tests
             w.Bus.Publish(new SensorChangedEvent { Unit = civilian, What = SensorChange.NearMiss });
             Frame(w);
             Assert.True(w.HasComponent<CivilianState>(civilian));
+            Assert.True(w.HasComponent<Creatures.Fear>(civilian) && w.HasComponent<Home>(civilian) && w.HasComponent<GroupMember>(civilian));
             Assert.True(Fear(w, civilian) > 0.3f, $"heard and near-missed, he is frightened: {Fear(w, civilian)}");
             Assert.False(w.HasComponent<CivilianState>(soldier));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4628</c> rail (a) — a civilian gets his WHOLE mind on his first state, each part WITH its final value (never add-then-write — inside
+        /// the parallel brain phase an add is deferred): <see cref="CivilianState"/>, the shared <c>Fear</c> (calm), <c>Home</c> (where he stands, no radius, no
+        /// tether) and <c>GroupMember</c> (no group). A unit already holding a partial mind is completed. 🔴 Red-proof: the shared-parts add removed from
+        /// <c>CivilianMind</c> ⇒ no Fear / Home / GroupMember ⇒ red (and the fear system would throw reading a Fear he does not have).
+        /// </summary>
+        [Fact]
+        public void CE4628_ACivilianGetsFearHomeAndGroupMember_WithHisFirstState_EachWithItsFinalValue()
+        {
+            var w = World();
+            var man = Person(w, new Vector3(12, 34, 5), civilian: false);
+            Assert.True(CivilianMind.Ensure(w, man));
+            Assert.True(w.HasComponent<CivilianState>(man));
+            Assert.Equal(0f, w.GetComponentRO<Creatures.Fear>(man).Value);
+            var home = w.GetComponentRO<Home>(man);
+            Assert.Equal(new Vector3(12, 34, 5), (Vector3)home.Centre);
+            Assert.Equal((0f, 0f), (home.Radius, home.TetherMetres));
+            Assert.True(w.GetComponentRO<GroupMember>(man).Group.IsNull);
+
+            // SetMode on a man with no mind adds it WITH the mode (the parallel-phase rule), and the shared parts with it
+            var other = Person(w, new Vector3(1, 2, 3), civilian: false);
+            CivilianMind.SetMode(w, other, CivilianMode.Panic);
+            Assert.Equal(CivilianMode.Panic, w.GetComponentRO<CivilianState>(other).Mode);
+            Assert.True(w.HasComponent<Creatures.Fear>(other) && w.HasComponent<Home>(other) && w.HasComponent<GroupMember>(other));
+            Assert.Equal(new Vector3(1, 2, 3), (Vector3)w.GetComponentRO<Home>(other).Centre);
+
+            // a partial mind (the state alone) is completed by Ensure, never left to a silent default
+            var partial = Person(w, Vector3.Zero, civilian: false);
+            w.AddComponent(partial, new CivilianState());
+            Assert.True(CivilianMind.Ensure(w, partial));
+            Assert.True(w.HasComponent<Creatures.Fear>(partial) && w.HasComponent<Home>(partial) && w.HasComponent<GroupMember>(partial));
         }
 
         [Fact]

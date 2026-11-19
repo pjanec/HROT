@@ -27,6 +27,7 @@ namespace Fdp.Core
     /// <para>⭐ R-4276 (2026-11-16) — the EXPERIMENTAL aggregate lanes (`exp/agg-*`, CE-4616) take the free holes 281–289 and 324–329:
     /// the contract 281 AggregateUnit · 282 UnitSlotTable · 283 UnitHoldings · 284 FireAllocation (declared below); then agg-backend 285–289,
     /// agg-behaviors ⭐ 119, 138, 139 (MOVED 2026-11-16: terrain took 324–326 for MinefieldLanes / MineClearing / MineBreadcrumbs before agg-behaviors used any), agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
+    /// <para>⭐ CE-4628 (ui, 2026-11-19; docs/designs/animals/DESIGN_Animals.md §10a) — the shared creature components take <c>Group</c> 139 (⚠ the agg-behaviors note above listed 139 as reserved for it; no branch declares it — measured 2026-11-19) and <c>AnimalTasks</c> 163 (was <c>InFormationTag</c>'s).</para>
     /// <para>⭐ R-4282 (2026-11-16) — the `convoy` lane (CE-4631, the road convoy) takes 108, 109, 157, 158 (measured free on all eight branches).</para>
     /// <para>⭐ R-10000 (2026-11-17, the `air` lane, CE-10000; docs/designs/air-attack/DESIGN_Air_Combat.md §7) — the air block is 128, 160, 277, 278, 279:
     /// measured by a full scan of every [ComponentId], every *Ids constant (int / ushort / byte) and every literal on coordinator, behaviors, backend,
@@ -1151,9 +1152,9 @@ namespace Fdp.Core
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>
         public const int Utterance = 434;
 
-        /// <summary>⭐ <c>CE-3265</c> (backend, G2) — <c>Demeanour</c>: a civilian's mode, fear and anger in quarters, Brain group, replicated as
+        /// <summary>⭐ <c>CE-3265</c> (backend, G2) — <c>Mood</c> (was <c>Demeanour</c>, CE-4628): a creature's mode, fear and anger in quarters, Brain group, replicated as
         /// <c>dtDemeanour</c> (153). §7.18. Backend's proposed block; measured free on every lane 2026-10-19.</summary>
-        public const int Demeanour = 435;
+        public const int Mood = 435;
 
         /// <summary>⭐ <c>CE-3271</c> (backend, Q94 D, R-3018) — <c>SpawnLevelRequest</c>: a spawn's birth level, resolved by the node that owns
         /// the position (Muscle group), replicated as <c>dtSpawnLevel</c> (155). 📄 docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md
@@ -1437,22 +1438,29 @@ namespace Fdp.Core
 
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).
-        /// <summary><c>Fear</c> — the ONE shared fear (civilians and animals), written by the one fear system (AR-3).</summary>
+        /// <summary><c>Fear</c> — the ONE shared fear (civilians and animals), written by the one fear system (AR-3). ⭐ CE-4628: namespace <c>Fdp.Toolkit.Creatures</c>, the union of the civilian's and the animal's fear fields; id kept.</summary>
         public const int Fear = 130;   // ⭐ CE-4623 AB-10 (2026-11-16): the animals' ids MOVED 500–507 → 130–137 — 500–511 is R-44's TEST-ONLY range (a test's own [ComponentId(503)] collided with HerdMember in one test process) and the terrain lane took 500 for PlacementGroup the same day; 130–137 measured free on backend, behaviors, ui and coordinator in every *ComponentIds*.cs and every literal ComponentId(n)
-        /// <summary><c>AnimalState</c> — an animal's mode and fear band, replicated (the presentation's pose and gait read it).</summary>
+        /// <summary><c>AnimalState</c> — an animal's mode and flags, replicated (the presentation's pose and gait read it). ⭐ CE-4628: species is read from the TKB, the fear band is <c>Mood</c>.</summary>
         public const int AnimalState = 131;
         /// <summary><c>FlockState</c> — a bird flock's count, seed and mode, replicated (drawn as N birds).</summary>
         public const int FlockState = 132;
-        /// <summary><c>HerdMember</c> — an animal's herd (AR-9).</summary>
-        public const int HerdMember = 133;
-        /// <summary><c>AnimalHome</c> — an animal's home: centre, radius, an optional tether (AN-5, AN-16).</summary>
-        public const int AnimalHome = 134;
-        /// <summary><c>HerdState</c> — a herd entity's centre, next grazing spot and lead animal (AR-9).</summary>
+        /// <summary><c>GroupMember</c> (was <c>HerdMember</c>, CE-4628) — the herd or crowd entity a creature belongs to (AR-9).</summary>
+        public const int GroupMember = 133;
+        /// <summary><c>Home</c> (was <c>AnimalHome</c>, CE-4628) — a creature's home: centre, radius, an optional tether (AN-5, AN-16).</summary>
+        public const int Home = 134;
+        /// <summary><c>HerdState</c> — a herd entity's next grazing spot, mode and species (AR-9); its centre / lead / count are <c>Group</c> (CE-4628).</summary>
         public const int HerdState = 135;
         /// <summary>⭐ AB-9 — <c>AnimalArea</c>: an animal area's species, count, seed, Enclosed (authored, saved). 506–507 measured free on every lane 2026-11-16.</summary>
         public const int AnimalArea = 136;
         /// <summary>⭐ AB-9 — <c>AnimalAreaPopulated</c>: the area was populated (recorded, never saved — a restore or replay never repopulates).</summary>
         public const int AnimalAreaPopulated = 137;
+
+        // ⭐ CE-4628 (docs/designs/animals/DESIGN_Animals.md §10a) — the components a civilian and an animal SHARE. Every reshaped component KEEPS its id
+        //   (Fear 130, GroupMember 133, Home 134, Mood 435, AnimalState 131, HerdState 135, CivilianState 399, Crowd 400); only these two are new.
+        /// <summary>⭐ CE-4628 — <c>Group</c>: the header every herd / crowd entity carries (kind, count, centre, lead). 139 measured free on every lane 2026-11-19 (the id space is near-full).</summary>
+        public const int Group = 139;
+        /// <summary>⭐ CE-4628 — <c>AnimalTasks</c>: an animal's intruder / handler / quarry, its bolt and its zone-look schedule (the non-fear fields that sat on the animals' <c>Fear</c>). 163 was <c>InFormationTag</c>'s (moved to navigation, id 70).</summary>
+        public const int AnimalTasks = 163;
 
         // ⭐ CE-10000 (R-10000, the `air` lane — docs/designs/air-attack/DESIGN_Air_Combat.md §4a, §7) — the air-combat contract. The five ids
         //   measured free on every lane branch 2026-11-17 (see the header). ⛔ Permanent: recorded and (three of them) on the wire.

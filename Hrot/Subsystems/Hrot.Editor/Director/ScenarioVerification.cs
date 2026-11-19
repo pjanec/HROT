@@ -1136,7 +1136,7 @@ namespace Hrot.Editor.Director
     {
         public static readonly IReadOnlyList<string> Paths = new[]
         {
-            "EntityInfo.ForceId", "IsEmbarkedTag", "NavigationStatus.Phase", "WeaponPosture", "CivilianState.Mode", "Demeanour", "Custody",
+            "EntityInfo.ForceId", "IsEmbarkedTag", "NavigationStatus.Phase", "WeaponPosture", "CivilianState.Mode", "Mood", "Custody",
             "AnimalState", "FlockState",
         };
     }

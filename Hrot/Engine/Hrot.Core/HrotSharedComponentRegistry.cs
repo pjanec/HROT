@@ -115,7 +115,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedComponent<Fdp.Toolkit.Aggregate.UnitRoute>();   // ⭐ CE-8004 — the follower's route (node-local, NoScenario | NoReplay)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();                       // ⭐ CE-3256 — detained / restrained / searched (dtCustody)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();                     // ⭐ CE-3264 (G1) — what a man says (dtUtterance)
-        world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();                     // ⭐ CE-3265 (G2) — how a civilian seems (dtDemeanour)
+        world.RegisterComponent<Fdp.Toolkit.Creatures.Mood>();                      // ⭐ CE-3265 (G2) / CE-4628 — how a creature seems (dtDemeanour; was Demeanour)
         world.RegisterComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>();       // ⭐ CE-3271 (Q94 D) — a spawn's birth level (dtSpawnLevel)
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();             // ⭐ CE-1223 — when a man was last under fire (dtUnderFire); idempotent beside CombatComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();                     // ⭐ CE-4623 AB-3 — an animal's state (dtAnimalState), on every node

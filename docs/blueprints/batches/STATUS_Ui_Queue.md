@@ -74,4 +74,4 @@ IN PROGRESS: CE-4628 shared creature components (HANDOFF_Coordinator_To_Ui_Share
 
 | row | state | finding | gates | design |
 |---|---|---|---|---|
-| CE-4628 (+ CE-2250) shared creature components: Fear, Home, GroupMember / Group, Mood, AnimalTasks | IN PROGRESS — step 1 the inventory | | | designs/animals/DESIGN_Animals.md §10 |
+| CE-4628 (+ CE-2250) shared creature components: Fear, Home, GroupMember / Group, Mood, AnimalTasks | IN PROGRESS — inventory done (74 C# files; text paths: 3 checks.json + every civilian/animal golden); ✅ the playback skips a component whose layout changed (lead, `79acf0ed6`); the moves dispatched to the worker | ⭐ two corrections to §10, measured: `Mood` IS `Demeanour` (CE-3265's replicated record, never written — CE-2250's writer); ids KEPT (the space is near-full: free 0–499 = 108, 139, 158, 163, 327–329, 459), `Group` 139, `AnimalTasks` 163 | FlightRecorder/Schema/Playback 135 pass, 4 skipped; `FlightRecorderTests.CE4628_*` red-proved (without the skip X = 1) | designs/animals/DESIGN_Animals.md §10a |

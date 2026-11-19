@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Animals;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Determinism;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication;
@@ -22,7 +23,7 @@ namespace Hrot.Core.Animals
     /// that many birds), through the ONE creation path in the shape <c>MacroInsertion</c> uses — TRANSIENT (never saved: the scenario keeps only the area), each
     /// GUID DERIVED from the area's GUID and the animal's slot (a replay re-derives the same ids). Then it marks the area <see cref="AnimalAreaPopulated"/> —
     /// recorded, so a restore or a replay NEVER repopulates. The area becomes the HERD entity of a herding species (its own <see cref="HerdState"/> and
-    /// <see cref="AnimalHome"/>); the <see cref="HerdSystem"/> links the arriving animals to it. ⭐ Every animal's home is the area (its centre and reach,
+    /// <see cref="Home"/>); the <see cref="HerdSystem"/> links the arriving animals to it. ⭐ Every animal's home is the area (its centre and reach,
     /// and ENCLOSED: a pen nothing runs out of).
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
@@ -56,7 +57,7 @@ namespace Hrot.Core.Animals
                 ? ((ISimulationView)repo).GetManagedComponentRO<EditablePolyline>(area).Points : Array.Empty<Vector2>();
             Outline(outline, out var centroid, out float radius, out var min, out var max);
             var centre = new Vector3(anchor.X + centroid.X, anchor.Y + centroid.Y, anchor.Z);
-            var home = new AnimalHome { Centre = centre, Radius = HomeRadius(outline, centroid, radius, a.Enclosed != 0), Enclosed = a.Enclosed };   // ⭐ CE-1958 — a pen: the circle INSIDE its outline
+            var home = new Home { Centre = centre, Radius = HomeRadius(outline, centroid, radius, a.Enclosed != 0), Enclosed = a.Enclosed };   // ⭐ CE-1958 — a pen: the circle INSIDE its outline
             int species = (int)a.Species;
             long type = TkbEntityTypes.Animal_Cattle + species;
             var row = species >= 0 && species < AnimalTkbCatalog.Species.Length ? AnimalTkbCatalog.Species[species] : null;
@@ -97,8 +98,10 @@ namespace Hrot.Core.Animals
             if (herding && !flock)
             {
                 if (repo.IsComponentTypeRegistered<HerdState>() && !repo.HasComponent<HerdState>(area))
-                    repo.AddComponent(area, new HerdState { Species = a.Species, Centre = centre });
-                if (repo.IsComponentTypeRegistered<AnimalHome>() && !repo.HasComponent<AnimalHome>(area)) repo.AddComponent(area, home);
+                    repo.AddComponent(area, new HerdState { Species = a.Species });
+                if (repo.IsComponentTypeRegistered<Group>() && !repo.HasComponent<Group>(area))   // ⭐ CE-4628 — the herd's header: its centre starts at the area's, the HerdSystem keeps it
+                    repo.AddComponent(area, new Group { Kind = GroupKind.Herd, Centre = centre });
+                if (repo.IsComponentTypeRegistered<Home>() && !repo.HasComponent<Home>(area)) repo.AddComponent(area, home);
             }
             repo.AddComponent(area, new AnimalAreaPopulated { At = (SimInstant)now });
             return count;

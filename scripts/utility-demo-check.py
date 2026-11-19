@@ -3299,8 +3299,18 @@ def run_civ_cower(c, timeout):
 # ── CE-2237 CIV-3 — crowds: onlookers gather, fear spreads (Civilians §5c, §5f) ────────────────────────────────────────
 
 def civ_mind(nid):
-    """The civilian's CivilianState as the brain (CGF) holds it — brain-local, never replicated."""
-    return (comps_on("CGF", nid) or {}).get("CivilianState") or {}
+    """The civilian's mind as the brain (CGF) holds it — brain-local, never replicated. ⭐ CE-4628: his fear and his crowd are the shared Fear / GroupMember
+    components now, merged back here under the old names (CrowdId: 0 = none, else the crowd entity's handle)."""
+    return _merge_mind(comps_on("CGF", nid) or {})
+
+
+def _merge_mind(comps):
+    mind = dict(comps.get("CivilianState") or {})
+    fear = comps.get("Fear") or {}
+    mind.update({"Fear": fear.get("Value"), "HeardAt": fear.get("HeardAt"), "HasFrightFrom": fear.get("HasFrightFrom"), "FrightFrom": fear.get("FrightFrom")})
+    group = (comps.get("GroupMember") or {}).get("Group")
+    mind["CrowdId"] = 0 if group in (None, "null") else group
+    return mind
 
 
 def run_civ_gathering(c, timeout):
@@ -3355,7 +3365,7 @@ def run_civ_contagion(c, timeout):
             call("POST", "/perspective", {"name": "Scenario"})
         for n in civs:
             cs = seen[n]
-            m = cs.get("CivilianState") or {}
+            m = _merge_mind(cs)
             if (m.get("HeardAt") or 0) > 0:
                 heard.add(n)
             mode = m.get("Mode")
@@ -4883,7 +4893,7 @@ def _watch_tasks(names, ids, seconds, every=0.5):
         for n in names:
             task, origin = _task_of(ids[n])
             cs = comps(ids[n])
-            civ = cs.get("CivilianState") or {}
+            civ = _merge_mind(cs)
             p = (cs.get("SimTransform") or {}).get("Position")
             out[n].append((t, task, origin, tuple(p) if p else None, civ.get("Mode"), civ.get("Fear"),
                            (cs.get("StanceIntent") or {}).get("TargetStance")))

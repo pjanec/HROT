@@ -396,6 +396,15 @@ namespace Fdp.Core.FlightRecorder
         /// <summary>⭐ CE-4050 — the component type ids whose recorded data this playback skipped (no assembly declares them).</summary>
         public IReadOnlyCollection<int> UnresolvedTypes => _unresolvedTypes;
 
+        private readonly HashSet<int> _layoutChanged = new();   // ⭐ CE-4628 — ids whose recorded layout differs from this build's (SchemaValidator)
+
+        /// <summary>⭐ <c>CE-4628</c> (docs/designs/animals/DESIGN_Animals.md §10a) — the component type ids whose layout changed since the recording
+        /// (<see cref="SchemaValidator.Validate"/>): their recorded data is skipped like an unresolved type's, and the rest of the world plays on.</summary>
+        public IReadOnlyCollection<int> LayoutChangedTypes => _layoutChanged;
+
+        /// <summary>⭐ <c>CE-4628</c> — skip these component type ids' recorded data (their layout changed since the recording).</summary>
+        public void SkipLayoutChanged(IEnumerable<int> typeIds) { foreach (int id in typeIds) _layoutChanged.Add(id); }
+
         // ⭐ CE-4407 (R-2084) — a chunk's bytes were `reader.ReadBytes(len)` per component per chunk: 11–65 MB of garbage per applied frame of a 1 000-man recording. The restorers
         //   COPY out of the array (native memcpy / a MemoryStream deserialise) and never keep it, and a table's chunk length is the same for every chunk ⇒ one array per EXACT length
         //   is reused (a restorer may read `data.Length`). Bounded: a managed blob's length varies, so at most MaxChunkBuffers distinct lengths are pooled — the rest allocate as before.
@@ -527,6 +536,7 @@ namespace Fdp.Core.FlightRecorder
         // the table of a type id, registering a type this process has not used yet (CE-3299 B5) and saying ONCE per type when no assembly declares it (CE-4050); null = skip
         private IComponentTable? ResolveTable(EntityRepository repo, IReadOnlyDictionary<Type, IComponentTable> componentTables, int typeId)
         {
+            if (_layoutChanged.Count > 0 && _layoutChanged.Contains(typeId)) return null;   // ⭐ CE-4628 — its layout changed since the recording (said once by SchemaValidator)
             IComponentTable? targetTable = TableOf(repo, componentTables, typeId);
 
             

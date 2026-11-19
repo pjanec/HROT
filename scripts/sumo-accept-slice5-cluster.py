@@ -72,7 +72,9 @@ check("a shoot-out gives pedestrians up as civilians on CGF (K4/K5)", converted,
 if converted:
     c = converted[0]
     e = comps(CGF, c)
-    mind = e.get("CivilianState") or {}
+    mind = dict(e.get("CivilianState") or {})
+    fear_c = e.get("Fear") or {}   # ⭐ CE-4628: his fear fields live on the shared Fear component now (were CivilianState's) — merged under their old names
+    mind.update({"Fear": fear_c.get("Value"), "HasFrightFrom": fear_c.get("HasFrightFrom"), "FrightFrom": fear_c.get("FrightFrom"), "HeardAt": fear_c.get("HeardAt"), "LastFrightAt": fear_c.get("LastFrightAt")})
     # ⛔ strict: his id must be one a pedestrian replica had (📌 2026-10-18 a fallback "or not seen before" hid the id being lost on the wire)
     check("he keeps the pedestrian's network id", any(c in v for v in peds.values()), {"id": c, "replica ids": sorted(set().union(*peds.values()))[:12]})
     check("CGF owns him (the brain node)", (e.get("NetworkAuthority") or {}).get("PrimaryOwnerId") not in (None,) , e.get("NetworkAuthority"))

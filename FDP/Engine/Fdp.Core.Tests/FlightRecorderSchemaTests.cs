@@ -130,7 +130,7 @@ namespace Fdp.Tests
         /// SC: Validator throws on layout hash mismatch with descriptive message (R0.2 SC-6).
         /// </summary>
         [Fact]
-        public void SchemaValidator_ThrowsOnLayoutHashMismatch()
+        public void SchemaValidator_ReportsALayoutHashMismatch_ForThePlaybackToSkip()
         {
             ComponentTypeRegistry.Clear();
             ComponentTypeRegistry.GetOrRegister<ValidatorTargetStruct>();
@@ -152,11 +152,8 @@ namespace Fdp.Tests
                 }
             };
 
-            var ex = Assert.Throws<InvalidOperationException>(
-                () => SchemaValidator.Validate(metadata));
-
-            Assert.Contains("layout has changed", ex.Message, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("0xDEADBEEFCAFEF00D", ex.Message, StringComparison.OrdinalIgnoreCase);
+            // ⭐ CE-4628 — reported (the playback skips the component), ⛔ no longer a refusal of the whole recording
+            Assert.Equal(new[] { 12 }, SchemaValidator.Validate(metadata));
         }
 
         /// <summary>
@@ -165,7 +162,7 @@ namespace Fdp.Tests
         /// SC: Validator throws on size mismatch (R0.2 SC-6).
         /// </summary>
         [Fact]
-        public void SchemaValidator_ThrowsOnSizeMismatch()
+        public void SchemaValidator_ReportsASizeMismatch_ForThePlaybackToSkip()
         {
             ComponentTypeRegistry.Clear();
             ComponentTypeRegistry.GetOrRegister<ValidatorTargetStruct>();
@@ -184,11 +181,7 @@ namespace Fdp.Tests
                 }
             };
 
-            var ex = Assert.Throws<InvalidOperationException>(
-                () => SchemaValidator.Validate(metadata));
-
-            Assert.Contains("layout has changed", ex.Message, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("999", ex.Message); // Recorded size mentioned.
+            Assert.Equal(new[] { 12 }, SchemaValidator.Validate(metadata));   // ⭐ CE-4628 — reported, not thrown
         }
 
         /// <summary>
@@ -229,9 +222,8 @@ namespace Fdp.Tests
                     [401] = new ComponentSchemaInfo { Name = type.FullName!, Size = size, LayoutHash = hash, IsManaged = false },
                 },
             };
-            SchemaValidator.Validate(Meta(TypeLayout.SizeOf(type), ComponentLayoutHasher.ComputeHash(type)));   // found, matches
-            var ex = Assert.Throws<InvalidOperationException>(() => SchemaValidator.Validate(Meta(TypeLayout.SizeOf(type) + 4, 0)));
-            Assert.Contains("layout has changed", ex.Message);
+            Assert.Empty(SchemaValidator.Validate(Meta(TypeLayout.SizeOf(type), ComponentLayoutHasher.ComputeHash(type))));   // found, matches
+            Assert.Equal(new[] { 401 }, SchemaValidator.Validate(Meta(TypeLayout.SizeOf(type) + 4, 0)));   // ⭐ CE-4628 — a drift is still found, now reported
         }
 
         /// <summary>

@@ -358,6 +358,44 @@ namespace Fdp.Tests
             }
         }
 
+        /// <summary>
+        /// ⭐ CE-4628 (docs/designs/animals/DESIGN_Animals.md §10a) — a recording with a component whose layout CHANGED since it was made still OPENS: that
+        /// component's recorded data is skipped (named in <see cref="PlaybackSystem.LayoutChangedTypes"/>), and every other component plays as recorded.
+        /// ⛔ SUPERSEDED: the whole recording was refused. 🔴 Red-proof: drop the skip in <c>PlaybackSystem.ResolveTable</c> ⇒ the drifted bytes are
+        /// restored into the current layout (the Position assertion fails).
+        /// </summary>
+        [Fact]
+        public void CE4628_A_component_whose_layout_changed_is_skipped_and_the_recording_still_plays()
+        {
+            using (var repo = new EntityRepository())
+            {
+                repo.RegisterComponent<Position>();
+                repo.RegisterComponent<Velocity>();
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new Position { X = 1, Y = 2, Z = 3 });
+                repo.AddComponent(e, new Velocity { X = 7, Y = 8, Z = 9 });
+                using var recorder = new AsyncRecorder(_testFilePath);
+                recorder.CaptureKeyframe(repo, 1_000_000L, blocking: true);
+            }
+            // the recording says Position had another layout (an older build's)
+            string metaPath = _testFilePath + ".meta.json";
+            var meta = Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Deserialize(File.ReadAllText(metaPath));
+            int positionId = meta.SchemaManifest!.Single(kv => kv.Value.Name == typeof(Position).FullName).Key;
+            meta.SchemaManifest[positionId].LayoutHash ^= 0x5A5A5A5AUL;
+            File.WriteAllText(metaPath, Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Serialize(meta));
+
+            using var world = new EntityRepository();
+            world.RegisterComponent<Position>();
+            world.RegisterComponent<Velocity>();
+            using var playback = new PlaybackController(_testFilePath);   // ⛔ was: InvalidOperationException "layout has changed"
+            Assert.Contains(positionId, playback.Playback.LayoutChangedTypes);
+            playback.SeekToFrame(world, 0);
+            var replayed = world.GetEntityByIndex(0);
+            Assert.Equal(7f, world.GetComponentRO<Velocity>(replayed).X);   // the rest plays
+            Assert.True(!world.HasComponent<Position>(replayed) || world.GetComponentRO<Position>(replayed).X == 0f,
+                $"the drifted component's recorded data must be skipped, not restored into today's layout (X = {(world.HasComponent<Position>(replayed) ? world.GetComponentRO<Position>(replayed).X : -1)})");
+        }
+
         private static int DestroyedCount(RecorderSystem recorder, EntityRepository repo)
         {
             using var stream = new MemoryStream();

@@ -593,6 +593,8 @@ public sealed class PostureScenarioTests : IDisposable
         var onlookers = names.Select(n => ByName(cgf, n)).ToArray();
         Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e);
         Fdp.Toolkit.Civilians.CivilianState Mind(Entity e) => cgf.GetComponent<Fdp.Toolkit.Civilians.CivilianState>(e);
+        Fdp.Toolkit.Creatures.Fear Fr(Entity e) => cgf.GetComponent<Fdp.Toolkit.Creatures.Fear>(e);   // ⭐ CE-4628 — his fear and his crowd are the shared creature components
+        Entity CrowdOf(Entity e) => cgf.GetComponent<Fdp.Toolkit.Creatures.GroupMember>(e).Group;
         Vector3 Pos(Entity e) => cgf.GetComponent<SimTransform>(e).Position;
         Assert.True(harness.PumpUntil(() => Mode(casualty) == Fdp.Toolkit.Civilians.CivilianMode.Casualty, timeoutFrames: 600),
             "⓪ the hurt civilian (health 40) is a Casualty — the incident");
@@ -600,7 +602,7 @@ public sealed class PostureScenarioTests : IDisposable
         float Dist(Entity e) => Vector2.Distance(new Vector2(Pos(e).X, Pos(e).Y), new Vector2(focus.X, focus.Y));
         var gathered = new System.Collections.Generic.HashSet<Entity>();
         double t0 = Fdp.Toolkit.Combat.HitModel.Now(cgf);
-        string State() => string.Join(", ", onlookers.Select(e => $"{Mode(e)}@{Dist(e):F1}m#{Mind(e).CrowdId}"));
+        string State() => string.Join(", ", onlookers.Select(e => $"{Mode(e)}@{Dist(e):F1}m#{CrowdOf(e).PackedValue}"));
 
         Assert.True(harness.PumpUntil(() =>
         {
@@ -619,8 +621,8 @@ public sealed class PostureScenarioTests : IDisposable
         Assert.Equal(onlookers.Length, gathered.Count);   // ① each is drawn to it
         Assert.True(took <= 60.0, $"② …within 60 s (took {took:F1} s)");
         Assert.True(onlookers.All(e => Dist(e) is >= 2.5f and <= 11f), $"④ they stand on a ring round him, not on top of him; {State()}");
-        var ids = onlookers.Select(e => Mind(e).CrowdId).ToArray();
-        int best = ids.GroupBy(i => i).OrderByDescending(g => g.Count()).First().Key;
+        var ids = onlookers.Select(e => CrowdOf(e).PackedValue).ToArray();
+        ulong best = ids.GroupBy(i => i).OrderByDescending(g => g.Count()).First().Key;
         Assert.True(best != 0 && ids.Count(i => i == best) >= 8, $"③ one crowd holds at least 8 of them; {State()}");
     }
 
@@ -642,8 +644,10 @@ public sealed class PostureScenarioTests : IDisposable
         var civs = names.Select(n => ByName(cgf, n)).ToArray();
         Fdp.Toolkit.Civilians.CivilianMode Mode(Entity e) => Fdp.Toolkit.Civilians.CivilianMind.ModeOf(cgf, e);
         Fdp.Toolkit.Civilians.CivilianState Mind(Entity e) => cgf.GetComponent<Fdp.Toolkit.Civilians.CivilianState>(e);
-        Assert.True(harness.PumpUntil(() => civs.All(e => cgf.HasComponent<Fdp.Toolkit.Civilians.CivilianState>(e)) && civs.All(e => Mind(e).CrowdId != 0)
-                                         && civs.Select(e => Mind(e).CrowdId).Distinct().Count() == 1, timeoutFrames: 1200),
+        Fdp.Toolkit.Creatures.Fear Fr(Entity e) => cgf.GetComponent<Fdp.Toolkit.Creatures.Fear>(e);   // ⭐ CE-4628 — his fear and his crowd are the shared creature components
+        Entity CrowdOf(Entity e) => cgf.GetComponent<Fdp.Toolkit.Creatures.GroupMember>(e).Group;
+        Assert.True(harness.PumpUntil(() => civs.All(e => cgf.HasComponent<Fdp.Toolkit.Civilians.CivilianState>(e)) && civs.All(e => !CrowdOf(e).IsNull)
+                                         && civs.Select(e => CrowdOf(e)).Distinct().Count() == 1, timeoutFrames: 1200),
             "⓪ the fifteen stand as ONE crowd along the street");
 
         var heard = new System.Collections.Generic.HashSet<Entity>();
@@ -653,18 +657,18 @@ public sealed class PostureScenarioTests : IDisposable
             foreach (var e in civs)
             {
                 if (!cgf.IsAlive(e)) continue;
-                if (Mind(e).HeardAt > 0) heard.Add(e);
+                if (Fr(e).HeardAt > 0) heard.Add(e);
                 if (Mode(e) == Fdp.Toolkit.Civilians.CivilianMode.Panic) panicked.Add(e);
             }
         }
-        string State() => string.Join(", ", civs.Select((e, i) => $"{i + 1}:{Mode(e)}{(heard.Contains(e) ? "h" : "")}{(cgf.IsAlive(e) ? $"{Mind(e).Fear:F2}" : "")}"));
+        string State() => string.Join(", ", civs.Select((e, i) => $"{i + 1}:{Mode(e)}{(heard.Contains(e) ? "h" : "")}{(cgf.IsAlive(e) ? $"{Fr(e).Value:F2}" : "")}"));
         int Ammo() => cgf.HasComponent<WeaponState>(rifle) ? cgf.GetComponent<WeaponState>(rifle).Ammo : -1;
         int a0 = Ammo();
         Assert.True(harness.PumpUntil(() => { Sample(); return Ammo() < a0; }, timeoutFrames: 6000), $"① the rifleman opens fire at the west end; {State()}");
         for (int f = 0; f < 2400; f += 60)   // 40 s, logged each second: who caught it, from whom, in which crowd
         {
             harness.PumpUntil(() => { Sample(); return false; }, timeoutFrames: 60);
-            _out.WriteLine($"t+{f / 60}s " + State() + " crowds [" + string.Join(",", civs.Select(e => cgf.IsAlive(e) ? Mind(e).CrowdId : -1)) + "]"
+            _out.WriteLine($"t+{f / 60}s " + State() + " crowds [" + string.Join(",", civs.Select(e => cgf.IsAlive(e) ? (long)CrowdOf(e).PackedValue : -1)) + "]"
                            + " x [" + string.Join(",", civs.Select(e => cgf.IsAlive(e) ? (int)cgf.GetComponent<SimTransform>(e).Position.X : -1)) + "]");
         }
 
@@ -1083,7 +1087,7 @@ public sealed class PostureScenarioTests : IDisposable
                 if (m != lastMode[i] && cgf.HasComponent<Fdp.Toolkit.Civilians.CivilianState>(civs[i]))
                 {
                     var st = cgf.GetComponentRO<Fdp.Toolkit.Civilians.CivilianState>(civs[i]);
-                    trace.Append($" {i + 1}:{m}@{now:0.0}(f{st.Fear:0.00},a{st.Anger:0.00})");
+                    trace.Append($" {i + 1}:{m}@{now:0.0}(f{cgf.GetComponentRO<Fdp.Toolkit.Creatures.Fear>(civs[i]).Value:0.00},a{st.Anger:0.00})");
                     lastMode[i] = m;
                 }
             }
@@ -1663,8 +1667,8 @@ public sealed class PostureScenarioTests : IDisposable
             $"① the crowd reaches Protest; {State()}");
         harness.PumpUntil(() => { Sample(); return false; }, timeoutFrames: 7200);   // 120 s
         _out.WriteLine(State());
-        var ids = civs.Select(e => cgf.GetComponent<Fdp.Toolkit.Civilians.CivilianState>(e).CrowdId).ToArray();
-        int best = ids.Where(i => i != 0).GroupBy(i => i).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault();
+        var ids = civs.Select(e => cgf.GetComponent<Fdp.Toolkit.Creatures.GroupMember>(e).Group.PackedValue).ToArray();
+        ulong best = ids.Where(i => i != 0).GroupBy(i => i).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault();
         Assert.True(best != 0 && ids.Count(i => i == best) >= 10, $"① …standing as one crowd round the point [{string.Join(",", ids)}]");
         foreach (var (host, _) in hosts)
             Assert.True(fists[host].Count >= 3 && signs[host].Count >= 3, $"② on {host} ≥ 3 fists raised and ≥ 3 signs held; {State()}");

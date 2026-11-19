@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Fdp.Toolkit.Animals
@@ -20,7 +21,7 @@ namespace Fdp.Toolkit.Animals
     /// </list>
     /// Fear fades from 1 to 0 over the species' recovery time. ⭐ A FEARLESS species (the guard dog, the war horse) ignores all of it but a
     /// blast, which makes it flinch (<see cref="FearlessBlastFactor"/>). The band (calm · uneasy · frightened · panic) is written to the
-    /// replicated <see cref="AnimalState.FearBand"/> only when it changes.
+    /// replicated <see cref="Mood"/> (CE-4628: it replaced <c>AnimalState.FearBand</c>) only when it changes.
     /// </summary>
     public static class AnimalFear
     {
@@ -51,8 +52,11 @@ namespace Fdp.Toolkit.Animals
         /// <summary>A species with no recovery time recovers in this (s).</summary>
         public const float MinRecoverySeconds = 5f;
 
-        /// <summary>The band every node sees: 0 calm (&lt; 0.15) · 1 uneasy (&lt; 0.4) · 2 frightened (&lt; 0.75) · 3 panic.</summary>
-        public static byte Band(float fear) => fear < 0.15f ? (byte)0 : fear < 0.4f ? (byte)1 : fear < 0.75f ? (byte)2 : (byte)3;
+        /// <summary>⭐ <c>CE-4628</c> — band 3's own threshold: a fear from here up is PANIC (the panic breach, the stampede read it straight off <see cref="Fear.Value"/>, no stored band).</summary>
+        public const float PanicBandFear = 0.75f;
+
+        /// <summary>The band: 0 calm (&lt; 0.15) · 1 uneasy (&lt; 0.4) · 2 frightened (&lt; 0.75) · 3 panic.</summary>
+        public static byte Band(float fear) => fear < 0.15f ? (byte)0 : fear < 0.4f ? (byte)1 : fear < PanicBandFear ? (byte)2 : (byte)3;
 
         /// <summary>The fear one heard sound adds to an animal of temperament <paramref name="t"/> (the civilians' table; a fearless one only
         /// flinches at a blast).</summary>
@@ -161,7 +165,7 @@ namespace Fdp.Toolkit.Animals
         /// The nearest PERSON (not a vehicle) a territorial animal guards against: inside its home plus <see cref="BarkBeyondHomeMetres"/>
         /// (or within <see cref="GuardMetres"/> of it when it has no home). Null = none.
         /// </summary>
-        public static Entity FindIntruder(Vector3 here, bool hasHome, in AnimalHome home, ReadOnlySpan<Threat> threats)
+        public static Entity FindIntruder(Vector3 here, bool hasHome, in Home home, ReadOnlySpan<Threat> threats)
         {
             Entity best = Entity.Null;
             float bestD2 = float.MaxValue;
@@ -221,8 +225,8 @@ namespace Fdp.Toolkit.Animals
         public static bool PanicBreaks(EntityRepository repo, Entity e)
         {
             if (!repo.IsComponentTypeRegistered<AnimalState>() || !repo.HasComponent<AnimalState>(e)) return false;
-            var st = repo.GetComponentRO<AnimalState>(e);
-            if (st.Mode != AnimalMode.Flee || st.FearBand < 3) return false;
+            if (!repo.IsComponentTypeRegistered<Fear>() || !repo.HasComponent<Fear>(e)) return false;
+            if (repo.GetComponentRO<AnimalState>(e).Mode != AnimalMode.Flee || repo.GetComponentRO<Fear>(e).Value < PanicBandFear) return false;   // ⭐ CE-4628: band 3 = fear ≥ 0.75
             return TemperamentOf(repo, e) is { Breaks: true };
         }
 
@@ -248,11 +252,11 @@ namespace Fdp.Toolkit.Animals
         }
 
         /// <summary>A horse that can bolt (<c>BoltFear</c> &gt; 0) bolts for <see cref="BoltSeconds"/> once its fear passes the line; true while it does.</summary>
-        public static bool UpdateBolt(ref Fear f, AnimalTemperamentDto t, double now)
+        public static bool UpdateBolt(in Fear f, ref AnimalTasks tasks, AnimalTemperamentDto t, double now)
         {
-            if (t.BoltFear <= 0f) { f.BoltUntil = default; return false; }
-            if (f.Value >= t.BoltFear && f.BoltUntil <= now) f.BoltUntil = (SimInstant)(now + BoltSeconds);
-            return f.BoltUntil > now;
+            if (t.BoltFear <= 0f) { tasks.BoltUntil = default; return false; }
+            if (f.Value >= t.BoltFear && tasks.BoltUntil <= now) tasks.BoltUntil = (SimInstant)(now + BoltSeconds);
+            return tasks.BoltUntil > now;
         }
     }
 }

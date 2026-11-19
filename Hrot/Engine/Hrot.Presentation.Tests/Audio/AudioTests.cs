@@ -582,9 +582,9 @@ public sealed class AudioTests
         world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>(); world.RegisterComponent<Fdp.Toolkit.Animals.FlockState>();
         var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, North.Position);
         var cow = Unit(world, 700, North.Position + new Vector3(0f, 30f, 0f));
-        world.AddComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm, Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+        world.AddComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm });
         var far = Unit(world, 700, North.Position + new Vector3(0f, 900f, 0f));
-        world.AddComponent(far, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm, Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+        world.AddComponent(far, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm });
         var (layer, output) = Listening(world, tkb, me);
         long call = AnimalSoundCatalog.TypeOf(0, AnimalSoundCatalog.Call), alarm = AnimalSoundCatalog.TypeOf(0, AnimalSoundCatalog.Alarm);
         int Heard(long clip) => output.Played.Count(v => v.Clip == clip);
@@ -602,15 +602,15 @@ public sealed class AudioTests
         At(t1 + 0.2); Assert.Equal(1, Heard(call));         // not again for the same count
         // the brain turns Flee: an alarm (a bellow), once — a second of the herd's quiet later (the throttle is per herd, on the audio clock)
         for (int i = 0; i < 70; i++) layer.Update(0.016f);
-        world.SetComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Flee, Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+        world.SetComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Flee });
         At(t1 + 5.0);
         Assert.Equal(1, Heard(alarm));
         At(t1 + 5.2); Assert.Equal(1, Heard(alarm));
         // a dog guarding barks, over and over (the special: not throttled like a herd's call)
         var dog = Unit(world, 705, North.Position + new Vector3(10f, 0f, 0f));
-        world.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm, Species = Fdp.Toolkit.Animals.AnimalSpecies.Dog });
+        world.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm });
         At(t1 + 6.0);
-        world.SetComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Guard, Species = Fdp.Toolkit.Animals.AnimalSpecies.Dog });
+        world.SetComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Guard });
         long bark = AnimalSoundCatalog.TypeOf(5, AnimalSoundCatalog.Special);
         for (int i = 0; i < 12; i++) At(t1 + 6.1 + i * 0.7);
         Assert.InRange(Heard(bark), 5, 8);

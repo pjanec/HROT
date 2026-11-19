@@ -7,6 +7,7 @@ using FDP.Eqs;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Civilians;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Determinism;
@@ -364,11 +365,9 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Running;
             }
             if (now < ws.PauseUntil) return NodeStatus.Running;
-            if (!world.HasComponent<CivilianState>(self)) return NodeStatus.Running;
-            ref readonly var mind = ref world.GetComponentRO<CivilianState>(self);
-            if (mind.HasHome == 0) return NodeStatus.Running;
+            if (!world.HasComponent<CivilianState>(self) || !world.HasComponent<Home>(self)) return NodeStatus.Running;   // ⭐ CE-4628 — his home is the shared Home, added with his mind
             PutAway(world, self, HeldItemKind.Phone);   // he walks on
-            ws.Target = WanderPoint(mind.Home, p.WanderRadius, (int)self.Index, ws.Legs, now);
+            ws.Target = WanderPoint(world.GetComponentRO<Home>(self).Centre, p.WanderRadius, (int)self.Index, ws.Legs, now);
             ws.Legs++;
             if (LocomotionMoveTo.Issue(world, self, ws.Target, p.WalkSpeed, 1f, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Walking = 1;
             else ws.PauseUntil = (SimInstant)(now + p.PauseMaxSeconds);   // nothing to walk with: look again later
@@ -848,11 +847,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>One leg away from where the fright came from (or straight on when it is unknown), upright, at panic speed.</summary>
         private static void Flee(in CivilianParams p, Entity self, EntityRepository world)
         {
-            if (p.FleeMetres <= 0f || !world.HasComponent<SimTransform>(self) || !world.HasComponent<CivilianState>(self)) return;
-            ref readonly var mind = ref world.GetComponentRO<CivilianState>(self);
-            if (mind.HasFrightFrom == 0) return;
+            if (p.FleeMetres <= 0f || !world.HasComponent<SimTransform>(self) || !world.HasComponent<Fear>(self)) return;
+            ref readonly var fear = ref world.GetComponentRO<Fear>(self);
+            if (fear.HasFrightFrom == 0) return;
             var me = world.GetComponentRO<SimTransform>(self).Position;
-            var away = new Vector2(me.X - mind.FrightFrom.X, me.Y - mind.FrightFrom.Y);
+            var away = new Vector2(me.X - fear.FrightFrom.X, me.Y - fear.FrightFrom.Y);
             if (away.LengthSquared() < 1e-4f) return;
             away = Vector2.Normalize(away) * p.FleeMetres;
             LocomotionMoveTo.Issue(world, self, new Vector3(me.X + away.X, me.Y + away.Y, me.Z), p.PanicSpeed, 2f, MoveGait.Upright, onSurface: true, source: MoveSource.Flee);
@@ -885,11 +884,11 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiCondition]
         public static bool Curious(ref CivilianParams p, Entity self, EntityRepository world)
         {
-            if (p.WatchMaxMetres <= 0f || !world.HasComponent<CivilianState>(self) || !world.HasComponent<SimTransform>(self)) return false;
-            ref readonly var mind = ref world.GetComponentRO<CivilianState>(self);
-            if (mind.HasFrightFrom == 0 || mind.HeardAt <= 0d || world.SimulationTime - mind.HeardAt > WatchFreshSeconds) return false;
+            if (p.WatchMaxMetres <= 0f || !world.HasComponent<Fear>(self) || !world.HasComponent<SimTransform>(self)) return false;
+            ref readonly var fear = ref world.GetComponentRO<Fear>(self);
+            if (fear.HasFrightFrom == 0 || fear.HeardAt <= 0d || world.SimulationTime - fear.HeardAt > WatchFreshSeconds) return false;
             var at = world.GetComponentRO<SimTransform>(self).Position;
-            float d = Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(mind.FrightFrom.X, mind.FrightFrom.Y));
+            float d = Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(fear.FrightFrom.X, fear.FrightFrom.Y));
             float min = Bold(in p, self) ? BoldWatchMinMetres : WatchMinMetres;
             return d >= min && d <= p.WatchMaxMetres && !Frightened(ref p, self, world);
         }

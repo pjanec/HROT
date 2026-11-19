@@ -53,25 +53,25 @@ namespace Hrot.SimHost.Tests
             {
                 var wire = new Capture<EntityAnimalState>();
                 var egress = new EntityAnimalStateEgressTranslator(wire);
-                w.AddComponent(cow, new AnimalState { Species = AnimalSpecies.Cattle, Mode = AnimalMode.Calm });
+                w.AddComponent(cow, new AnimalState { Mode = AnimalMode.Calm });
                 egress.ScanAndPublish(w);
                 var first = Assert.Single(wire.Written);
-                Assert.Equal((71, (byte)AnimalSpecies.Cattle, (byte)0), (first.EntityId, first.Species, first.FearBand));
+                // ⭐ CE-4628 — the wire keeps its FearBand and Species fields (R-4295) but the component no longer has them: written 0
+                Assert.Equal((71, (byte)0, (byte)0), (first.EntityId, first.Species, first.FearBand));
                 egress.ScanAndPublish(w);
                 Assert.Single(wire.Written);                                  // unchanged: nothing sent
 
-                w.GetComponentRW<AnimalState>(cow).FearBand = 3;
                 w.GetComponentRW<AnimalState>(cow).Mode = AnimalMode.Flee;
                 egress.ScanAndPublish(w);
                 Assert.Equal(2, wire.Written.Count);
-                Assert.Equal(((byte)3, (byte)AnimalMode.Flee), (wire.Written[1].FearBand, wire.Written[1].Mode));
+                Assert.Equal(((byte)0, (byte)AnimalMode.Flee), (wire.Written[1].FearBand, wire.Written[1].Mode));
             }
 
             var (other, _, theirs) = Node(primaryOwner: 2, localNode: 1);
             using (other)
             {
                 var wire = new Capture<EntityAnimalState>();
-                other.AddComponent(theirs, new AnimalState { FearBand = 2 });
+                other.AddComponent(theirs, new AnimalState { Mode = AnimalMode.Alert });
                 new EntityAnimalStateEgressTranslator(wire).ScanAndPublish(other);
                 Assert.Empty(wire.Written);
             }
@@ -83,16 +83,16 @@ namespace Hrot.SimHost.Tests
             var (w, map, cow) = Node(primaryOwner: 2, localNode: 1);
             using (w)
             {
-                w.AddComponent(cow, new AnimalState { Species = AnimalSpecies.Cattle });   // the spawn's own calm state on this node
-                var sample = EntityAnimalStateEgressTranslator.ToSample(71, new AnimalState
-                    { Species = AnimalSpecies.Cattle, Mode = AnimalMode.Flee, FearBand = 3, Flags = AnimalFlags.Calling });
+                w.AddComponent(cow, new AnimalState());   // the spawn's own calm state on this node
+                var sample = EntityAnimalStateEgressTranslator.ToSample(71, new AnimalState { Mode = AnimalMode.Flee, Flags = AnimalFlags.Calling });
+                sample.FearBand = 3; sample.Species = 9;   // a peer that still fills the wire's own fields: ignored on ingress
                 using (var cmd = new EntityCommandBuffer())
                 {
                     new EntityAnimalStateIngressTranslator(null, map).Apply(in sample, cmd, w);
                     cmd.Playback(w);
                 }
                 var s = w.GetComponentRO<AnimalState>(cow);
-                Assert.Equal((AnimalMode.Flee, (byte)3, AnimalFlags.Calling), (s.Mode, s.FearBand, s.Flags));
+                Assert.Equal((AnimalMode.Flee, AnimalFlags.Calling), (s.Mode, s.Flags));
 
                 var flock = EntityFlockStateEgressTranslator.ToSample(71, new FlockState { Count = 31, InitialCount = 40, Seed = 7, Mode = FlockMode.Flying });
                 using (var cmd = new EntityCommandBuffer())
@@ -107,11 +107,11 @@ namespace Hrot.SimHost.Tests
             var (owner, ownerMap, own) = Node(primaryOwner: 1, localNode: 1);
             using (owner)
             {
-                owner.AddComponent(own, new AnimalState { FearBand = 1 });
+                owner.AddComponent(own, new AnimalState { Mode = AnimalMode.Alert });
                 using var cmd = new EntityCommandBuffer();
-                new EntityAnimalStateIngressTranslator(null, ownerMap).Apply(new EntityAnimalState { EntityId = 71, FearBand = 3 }, cmd, owner);
+                new EntityAnimalStateIngressTranslator(null, ownerMap).Apply(new EntityAnimalState { EntityId = 71, Mode = (byte)AnimalMode.Flee }, cmd, owner);
                 cmd.Playback(owner);
-                Assert.Equal(1, owner.GetComponentRO<AnimalState>(own).FearBand);
+                Assert.Equal(AnimalMode.Alert, owner.GetComponentRO<AnimalState>(own).Mode);   // the recorded owner never takes its own sample back
             }
         }
 
