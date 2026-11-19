@@ -570,3 +570,71 @@ chain — AR-9), soldiers' stress, and the two mode enums stay as they are.
 | one save policy for `Home` | the civilian's home is brain-local and unsaved today, the animal's saved — choose one and say why |
 | goldens | the layout change moves goldens from t = 0 — re-captured, reported as a diff shape |
 
+
+### 10a. ⭐ The build plan — measured before building *(ui, `2026-11-19`; `build-state: BUILDING`)*
+
+**INVENTORY** *(the handoff's step 1)* — `search_graph name_pattern=".*(Civilian|Animal|Herd|Crowd|Flock).*" label=Class` (48; the index predated the animal
+code, re-indexed) + grep: **74 C# files** name a moved type (`CivilianState` 31, `AnimalState` 41, `HerdState` 11, `HerdMember` 10, `AnimalHome` 12, the animal
+`Fear` ~10, `Crowd` 6) — ~37 production, the rest rails. Moved civilian fields: `.Fear` 19 files / 63 lines, `FrightFrom` 10/18, `HasFrightFrom` 8/11,
+`CrowdId` 3/23, `HeardAt` 5/5, `Home`+`HasHome` 3/5, `LastFrightAt` 1/2, `EffectFrightUntil` 1/2. `AnimalState.Species` readers: 8 production files.
+`AnimalState.FearBand`: ONE logic reader (`AnimalFear.PanicBreaks`), no drawing reader. Text paths: `CivilianState.CrowdId` (`ua-civ-contagion`,
+`ua-civ-gathering`, `ua-civ-protest`), `CivilianState.HeardAt` (`ua-civ-contagion` ×2), `CivilianState.Fear` (`df-civilian-ordered` ×2); goldens hash
+each component by NAME (`"Fear": "b04a…"`), so every civilian / animal golden moves. Graph index coverage could not be checked through the CLI.
+
+| ⚠ correction to §10, measured | the build does |
+|---|---|
+| ⛔ a NEW replicated `Mood` — but **`Demeanour {Mode, Fear, Anger}` (CE-3265, component 435, `dtDemeanour` 153) IS that record**: replicated, read by the face and the mood dot (CE-1177), and written by NOTHING (its writer was CE-2250) | ⭐ **`Mood` = `Demeanour` renamed** (Roslyn), id 435 and the wire type kept (R-4295), quarters kept. The one fear system writes it for civilians AND animals ⇒ CE-2250 built, no second record. `AnimalState.FearBand` goes; `PanicBreaks` reads `Fear.Value ≥ 0.75` (band 3's own threshold, `AnimalFear.Band`) |
+| a recorded component whose FIELDS change refuses an old recording (`SchemaValidator`: size or layout hash — the hash folds field names, types, offsets, ⛔ not the type name) | ⭐ **a changed recorded component takes a NEW id; the old id is BURNED** — an old recording loads and the playback skips the burned id with a warning (CE-4050). Kept ids: `Home` (= `AnimalHome`, fields unchanged), `Mood` (= `Demeanour`). New ids: `Fear`, `AnimalState`, `CivilianState`, `Crowd`, `HerdState`, `GroupMember`; and `Group`, `AnimalTasks` |
+| "the civilian's home unsaved, the animal's saved" | ⛔ both are `NoScenario` today (recorded, never saved). ⭐ **`Home` stays `NoScenario`** — rebuilt at run start (a civilian: where he stands at his first tick; an animal: its area / its spawn), recorded so a replay and a seek have it |
+| `Fear.FrightFrom` — `Vector3` on the civilian, `WorldPoint` on the animal | ⭐ `WorldPoint` (the animal's); civilian readers convert where they did `Vector3` arithmetic |
+| a crowd member's `CrowdId` (int, 0 = none) | ⭐ `GroupMember.Group` (the crowd entity; `Entity.Null` = none) — added WITH `CivilianState` by `CivilianMind`, so it never churns per frame. `CrowdSystem` keeps its vote (a crowd keeps the entity most of its members had); ties go to the OLDER crowd (`FormedAt`, then the entity index) — the int id's tie-break was "the lower id" = the older one. The checks become `GroupMember.Group != null` |
+
+```mermaid
+classDiagram
+    direction LR
+    class Fear { <<shared, brain-local, recorded>> float Value; WorldPoint FrightFrom; byte HasFrightFrom; SimInstant LastFrightAt; SimInstant HeardAt; byte Seen; SimInstant EffectFrightUntil }
+    class Home { <<shared, was AnimalHome, id kept>> WorldPoint Centre; float Radius; float TetherMetres; Entity Area; byte Enclosed }
+    class GroupMember { <<shared>> Entity Group }
+    class Group { <<shared header>> GroupKind Kind; int Count; WorldPoint Centre; Entity Lead }
+    class Mood { <<shared, REPLICATED, was Demeanour, id 435 kept>> CivilianMode Mode; byte Fear; byte Anger }
+    class CivilianState { <<trimmed>> Anger; Attitude; Instigator; HostileActAt; ForceSeenUntil; Mode; Focus; HasFocus }
+    class AnimalState { <<trimmed, REPLICATED>> AnimalMode Mode; AnimalFlags Flags }
+    class AnimalTasks { <<animal-only>> Intruder; Handler; Quarry; BoltUntil; NextZoneLookAt }
+    class HerdState { <<trimmed>> NextGrazing; AnimalMode Mode; AnimalSpecies Species }
+    class Crowd { <<trimmed>> MeanFear; MeanAnger; Focus; HasFocus; FormedAt }
+    class AnimalSpeciesOf { <<per-type table, built once>> Of(view, e) AnimalSpecies }
+    class CivilianFearSystem { <<the ONE fear system>> }
+    CivilianFearSystem --> Fear : writes (civilians and animals)
+    CivilianFearSystem --> Mood : writes on a quarter change
+    CivilianFearSystem --> AnimalTasks : writes
+    GroupMember --> Group : Group entity
+    Group <.. HerdState : same entity
+    Group <.. Crowd : same entity
+    AnimalSpeciesOf ..> AnimalState : replaces .Species
+```
+
+*What it shows that prose could not:* the fear of BOTH kinds sits in one component written by one system, and the one replicated thing about a
+creature's mind is `Mood` — the record the face and the dot already read. Species is no longer state at all: a per-type lookup.
+
+```mermaid
+sequenceDiagram
+    participant Spawn as CivilianMind.Ensure / AnimalTkbTranslator
+    participant FS as CivilianFearSystem (brain node)
+    participant CS as CrowdSystem / HerdSystem (serial)
+    participant Net as Mood translator (dtDemeanour 153)
+    participant View as every node: face, mood dot, animal look
+    Spawn->>Spawn: add CivilianState / AnimalState WITH Fear, Home, GroupMember (final values)
+    FS->>FS: hear, see, fade — Fear.Value (unchanged rules)
+    FS->>FS: Mood quarters changed? (Mood.Set — only on change)
+    FS-->>Net: Mood (owner's brain node)
+    Net-->>View: Mood on every node
+    CS->>CS: crowd / herd membership — GroupMember.Group, Group header
+```
+
+| module | registers | runs each frame on | ⚠ |
+|---|---|---|---|
+| `CivilianFearSystem`, `CrowdSystem`, `HerdSystem` | the civilians' / animals' packs (unchanged) | the brain node | the per-entity phases' read declarations change with the moved fields — rails under `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + the world guard |
+| the `Demeanour` → `Mood` translator | `SharedTranslatorPack` (unchanged) | every node | the ownership group stays Brain |
+| the `AnimalState` translator | unchanged; the wire drops `FearBand` and `Species` | every node | its wire type is its own (R-4295) |
+
+
