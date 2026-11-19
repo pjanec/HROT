@@ -168,14 +168,18 @@ def trace_nodes(folder, nodes, seconds=15):
     os.makedirs(folder, exist_ok=True)
     tool = shutil.which("dotnet-trace") or os.path.expanduser("~/.dotnet/tools/dotnet-trace")
     env = dict(os.environ)
-    if not cluster_launch.WINDOWS:
-        env.setdefault("DOTNET_ROOT", "/usr/local/dotnet")
+    if not cluster_launch.WINDOWS and not env.get("DOTNET_ROOT"):
+        # the global tool needs the runtime's folder; the first one that HAS a runtime (a cloud VM installs it under ~/.dotnet — a wrong
+        # root made every trace fail silently, 2026-11-19)
+        for root in (os.path.expanduser("~/.dotnet"), "/usr/local/dotnet", "/usr/share/dotnet", "/usr/lib/dotnet"):
+            if os.path.isdir(os.path.join(root, "shared", "Microsoft.NETCore.App")):
+                env["DOTNET_ROOT"] = root; break
     for mode, port in nodes:
         pid = node_pid(port)
         if pid:
             subprocess.Popen([tool, "collect", "-p", str(pid), "--profile", "dotnet-sampled-thread-time", "--duration", f"00:00:00:{seconds:02d}",
                               "--format", "speedscope", "-o", os.path.join(folder, f"{mode}.nettrace")], env=env,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                             stdout=open(os.path.join(folder, f"{mode}.trace.log"), "wb"), stderr=subprocess.STDOUT)   # a failed trace says why
     print(f"  tracing {', '.join(m for m, _ in nodes)} for {seconds} s into {folder}")
 
 def census():
