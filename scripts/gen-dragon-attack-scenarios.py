@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CE-3490 (docs/designs/air-attack/DESIGN_Breath_Attack.md §5) — writes the breath-attack scenarios under scenarios/fun/dragons/:
 dr-dragon-attack (BA-S2: the strafe), dr-dragon-village (BA-S2: the hover on a timber house, never on brick), dr-dragon-holds (BA-S3: a civilian
-holds the breath; the ROE forbids it). Each gets scenario.json + checks.json (R-4277); goldens are captured by scenario-regression.sh."""
+holds the breath; the ROE forbids it); and under scenarios/demos/air/ ah-flame-attack (BA-9: the flame helicopter, 412 — the breath on men, rockets on armour). Each gets scenario.json + checks.json (R-4277); goldens are captured by scenario-regression.sh."""
 import json, os
 
 ROOT = os.path.join(os.path.dirname(__file__), '..', 'scenarios', 'fun', 'dragons')
@@ -9,10 +9,10 @@ Q = [0, 0, 0, 1]
 
 def uid(s, n): return f"d3490{s:03d}-0000-4000-8000-{n:012d}"
 
-def dragon(name, at, behavior, roe_incendiary=None):
+def dragon(name, at, behavior, roe_incendiary=None, tkb=411):
     roe = {"Fire": "FireAtWill", "Reactions": "StayOnTask", "SetBy": "Operator", "ForceLevel": "Lethal"}
     if roe_incendiary: roe["Incendiary"] = roe_incendiary
-    return {"SimTransform": {"Position": at, "Rotation": Q}, "TkbIdentity": {"TkbType": 411},
+    return {"SimTransform": {"Position": at, "Rotation": Q}, "TkbIdentity": {"TkbType": tkb},
             "EntityInfo": {"Name": name, "ForceId": "Friend"}, "TargetMemory": {"Entries": []},
             "Sop": {"Name": "InertSop", "Params": {}, "Origin": "Superior"}, "Roe": roe, "Behavior": behavior}
 
@@ -29,8 +29,8 @@ def house(name, at, template):
 def attack(target): return {"Name": "AirPlatformAttack", "Params": {"Target": target}, "Origin": "Superior"}
 def strike(loc, kind): return {"Name": "AirPlatformStrike", "Params": {"Location": loc, "TargetKind": kind}, "Origin": "Superior"}
 
-def write(name, desc, entities, checks):
-    d = os.path.join(ROOT, name)
+def write(name, desc, entities, checks, root=None):
+    d = os.path.join(root or ROOT, name)
     os.makedirs(d, exist_ok=True)
     s = {"$meta": {"docType": "Hrot.Scenario", "schemaVersion": 1},
          "header": {"subsystemType": "Hrot.Scenario", "schemaVersion": "1.0", "terrainName": "basic-desert", "description": desc},
@@ -112,4 +112,30 @@ write("dr-dragon-holds",
            {"name": "the forbidden dragon never breathes", "never": field("Forbidden Dragon", "WeaponAmmo.Ammo0", "<", 600)},
            {"name": "the forbidden men are never hurt", "never": field("*Forbidden Man ", "Health.Current", "<", 100)},
        ]})
+# ── ah-flame-attack — BA-9, the flame helicopter ─────────────────────────────────────────────────────────────────────
+AIR = os.path.join(os.path.dirname(__file__), '..', 'scenarios', 'demos', 'air')
+ents = {}
+ents[uid(4, 1)] = dragon("Flame Helicopter", [100, 300, 60], attack(uid(4, 11)), tkb=412)
+for i in range(4): ents[uid(4, 11 + i)] = man(f"Squad Man {i + 1}", [400, 288 + 8 * i, 0])
+ents[uid(4, 2)] = dragon("Armour Hunter", [-1200, 560, 60], attack(uid(4, 21)), tkb=412)
+ents[uid(4, 21)] = {"SimTransform": {"Position": [400, 560, 0], "Rotation": Q}, "TkbIdentity": {"TkbType": 103},
+                    "EntityInfo": {"Name": "T-72", "ForceId": "Hostile"}}
+write("ah-flame-attack",
+      "What: the FLAME HELICOPTER (TKB 412 — the AH-64 airframe with a chin flame projector and its Hydra-70 pod; CE-3490 BA-9, "
+      "docs/designs/air-attack/DESIGN_Breath_Attack.md §7). On basic-desert 'Flame Helicopter', 60 m up at (100, 300), is ordered AirPlatformAttack on "
+      "'Squad Man 1' of a row of four hostile riflemen at x 400, y 288…312; 'Armour Hunter', the same type 60 m up at (-1200, 560), on a hostile 'T-72' at "
+      "(400, 560). Judge: the Flame Helicopter strafes low and breathes, two squad men burn and Squad Man 1 dies, and it climbs back above 50 m; the Armour "
+      "Hunter never breathes on the tank (an armoured hull does not burn) and fires its rockets at it instead.",
+      ents,
+      {"$doc": DOC + "the flame helicopter — its breath on men, its rockets on armour.", "runFor": 120, "golden": {"every": 10},
+       "anchors": {"lit": field("Squad Man 1", "Health.Current", "<", 100)},
+       "expect": [
+           {"name": "the flame helicopter breathes", **field("Flame Helicopter", "WeaponAmmo.Ammo0", "<", 600), "before": 60},
+           {"name": "it comes down low to breathe", **field("Flame Helicopter", "SimTransform.Position.2", "<", 20), "before": 60},
+           {"name": "a second squad man burns", **field("*Squad Man ", "Health.Current", "<", 100, quantifier="atLeast:2"), "before": 90},
+           {"name": "Squad Man 1 dies", **field("Squad Man 1", "Health.Current", "<=", 0), "before": 110},
+           {"name": "it climbs back out above 50 m", **field("Flame Helicopter", "SimTransform.Position.2", ">", 50), "after": "lit"},
+           {"name": "the armour hunter fires its rockets", **field("Armour Hunter", "WeaponAmmo.Ammo1", "<", 38), "before": 90},
+           {"name": "the armour hunter never breathes on the tank", "never": field("Armour Hunter", "WeaponAmmo.Ammo0", "<", 600)},
+       ]}, root=AIR)
 print("written")

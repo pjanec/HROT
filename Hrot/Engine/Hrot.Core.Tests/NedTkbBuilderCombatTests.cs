@@ -606,6 +606,30 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3490</c> BA-9 — the FLAME HELICOPTER (412) is the AH-64 airframe with a flame projector on its chin turret: the same flight, body,
+        /// turret, Hydra pod and dispenser as 406 (one definition), its mount 0 a flamethrower firing the flame tank's fuel (60 m), from a nozzle; DIS the
+        /// AH-64's with specific 1. 🔴 Red-proof: the chin mount not passed through (the M134 kept) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3490_TheFlameHelicopter_IsTheAh64Airframe_WithAFlameProjectorOnItsChin()
+        {
+            var db = BuildDatabase();
+            var gun = db.GetByType(TkbEntityTypes.Heli_AH64)!;
+            var flame = db.GetByType(TkbEntityTypes.Heli_AH64Flame)!;
+            Assert.Equal((gun.DisType.Kind, gun.DisType.Domain, gun.DisType.Country, gun.DisType.Category), (flame.DisType.Kind, flame.DisType.Domain, flame.DisType.Country, flame.DisType.Category));
+            Assert.Equal((byte)1, flame.DisType.Specific);
+            Assert.Equal(gun.GetDescriptor<FlightParamsDto>()!.MaxSpeedMps, flame.GetDescriptor<FlightParamsDto>()!.MaxSpeedMps);
+            Assert.Equal(LocomotionClass.Rotorcraft, flame.GetDescriptor<LocomotionDto>()!.Class);
+            var mounts = flame.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+            Assert.Equal(gun.GetDescriptor<WeaponSuiteDto>()!.Mounts.Count, mounts.Count);
+            Assert.Equal((WeaponCategory.Flamethrower, 0), (mounts[0].Category, mounts[0].TurretIndex));
+            Assert.Equal((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel, mounts[0].AmmoGuid);
+            Assert.True(mounts[0].MuzzleOffsetX > 0f, "the jet leaves the nozzle, not the crew's eye");
+            Assert.Equal((WeaponCategory.Rocket, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket), (mounts[1].Category, mounts[1].AmmoGuid));
+            Assert.Equal(WeaponCategory.MachineGun, gun.GetDescriptor<WeaponSuiteDto>()!.Mounts[0].Category);   // the gun ship keeps its M134
+        }
+
+        /// <summary>
         /// ⭐ Air Ops slice 6a F2 — the B7 rail for the new type, on ITS catalogue numbers: the attack helicopter on its gear takes a route
         /// off the ground, flies it at its hover height and sets down on its gear at the last Ground waypoint.
         /// </summary>
