@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-19
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved, fold both into the design", R-4296): VA-1…VA-12, LK-1…LK-7, with §3a (partial damage, how expressed) and LK-7 (effect categories + the DIS munition type); ids fixed at dispatch — `2026-11-18`: components 290 `VehicleOpenings` · 291 `VehicleLights`; descriptors 243 · 244 (`HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md`)
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §6d rotors and engines as built (VA-S4) · §6e smoke dischargers as built (VA-S5) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules) · §7d CE-4670 our 3-D map draws openings + lights, the station's H / U (ui, as built)
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §6d rotors and engines as built (VA-S4) · §6e smoke dischargers as built (VA-S5) · §6f pop smoke as built (behaviors) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules) · §7d CE-4670 our 3-D map draws openings + lights, the station's H / U (ui, as built)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -401,7 +401,36 @@ FAN instead of a random pattern, and the round's burst is the smoke grenade's ex
 | the types | M1 Abrams 12 tubes × 2 salvos · M2 Bradley 8 × 2 · T-72 8 × 1 — each its LAST mount (no existing mount index moved) |
 | finding it | `Countermeasures.MountOfKind(world, unit, WeaponCategory.SmokeDischarger, …)` — the dispenser's walk, generalised (one copy) |
 | rails | `FireProcessingSystemTests.CE4670_SmokeDischargers_FireAFanOfGrenades_TowardsTheThreat_ThirtyMetresOut` (red-proved: no fan ⇒ red; the range limit kept ⇒ red); the touched suites 144 / 0 |
-| ⏳ not built | WHO fires it — "pop smoke when threatened" is behaviors' (`HANDOFF_Coordinator_To_Behaviors_Pop_Smoke.md`; NOTE sent) · the turret's own discharger bank turning with the turret (the fan is centred on the bearing asked, whatever the turret) · our 3D map drawing the tubes firing (ui) |
+| ⏳ not built | ~~WHO fires it~~ ✅ §6f (behaviors) · the turret's own discharger bank turning with the turret (the fan is centred on the bearing asked, whatever the turret) · our 3D map drawing the tubes firing (ui) |
+
+## 6f. As built — "pop smoke": WHO fires the dischargers *(VA-S5 behaviour half, CE-4670, behaviors, `2026-11-19`)*
+
+```mermaid
+sequenceDiagram
+  participant F as FireProcessingSystem - the launch
+  participant W as MissileWarningSensingSystem - the brain
+  participant S as BasicVehicleSop - side step SmokeByThreat
+  participant X as FireAtPointExecutor.ShootAtPoint
+  participant C as VehicleFightFromCover - the row
+  F-->>W: MissileWarningEvent - guided round at an aircraft OR a ground vehicle
+  W->>W: MissileWarning (From, bearing) + SensorChange.MissileWarning
+  S->>S: a fresh launch (3 s), or a fresh hit towards the top known threat
+  S->>X: ONE salvo, mount = MountOfKind(SmokeDischarger), point = the launcher
+  Note over S: then nothing for 30 s - never the weapon channel, the gun fires on
+  S->>C: the row "launch at me" reacts (urgency Hit)
+  C->>C: Engaging / Watching withdraw on the launch - back into the hide
+```
+*What the picture shows that prose hid:* the trigger already existed for aircraft (the launch warning, CE-2189) and the move out of sight already
+existed (the exposure cycle's withdraw on a heard launch or a hit) — the new pieces are one gate widened and one side step; the in-flight
+command missile then loses the tank by the existing rule (`GuidedRoundSystem`: a gunner's sight line through a cloud ⇒ `Lost`).
+
+| piece | as built |
+|---|---|
+| the trigger | ⭐ `FireProcessingSystem`'s launch warning now warns a ground VEHICLE as well as an aircraft (`Locomotions.IsVehicle`; cross-lane, said) — its crew sees a guided launch. ⛔ An unguided RPG warns nobody (its flight is too short for smoke to matter; the survived hit covers it) |
+| **`VehicleCrewNodes.SmokeByThreat`** (`CrewSmokeParams`) | the SOP's third side step (inverted, never a row): a launch fresher than 3 s and not yet answered ⇒ the salvo at `MissileWarning.From`; else a fresh hit ⇒ at the top known threat's remembered point (none known ⇒ nothing). One salvo per threat, `SmokeCooldownSeconds` (30) between salvos; no dischargers or none left ⇒ nothing. Shot through `ShootAtPoint` (a self-protection mount: hold-fire and the force level never hold it) — ⛔ never `FireAtPoint`, which takes the weapon channel from the gun |
+| the move | `BasicVehicleSop`'s new row *"launch at me → VehicleFightFromCover"* (urgency Hit); the cycle's `Engaging` and `Watching` withdraw on a launch at me since the exposure began (`LaunchedAtMe`, beside `LaunchHeard`) |
+| rails | `VehicleCrewNodesTests.CE4670_PopSmoke_*` (red-proved: the cool-down removed ⇒ red; the freshness removed ⇒ red) |
+| scenario | `va-pop-smoke` — a Bradley's TOW at an M1 in the open; the salvo within 3 s; the tank backs into its hide behind the block |
 
 ## 7. The shared LOOK library — every renderer derives the same picture *(CE-4671, `2026-11-18`)*
 

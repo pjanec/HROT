@@ -1,0 +1,73 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4670 VA-S5 'pop smoke': a TOW launched at a tank \u21d2 one salvo of its dischargers (M1 mount 2) within 3 s, then the tank backs out of sight behind the block (its hide at 262,135). From the header's Judge (1)-(4).",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "anchors": [
+    {
+      "name": "tow",
+      "on": "shot",
+      "by": "Shooter",
+      "at": "Tank",
+      "where": {
+        "weaponIndex": 1
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "the Bradley launches a TOW at the tank",
+      "on": "shot",
+      "by": "Shooter",
+      "at": "Tank",
+      "where": {
+        "weaponIndex": 1
+      }
+    },
+    {
+      "name": "the tank pops smoke within 3 s of the launch",
+      "on": "shot",
+      "by": "Tank",
+      "where": {
+        "weaponIndex": 2
+      },
+      "after": "tow",
+      "before": "tow+3"
+    },
+    {
+      "name": "never a salvo before a launch",
+      "never": {
+        "on": "shot",
+        "by": "Tank",
+        "where": {
+          "weaponIndex": 2
+        }
+      },
+      "before": "tow"
+    },
+    {
+      "name": "one salvo, not two within 30 s",
+      "never": {
+        "on": "shot",
+        "by": "Tank",
+        "n": 2,
+        "where": {
+          "weaponIndex": 2
+        }
+      },
+      "before": "tow+30"
+    },
+    {
+      "name": "the tank backs into its hide behind the block",
+      "on": "close",
+      "who": "Tank",
+      "point": [
+        262,
+        135
+      ],
+      "m": 8,
+      "after": "tow"
+    }
+  ]
+}
