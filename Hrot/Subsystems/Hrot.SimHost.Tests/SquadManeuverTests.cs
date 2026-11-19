@@ -3970,6 +3970,41 @@ namespace Hrot.SimHost.Tests
         /// platoon to the open one, whose base of fire goes up again. ✅ Red-proofs: the building match dropped ⇒ the first is assaulted
         /// through · the nearest-first sort dropped ⇒ the open one first · the next-objective loop dropped ⇒ it consolidates after one.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ D-12 (CE-4666, user-approved 2026-11-19; Defend &amp; Attack §8f AT-14) — while the base of fire gets SET, the assault (Alpha) and the
+        /// reserve (Charlie) WAIT IN COVER where they stand: each a <c>SquadDefend</c> at its own place (radius <see cref="PlatoonAttackBehavior.WaitRadius"/>),
+        /// its sector from there on the objective (so the post plan's cover ask runs); the support's Set replaces it with the approach.
+        /// ✅ Red-proof: the support phase back to "no order" ⇒ no SquadDefend to Alpha ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D12_WhileTheBaseOfFireSets_TheAssaultAndTheReserveWaitInCover_FacingTheObjective()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            foreach (var waiting in new[] { p.Alpha, p.Charlie })
+            {
+                Assert.Equal(1, p.OrdersTo(waiting, BehaviorNames.SquadDefend));
+                var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend);
+                Assert.Equal(PlatoonAttackBehavior.WaitRadius, d.SearchRadius);
+                var ea = SectorOf(p, waiting);
+                Assert.Equal(1, ea.ArcSet);
+                Assert.True(Vector3.Distance(ea.ArcOrigin, d.Position) < 0.01f, "the sector is drawn from where it waits");
+                Vector3 at = d.Position;
+                float bearing = MathF.Atan2(o.X - at.X, o.Y - at.Y) * 180f / MathF.PI;
+                bearing = (bearing + 360f) % 360f;
+                Assert.True(Hrot.AI.Behaviors.Brains.SectorSplit.Norm(bearing - ea.LeftBearing) <= 2f * PlatoonAttackBehavior.SupportArcHalfDegrees + 0.1f, "it faces the objective");
+            }
+            p.ReportSet(p.Bravo);
+            p.Ticks(4);
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement) > 0, "the approach replaces the wait");
+        }
+
         [Fact]
         public void CE2277_AnAreaWithABuildingAndAnOpenPost_ClearsTheBuildingFirst_ThenAttacksTheOpenPost()
         {
@@ -4149,9 +4184,12 @@ namespace Hrot.SimHost.Tests
             p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
             p.ReportSet(p.Bravo); p.Ticks(4);   // the base of fire is up ⇒ the approach
             Assert.True(p.OrdersTo(p.Charlie, BehaviorNames.BoundingOverwatch) > 0, "the reserve bounds behind the assault");
-            Assert.Equal(0, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
+            // ⭐ D-12 — it waited in cover (one SquadDefend where it stood) before the base of fire was up; bounding now, no new defend
+            int waited = p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend);
+            Assert.Equal(1, waited);
+            Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(o2 => o2.Entity.Equals(p.Charlie)).IntentId);
             p.ReportSet(p.Charlie); p.Ticks(4);   // its bound arrived
-            Assert.Equal(1, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
+            Assert.Equal(waited + 1, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
         }
 
         /// <summary>⭐⭐ <c>CE-7015</c> (AQ101 §R E — the rout; AT-9 / AT-10) — the assault squad's men BREAK (3 of 4: fewer than the 2 a squad of 4 needs

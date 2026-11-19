@@ -17,7 +17,7 @@ where the platoon's approach left him (x ≈ 236–242, the open corridor), unti
 | the support phase orders only the support squad | ✅ PlatoonAttack's `ASupport` (AT-4: the support `SquadDefend`s / `SupportByFire`); the assault's first order is AT-5's approach, after support Set | ⛔ searched Defend & Attack §8f (AT-1…AT-13) and Assault Under Fire §9: no row says what the assault and reserve do while they wait |
 | a waiting element takes cover | ✅ `SquadDefend` already posts a squad on cover round a point (`DefencePlan`) | ✅ doctrine (ATP 3-21.8): the assault element waits in a COVERED attack position while the support element sets |
 
-**My lean: ① in `ASupport`, the assault and reserve squads each `SquadDefend` where they stand** (their centre, `SearchRadius` 15, facing the
+**DECIDED `2026-11-19` (user: "approved"): ①.** **🛠 BUILT `2026-11-19` (behaviors): `PlatoonAttack.OrderFor` in `ASupport` gives the assault and the reserve `SquadDefend` at their centre (`WaitRadius` 15 m), `Sector` draws their arc from there on the objective; Defend & Attack §8f AT-14. Rail `SquadManeuverTests.D12_*` red-proved; `CE4669_*` now counts relative to the wait order; squad + stress suites 380 / 0.** **My lean: ① in `ASupport`, the assault and reserve squads each `SquadDefend` where they stand** (their centre, `SearchRadius` 15, facing the
 objective) — the same order consolidation uses (AT-8), so each man takes a covered post; AT-5's approach replaces it at support Set (the
 one order writer, AT-12). Blast radius: every `PlatoonAttack` (its goldens move: the waiting squads now take cover instead of standing).
 - ② a fixed `TakeCover` per man: no shared sector, the men pick cover independently — a second way to post a squad (ruling 9).
