@@ -21,7 +21,7 @@ namespace Fdp.Core
     /// marker stamped at load time and must never appear in persisted scenario files.
     /// </para>
     /// </remarks>
-    [ComponentId(84)]
+    [ComponentId(GlobalComponentIds.EpisodeTag)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct EpisodeTag
     {

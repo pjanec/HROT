@@ -43,13 +43,17 @@ namespace Hrot.Editor.Director
         public float Margin { get; init; } = 3f;
         /// <summary>⭐ <c>CE-5033</c> <c>window</c>: the building whose glazed windows are read (its terrain key <c>"&lt;terrain&gt;/&lt;label&gt;"</c> or its label).</summary>
         public string? Building { get; init; }
+        /// <summary>⭐ <c>CE-4672</c> <c>field</c>: judge only the DEAD units the name matches (<c>Health.Current</c> ≤ 0) — "no behaviour on a dead man".</summary>
+        public bool Dead { get; init; }
 
         public string On => Spec.On;
 
         /// <summary>The cues a check may use: the take's nine, <c>field</c> and ⭐ <c>knowledge</c> (CE-4624 — what a side knows of a minefield:
         /// <c>"is": "Marked"</c>, or a cell state — <c>Suspected</c> / <c>KnownClear</c> / <c>KnownMined</c> / <c>Unknown</c> — counted and compared by
         /// <c>op</c> / <c>value</c>, default <c>&gt;= 1</c>).</summary>
-        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window" }).ToArray();
+        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched" }).ToArray();
+        /// <summary>⭐ <c>CE-4672</c> <c>cover</c>: <c>in</c> — a cover point (the terrain's cover database) within <see cref="M"/> of the unit; <c>open</c> — none.</summary>
+        public static readonly IReadOnlyList<string> CoverStates = new[] { "in", "open" };
 
         /// <summary>⭐ <c>CE-5033</c> (glass windows) — what a <c>window</c> cue's <c>is</c> may say: a pane never hit, cracked (1 or 2 hits; <c>n</c> = the count), broken.</summary>
         public static readonly IReadOnlyList<string> WindowStates = new[] { "intact", "cracked", "broken" };
@@ -238,6 +242,7 @@ namespace Hrot.Editor.Director
             var spec = new JsonObject();
             var where_ = new List<(string, string, JsonNode?)>();
             string? hit = null, path = null, op = "==", quantifier = "any", side = null, from = null, to = null, building = null;
+            bool dead = false;
             int elements = 1;
             float m = 0f, margin = 3f;
             bool opGiven = false;
@@ -257,6 +262,7 @@ namespace Hrot.Editor.Director
                     case "from": from = v?.ToString(); break;
                     case "to": to = v?.ToString(); break;
                     case "building": building = v?.ToString(); break;
+                    case "dead": dead = v is JsonValue dv && dv.TryGetValue<bool>(out var db) && db; break;
                     case "margin": margin = v is JsonValue gv && gv.TryGetValue<double>(out var gd) ? (float)gd : -1f; break;
                     case "m": m = v is JsonValue mv && mv.TryGetValue<double>(out var md) ? (float)md : 0f; break;
                     case "value": value = v?.DeepClone(); break;
@@ -277,7 +283,7 @@ namespace Hrot.Editor.Director
             // a take anchor's parser checks the take keys; "field" is the verifier's own, so it is checked here
             var anchorProblems = new List<string>();
             var parsed = TakeJson.ParseAnchor(spec, where, anchorProblems);
-            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window") || !p.Contains("is not one of", StringComparison.Ordinal)));
+            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched") || !p.Contains("is not one of", StringComparison.Ordinal)));
             if (on == "window")
             {
                 if (string.IsNullOrWhiteSpace(building)) problems.Add($"{where}: a window cue needs building (its terrain key or label)");
@@ -285,6 +291,20 @@ namespace Hrot.Editor.Director
                 if (state == null || !CheckCue.WindowStates.Contains(state)) problems.Add($"{where}: a window cue's is is one of {string.Join(", ", CheckCue.WindowStates)}");
             }
             else if (building != null) problems.Add($"{where}: building belongs to a window cue");
+            // ⭐ CE-4672 (the street fight) — in cover / in the open, and a group bunched together
+            if (on == "cover")
+            {
+                if (parsed.Who == null) problems.Add($"{where}: a cover cue needs who");
+                var state = parsed.Is is JsonValue cv ? cv.ToString() : null;
+                if (state == null || !CheckCue.CoverStates.Contains(state)) problems.Add($"{where}: a cover cue's is is one of {string.Join(", ", CheckCue.CoverStates)}");
+                if (m <= 0f) problems.Add($"{where}: a cover cue needs m (metres from the nearest cover point, > 0)");
+            }
+            if (on == "bunched")
+            {
+                if (parsed.Who == null) problems.Add($"{where}: a bunched cue needs who (the group, e.g. \"*Red Squad 1 \")");
+                if (m <= 0f) problems.Add($"{where}: a bunched cue needs m (metres from the group's centre, > 0)");
+            }
+            if (dead && on != "field") problems.Add($"{where}: dead belongs to a field cue");
             parsed = parsed with { On = on };
             if (on == "field")
             {
@@ -302,7 +322,11 @@ namespace Hrot.Editor.Director
                 value ??= JsonValue.Create(1);
             }
             else if (side != null) problems.Add($"{where}: side belongs to a knowledge cue");
-            if (on is "far" or "close")
+            if (on is "cover" or "bunched")
+            {
+                if (from != null) problems.Add($"{where}: from belongs to a far / close / between cue");
+            }
+            else if (on is "far" or "close")
             {
                 if (parsed.Who == null) problems.Add($"{where}: a {on} cue needs who");
                 if (from == null && parsed.Point == null) problems.Add($"{where}: a {on} cue needs from (a unit) or point");
@@ -324,7 +348,7 @@ namespace Hrot.Editor.Director
             if (where_.Count > 0 && on is not ("shot" or "blast" or "field")) problems.Add($"{where}: where filters a shot or a blast row (or, on a field cue, the elements of a * path)");
             if (where_.Count > 0 && on == "field" && !(path ?? "").Contains(".*.", StringComparison.Ordinal)) problems.Add($"{where}: where on a field cue filters the elements of a path with a * part");
             if (hit != null && on != "shot") problems.Add($"{where}: hit belongs to a shot cue");
-            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building };
+            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building, Dead = dead };
         }
     }
 }

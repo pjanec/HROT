@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-16
-build-state: BUILT (backend + ui, `2026-11-16`) · ⭐ §4b AN-20 and §4c AN-21 BUILT (backend `2026-11-17`; as built §9b) — the looks are ui's
+build-state: BUILT (backend + ui, `2026-11-16`) · ⭐ §10 shared creature components BUILT (ui `2026-11-19`; as built §10b) · ⭐ §4b AN-20 and §4c AN-21 BUILT (backend `2026-11-17`; as built §9b) — the looks are ui's
 current-answer: §4 decisions (with §8's AR rows superseding) · §4a the fixed ids · §5 UML · ⭐ §6 the TASKS per lane and the shared contract (§6.1) · §8 the review
 stale-below: nothing
 known-rot: none
 known-conflict: none — AN-7 amends Breaching B-D1 (a panicked big animal breaks a SMALL fence), approved R-4266
 related-designs:
+  - ../../DESIGN_Civilians_And_Crowd_Control.md — §10 here moves the civilian's fear, home and crowd membership onto components shared with animals (CE-4628)
   - ../weapons/DESIGN_Bows_And_Crossbows.md — the bow AR-10's mounted archers use, fired from the horse's seats (BW-8, CE-4649)
   - ../../DESIGN_Civilians_And_Crowd_Control.md — OWNS the fear model (`CivilianFearSystem`, §5d), the HSM Routine ⇄ Alarmed ⇄ flee / shelter, the crowd — the animal brain generalises it
   - ../../DESIGN_Vehicle_Breaching.md — OWNS `ContactBreach` and B-D1 (who may break a fence)
@@ -538,3 +539,121 @@ graph TD
 | AN-21a–c | Rabbit 715: freezes (crouched) until the 12 m PANIC zone, then a ZIGZAG `FleeStyle` of the one brain (legs 30–50°, 0.6–1.2 s, 25 % double jink, bending to the wood within 70 m) | freezes to the panic zone, not the flight distance (R-3106) |
 | AN-21f–h | Hunting dog 716 (a play of the one brain, never bites a person); Hunter 214 (`HuntingRulesDto` species list read by `Animals.MayEngage` + a `HunterSop` / `Hunt` reaction — game within 40 m, from where he stands); `an-rabbit-bolts`, `rabbit-hunt` (test-town's North Wood), `an-duck-hunt` (the shotgun-only hunter) | the hunter is a TYPE with a standing rule, never a PersonAttack order (an order walks him up to the game); the bag per hunter is not counted (CE-3468) |
 | ⭐ **CE-1958** an animal and a wall *(the user, `2026-11-17`: "pigs stuck in the fence — half the body each side, never gets out")* | ⭐ an animal is traced against walls by its BODY (`HullClearance.HasBody` — the hull's corner trace; `HasHull` stays the vehicle's, for backing out); an AI animal HELD at a wall TURNS ON THE SPOT toward its aim (`HullClearance.TurnInPlace`, 1.5 rad/s, shuffling back what the swinging corner would push in) — it still has no reverse. ⭐ An ENCLOSED area's HOME circle (`AnimalHome.Radius`) is the largest circle INSIDE its outline less 1.5 m of body room (`AnimalAreaSystem.HomeRadius`); an OPEN area keeps its reach (the farthest corner — its home is the animal's ground: 📐 the inner circle shrank the guard dog's yard 7.2 → 2.5 m and it never bit), and a herd member's spot round the herd's is kept in it (`AnimalBehavior.GrazeSpot`) | ⛔ SUPERSEDED: the home radius was the outline's FARTHEST VERTEX (the 12 m square pen: 8.5 m, its walls 6–8 m off) and the member's spot (+ up to 11 m spread) was never clamped ⇒ grazing spots past the pen's wall; the centre-only trace stopped a pig with half its body through. ⚠ A long thin PEN grazes within its narrow width (the trade-off — a polygon test would need the area's outline in the parallel brain phase). ✅ **CE-3471** *(terrain, `2026-11-18`)*: the pig that walked through the pen's wall was NOT moved elsewhere (every other position writer was swept: none moves an owned walker in x / y) — the guard itself let a point that landed EXACTLY on the wall's face through (a T = 0 crossing read as "already inside"); fixed in `HullClearance` (Motion Domains, the corner-trace row) · ⛔ SUPERSEDED: ~~⏳ CE-3471 … the mover is elsewhere, open~~ |
+
+## 10. Shared creature components — civilians and animals *(CE-4628, approved `2026-11-19`)*
+
+🔒 User, `2026-11-19`: *"Isn't it pretty similar to what animals are feeling? Is there any opportunity for unification … to create something that
+serves both the civilian and animals?"* · *"yes, hand it to ui"*. ⭐ No logic changes — what each system computes stays; WHERE it is kept moves. The
+one fear system (AN-2) already existed; this ends the interim second storage (L-A8, R-4278). Squads (`UnitSubordinate` / `UnitRoster`, the command
+chain — AR-9), soldiers' stress, and the two mode enums stay as they are.
+
+| component | on | content | replicated? | from |
+|---|---|---|---|---|
+| ⭐ **`Fear`** (shared) | every civilian and animal | `Value`, `FrightFrom` + `HasFrightFrom`, `LastFrightAt`, `HeardAt`, `Seen`, `EffectFrightUntil` | no (brain-local) | the union of `CivilianState`'s fear fields and the animal `Fear` |
+| ⭐ **`Home`** (shared) | every civilian and animal | `Centre`, `Radius`, `TetherMetres`, `Area`, `Enclosed` | — | `AnimalHome` renamed; replaces `CivilianState.Home` |
+| ⭐ **`GroupMember`** (shared) | a crowd or herd member | `Group` (entity) | — | `HerdMember.Herd` + the crowd's int `CrowdId` |
+| ⭐ **`Group`** (shared header) | a crowd or herd entity | `Kind` (Herd · Crowd), `Count`, `Centre`, `Lead` | — | the common part of `Crowd` and `HerdState` |
+| ⭐ **`Mood`** (shared, NEW) | every civilian and animal | `FearBand` (calm · uneasy · frightened · panic), `AngerBand` | ✅ yes | the animal `FearBand` + CE-2250's civilian mood (built here, not as a second record) |
+| `CivilianState` (trimmed) | a civilian | `Anger`, `Attitude`, `Instigator`, `HostileActAt`, `ForceSeenUntil`, `Mode`, `Focus` + `HasFocus` | no | — |
+| `AnimalState` (trimmed) | an animal | `Mode`, `Flags` | ✅ | `Species` read from the TKB (a per-type table built once, the `EntityClassTable.Chain` pattern), `FearBand` → `Mood` |
+| ⭐ **`AnimalTasks`** (animal-only) | an animal | `Intruder`, `Handler`, `Quarry`, `BoltUntil`, `NextZoneLookAt` | no | the non-fear fields that sat on `Fear` |
+| `HerdState` (trimmed) | the herd entity | `NextGrazing`, `Mode`, `Species` (a runtime herd has no TKB type) | — | — |
+| `Crowd` (trimmed) | the crowd entity | `MeanFear`, `MeanAnger`, `Focus` + `HasFocus`, `FormedAt` | — | `Id` retires (the entity is the id) |
+
+| ⚠ what the compiler does NOT catch — each a gate | |
+|---|---|
+| saved scenarios and recordings | `AnimalState` is saved and recorded — old files with animals must still load (a load-time migration of the removed fields) |
+| text paths | 📌 measured: `ua-civ-gathering` checks `CivilianState.CrowdId`, `df-civilian-ordered` checks `CivilianState.Fear` (×2); goldens of `war-party`, `rabbit-hunt`, `bw-mounted-archers` carry `Species` / `FearBand` — plus the HTTP debug API's JSON, the inspector / Watch and scripts |
+| the wire | `Mood` is a new descriptor; the animal state message changes; the ownership-group mapping for both (R-4295: the wire keeps its own types) |
+| parallel read declarations | moved fields change what the per-entity phases read — `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + the world guard on every touched system's rails |
+| adding the components | `Fear` and `Home` added where `CivilianState` is (`CivilianMind.Ensure`) and where the animal's are (`AnimalTkbTranslator`) — a missing one is a silent runtime default |
+| one save policy for `Home` | the civilian's home is brain-local and unsaved today, the animal's saved — choose one and say why |
+| goldens | the layout change moves goldens from t = 0 — re-captured, reported as a diff shape |
+
+
+### 10a. ⭐ The build plan — measured before building *(ui, `2026-11-19`; `build-state: BUILDING`)*
+
+**INVENTORY** *(the handoff's step 1)* — `search_graph name_pattern=".*(Civilian|Animal|Herd|Crowd|Flock).*" label=Class` (48; the index predated the animal
+code, re-indexed) + grep: **74 C# files** name a moved type (`CivilianState` 31, `AnimalState` 41, `HerdState` 11, `HerdMember` 10, `AnimalHome` 12, the animal
+`Fear` ~10, `Crowd` 6) — ~37 production, the rest rails. Moved civilian fields: `.Fear` 19 files / 63 lines, `FrightFrom` 10/18, `HasFrightFrom` 8/11,
+`CrowdId` 3/23, `HeardAt` 5/5, `Home`+`HasHome` 3/5, `LastFrightAt` 1/2, `EffectFrightUntil` 1/2. `AnimalState.Species` readers: 8 production files.
+`AnimalState.FearBand`: ONE logic reader (`AnimalFear.PanicBreaks`), no drawing reader. Text paths: `CivilianState.CrowdId` (`ua-civ-contagion`,
+`ua-civ-gathering`, `ua-civ-protest`), `CivilianState.HeardAt` (`ua-civ-contagion` ×2), `CivilianState.Fear` (`df-civilian-ordered` ×2); goldens hash
+each component by NAME (`"Fear": "b04a…"`), so every civilian / animal golden moves. Graph index coverage could not be checked through the CLI.
+
+| ⚠ correction to §10, measured | the build does |
+|---|---|
+| ⛔ a NEW replicated `Mood` — but **`Demeanour {Mode, Fear, Anger}` (CE-3265, component 435, `dtDemeanour` 153) IS that record**: replicated, read by the face and the mood dot (CE-1177), and written by NOTHING (its writer was CE-2250) | ⭐ **`Mood` = `Demeanour` renamed** (Roslyn), id 435 and the wire type kept (R-4295), quarters kept. The one fear system writes it for civilians AND animals ⇒ CE-2250 built, no second record. `AnimalState.FearBand` goes; `PanicBreaks` reads `Fear.Value ≥ 0.75` (band 3's own threshold, `AnimalFear.Band`) |
+| a recorded component whose FIELDS change refuses an old recording (`SchemaValidator`: size or layout hash — the hash folds field names, types, offsets, ⛔ not the type name) | ⭐ **every reshaped component KEEPS its id** and **the playback SKIPS a component whose recorded layout differs** — the CE-4050 path (`PlaybackSystem.ResolveTable`, a type no assembly declares: skipped, said once), widened from "no type" to "no type OR another layout" (`SchemaValidator` reports instead of refusing). An old recording with animals and civilians loads and plays everything else. 📐 Why not a new id per changed component: the id space is measured near-FULL on every lane (`2026-11-19`: free in 0–499 only 108, 139, 158, 163, 327–329, 459 — of which 108/158 convoy's, 327–329 the aggregate lanes', 459 traffic's) — six burned ids for the same replay loss. New ids only for the two NEW components: `Group` **139**, `AnimalTasks` **163** (`InFormationTag`'s, moved to navigation). Kept: `Fear` 130, `AnimalState` 131, `GroupMember` 133 (was `HerdMember`), `Home` 134, `HerdState` 135, `CivilianState` 399, `Crowd` 400, `Mood` 435 |
+| "the civilian's home unsaved, the animal's saved" | ⛔ both are `NoScenario` today (recorded, never saved). ⭐ **`Home` stays `NoScenario`** — rebuilt at run start (a civilian: where he stands at his first tick; an animal: its area / its spawn), recorded so a replay and a seek have it |
+| `Fear.FrightFrom` — `Vector3` on the civilian, `WorldPoint` on the animal | ⭐ `WorldPoint` (the animal's); civilian readers convert where they did `Vector3` arithmetic |
+| a crowd member's `CrowdId` (int, 0 = none) | ⭐ `GroupMember.Group` (the crowd entity; `Entity.Null` = none) — added WITH `CivilianState` by `CivilianMind`, so it never churns per frame. `CrowdSystem` keeps its vote (a crowd keeps the entity most of its members had); ties go to the OLDER crowd (`FormedAt`, then the entity index) — the int id's tie-break was "the lower id" = the older one. The checks become `GroupMember.Group != null` |
+
+```mermaid
+classDiagram
+    direction LR
+    class Fear { <<shared, brain-local, recorded>> float Value; WorldPoint FrightFrom; byte HasFrightFrom; SimInstant LastFrightAt; SimInstant HeardAt; byte Seen; SimInstant EffectFrightUntil }
+    class Home { <<shared, was AnimalHome, id kept>> WorldPoint Centre; float Radius; float TetherMetres; Entity Area; byte Enclosed }
+    class GroupMember { <<shared>> Entity Group }
+    class Group { <<shared header>> GroupKind Kind; int Count; WorldPoint Centre; Entity Lead }
+    class Mood { <<shared, REPLICATED, was Demeanour, id 435 kept>> CivilianMode Mode; byte Fear; byte Anger }
+    class CivilianState { <<trimmed>> Anger; Attitude; Instigator; HostileActAt; ForceSeenUntil; Mode; Focus; HasFocus }
+    class AnimalState { <<trimmed, REPLICATED>> AnimalMode Mode; AnimalFlags Flags }
+    class AnimalTasks { <<animal-only>> Intruder; Handler; Quarry; BoltUntil; NextZoneLookAt }
+    class HerdState { <<trimmed>> NextGrazing; AnimalMode Mode; AnimalSpecies Species }
+    class Crowd { <<trimmed>> MeanFear; MeanAnger; Focus; HasFocus; FormedAt }
+    class AnimalSpeciesOf { <<per-type table, built once>> Of(view, e) AnimalSpecies }
+    class CivilianFearSystem { <<the ONE fear system>> }
+    CivilianFearSystem --> Fear : writes (civilians and animals)
+    CivilianFearSystem --> Mood : writes on a quarter change
+    CivilianFearSystem --> AnimalTasks : writes
+    GroupMember --> Group : Group entity
+    Group <.. HerdState : same entity
+    Group <.. Crowd : same entity
+    AnimalSpeciesOf ..> AnimalState : replaces .Species
+```
+
+*What it shows that prose could not:* the fear of BOTH kinds sits in one component written by one system, and the one replicated thing about a
+creature's mind is `Mood` — the record the face and the dot already read. Species is no longer state at all: a per-type lookup.
+
+```mermaid
+sequenceDiagram
+    participant Spawn as CivilianMind.Ensure / AnimalTkbTranslator
+    participant FS as CivilianFearSystem (brain node)
+    participant CS as CrowdSystem / HerdSystem (serial)
+    participant Net as Mood translator (dtDemeanour 153)
+    participant View as every node: face, mood dot, animal look
+    Spawn->>Spawn: add CivilianState / AnimalState WITH Fear, Home, GroupMember (final values)
+    FS->>FS: hear, see, fade — Fear.Value (unchanged rules)
+    FS->>FS: Mood quarters changed? (Mood.Set — only on change)
+    FS-->>Net: Mood (owner's brain node)
+    Net-->>View: Mood on every node
+    CS->>CS: crowd / herd membership — GroupMember.Group, Group header
+```
+
+| module | registers | runs each frame on | ⚠ |
+|---|---|---|---|
+| `CivilianFearSystem`, `CrowdSystem`, `HerdSystem` | the civilians' / animals' packs (unchanged) | the brain node | the per-entity phases' read declarations change with the moved fields — rails under `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` + the world guard |
+| the `Demeanour` → `Mood` translator | `SharedTranslatorPack` (unchanged) | every node | the ownership group stays Brain |
+| the `AnimalState` translator | unchanged; the wire drops `FearBand` and `Species` | every node | its wire type is its own (R-4295) |
+
+### 10b. ⭐ As built — the shared creature components *(ui worker, `2026-11-19`; ⭐ AS-BUILT folded here, obligation ⑤; the §10a plan above stands except where this says otherwise)*
+
+| as built | detail |
+|---|---|
+| ✅ the shared file | `FDP/Toolkits/Fdp.Toolkits/Creatures/CreatureComponents.cs`, namespace `Fdp.Toolkit.Creatures`: `Fear` (130), `Home` (134, was `AnimalHome`), `GroupMember` (133, was `HerdMember`; field `Herd` → `Group`), `Group` (**139**, NEW) + `GroupKind`, `Mood` (435, was `Demeanour`) + `Moods` (was `Demeanours`). Renames by Roslyn over stdio (a preview diff read for each); the constants `GlobalComponentIds.Home` / `.GroupMember` / `.Mood` follow. `AnimalTasks` (**163**, NEW) stays in `Fdp.Toolkit.Animals` |
+| ⚠ id 139 | the header of `GlobalComponentIds.cs` listed 139 as reserved for agg-behaviors (R-4276); no branch declares it (measured `2026-11-19`) and the plan took it — the header now says so; the lead confirms with agg-behaviors before the merge |
+| ✅ `CivilianMind` | `Ensure` / `SetMode` add the WHOLE mind in one call, each part with its final value: `CivilianState`, `Fear` (calm), `Home` (Centre = where he stands, no radius, no tether), `GroupMember` (no group). 📐 A deviation: `Ensure` on a unit that has `CivilianState` but lacks a shared part COMPLETES it (a partial mind is never left to a silent default); a part whose type is not registered on the node is skipped. `HasHome` / `Home` left `CivilianState` — the wander reads `Home.Centre` |
+| ✅ `CivilianState` | keeps `Anger, Attitude, Mode, Focus, HasFocus, Instigator, HostileActAt, ForceSeenUntil` (id 399) |
+| ✅ one fear system | `CivilianFearSystem` writes `Fear` for both kinds; an animal is told by `AnimalState` (a civilian also has `Fear`), its flight-zone schedule / intruder / handler / quarry / bolt are `AnimalTasks`. `FearBand` is no longer written (Mood is the lead's). `AnimalFear.PanicBandFear = 0.75` is band 3's own edge: `Band` and `PanicBreaks` share it |
+| ✅ species | `AnimalSpeciesOf.TryOf(world, e, out s)` / `TryOf(view, db, e, out s)`: the TKB type's `AnimalTemperamentDto.Species`, a per-type table built on the first ask. 📐 The table is **per TKB database instance** (a `ConditionalWeakTable` of `ConcurrentDictionary<long,int>`), not one global array: two databases (a test's, a node's) may give one type id two meanings; a memo of immutable data, so safe from the parallel phases. Readers moved: `MineTriggerSystem`, `BirdFlightModel`, `CivilianFearSystem` (×2), `HerdSystem.LinkToAreas`, `Animals.MayEngage`, `SoundSources` (an animal with no TKB type is skipped) |
+| ✅ groups | the herd entity carries `HerdState{NextGrazing, Mode, Species}` + `Group{Kind=Herd, Count, Centre, Lead}` (`AnimalAreaSystem` adds both; `HerdSystem` writes the header; `BrainReads` declares `Group`). A crowd entity carries `Crowd{MeanFear, MeanAnger, Focus, HasFocus, FormedAt}` + `Group{Kind=Crowd, Count, Centre, Lead=Null}`; `CrowdSystem` keeps its vote **per entity**, ties to the older crowd (`FormedAt`, then the entity index), writes a member's `GroupMember.Group` only on a change, and no longer exposes `EntityOf(id)` (the entity is the id) |
+| ✅ wire | `EntityAnimalState` keeps `FearBand` (the band, replicated as before — lead) and `Species` (R-4295; written 0, ignored on ingress); `EntityDemeanour` unchanged (`Mood`) |
+| ✅ attributes | the CE-4024 fright attributes (`Fear`, `FrightFrom.*`) now write the shared `Fear` (JSON path, binary installer, reader, vocabulary); the binary arm still applies only to a unit that already has `CivilianState` |
+| ✅ text paths | `checks.json`: `CivilianState.Fear` → `Fear.Value`, `CivilianState.HeardAt` → `Fear.HeardAt`, `CivilianState.CrowdId != 0` → `GroupMember.Group != "null"` (the dump writes a held entity as `"[i, vN]"`, none as `"null"`); animals: `AnimalState.FearBand >= 3 / 2` → `Fear.Value >= 0.75 / 0.4`, `AnimalState.Species == Cattle` → `TkbIdentity.TkbType == 700`. ⚠ `Fear` is brain-local: those animal rows read where the brains run (the editor tier) until the lead writes `Mood`. `VisibleState.Paths` `Demeanour` → `Mood`. Goldens NOT re-captured (the lead's). The composition snapshots' `Demeanour` row → `Creatures.Mood`; the scripts that read `CivilianState.Fear/HeardAt/CrowdId` merge `Fear` / `GroupMember` back under the old keys |
+| ⛔ `AnimalState.FearBand` is NOT removed — §10 / §10a SUPERSEDED here *(lead, measured)* | §10a moved it to `Mood` and had `PanicBreaks` read `Fear.Value ≥ 0.75` "— the same rule". 📐 **It was not:** a capture of the 32 civilian / animal goldens at the base and after the build agreed on every unit's position and health in 26 + 2 scenarios — and differed in the three HERD scenarios after a fright, bisected to the worker's build. The band is the fear system's SNAPSHOT at its pass, while `Fear.Value` is changed later in the frame by the herd's contagion (`HerdSystem` ③), so a live read crossed 0.75 a pass earlier; and the band is REPLICATED while `Fear` is brain-local, so the panic breach (`ContactBreach`) could be read on any node and a live read only on the brain's. ⇒ **the band stays on `AnimalState` (Mode, FearBand, Flags), written where it was, replicated, read by `PanicBreaks` and the animal checks as before**; `Mood` is the face / look record (quarters cannot say 0.75). Two records of fear, each for a different reader — the necessary difference, stated |
+| ✅ `Mood` written — CE-2250 built *(lead)* | a civilian's by `CrowdSystem.WriteMoods`, last in its pass (mode, fear, anger in quarters — CE-2250's own call site, §5o); an animal's by the fear system's animal pass (fear; mode None, anger 0). `Moods.Set` compares READ-ONLY before writing — the backend helper took a RW reference first, which bumped the chunk version (the recorder's and the egress' change mark) every frame even when nothing changed. Rails: `CrowdSystemTests.CE4628_ACivilianSeems…`, `AnimalFearTests.CE4628_AnAnimalSeems…`, `SpeechAndDemeanourTests.CE3265_TheMood…` (the version, red-proved); the animal pass's zero-allocation rail now covers the write |
+| ✅ the playback skips a component whose layout changed *(lead)* | `SchemaValidator.Validate` returns the changed component ids (events still refuse); `PlaybackSystem.SkipLayoutChanged` / `LayoutChangedTypes`; the entity's component MASK may still come back, its bytes do not. Rail `FlightRecorderTests.CE4628_…` (red-proved: without the skip the old bytes come back) |
+| ✅ an authored animal's `Home` | `AnimalTkbTranslator.Inject` gives an animal not populated from an area a home at its spawn point (Radius 0, no tether = no wandering limit, so nothing moves); an area animal's home, set later by the creation request, wins. ⏭ An AUTHORABLE home / tether (a chained dog) is a new feature, not this refactor |
+| ⛔ HISTORY | §10 / §10a above name `HerdMember`, `AnimalHome`, `Demeanour`, `CivilianState.CrowdId` — those are the PRE-build names |
+

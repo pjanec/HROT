@@ -97,23 +97,23 @@ public static class AttributeCompilerFactory
                 (ref Fdp.Toolkit.Weather.ScenarioClock c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => c.DisplayUtcOffsetMinutes = (short)r.GetInt32(),
                 kind: KindOf("ScenarioUtcOffsetMinutes"));
 
-        // ── CivilianState — ⭐ CE-4024 (AQ93 §15 K5): a fright, so a converted SUMO pedestrian is born in panic ───────────
+        // ── Fear (the shared creature fear, CE-4628; was CivilianState's) — ⭐ CE-4024 (AQ93 §15 K5): a fright, so a converted SUMO pedestrian is born in panic ───────────
         builder
-            .RegisterValuePath<Fdp.Toolkit.Civilians.CivilianState>(
+            .RegisterValuePath<Fdp.Toolkit.Creatures.Fear>(
                 "Fear",
-                (ref Fdp.Toolkit.Civilians.CivilianState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFear(ref c, r.GetDouble()),
+                (ref Fdp.Toolkit.Creatures.Fear c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFear(ref c, r.GetDouble()),
                 kind: KindOf("Fear"))
-            .RegisterValuePath<Fdp.Toolkit.Civilians.CivilianState>(
+            .RegisterValuePath<Fdp.Toolkit.Creatures.Fear>(
                 "FrightFrom.X",
-                (ref Fdp.Toolkit.Civilians.CivilianState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFrom(ref c, 0, r.GetDouble()),
+                (ref Fdp.Toolkit.Creatures.Fear c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFrom(ref c, 0, r.GetDouble()),
                 kind: KindOf("FrightFrom.X"))
-            .RegisterValuePath<Fdp.Toolkit.Civilians.CivilianState>(
+            .RegisterValuePath<Fdp.Toolkit.Creatures.Fear>(
                 "FrightFrom.Y",
-                (ref Fdp.Toolkit.Civilians.CivilianState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFrom(ref c, 1, r.GetDouble()),
+                (ref Fdp.Toolkit.Creatures.Fear c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFrom(ref c, 1, r.GetDouble()),
                 kind: KindOf("FrightFrom.Y"))
-            .RegisterValuePath<Fdp.Toolkit.Civilians.CivilianState>(
+            .RegisterValuePath<Fdp.Toolkit.Creatures.Fear>(
                 "FrightFrom.Z",
-                (ref Fdp.Toolkit.Civilians.CivilianState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFrom(ref c, 2, r.GetDouble()),
+                (ref Fdp.Toolkit.Creatures.Fear c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) => CivilianFright.SetFrom(ref c, 2, r.GetDouble()),
                 kind: KindOf("FrightFrom.Z"));
 
         // ── RuleControl — ⭐ rules V-4 (§00.10): an instructor's / agent's request to a rule entity, honoured once per Seq by the owner ───────

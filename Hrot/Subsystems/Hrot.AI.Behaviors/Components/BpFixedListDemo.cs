@@ -21,7 +21,7 @@ namespace Hrot.AI.Behaviors
     /// <c>default</c> (the tail-always-default invariant, maintained by the accessors).
     /// </para>
     /// </summary>
-    [ComponentId(191)] // Hrot application-level block (160-199, HrotComponentIds); next free after 190 (BpManagedCollectionDemo).
+    [ComponentId(GlobalComponentIds.BpFixedListDemo)] // Hrot application-level block (160-199, HrotComponentIds); next free after 190 (BpManagedCollectionDemo).
     [StructLayout(LayoutKind.Sequential)]
     [BlueprintWritable]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)

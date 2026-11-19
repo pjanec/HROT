@@ -108,7 +108,7 @@ sharing.
 
 **4. Component ID block ownership**
 FDP component IDs 0-159 are reserved for the framework toolkit.
-Hrot.Core owns IDs 160-186 via `HrotComponentIds`, documented with block
+Hrot.Core owns IDs 160-186 via `HrotComponentIds` — ⭐ since `2026-11-19` (CE-4628 follow-up) ALIASES of `Fdp.Core.GlobalComponentIds`, the ONE catalogue; a new id is added there. Documented with block
 comments that enumerate each ID's purpose and lifecycle intent.
 
 **5. Interface-segregated network factory**
@@ -970,7 +970,7 @@ fields or constructor logic.  Use `[JsonPropertyName]` only where the wire name
 must differ from the C# property name; otherwise rely on `HrotSerializerOptions`
 camelCase policy.
 
-### Do not add new component IDs to HrotComponentIds without allocating from the documented block
+### Do not add new component IDs to HrotComponentIds — add them to `Fdp.Core.GlobalComponentIds` (the one catalogue, rail `ComponentIdCatalogueTests`), from your lane's block
 IDs 160-186 are currently used.  Document each new ID with a `<summary>` comment
 following the existing block-comment style.  Never re-use a retired ID; add a comment
 explaining why the old value was retired.

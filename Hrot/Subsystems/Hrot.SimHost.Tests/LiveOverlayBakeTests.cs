@@ -450,5 +450,34 @@ namespace Hrot.SimHost.Tests
             long without = GC.GetAllocatedBytesForCurrentThread() - p0;
             Assert.True(withOverlay <= without, $"a steady frame with a live overlay allocated {withOverlay} B per 100 frames, the plain one {without} B");
         }
+        /// <summary>
+        /// ⭐⭐ CE-5039 (docs/DESIGN_Cluster_Load_Phase.md §11.10d) — THE RUN WAITS FOR THE SCENARIO'S TERRAIN: the scenario load's readiness predicate (the one the run gate, the loading
+        /// screen and the HTTP load "done" all follow) stays false while the editor's live overlay holds a block the terrain has not baked, and turns true on the bake's commit. A world with
+        /// no blocks, and a host with no live overlay (every host but the editor), resolve at once — those loads are not delayed. 🔴 Red-proof: drop condition ⑤ from
+        /// <c>ScenarioLoadStep.IsResolved</c> ⇒ the first assertion (resolved before the bake) fails.
+        /// </summary>
+        [Fact]
+        public void CE5039_TheLoad_WaitsForTheLiveOverlaysFirstBake_AndANoOverlayLoadDoesNot()
+        {
+            var step = ScenarioLoadStepTests.MakeStep(null, ScenarioLoadStepTests.NewBus());
+
+            // a scenario with no blocks, on the editor: not delayed
+            var sys = Editor();
+            _wall += 1.0; sys.Execute(_world, 0.016f);
+            Assert.True(step.IsResolved(_world), "a scenario with no terrain overlay must not wait");
+
+            // the scenario's block arrives: the load waits until its bake has committed
+            Block(250f, 250f);
+            sys.Execute(_world, 0.016f);
+            Assert.False(step.IsResolved(_world), "the load must wait while the scenario's terrain overlay is not baked yet");
+            RunUntilBaked(sys, 1);
+            Assert.True(step.IsResolved(_world), "the overlay's first bake has committed: the load is done");
+
+            // a host with no live overlay (a SimHost, the player): the block is inert data there, nothing to wait for
+            var plain = new StaticObstacleBakeSystem(() => _wall);
+            Block(300f, 300f, Guid.Parse("22222222-2222-4333-8444-555555555555"));
+            plain.Execute(_world, 0.016f);
+            Assert.True(step.IsResolved(_world), "a host without a live overlay must not wait for one");
+        }
     }
 }

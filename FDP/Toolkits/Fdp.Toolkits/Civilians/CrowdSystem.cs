@@ -6,6 +6,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Creatures;
 
 namespace Fdp.Toolkit.Civilians
 {
@@ -13,18 +14,14 @@ namespace Fdp.Toolkit.Civilians
     /// ⭐ <c>CE-2237</c> (CIV-3, CV-5; docs/DESIGN_Civilians_And_Crowd_Control.md §5f) — one crowd: the civilians standing linked within
     /// <see cref="CrowdRules.LinkMetres"/> of each other, read out by <see cref="CrowdSystem"/> every frame. A BODILESS entity: no
     /// position component, no network id, never saved. ⛔ BRAIN-LOCAL like <see cref="CivilianState"/>: it lives on the node that runs its
-    /// members' brains and no other node holds it.
+    /// members' brains and no other node holds it. ⭐ <c>CE-4628</c>: the ENTITY is the crowd's id (each member's <see cref="GroupMember.Group"/>
+    /// holds it) and its count and centroid are the entity's <see cref="Group"/> header (Kind Crowd).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.Crowd)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct Crowd
     {
-        /// <summary>The crowd's id — what each member's <see cref="CivilianState.CrowdId"/> holds. Never 0.</summary>
-        public int Id;
-        public int Count;
-        /// <summary>The mean position of its members.</summary>
-        public Vector3 Centroid;
         public float MeanFear, MeanAnger;
         /// <summary>The incident most of its members are drawn to; valid when <see cref="HasFocus"/> is 1.</summary>
         public Vector3 Focus;
@@ -142,17 +139,14 @@ namespace Fdp.Toolkit.Civilians
         private byte[] _instigator = Array.Empty<byte>();
         [Fdp.Core.WorldDerived("group scratch rebuilt each frame")]
         private readonly Dictionary<int, List<int>> _groups = new();
-        [Fdp.Core.WorldDerived("vote scratch cleared per group")]
-        private readonly Dictionary<int, int> _votes = new();
-        // ⭐ R-3039 S1 — DERIVED each frame from the world, not remembered: each crowd entity carries its id (Crowd.Id), and the next id
-        //   is one past every id a crowd or a member still holds — so a checkpoint restored into a fresh system neither duplicates a crowd
-        //   entity nor reissues an id in use. 📄 docs/DESIGN_System_State_Inventory.md §6 #9.
-        [Fdp.Core.FrameScratch("R-3039 S1 — rebuilt at the top of each run from the Crowd entities")]
-        private readonly Dictionary<int, Entity> _crowdEntity = new();
-        [Fdp.Core.WorldDerived("live-ids scratch cleared each Assign")]
-        private readonly HashSet<int> _live = new();
-        [Fdp.Core.WorldDerived("R-3039 S1: derived every frame — one past every id a crowd or member holds — was C")]
-        private int _nextId = 1;
+        [Fdp.Core.FrameScratch("vote scratch cleared per group before each use, holds this frame's crowd entities only")]
+        private readonly Dictionary<Entity, int> _votes = new();
+        // ⭐ R-3039 S1 / CE-4628 — nothing is remembered: a crowd IS its entity (each member's GroupMember.Group holds it), so a checkpoint restored
+        //   into a fresh system neither duplicates a crowd entity nor loses one. 📄 docs/DESIGN_System_State_Inventory.md §6 #9.
+        [Fdp.Core.FrameScratch("live-crowds scratch cleared at the top of each Assign")]
+        private readonly HashSet<Entity> _live = new();
+        [Fdp.Core.FrameScratch("crowd entities to destroy: cleared and refilled by each Assign")]
+        private readonly List<Entity> _gone = new();
         // ⭐ CE-2241 ② (§5m PV-1) — the security forces standing this frame: where, and which way they face
         [Fdp.Core.WorldDerived("scratch cleared each frame")]
         private readonly List<Vector3> _police = new();
@@ -162,32 +156,19 @@ namespace Fdp.Toolkit.Civilians
         [Fdp.Core.WorldDerived("scratch cleared each frame")]
         private readonly List<int> _forced = new();
 
-        /// <summary>The crowd entity of id <paramref name="crowdId"/> on this node, or <see cref="Entity.Null"/>.</summary>
-        public Entity EntityOf(int crowdId) => _crowdEntity.TryGetValue(crowdId, out var e) ? e : Entity.Null;
-
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<CivilianState>()) return;
-            _crowdEntity.Clear();
-            _nextId = 1;
-            if (repo.IsComponentTypeRegistered<Crowd>())
-                foreach (var ce in repo.Query().With<Crowd>().Build())
-                {
-                    int cid = repo.GetComponentRO<Crowd>(ce).Id;
-                    _crowdEntity[cid] = ce;
-                    if (cid >= _nextId) _nextId = cid + 1;
-                }
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<CivilianState>() || !repo.IsComponentTypeRegistered<Fear>()
+                || !repo.IsComponentTypeRegistered<GroupMember>() || !repo.IsComponentTypeRegistered<Group>() || !repo.IsComponentTypeRegistered<Crowd>()) return;
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : repo.SimulationTime;
 
             _civs.Clear();
             _at.Clear();
-            foreach (var e in repo.Query().With<CivilianState>().With<SimTransform>().Build())
+            foreach (var e in repo.Query().With<CivilianState>().With<Fear>().With<GroupMember>().With<SimTransform>().Build())   // ⭐ CE-4628 — a civilian with his whole mind
             {
                 _civs.Add(e);
                 _at.Add(repo.GetComponentRO<SimTransform>(e).Position);
-                int held = repo.GetComponentRO<CivilianState>(e).CrowdId;   // an id a member still holds is never reissued
-                if (held >= _nextId) _nextId = held + 1;
             }
 
             Attract(repo);
@@ -198,6 +179,22 @@ namespace Fdp.Toolkit.Civilians
             Police(repo);
             Rouse(repo, deltaTime);
             Provoke(repo, now);
+            WriteMoods(repo);
+        }
+
+        // ⭐⭐ CE-2250 / CE-4628 (docs/DESIGN_Civilians_And_Crowd_Control.md §5o; designs/animals/DESIGN_Animals.md §10a) — how each civilian SEEMS to every node:
+        //   his mode, fear and anger in quarters, on the replicated Mood (the face and the mood dot read it, CE-1177). Last, after anger and fear settled this frame;
+        //   written only when a quarter or the mode changes (Moods.Set).
+        private void WriteMoods(EntityRepository repo)
+        {
+            if (!repo.IsComponentTypeRegistered<Mood>()) return;
+            for (int i = 0; i < _civs.Count; i++)
+            {
+                var e = _civs[i];
+                if (!repo.IsAlive(e)) continue;
+                ref readonly var mind = ref repo.GetComponentRO<CivilianState>(e);
+                Moods.Set(repo, e, mind.Mode, repo.GetComponentRO<Fear>(e).Value, mind.Anger);
+            }
         }
 
         // ⭐ CE-2241 ② (§5m PV-1) — every security-forces person alive and on his feet, and his heading
@@ -248,7 +245,7 @@ namespace Fdp.Toolkit.Civilians
                 ref var mind = ref repo.GetComponentRW<CivilianState>(_civs[i]);
                 if (until <= effectsNow || until <= mind.ForceSeenUntil) continue;
                 mind.ForceSeenUntil = (SimInstant)until;
-                if (mind.CrowdId != 0) _forced.Add(i);
+                if (!repo.GetComponentRO<GroupMember>(_civs[i]).Group.IsNull) _forced.Add(i);
             }
             float reach = CrowdRules.SpikeMetres * CrowdRules.SpikeMetres;
             foreach (int i in _forced)
@@ -362,7 +359,8 @@ namespace Fdp.Toolkit.Civilians
         private static long Cell(Vector3 at) => Key((int)MathF.Floor(at.X / CellMetres), (int)MathF.Floor(at.Y / CellMetres));
         private static long Key(int cx, int cy) => ((long)cx << 32) | (uint)cy;
 
-        // ③ each group of MinMembers or more is a crowd; it keeps the id most of its members had
+        // ③ each group of MinMembers or more is a crowd; it keeps the crowd ENTITY most of its members had (CE-4628: the entity is the id — a tie goes to
+        //   the OLDER crowd, by FormedAt then the entity index: the int id's tie-break was "the lower id", which was the older one)
         private void Assign(EntityRepository repo, double now)
         {
             _live.Clear();
@@ -371,30 +369,31 @@ namespace Fdp.Toolkit.Civilians
                 if (group.Count == 0) continue;
                 if (group.Count < CrowdRules.MinMembers)
                 {
-                    foreach (int i in group) repo.GetComponentRW<CivilianState>(_civs[i]).CrowdId = 0;
+                    foreach (int i in group) SetCrowd(repo, _civs[i], Entity.Null);
                     continue;
                 }
 
                 _votes.Clear();
                 foreach (int i in group)
                 {
-                    int had = repo.GetComponentRO<CivilianState>(_civs[i]).CrowdId;
-                    if (had != 0) _votes[had] = _votes.TryGetValue(had, out int v) ? v + 1 : 1;
+                    var had = repo.GetComponentRO<GroupMember>(_civs[i]).Group;
+                    if (had.IsNull || !repo.IsAlive(had) || !repo.HasComponent<Crowd>(had)) continue;   // a crowd that is gone keeps no vote
+                    _votes[had] = _votes.TryGetValue(had, out int v) ? v + 1 : 1;
                 }
-                int id = 0, most = 0;
+                Entity ce = Entity.Null;
+                int most = 0;
                 foreach (var (candidate, votes) in _votes)
-                    if (!_live.Contains(candidate) && (votes > most || (votes == most && candidate < id))) { id = candidate; most = votes; }
-                if (id == 0) id = _nextId++;
-                _live.Add(id);
+                    if (!_live.Contains(candidate) && (votes > most || (votes == most && Older(repo, candidate, ce)))) { ce = candidate; most = votes; }
 
-                var crowd = new Crowd { Id = id, Count = group.Count };
+                var crowd = new Crowd();
+                var header = new Group { Kind = GroupKind.Crowd, Count = group.Count, Lead = Entity.Null };
+                Vector3 centroid = Vector3.Zero;
                 int focusVotes = 0;
                 foreach (int i in group)
                 {
-                    ref var mind = ref repo.GetComponentRW<CivilianState>(_civs[i]);
-                    mind.CrowdId = id;
-                    crowd.Centroid += _at[i];
-                    crowd.MeanFear += mind.Fear;
+                    ref readonly var mind = ref repo.GetComponentRO<CivilianState>(_civs[i]);
+                    centroid += _at[i];
+                    crowd.MeanFear += repo.GetComponentRO<Fear>(_civs[i]).Value;
                     crowd.MeanAnger += mind.Anger;
                     if (mind.HasFocus != 0)
                     {
@@ -402,35 +401,49 @@ namespace Fdp.Toolkit.Civilians
                         focusVotes++;
                     }
                 }
-                crowd.Centroid /= group.Count;
+                header.Centre = centroid / group.Count;
                 crowd.MeanFear /= group.Count;
                 crowd.MeanAnger /= group.Count;
                 crowd.HasFocus = focusVotes * 2 >= group.Count ? (byte)1 : (byte)0;
 
-                if (!_crowdEntity.TryGetValue(id, out var ce) || !repo.IsAlive(ce))
+                if (ce.IsNull)
                 {
                     ce = repo.CreateEntity();
                     crowd.FormedAt = (SimInstant)now;
                     repo.AddComponent(ce, crowd);
+                    repo.AddComponent(ce, header);
                     Fdp.Toolkit.Scenario.DerivedParts.MarkNotSaved(repo, ce);
-                    _crowdEntity[id] = ce;
                 }
                 else
                 {
                     crowd.FormedAt = repo.GetComponentRO<Crowd>(ce).FormedAt;
                     repo.GetComponentRW<Crowd>(ce) = crowd;
+                    if (repo.HasComponent<Group>(ce)) repo.GetComponentRW<Group>(ce) = header; else repo.AddComponent(ce, header);
                 }
+                _live.Add(ce);
+                foreach (int i in group) SetCrowd(repo, _civs[i], ce);
             }
 
-            List<int>? gone = null;
-            foreach (var (id, ce) in _crowdEntity)
-                if (!_live.Contains(id)) (gone ??= new List<int>()).Add(id);
-            if (gone != null)
-                foreach (int id in gone)
-                {
-                    if (repo.IsAlive(_crowdEntity[id])) repo.DestroyEntity(_crowdEntity[id]);
-                    _crowdEntity.Remove(id);
-                }
+            _gone.Clear();
+            foreach (var ce in repo.Query().With<Crowd>().Build())
+                if (!_live.Contains(ce)) _gone.Add(ce);
+            for (int i = 0; i < _gone.Count; i++)
+                if (repo.IsAlive(_gone[i])) repo.DestroyEntity(_gone[i]);
+        }
+
+        // the civilian's crowd — written only when it CHANGES (no chunk-version churn)
+        private static void SetCrowd(EntityRepository repo, Entity civilian, Entity crowd)
+        {
+            if (repo.GetComponentRO<GroupMember>(civilian).Group != crowd) repo.GetComponentRW<GroupMember>(civilian).Group = crowd;
+        }
+
+        // is crowd a older than crowd b? (b Null ⇒ always) — by when it formed, then by the entity index
+        private static bool Older(EntityRepository repo, Entity a, Entity b)
+        {
+            if (b.IsNull) return true;
+            var fa = repo.GetComponentRO<Crowd>(a).FormedAt;
+            var fb = repo.GetComponentRO<Crowd>(b).FormedAt;
+            return fa < fb || (fa == fb && a.Index < b.Index);
         }
 
         // ④ contagion: toward ContagionShare of the most frightened member of his crowd nearby, faster the nearer he is
@@ -443,7 +456,7 @@ namespace Fdp.Toolkit.Civilians
                 if (group.Count < CrowdRules.MinMembers) continue;
                 foreach (int i in group)
                 {
-                    var me = repo.GetComponentRO<CivilianState>(_civs[i]);
+                    float myFear = repo.GetComponentRO<Fear>(_civs[i]).Value;
                     float bestPull = 0f, bestTarget = 0f;
                     int source = -1;
                     Near(i, sameCrowd: true);
@@ -452,7 +465,7 @@ namespace Fdp.Toolkit.Civilians
                         if (j == i || !CrowdRules.ShowsFear(_mode[j])) continue;
                         float d2 = Flat2(_at[i], _at[j]);
                         if (d2 > reach) continue;
-                        float pull = CrowdRules.ContagionPull(me.Fear, repo.GetComponentRO<CivilianState>(_civs[j]).Fear, MathF.Sqrt(d2),
+                        float pull = CrowdRules.ContagionPull(myFear, repo.GetComponentRO<Fear>(_civs[j]).Value, MathF.Sqrt(d2),
                                                               CrowdRules.ContagionMetres, out float target);
                         if (pull <= bestPull) continue;
                         bestPull = pull;
@@ -460,13 +473,13 @@ namespace Fdp.Toolkit.Civilians
                         source = j;
                     }
                     if (source < 0) continue;
-                    ref var mind = ref repo.GetComponentRW<CivilianState>(_civs[i]);
-                    mind.Fear = CrowdRules.Contagion(mind.Fear, bestTarget, bestPull, dt);
-                    ref readonly var src = ref repo.GetComponentRO<CivilianState>(_civs[source]);
+                    ref var fear = ref repo.GetComponentRW<Fear>(_civs[i]);
+                    fear.Value = CrowdRules.Contagion(fear.Value, bestTarget, bestPull, dt);
+                    ref readonly var src = ref repo.GetComponentRO<Fear>(_civs[source]);
                     if (src.HasFrightFrom != 0)
                     {
-                        mind.FrightFrom = src.FrightFrom;
-                        mind.HasFrightFrom = 1;
+                        fear.FrightFrom = src.FrightFrom;
+                        fear.HasFrightFrom = 1;
                     }
                 }
             }
@@ -483,7 +496,8 @@ namespace Fdp.Toolkit.Civilians
                 ref var mind = ref repo.GetComponentRW<CivilianState>(_civs[i]);
                 if (mind.Instigator != 0) { mind.Anger = 1f; continue; }
                 float best = 0f;
-                if (mind.CrowdId != 0 && _groups.TryGetValue(_root[i], out var group) && group.Count >= CrowdRules.MinMembers)
+                bool inCrowd = !repo.GetComponentRO<GroupMember>(_civs[i]).Group.IsNull;
+                if (inCrowd && _groups.TryGetValue(_root[i], out var group) && group.Count >= CrowdRules.MinMembers)
                 {
                     Near(i, sameCrowd: true);
                     foreach (int j in _near)
@@ -495,7 +509,7 @@ namespace Fdp.Toolkit.Civilians
                     }
                 }
                 // ⭐ CE-2241 ② (§5m PV-1) — a facing policeman near a crowd member raises it too (slowly); with neither, it fades
-                float provoked = mind.CrowdId != 0 ? Provocation(i) : 0f;
+                float provoked = inCrowd ? Provocation(i) : 0f;
                 float rise = CrowdRules.InstigateRate * best + CrowdRules.ProvokeRate * provoked;
                 mind.Anger = rise > 0f ? MathF.Min(1f, mind.Anger + rise * dt)
                                        : MathF.Max(0f, mind.Anger - CrowdRules.AngerFade * dt);

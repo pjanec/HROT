@@ -50,7 +50,7 @@ namespace Fdp.Toolkit.Behavior.Events
     /// Keyed to the run by <see cref="InstanceId"/>, so a latch left behind by an ended run is never applied to the next.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(BehaviorApplicationComponentIds.BehaviorFaultLatch)]
+    [ComponentId(GlobalComponentIds.BehaviorFaultLatch)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct BehaviorFaultLatch
     {

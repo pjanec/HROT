@@ -3049,7 +3049,9 @@ namespace CarKinem.Tests.Systems
             CarKinem.Controllers.ContactBreach.Reset();
             var (repo, e) = ManualWorld(VehicleClass.Quadruped, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
             repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
-            repo.AddComponent(e, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle, Mode = mode, FearBand = band });
+            repo.AddComponent(e, new Fdp.Toolkit.Animals.AnimalState { Mode = mode, FearBand = band });   // ⭐ CE-4628 — the species is the TKB type's; the band stays (§10b)
+            repo.RegisterComponent<Fdp.Toolkit.Creatures.Fear>();
+            repo.AddComponent(e, new Fdp.Toolkit.Creatures.Fear { Value = band >= 3 ? 0.9f : 0f });
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
             repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)700 });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
@@ -3129,8 +3131,7 @@ namespace CarKinem.Tests.Systems
         {
             var (repo, e) = RunningAnimal(true, mode, band, FenceAtX15("fence-wood", 0.05f, 1.2f));
             repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(0f, 40f, 0f), TargetSpeed = 3f, ArrivalRadius = 3f });
-            repo.RegisterComponent<Fdp.Toolkit.Animals.Fear>();
-            repo.AddComponent(e, new Fdp.Toolkit.Animals.Fear { Value = band >= 3 ? 0.9f : 0f, FrightFrom = new Vector3(-20f, 0f, 0f), HasFrightFrom = 1 });
+            repo.GetComponentRW<Fdp.Toolkit.Creatures.Fear>(e) = new Fdp.Toolkit.Creatures.Fear { Value = band >= 3 ? 0.9f : 0f, FrightFrom = new Vector3(-20f, 0f, 0f), HasFrightFrom = 1 };
             var (nose, breaches, _) = DriveInto(repo, e, 8f);
             var at = repo.GetComponent<SimTransform>(e).Position;
             if (stampedes)

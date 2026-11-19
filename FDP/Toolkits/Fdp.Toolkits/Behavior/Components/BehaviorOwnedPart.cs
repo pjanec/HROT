@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// sensor per key from a single site), for the run <see cref="OwnerInstanceId"/>.</para>
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(BehaviorApplicationComponentIds.BehaviorOwnedPart)]
+    [ComponentId(GlobalComponentIds.BehaviorOwnedPart)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct BehaviorOwnedPart
     {

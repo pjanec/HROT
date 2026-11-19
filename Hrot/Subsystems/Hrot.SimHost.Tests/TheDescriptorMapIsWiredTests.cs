@@ -209,7 +209,7 @@ public class TheDescriptorMapIsWiredTests
             .ToList();
 
         Assert.Empty(uncovered);
-        Assert.Contains(typeof(Fdp.Toolkit.Civilians.CivilianState), AttributeVocabulary.WrittenComponents.Except(AttributeVocabulary.ReplicatedComponents));
+        Assert.Contains(typeof(Fdp.Toolkit.Creatures.Fear), AttributeVocabulary.WrittenComponents.Except(AttributeVocabulary.ReplicatedComponents));   // ⭐ CE-4628 — the fright attributes write the shared Fear (was CivilianState)
     }
 
     /// <summary>

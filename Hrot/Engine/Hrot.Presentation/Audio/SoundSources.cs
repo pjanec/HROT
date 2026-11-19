@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Animals;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Terrain;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
@@ -637,7 +638,8 @@ namespace Hrot.UI.Common.Audio
                 foreach (var e in _animalQuery)
                 {
                     ref readonly var st = ref w.GetComponentRO<AnimalState>(e);
-                    int species = (int)st.Species;
+                    if (!AnimalSpeciesOf.TryOf(w, tkb, e, out var animalSpecies)) continue;   // ⭐ CE-4628 — the species is the TKB type's (a per-type table), not state
+                    int species = (int)animalSpecies;
                     var at = w.GetComponentRO<SimTransform>(e).Position;
                     float d = Vector3.Distance(at, ear.Position);
                     bool known = _animalSeen.TryGetValue(e, out var seen);
@@ -647,7 +649,7 @@ namespace Hrot.UI.Common.Audio
                     if (species == (int)AnimalSpecies.Bird && st.Mode == AnimalMode.Calm && d < PerchedReach) PerchedNear += 1f;
                     _animalSeen[e] = (calls, st.Mode, seen.Flock, barks);
                     if (!known || d > AnimalSoundCatalog.CallRange(species) * 1.5f) continue;
-                    var herd = w.IsComponentTypeRegistered<HerdMember>() && w.HasComponent<HerdMember>(e) ? w.GetComponentRO<HerdMember>(e).Herd : Entity.Null;
+                    var herd = w.IsComponentTypeRegistered<GroupMember>() && w.HasComponent<GroupMember>(e) ? w.GetComponentRO<GroupMember>(e).Group : Entity.Null;
                     if ((st.Mode == AnimalMode.Alert || st.Mode == AnimalMode.Flee) && seen.Mode != st.Mode && seen.Mode is AnimalMode.Calm or AnimalMode.Recover or AnimalMode.Rest)
                     {
                         Speak(w, tkb, e, herd, species, AnimalSoundCatalog.Alarm, ear, at, now);

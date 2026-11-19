@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Tkb.Domain;
 
 namespace Fdp.Toolkit.Animals
 {
     /// <summary>
     /// ⭐ <c>CE-4623</c> AB-1 (docs/designs/animals/DESIGN_Animals.md §6.1) — an animal type (<c>Gen.Animal</c>) gets its <see cref="AnimalState"/>
-    /// on EVERY node at spawn (its species, calm), and a flock its <see cref="FlockState"/>; the other animal components are registered here so a
+    /// on EVERY node at spawn (calm; ⭐ CE-4628: its species is the TKB type's — <see cref="AnimalSpeciesOf"/>), and a flock its <see cref="FlockState"/>; the other animal components are registered here so a
     /// brain or a populating area can add them. ⭐ <see cref="Animals.IsAnimal"/> asks the one component — one lookup per question.
     /// </summary>
     public sealed class AnimalTkbTranslator : ITkbEntityTranslator
@@ -23,10 +24,12 @@ namespace Fdp.Toolkit.Animals
         {
             yield return typeof(AnimalState);
             yield return typeof(Fear);
+            yield return typeof(AnimalTasks);   // ⭐ CE-4628 — the animal-only part of its fear state (intruder, handler, quarry, bolt, zone-look schedule)
             yield return typeof(FlockState);
-            yield return typeof(HerdMember);
-            yield return typeof(AnimalHome);
+            yield return typeof(GroupMember);
+            yield return typeof(Home);
             yield return typeof(HerdState);
+            yield return typeof(Group);
             yield return typeof(Fdp.Toolkit.Civilians.Utterance);   // ⭐ AB-8 — its voice (calls, alarms, the bark)
             yield return typeof(AnimalArea);                         // ⭐ AB-9 — an animal area's species / count / seed / Enclosed
             yield return typeof(AnimalAreaPopulated);
@@ -50,13 +53,19 @@ namespace Fdp.Toolkit.Animals
             var dto = template.GetDescriptor<AnimalTemperamentDto>();
             if (dto == null) return;
             if (repo.IsComponentTypeRegistered<AnimalState>() && !repo.HasComponent<AnimalState>(entity))
-                repo.AddComponent(entity, new AnimalState { Species = (AnimalSpecies)dto.Species, Mode = AnimalMode.Calm });
+                repo.AddComponent(entity, new AnimalState { Mode = AnimalMode.Calm });
             // ⭐ AB-8 — its voice, present from spawn so the brain only WRITES it (never adds a component inside the parallel phase)
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.Utterance>() && !repo.HasComponent<Fdp.Toolkit.Civilians.Utterance>(entity))
                 repo.AddComponent(entity, new Fdp.Toolkit.Civilians.Utterance());
-            // ⭐ AB-3 — its fear (kept where its brain runs; harmless elsewhere); the flight-zone looks staggered by entity so they spread over frames
-            if (repo.IsComponentTypeRegistered<Fear>() && !repo.HasComponent<Fear>(entity))
-                repo.AddComponent(entity, new Fear { NextZoneLookAt = (SimInstant)((entity.Index % 10) * (AnimalFear.ZoneLookSeconds / 10.0)) });
+            // ⭐ AB-3 — its fear (kept where its brain runs; harmless elsewhere), the shared one (CE-4628); ⭐ and its animal-only part, with the flight-zone
+            //   looks staggered by entity so they spread over frames. Each WITH its final value (no add-then-write)
+            if (repo.IsComponentTypeRegistered<Fear>() && !repo.HasComponent<Fear>(entity)) repo.AddComponent(entity, new Fear());
+            // ⭐ CE-4628 — its HOME on spawn (radius 0, tether 0 = no wandering limit, so behaviour is unchanged): where it stands if it has a pose yet. An AREA animal's own
+            //   home (AnimalAreaSystem puts it in the creation request's InitialComponents) is SET over this one afterwards (NetworkSpawningSystem: Inject runs first), so it wins
+            if (repo.IsComponentTypeRegistered<Home>() && !repo.HasComponent<Home>(entity))
+                repo.AddComponent(entity, new Home { Centre = repo.HasComponent<SimTransform>(entity) ? (WorldPoint)repo.GetComponentRO<SimTransform>(entity).Position : default, Area = Entity.Null });
+            if (repo.IsComponentTypeRegistered<AnimalTasks>() && !repo.HasComponent<AnimalTasks>(entity))
+                repo.AddComponent(entity, new AnimalTasks { NextZoneLookAt = (SimInstant)((entity.Index % 10) * (AnimalFear.ZoneLookSeconds / 10.0)) });
             // ⭐ AB-10 — the navigation contract every animal's brain writes (MoveTo): a ground animal has it from the vehicle translator, a BIRD
             //   from nothing (it is no aircraft — no Gen.Flight). 📐 Measured in the farm demo: the flock's first flight threw "missing
             //   NavigationIntent" in the MoveTo executor and took the node down
@@ -93,7 +102,8 @@ namespace Fdp.Toolkit.Animals
         {
             if (view is not EntityRepository repo || unit.IsNull || animal.IsNull || !IsAnimal(view, animal)) return false;
             if (!Fdp.Toolkit.Combat.CombatTkb.TryGetTemplate(repo, unit, out var template) || template.GetDescriptor<HuntingRulesDto>() is not { } rules) return false;
-            var species = (byte)view.GetComponentRO<AnimalState>(animal).Species;
+            if (!AnimalSpeciesOf.TryOf(repo, animal, out var animalSpecies)) return false;
+            var species = (byte)animalSpecies;
             for (int i = 0; i < rules.Species.Count; i++) if (rules.Species[i] == species) return true;
             return false;
         }

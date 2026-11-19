@@ -27,6 +27,7 @@ namespace Fdp.Core
     /// <para>⭐ R-4276 (2026-11-16) — the EXPERIMENTAL aggregate lanes (`exp/agg-*`, CE-4616) take the free holes 281–289 and 324–329:
     /// the contract 281 AggregateUnit · 282 UnitSlotTable · 283 UnitHoldings · 284 FireAllocation (declared below); then agg-backend 285–289,
     /// agg-behaviors ⭐ 119, 138, 139 (MOVED 2026-11-16: terrain took 324–326 for MinefieldLanes / MineClearing / MineBreadcrumbs before agg-behaviors used any), agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
+    /// <para>⭐ CE-4628 (ui, 2026-11-19; docs/designs/animals/DESIGN_Animals.md §10a) — the shared creature components take <c>Group</c> 139 (⚠ the agg-behaviors note above listed 139 as reserved for it; no branch declares it — measured 2026-11-19) and <c>AnimalTasks</c> 163 (was <c>InFormationTag</c>'s).</para>
     /// <para>⭐ R-4282 (2026-11-16) — the `convoy` lane (CE-4631, the road convoy) takes 108, 109, 157, 158 (measured free on all eight branches).</para>
     /// <para>⭐ R-10000 (2026-11-17, the `air` lane, CE-10000; docs/designs/air-attack/DESIGN_Air_Combat.md §7) — the air block is 128, 160, 277, 278, 279:
     /// measured by a full scan of every [ComponentId], every *Ids constant (int / ushort / byte) and every literal on coordinator, behaviors, backend,
@@ -37,6 +38,12 @@ namespace Fdp.Core
     /// struct may sit on a production-free id only while its suite never registers the production type (the registry is process-wide — RegistryAuditTests
     /// moved 290 / 291 → 506 / 507). ⚠ (user, 2026-11-18) the space is NOT full — many ids are free; measure before claiming otherwise.</para>
     ///
+    /// <para>⭐⭐ CE-4628 follow-up (user, 2026-11-19: "all component ids ... written at one single place"): THIS is the ONE catalogue of production
+    /// component ids. The side classes (HrotComponentIds, NavigationContractsComponentIds, BehaviorApplicationComponentIds, GeographicComponentIds,
+    /// UtilityApplicationComponentIds, PerceptionApplicationComponentIds, ReplayComponentIds, ScenarioComponentIds, NavFakeIds) are ALIASES of constants here;
+    /// a production <c>[ComponentId(…)]</c> names a constant here — never a literal (test / benchmark / example structs exempt). Rail
+    /// <c>Fdp.Core.Tests.ComponentIdCatalogueTests</c> enforces it, forbids one id on two production components, and PRINTS the free ids
+    /// (<c>dotnet test FDP/Engine/Fdp.Core.Tests --filter ComponentIdCatalogueTests --logger "console;verbosity=detailed"</c>) — ⛔ never a hand count.</para>
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
     /// add a constant here, and decorate the struct with
@@ -267,7 +274,7 @@ namespace Fdp.Core
         public const int Faction                 = 71;
 
         /// <summary><c>PerceptionReceptor</c> â€” combined sensor range/FOV parameters (FDP.Toolkit.Perception).</summary>
-        public const int PerceptionReceptor      = 72;
+        public const int PerceptionReceptor      = 251;   // ⭐ CE-4628 follow-up: was 72 here while the struct registered 251 (a literal) — the catalogue was wrong; 251 is what recordings carry
 
         /// <summary><c>TargetMemory</c> â€” fixed-size threat table for perceived targets (FDP.Toolkit.Perception).</summary>
         public const int TargetMemory            = 73;
@@ -1151,9 +1158,9 @@ namespace Fdp.Core
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>
         public const int Utterance = 434;
 
-        /// <summary>⭐ <c>CE-3265</c> (backend, G2) — <c>Demeanour</c>: a civilian's mode, fear and anger in quarters, Brain group, replicated as
+        /// <summary>⭐ <c>CE-3265</c> (backend, G2) — <c>Mood</c> (was <c>Demeanour</c>, CE-4628): a creature's mode, fear and anger in quarters, Brain group, replicated as
         /// <c>dtDemeanour</c> (153). §7.18. Backend's proposed block; measured free on every lane 2026-10-19.</summary>
-        public const int Demeanour = 435;
+        public const int Mood = 435;
 
         /// <summary>⭐ <c>CE-3271</c> (backend, Q94 D, R-3018) — <c>SpawnLevelRequest</c>: a spawn's birth level, resolved by the node that owns
         /// the position (Muscle group), replicated as <c>dtSpawnLevel</c> (155). 📄 docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md
@@ -1437,22 +1444,29 @@ namespace Fdp.Core
 
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).
-        /// <summary><c>Fear</c> — the ONE shared fear (civilians and animals), written by the one fear system (AR-3).</summary>
+        /// <summary><c>Fear</c> — the ONE shared fear (civilians and animals), written by the one fear system (AR-3). ⭐ CE-4628: namespace <c>Fdp.Toolkit.Creatures</c>, the union of the civilian's and the animal's fear fields; id kept.</summary>
         public const int Fear = 130;   // ⭐ CE-4623 AB-10 (2026-11-16): the animals' ids MOVED 500–507 → 130–137 — 500–511 is R-44's TEST-ONLY range (a test's own [ComponentId(503)] collided with HerdMember in one test process) and the terrain lane took 500 for PlacementGroup the same day; 130–137 measured free on backend, behaviors, ui and coordinator in every *ComponentIds*.cs and every literal ComponentId(n)
-        /// <summary><c>AnimalState</c> — an animal's mode and fear band, replicated (the presentation's pose and gait read it).</summary>
+        /// <summary><c>AnimalState</c> — an animal's mode and flags, replicated (the presentation's pose and gait read it). ⭐ CE-4628: species is read from the TKB, the fear band is <c>Mood</c>.</summary>
         public const int AnimalState = 131;
         /// <summary><c>FlockState</c> — a bird flock's count, seed and mode, replicated (drawn as N birds).</summary>
         public const int FlockState = 132;
-        /// <summary><c>HerdMember</c> — an animal's herd (AR-9).</summary>
-        public const int HerdMember = 133;
-        /// <summary><c>AnimalHome</c> — an animal's home: centre, radius, an optional tether (AN-5, AN-16).</summary>
-        public const int AnimalHome = 134;
-        /// <summary><c>HerdState</c> — a herd entity's centre, next grazing spot and lead animal (AR-9).</summary>
+        /// <summary><c>GroupMember</c> (was <c>HerdMember</c>, CE-4628) — the herd or crowd entity a creature belongs to (AR-9).</summary>
+        public const int GroupMember = 133;
+        /// <summary><c>Home</c> (was <c>AnimalHome</c>, CE-4628) — a creature's home: centre, radius, an optional tether (AN-5, AN-16).</summary>
+        public const int Home = 134;
+        /// <summary><c>HerdState</c> — a herd entity's next grazing spot, mode and species (AR-9); its centre / lead / count are <c>Group</c> (CE-4628).</summary>
         public const int HerdState = 135;
         /// <summary>⭐ AB-9 — <c>AnimalArea</c>: an animal area's species, count, seed, Enclosed (authored, saved). 506–507 measured free on every lane 2026-11-16.</summary>
         public const int AnimalArea = 136;
         /// <summary>⭐ AB-9 — <c>AnimalAreaPopulated</c>: the area was populated (recorded, never saved — a restore or replay never repopulates).</summary>
         public const int AnimalAreaPopulated = 137;
+
+        // ⭐ CE-4628 (docs/designs/animals/DESIGN_Animals.md §10a) — the components a civilian and an animal SHARE. Every reshaped component KEEPS its id
+        //   (Fear 130, GroupMember 133, Home 134, Mood 435, AnimalState 131, HerdState 135, CivilianState 399, Crowd 400); only these two are new.
+        /// <summary>⭐ CE-4628 — <c>Group</c>: the header every herd / crowd entity carries (kind, count, centre, lead). 139 measured free on every lane 2026-11-19 (the id space is near-full).</summary>
+        public const int Group = 139;
+        /// <summary>⭐ CE-4628 — <c>AnimalTasks</c>: an animal's intruder / handler / quarry, its bolt and its zone-look schedule (the non-fear fields that sat on the animals' <c>Fear</c>). 163 was <c>InFormationTag</c>'s (moved to navigation, id 70).</summary>
+        public const int AnimalTasks = 163;
 
         // ⭐ CE-10000 (R-10000, the `air` lane — docs/designs/air-attack/DESIGN_Air_Combat.md §4a, §7) — the air-combat contract. The five ids
         //   measured free on every lane branch 2026-11-17 (see the header). ⛔ Permanent: recorded and (three of them) on the wire.
@@ -1466,5 +1480,74 @@ namespace Fdp.Core
         public const int MissileDefenceState = 128;
         /// <summary><c>AirArena</c> — the show's stage, an authored entity (Brain group, <c>dtAirArena</c> 218).</summary>
         public const int AirArena = 160;
+
+        // ── ⭐ CE-4628 follow-up (terrain, user 2026-11-19: "all component ids ... written at one single place") ─────────────────────────
+        // Moved here from the side catalogues (HrotComponentIds, NavigationContractsComponentIds, BehaviorApplicationComponentIds, GeographicComponentIds,
+        // UtilityApplicationComponentIds, PerceptionApplicationComponentIds, ReplayComponentIds, ScenarioComponentIds — now aliases of these) and from the
+        // literal [ComponentId(n)] attributes. ⛔ NO value changed (recordings and the wire keep their ids). Rail: ComponentIdCatalogueTests.
+        // from BehaviorApplicationComponentIds
+        public const int BTreeTraceWorkingMemory = 146;
+        public const int HsmTraceWorkingMemory = 147;
+        public const int DebugState = 148;
+        public const int BehaviorStartRecord = 154;
+        public const int BehaviorOwnedPart = 155;
+        public const int BehaviorFaultLatch = 156;
+        // from GeographicComponentIds
+        public const int GroundClampingConfig = 77;
+        public const int TerrainClampBaseline = 78;
+        public const int TerrainQueryBatchData = 79;
+        // from HrotComponentIds
+        public const int EntityDamage = 161;
+        public const int ActiveMissionPlan = 162;
+        public const int RetiredPlayerHealthState = 165;
+        public const int ActivePerspective = 166;
+        public const int MapSymbolOverride = 167;
+        public const int RoutePlan = 168;
+        public const int PersonalRouteRef = 169;
+        public const int RouteTrajectoryCache = 170;
+        public const int InitialPassengersIntent = 177;
+        public const int InitialVehicleIntent = 178;
+        public const int InitialHierarchyIntent = 179;
+        public const int InitialRouteIntent = 180;
+        public const int InitialTargetsIntent = 181;
+        public const int GlobalDebugSettings = 185;
+        public const int CanvasContextMenuState = 186;
+        public const int InitialBlueprintsIntent = 187;
+        // from NavigationContractsComponentIds
+        public const int NavigationIntent = 67;
+        public const int NavigationStatus = 68;
+        public const int NavAgentProfile = 257;
+        public const int NavigationCorridorMuscle = 258;
+        public const int NavigationCorridorPreview = 259;
+        public const int NavigationPathDetailsBuffer = 260;
+        public const int CrowdAgent = 261;
+        public const int CrowdMotorIntent = 265;
+        // from PerceptionApplicationComponentIds
+        public const int SensorContactList = 172;
+        public const int ActiveSensorTracks = 173;
+        // from ReplayComponentIds
+        public const int EpisodeTag = 84;
+        public const int EpisodeReplayTag = 85;
+        // from ScenarioComponentIds
+        public const int ScenarioIgnoreTag = 200;
+        // from UtilityApplicationComponentIds
+        public const int UtilityDebugFlags = 149;
+        public const int UtilityTraceWorkingMemory = 150;
+        public const int UtilityResultBuffer = 151;
+        // from NavFakeIds (the fake navigation backend, Fdp.Toolkits Navigation/Fake)
+        public const int FakeNavmeshState = 262;
+        public const int FakeCrowdGlobalState = 263;
+        public const int FakeCrowdAgentState = 264;
+        public const int FakeBrainPathCacheEntry = 267;
+        public const int FakePathRegistryStats = 268;
+        public const int FakeVolumetricState = 269;
+        // from literal [ComponentId(n)] attributes
+        public const int Velocity = 230;   // Fdp.Toolkits Geographic
+        public const int MissionAdapterState = 129;   // Hrot.CGF
+        public const int BpComponentDemo = 188;   // Hrot.AI.Behaviors demo
+        public const int BpCollectionDemo = 189;   // Hrot.AI.Behaviors demo
+        public const int BpManagedCollectionDemo = 190;   // Hrot.AI.Behaviors demo
+        public const int BpFixedListDemo = 191;   // Hrot.AI.Behaviors demo
+        public const int BpGenListDemo = 192;   // Hrot.AI.Behaviors demo
     }
 }

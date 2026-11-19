@@ -150,6 +150,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.RegisterEvent<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
             _w.RegisterEvent<Fdp.Toolkit.Perception.Events.SoundContactEvent>();
             _w.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();
+            _w.RegisterComponent<Fdp.Toolkit.Creatures.Fear>(); _w.RegisterComponent<Fdp.Toolkit.Creatures.Home>(); _w.RegisterComponent<Fdp.Toolkit.Creatures.GroupMember>();   // ⭐ CE-4628 — his mind's shared parts
             _w.RegisterComponent<EffectState>();
             var radius = 2f * Fdp.Toolkit.Tkb.Parameters.ParameterResolver.Warhead(_w.GetSingletonManaged<ITkbDatabase>(), Mortar).Warhead!.BlastInjuryRadiusM;
             Assert.InRange(radius, 6.5f, 39f);   // the rail's two distances sit either side of it
@@ -158,7 +159,7 @@ namespace Fdp.Toolkit.Combat.Tests
             var far = Soldier(40, 0);
             var struck = Soldier(0.5f, 0);
             var civilian = Soldier(-6, 0);
-            _w.AddComponent(civilian, new Fdp.Toolkit.Civilians.CivilianState());
+            Fdp.Toolkit.Civilians.CivilianMind.Ensure(_w, civilian);   // ⭐ CE-4628 — CivilianState + Fear + Home + GroupMember
 
             _w.Bus.Publish(new DetonationNotification { Target = struck, HitX = 0f, HitY = 0f, HitZ = 0.1f, Ammo = Mortar });
             _w.Bus.SwapBuffers();
@@ -179,7 +180,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _w.SetSimulationTime(_w.SimulationTime + 0.1f);
             _w.Bus.SwapBuffers();
             new Fdp.Toolkit.Civilians.CivilianFearSystem().Execute(_w, 0.1f);
-            Assert.True(_w.GetComponentRO<Fdp.Toolkit.Civilians.CivilianState>(civilian).Fear > 0f, "the civilian is frightened by the same edge");
+            Assert.True(_w.GetComponentRO<Fdp.Toolkit.Creatures.Fear>(civilian).Value > 0f, "the civilian is frightened by the same edge");
         }
 
         [Fact]

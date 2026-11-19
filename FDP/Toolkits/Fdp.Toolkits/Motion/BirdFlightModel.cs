@@ -102,7 +102,7 @@ namespace Fdp.Toolkit.Motion
         {
             var w = f.World;
             if (w.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>() && w.HasComponent<Fdp.Toolkit.Animals.AnimalState>(f.Self)
-                && w.GetComponentRO<Fdp.Toolkit.Animals.AnimalState>(f.Self).Species is Fdp.Toolkit.Animals.AnimalSpecies.Duck or Fdp.Toolkit.Animals.AnimalSpecies.DuckFlock) return DuckCruiseAglM;
+                && Fdp.Toolkit.Animals.AnimalSpeciesOf.TryOf(w, f.Self, out var species) && species is Fdp.Toolkit.Animals.AnimalSpecies.Duck or Fdp.Toolkit.Animals.AnimalSpecies.DuckFlock) return DuckCruiseAglM;
             return CruiseAglM;
         }
 

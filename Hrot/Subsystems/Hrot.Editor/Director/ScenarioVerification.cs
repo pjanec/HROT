@@ -176,6 +176,7 @@ namespace Hrot.Editor.Director
                 case "field":
                 {
                     var units = UnitsNamed(a.Who!).ToList();
+                    if (c.Dead) units = units.Where(id => HealthOf(id) is <= 0f).ToList();   // ⭐ CE-4672 — only the dead the name matches
                     var want = c.Value is JsonValue v && v.ToString() == "$now" ? JsonValue.Create(_rel + _t0) : c.Value;
                     int held = units.Count(id => FieldHolds(Components(id), c.Path!, c.Op, want, c.Elements, c.Where));
                     bool ok = c.Quantifier switch
@@ -195,6 +196,10 @@ namespace Hrot.Editor.Director
                     return DistanceHolds(c) ? _rel : null;
                 case "between":
                     return BetweenHolds(c) ? _rel : null;
+                case "cover":
+                    return CoverHolds(c) ? _rel : null;
+                case "bunched":
+                    return BunchedHolds(c) ? _rel : null;
                 default:
                 {
                     // a task cue may name several behaviours: any of them
@@ -352,13 +357,65 @@ namespace Hrot.Editor.Director
             return false;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4672</c> (the street fight, R-4277) — <c>cover</c>: for the LIVE units <see cref="AnchorSpec.Who"/> names, <c>in</c> holds for a unit with a point of the
+        /// terrain's cover database (the world's <see cref="Fdp.Toolkit.Spatial.Eqs.ICoverProvider"/> — what the EQS cover search reads) within <see cref="CheckCue.M"/>
+        /// (horizontal, within 2 m in height); <c>open</c> for a unit with none; <see cref="CheckCue.Quantifier"/> counts them (<c>any</c> · <c>all</c> · <c>atLeast:n</c>).
+        /// ⚠ The editor tier only: the cluster tier reads entities over HTTP and has no cover database — the cue reads false there.
+        /// </summary>
+        private bool CoverHolds(CheckCue c)
+        {
+            if (c.Spec.Who is not { } who || _w.World is not { } world || !world.HasSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>()
+                || world.GetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>() is not { } cover) return false;
+            bool wantOpen = c.Spec.Is?.ToString() == "open";
+            Span<Fdp.Toolkit.Spatial.Eqs.CoverPoint> found = stackalloc Fdp.Toolkit.Spatial.Eqs.CoverPoint[32];
+            int units = 0, held = 0;
+            foreach (var id in UnitsNamed(who))
+            {
+                if (HealthOf(id) is not > 0f || PositionOf(id) is not { } at) continue;
+                units++;
+                int n = cover.GetCoverPointsInRadius(new System.Numerics.Vector2(at.X, at.Y), c.M, found);
+                bool near = false;
+                for (int i = 0; i < n && !near; i++) near = MathF.Abs(found[i].PositionZ - at.Z) <= 2f;
+                if (near != wantOpen) held++;
+            }
+            return Quantified(c.Quantifier, units, held);
+        }
+
+        /// <summary>⭐ <c>CE-4672</c> — <c>bunched</c>: at least two LIVE units <see cref="AnchorSpec.Who"/> names, and EVERY one of them within <see cref="CheckCue.M"/> of
+        /// their centre (horizontal) — a squad standing in a knot. Both tiers (<see cref="PositionOf"/>).</summary>
+        private bool BunchedHolds(CheckCue c)
+        {
+            if (c.Spec.Who is not { } who) return false;
+            var at = new List<System.Numerics.Vector2>();
+            foreach (var id in UnitsNamed(who))
+                if (HealthOf(id) is > 0f && PositionOf(id) is { } p) at.Add(new System.Numerics.Vector2(p.X, p.Y));
+            if (at.Count < 2) return false;
+            var centre = System.Numerics.Vector2.Zero;
+            foreach (var p in at) centre += p;
+            centre /= at.Count;
+            foreach (var p in at) if (System.Numerics.Vector2.Distance(p, centre) > c.M) return false;
+            return true;
+        }
+
+        private static bool Quantified(string quantifier, int units, int held) => quantifier switch
+        {
+            "any" => held > 0,
+            "all" => units > 0 && held == units,
+            _ => held >= int.Parse(quantifier[8..], CultureInfo.InvariantCulture),
+        };
+
+        /// <summary>A unit's current health from its dump; null when it has none (a squad, a vehicle without one).</summary>
+        private float? HealthOf(int id) => Components(id)?["Health"] is JsonObject hp && Num(hp["Current"]) is { } h ? (float)h : null;
+
         /// <summary>⭐ CE-9009 — a unit's position in either tier: the live repository's <c>SimTransform</c>, else its dumped components (the cluster tier).</summary>
         private System.Numerics.Vector3? PositionOf(int id)
         {
             if (_w.World is { } world)
             {
                 var e = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
-                return e.IsNull || !world.HasComponent<SimTransform>(e) ? null : world.GetComponentRO<SimTransform>(e).Position;
+                if (!e.IsNull && world.HasComponent<SimTransform>(e)) return world.GetComponentRO<SimTransform>(e).Position;
+                // ⭐ CE-4672 — a unit the repository does not hold (a rail's dumped unit beside a real cover database) is read from its dump below
             }
             return Components(id) is { } comps && At(comps, "SimTransform.Position") is JsonArray pos && pos.Count >= 3
                 ? new System.Numerics.Vector3((float)(Num(pos[0]) ?? 0), (float)(Num(pos[1]) ?? 0), (float)(Num(pos[2]) ?? 0)) : null;
@@ -1079,7 +1136,7 @@ namespace Hrot.Editor.Director
     {
         public static readonly IReadOnlyList<string> Paths = new[]
         {
-            "EntityInfo.ForceId", "IsEmbarkedTag", "NavigationStatus.Phase", "WeaponPosture", "CivilianState.Mode", "Demeanour", "Custody",
+            "EntityInfo.ForceId", "IsEmbarkedTag", "NavigationStatus.Phase", "WeaponPosture", "CivilianState.Mode", "Mood", "Custody",
             "AnimalState", "FlockState",
         };
     }
