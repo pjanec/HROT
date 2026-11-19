@@ -388,6 +388,61 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-4672</c> (the street fight, R-4277) — <c>cover</c> reads the terrain's cover database (the world's <c>ICoverProvider</c>): a live man within <c>m</c> of a cover point
+    /// is <c>in</c>, one with none is <c>open</c>, counted by the quantifier; a dead one counts for neither. <c>bunched</c> holds when every live man of the group stands within
+    /// <c>m</c> of their centre. <c>dead</c> on a field cue judges only the dead the name matches. The grammar names a cover cue with no state or no m.
+    /// 🔴 Red-proof: <c>BunchedHolds</c> ignoring the dead ⇒ the dead man far away still counts ⇒ the bunched squad reads spread ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4672_CoverBunchedAndDead()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "someone of the squad is in cover", "on": "cover", "who": "*Sq ", "is": "in", "m": 2},
+                {"name": "the whole squad is in cover", "on": "cover", "who": "*Sq ", "is": "in", "m": 2, "quantifier": "all"},
+                {"name": "two of the squad stand in the open", "on": "cover", "who": "*Sq ", "is": "open", "m": 2, "quantifier": "atLeast:2"},
+                {"name": "the squad is bunched", "on": "bunched", "who": "*Sq ", "m": 2},
+                {"name": "a dead man still runs a behaviour", "on": "field", "who": "*Sq ", "dead": true, "path": "BehaviorState.ActiveBehaviorHash", "op": "!=", "value": 0},
+                {"name": "a dead man runs nothing", "never": {"on": "field", "who": "*Sq ", "dead": true, "path": "BehaviorState.ActiveBehaviorHash", "op": "==", "value": 0}}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(new Fdp.Toolkit.Spatial.Eqs.ManualCoverProvider(new[]
+            { new Fdp.Toolkit.Spatial.Eqs.CoverPoint { PositionX = 10, PositionY = 0, PositionZ = 0, DirectionX = 1, Quality = 1 } }));
+        var w = new FakeWorld { World = world };
+        void Man(string name, int id, double hp, double x, int behaviour)
+        {
+            w.U.Ids[name] = id;
+            w.Comps[id] = new JsonObject
+            {
+                ["Health"] = new JsonObject { ["Current"] = hp, ["Max"] = 100 },
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, 0, 0) },
+                ["BehaviorState"] = new JsonObject { ["ActiveBehaviorHash"] = behaviour },
+            };
+        }
+        Man("Sq Leader", 1, 100, 10.5, 7);     // by the cover point
+        Man("Sq Rifleman 1", 2, 100, 12.5, 7); // 2.5 m off it: in the open
+        Man("Sq Rifleman 2", 3, 100, 13.0, 7); // in the open
+        Man("Sq Rifleman 3", 4, 0, 60, 9);     // dead, far away, still "running" a behaviour
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        book.Finish(10);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["someone of the squad is in cover"].Ok);
+        Assert.False(v["the whole squad is in cover"].Ok);
+        Assert.True(v["two of the squad stand in the open"].Ok);
+        Assert.True(v["the squad is bunched"].Ok);                 // the three live men within 2 m of their centre (11.3): the dead one is not counted
+        Assert.True(v["a dead man still runs a behaviour"].Ok);
+        Assert.True(v["a dead man runs nothing"].Ok);               // no dead man has hash 0 ⇒ the never row holds
+
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "cover", "who": "A"}, {"name": "y", "on": "bunched", "who": "*Sq "}, {"name": "z", "on": "near", "who": "A", "point": [0,0], "dead": true}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("cover cue's is is one of", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("a cover cue needs m", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("a bunched cue needs m", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("dead belongs to a field cue", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// ⭐ A <c>hit</c> cue sees a burst that STRUCK the unit (a drone diving onto a tank), as the take's <c>AnchorBook.Hit</c> does — 📌
     /// measured on <c>ua-drone-shelter</c>: without it, "the deck tank is never hit" was vacuous. 🔴 Red-proof: drop the <c>struck</c> term.
     /// </summary>

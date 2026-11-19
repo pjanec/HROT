@@ -92,6 +92,8 @@ assets/terrain/*
 !assets/terrain/air-range/
 # CE-6001 — the hand-planned CITY-BATTLE terrain (assets/terrain-plans/city-battle.plan.json, regenerate with HROT_GEN_CITY_BATTLE=1): committed on purpose, WITHOUT its kept source/ (ignored below)
 !assets/terrain/city-battle/
+# CE-4672 / CE-4673 — the STREET-FIGHT ground (a 30 m open corridor between detached family houses), written by scripts/gen-wide-corridor.py — committed on purpose (~40 KB)
+!assets/terrain/wide-corridor/
 # the authoring source kept inside a terrain (R-4201 — the source scenario + the ground base) and a scenario's compiled overlay (§18 C-1)
 assets/terrain/*/source/
 # ⭐ AQ112 A (R-4280): the old versions of a re-imported terrain (versions/<contentHash>/) live on disk and the content root, never in git — demos included
