@@ -1,0 +1,1215 @@
+{
+  "$doc": "scenario golden — docs/DESIGN_Scenario_Regression.md §4; re-record: Hrot.ClusterRunner --mode editor --headless --verify dr-dragon-flight --verify-capture (or POST /director/verify {scenario, capture: true})",
+  "scenario": "dr-dragon-flight",
+  "meaning": 2,
+  "steps": 5401,
+  "times": {
+    "the dragon lifts off": 0.25,
+    "up": 0.25,
+    "it lands on the meadow (within 8 m of (500, 350), on its legs)": 25,
+    "landed": 25,
+    "it takes off again after the landing": 33,
+    "it reaches the last point (620, 300)": 51
+  },
+  "shots": [],
+  "blasts": [],
+  "snapshots": [
+    {
+      "t": 0,
+      "units": {
+        "Dragon": {
+          "position": [
+            300,
+            300,
+            3
+          ],
+          "health": 1500,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FlightState.Airborne": 1,
+            "FlightState.VerticalSpeed": 0,
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "b5d46df5aff26bf4",
+            "ActionStatus": "88f697cab6962087",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "Behavior": "e9e0586f2a9c1dc8",
+            "BehaviorStartRecord": "c5049338f69ead58",
+            "BehaviorState": "abf089f15b5722fc",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "f39b2ecd0b4f0a89",
+            "BrainDiagnostics": "a535129a980eab1b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "3ffcf1e16c91f979",
+            "CarrierSeats": "63366e71ace942ef",
+            "CarrierStations": "be40ecf401723d3d",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e3bfd938be28f4a2",
+            "EntityAppearance": "969387e9ffa04d83",
+            "EntityGuid": "ab19c4d526f4500c",
+            "EntityInfo": "dc7d6dd300a6e6f1",
+            "FlightParams": "98ccfe9ba0d0793e",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "942d596336a1c39f",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "86d66a54166baa5d",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationIntent": "5aa218f5dffd32e4",
+            "NavigationStatus": "3e379155351ff643",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "c5e5112a76170967",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "d30ac1f49fbf24e8",
+            "PhysicsCollider": "2f34e5dc9e7cdfc5",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "56ca49a93d49f8d4",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SensorMount": "bc30029e00287054",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "988dd78c0a0708ca",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "4f42a4749b71102a",
+            "TkbIdentity": "982b2fc961bbfb50",
+            "VisualData": "1f676c77595c666d",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "9b074d98ba1c6fb0"
+          }
+        },
+        "Dragon route": {
+          "position": [
+            420,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "90434dd51782a619",
+            "EntityInfo": "3c0f2b3a5c2b8d72",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "be0d8f24a6d300a4",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "9159d30c47638b48",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 10,
+      "units": {
+        "Dragon": {
+          "position": [
+            434.29,
+            308.931,
+            25
+          ],
+          "health": 1500,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FlightState.Airborne": 1,
+            "FlightState.VerticalSpeed": 0,
+            "NavigationStatus.Phase": "Following",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "52604a06057fdb0d",
+            "ActionStatus": "adf6d58c3aa355ac",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "d7f8a92ee56d5286",
+            "AirPath": "6507ed3e14bc9df3",
+            "Behavior": "e9e0586f2a9c1dc8",
+            "BehaviorStartRecord": "c5049338f69ead58",
+            "BehaviorState": "abf089f15b5722fc",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "f39b2ecd0b4f0a89",
+            "BrainDiagnostics": "a535129a980eab1b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "534dd96554f5fcbb",
+            "CarrierSeats": "63366e71ace942ef",
+            "CarrierStations": "be40ecf401723d3d",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e3bfd938be28f4a2",
+            "EntityAppearance": "969387e9ffa04d83",
+            "EntityGuid": "ab19c4d526f4500c",
+            "EntityInfo": "dc7d6dd300a6e6f1",
+            "FlightParams": "98ccfe9ba0d0793e",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "942d596336a1c39f",
+            "HeatSource": "8f53f042070728fb",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "86d66a54166baa5d",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "c93b7a5f20460e7a",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "c5e5112a76170967",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "d30ac1f49fbf24e8",
+            "PhysicsCollider": "2f34e5dc9e7cdfc5",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "56ca49a93d49f8d4",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SensorMount": "bc30029e00287054",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "62cdd7f1b50c6382",
+            "SimVelocity": "402bfcc23c3de7fb",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "4f42a4749b71102a",
+            "TkbIdentity": "982b2fc961bbfb50",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleLights": "9e8f892f5553db1c",
+            "VehicleOpenings": "aa453f567defe558",
+            "VisualData": "1f676c77595c666d",
+            "WeaponAmmo": "70608c99f213840f",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "9b074d98ba1c6fb0"
+          }
+        },
+        "Dragon route": {
+          "position": [
+            420,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "90434dd51782a619",
+            "EntityInfo": "3c0f2b3a5c2b8d72",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "be0d8f24a6d300a4",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "9159d30c47638b48",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 20,
+      "units": {
+        "Dragon": {
+          "position": [
+            500,
+            350,
+            14.167
+          ],
+          "health": 1500,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FlightState.Airborne": 1,
+            "FlightState.VerticalSpeed": -2.5,
+            "NavigationStatus.Phase": "Landing",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "69c4ddbc437c7e92",
+            "ActionStatus": "12fb67ef02b0de0d",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "ece05cc6f96fe8d2",
+            "AirPath": "6507ed3e14bc9df3",
+            "Behavior": "e9e0586f2a9c1dc8",
+            "BehaviorStartRecord": "c5049338f69ead58",
+            "BehaviorState": "abf089f15b5722fc",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "f39b2ecd0b4f0a89",
+            "BrainDiagnostics": "a535129a980eab1b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "534dd96554f5fcbb",
+            "CarrierSeats": "63366e71ace942ef",
+            "CarrierStations": "be40ecf401723d3d",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e3bfd938be28f4a2",
+            "EntityAppearance": "969387e9ffa04d83",
+            "EntityGuid": "ab19c4d526f4500c",
+            "EntityInfo": "dc7d6dd300a6e6f1",
+            "FlightParams": "98ccfe9ba0d0793e",
+            "FlightState": "5627c65f9a0d2a91",
+            "Health": "942d596336a1c39f",
+            "HeatSource": "8f53f042070728fb",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "86d66a54166baa5d",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "76c429bb9f25f12f",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "c5e5112a76170967",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "d30ac1f49fbf24e8",
+            "PhysicsCollider": "2f34e5dc9e7cdfc5",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "56ca49a93d49f8d4",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SensorMount": "bc30029e00287054",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "69075320df7a6614",
+            "SimVelocity": "236cd69a446a00e4",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "4f42a4749b71102a",
+            "TkbIdentity": "982b2fc961bbfb50",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleLights": "9e8f892f5553db1c",
+            "VehicleOpenings": "aa453f567defe558",
+            "VisualData": "1f676c77595c666d",
+            "WeaponAmmo": "70608c99f213840f",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "9b074d98ba1c6fb0"
+          }
+        },
+        "Dragon route": {
+          "position": [
+            420,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "90434dd51782a619",
+            "EntityInfo": "3c0f2b3a5c2b8d72",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "be0d8f24a6d300a4",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "9159d30c47638b48",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 30,
+      "units": {
+        "Dragon": {
+          "position": [
+            500,
+            350,
+            2.123
+          ],
+          "health": 1500,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FlightState.Airborne": 0,
+            "FlightState.VerticalSpeed": 0,
+            "NavigationStatus.Phase": "Landed",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "8dc851abad7fde8c",
+            "ActionStatus": "92d4f3cef7f376fa",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "1350cf970d7cab2e",
+            "AirPath": "6507ed3e14bc9df3",
+            "Behavior": "e9e0586f2a9c1dc8",
+            "BehaviorStartRecord": "c5049338f69ead58",
+            "BehaviorState": "abf089f15b5722fc",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "f39b2ecd0b4f0a89",
+            "BrainDiagnostics": "a535129a980eab1b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "534dd96554f5fcbb",
+            "CarrierSeats": "63366e71ace942ef",
+            "CarrierStations": "be40ecf401723d3d",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e3bfd938be28f4a2",
+            "EntityAppearance": "969387e9ffa04d83",
+            "EntityGuid": "ab19c4d526f4500c",
+            "EntityInfo": "dc7d6dd300a6e6f1",
+            "FlightParams": "98ccfe9ba0d0793e",
+            "FlightState": "8da85d230dff991e",
+            "Health": "942d596336a1c39f",
+            "HeatSource": "57470d5f0f24b25e",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "86d66a54166baa5d",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "cfc7e878fd7262ca",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "c5e5112a76170967",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "d30ac1f49fbf24e8",
+            "PhysicsCollider": "2f34e5dc9e7cdfc5",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "56ca49a93d49f8d4",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SensorMount": "bc30029e00287054",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "b814d8f8ecf1580d",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "4f42a4749b71102a",
+            "TkbIdentity": "982b2fc961bbfb50",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleLights": "9e8f892f5553db1c",
+            "VehicleOpenings": "aa453f567defe558",
+            "VisualData": "1f676c77595c666d",
+            "WeaponAmmo": "70608c99f213840f",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "9b074d98ba1c6fb0"
+          }
+        },
+        "Dragon route": {
+          "position": [
+            420,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "90434dd51782a619",
+            "EntityInfo": "3c0f2b3a5c2b8d72",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "be0d8f24a6d300a4",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "9159d30c47638b48",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 40,
+      "units": {
+        "Dragon": {
+          "position": [
+            526.646,
+            338.898,
+            23.645
+          ],
+          "health": 1500,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FlightState.Airborne": 1,
+            "FlightState.VerticalSpeed": 0.723,
+            "NavigationStatus.Phase": "Following",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "081a0b62cc7e0495",
+            "ActionStatus": "bf1e7c81ef6c13cb",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "53e1b07715265cca",
+            "AirPath": "6507ed3e14bc9df3",
+            "Behavior": "e9e0586f2a9c1dc8",
+            "BehaviorStartRecord": "c5049338f69ead58",
+            "BehaviorState": "abf089f15b5722fc",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "f39b2ecd0b4f0a89",
+            "BrainDiagnostics": "a535129a980eab1b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "534dd96554f5fcbb",
+            "CarrierSeats": "63366e71ace942ef",
+            "CarrierStations": "be40ecf401723d3d",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e3bfd938be28f4a2",
+            "EntityAppearance": "969387e9ffa04d83",
+            "EntityGuid": "ab19c4d526f4500c",
+            "EntityInfo": "dc7d6dd300a6e6f1",
+            "FlightParams": "98ccfe9ba0d0793e",
+            "FlightState": "de3758aefe2b6079",
+            "Health": "942d596336a1c39f",
+            "HeatSource": "4729eff1ae0084df",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "86d66a54166baa5d",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "be3a213f0b7141b7",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "c5e5112a76170967",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "d30ac1f49fbf24e8",
+            "PhysicsCollider": "2f34e5dc9e7cdfc5",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "56ca49a93d49f8d4",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SensorMount": "bc30029e00287054",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "47265c75e8643157",
+            "SimVelocity": "d6f4e664e882f877",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "4f42a4749b71102a",
+            "TkbIdentity": "982b2fc961bbfb50",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleLights": "9e8f892f5553db1c",
+            "VehicleOpenings": "aa453f567defe558",
+            "VisualData": "1f676c77595c666d",
+            "WeaponAmmo": "70608c99f213840f",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "9b074d98ba1c6fb0"
+          }
+        },
+        "Dragon route": {
+          "position": [
+            420,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "90434dd51782a619",
+            "EntityInfo": "3c0f2b3a5c2b8d72",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "be0d8f24a6d300a4",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "9159d30c47638b48",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 50,
+      "units": {
+        "Dragon": {
+          "position": [
+            600.491,
+            308.129,
+            29.191
+          ],
+          "health": 1500,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FlightState.Airborne": 1,
+            "FlightState.VerticalSpeed": 0.309,
+            "NavigationStatus.Phase": "Following",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "be95f643ba5b4847",
+            "ActionStatus": "17f9ac04bd4db20d",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "ad7b8e115f632b26",
+            "AirPath": "6507ed3e14bc9df3",
+            "Behavior": "e9e0586f2a9c1dc8",
+            "BehaviorStartRecord": "c5049338f69ead58",
+            "BehaviorState": "abf089f15b5722fc",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "f39b2ecd0b4f0a89",
+            "BrainDiagnostics": "a535129a980eab1b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "534dd96554f5fcbb",
+            "CarrierSeats": "63366e71ace942ef",
+            "CarrierStations": "be40ecf401723d3d",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e3bfd938be28f4a2",
+            "EntityAppearance": "969387e9ffa04d83",
+            "EntityGuid": "ab19c4d526f4500c",
+            "EntityInfo": "dc7d6dd300a6e6f1",
+            "FlightParams": "98ccfe9ba0d0793e",
+            "FlightState": "c73d17daba176a54",
+            "Health": "942d596336a1c39f",
+            "HeatSource": "4729eff1ae0084df",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "86d66a54166baa5d",
+            "LocomotionChannel": "cf08fcda56bd47a3",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "7faf4f8661fafdf8",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "c5e5112a76170967",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "d30ac1f49fbf24e8",
+            "PhysicsCollider": "2f34e5dc9e7cdfc5",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "56ca49a93d49f8d4",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SensorMount": "bc30029e00287054",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "78c5c3eb708864bf",
+            "SimVelocity": "e474ed9f2e2d9a7d",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "4f42a4749b71102a",
+            "TkbIdentity": "982b2fc961bbfb50",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleLights": "9e8f892f5553db1c",
+            "VehicleOpenings": "aa453f567defe558",
+            "VisualData": "1f676c77595c666d",
+            "WeaponAmmo": "70608c99f213840f",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "9b074d98ba1c6fb0"
+          }
+        },
+        "Dragon route": {
+          "position": [
+            420,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "90434dd51782a619",
+            "EntityInfo": "3c0f2b3a5c2b8d72",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "be0d8f24a6d300a4",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "9159d30c47638b48",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 60,
+      "units": {
+        "Dragon": {
+          "position": [
+            620,
+            300,
+            30.178
+          ],
+          "health": 1500,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FlightState.Airborne": 1,
+            "FlightState.VerticalSpeed": 0,
+            "NavigationStatus.Phase": "Completed",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "1a5ed7be81862ae8",
+            "ActionStatus": "3eab89d5e0e128d7",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "c439d72dc1da047b",
+            "AirPath": "6507ed3e14bc9df3",
+            "Behavior": "e9e0586f2a9c1dc8",
+            "BehaviorStartRecord": "c5049338f69ead58",
+            "BehaviorState": "abf089f15b5722fc",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "f39b2ecd0b4f0a89",
+            "BrainDiagnostics": "a535129a980eab1b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "534dd96554f5fcbb",
+            "CarrierSeats": "63366e71ace942ef",
+            "CarrierStations": "be40ecf401723d3d",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e3bfd938be28f4a2",
+            "EntityAppearance": "969387e9ffa04d83",
+            "EntityGuid": "ab19c4d526f4500c",
+            "EntityInfo": "dc7d6dd300a6e6f1",
+            "FlightParams": "98ccfe9ba0d0793e",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "942d596336a1c39f",
+            "HeatSource": "5a00e28ed28fb620",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "86d66a54166baa5d",
+            "LocomotionChannel": "a72a477fb031a8af",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "079240aeb31fc29b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "c5e5112a76170967",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "d30ac1f49fbf24e8",
+            "PhysicsCollider": "2f34e5dc9e7cdfc5",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "56ca49a93d49f8d4",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SensorMount": "bc30029e00287054",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "010c7c5d9245d653",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "4f42a4749b71102a",
+            "TkbIdentity": "982b2fc961bbfb50",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleLights": "9e8f892f5553db1c",
+            "VehicleOpenings": "aa453f567defe558",
+            "VisualData": "1f676c77595c666d",
+            "WeaponAmmo": "70608c99f213840f",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "9b074d98ba1c6fb0"
+          }
+        },
+        "Dragon route": {
+          "position": [
+            420,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "90434dd51782a619",
+            "EntityInfo": "3c0f2b3a5c2b8d72",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "be0d8f24a6d300a4",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "9159d30c47638b48",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 70,
+      "units": {
+        "Dragon": {
+          "position": [
+            620,
+            300,
+            30.178
+          ],
+          "health": 1500,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FlightState.Airborne": 1,
+            "FlightState.VerticalSpeed": 0,
+            "NavigationStatus.Phase": "Completed",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "1a5ed7be81862ae8",
+            "ActionStatus": "3eab89d5e0e128d7",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "c439d72dc1da047b",
+            "AirPath": "6507ed3e14bc9df3",
+            "Behavior": "e9e0586f2a9c1dc8",
+            "BehaviorStartRecord": "c5049338f69ead58",
+            "BehaviorState": "abf089f15b5722fc",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "f39b2ecd0b4f0a89",
+            "BrainDiagnostics": "a535129a980eab1b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "534dd96554f5fcbb",
+            "CarrierSeats": "63366e71ace942ef",
+            "CarrierStations": "be40ecf401723d3d",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e3bfd938be28f4a2",
+            "EntityAppearance": "969387e9ffa04d83",
+            "EntityGuid": "ab19c4d526f4500c",
+            "EntityInfo": "dc7d6dd300a6e6f1",
+            "FlightParams": "98ccfe9ba0d0793e",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "942d596336a1c39f",
+            "HeatSource": "5a00e28ed28fb620",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "86d66a54166baa5d",
+            "LocomotionChannel": "a72a477fb031a8af",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "079240aeb31fc29b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "c5e5112a76170967",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "d30ac1f49fbf24e8",
+            "PhysicsCollider": "2f34e5dc9e7cdfc5",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "56ca49a93d49f8d4",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SensorMount": "bc30029e00287054",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "010c7c5d9245d653",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "4f42a4749b71102a",
+            "TkbIdentity": "982b2fc961bbfb50",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleLights": "9e8f892f5553db1c",
+            "VehicleOpenings": "aa453f567defe558",
+            "VisualData": "1f676c77595c666d",
+            "WeaponAmmo": "70608c99f213840f",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "9b074d98ba1c6fb0"
+          }
+        },
+        "Dragon route": {
+          "position": [
+            420,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "90434dd51782a619",
+            "EntityInfo": "3c0f2b3a5c2b8d72",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "be0d8f24a6d300a4",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "9159d30c47638b48",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 80,
+      "units": {
+        "Dragon": {
+          "position": [
+            620,
+            300,
+            30.178
+          ],
+          "health": 1500,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FlightState.Airborne": 1,
+            "FlightState.VerticalSpeed": 0,
+            "NavigationStatus.Phase": "Completed",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "1a5ed7be81862ae8",
+            "ActionStatus": "3eab89d5e0e128d7",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "c439d72dc1da047b",
+            "AirPath": "6507ed3e14bc9df3",
+            "Behavior": "e9e0586f2a9c1dc8",
+            "BehaviorStartRecord": "c5049338f69ead58",
+            "BehaviorState": "abf089f15b5722fc",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "f39b2ecd0b4f0a89",
+            "BrainDiagnostics": "a535129a980eab1b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "534dd96554f5fcbb",
+            "CarrierSeats": "63366e71ace942ef",
+            "CarrierStations": "be40ecf401723d3d",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e3bfd938be28f4a2",
+            "EntityAppearance": "969387e9ffa04d83",
+            "EntityGuid": "ab19c4d526f4500c",
+            "EntityInfo": "dc7d6dd300a6e6f1",
+            "FlightParams": "98ccfe9ba0d0793e",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "942d596336a1c39f",
+            "HeatSource": "5a00e28ed28fb620",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "86d66a54166baa5d",
+            "LocomotionChannel": "a72a477fb031a8af",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "079240aeb31fc29b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "c5e5112a76170967",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "d30ac1f49fbf24e8",
+            "PhysicsCollider": "2f34e5dc9e7cdfc5",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "56ca49a93d49f8d4",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SensorMount": "bc30029e00287054",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "010c7c5d9245d653",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "4f42a4749b71102a",
+            "TkbIdentity": "982b2fc961bbfb50",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleLights": "9e8f892f5553db1c",
+            "VehicleOpenings": "aa453f567defe558",
+            "VisualData": "1f676c77595c666d",
+            "WeaponAmmo": "70608c99f213840f",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "9b074d98ba1c6fb0"
+          }
+        },
+        "Dragon route": {
+          "position": [
+            420,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "90434dd51782a619",
+            "EntityInfo": "3c0f2b3a5c2b8d72",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "be0d8f24a6d300a4",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "9159d30c47638b48",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    },
+    {
+      "t": 90,
+      "units": {
+        "Dragon": {
+          "position": [
+            620,
+            300,
+            30.178
+          ],
+          "health": 1500,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "FlightState.Airborne": 1,
+            "FlightState.VerticalSpeed": 0,
+            "NavigationStatus.Phase": "Completed",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "AcousticEmitter": "1a5ed7be81862ae8",
+            "ActionStatus": "3eab89d5e0e128d7",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "c96ce970ba4444ef",
+            "AirFollower": "c439d72dc1da047b",
+            "AirPath": "6507ed3e14bc9df3",
+            "Behavior": "e9e0586f2a9c1dc8",
+            "BehaviorStartRecord": "c5049338f69ead58",
+            "BehaviorState": "abf089f15b5722fc",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard256": "f39b2ecd0b4f0a89",
+            "BrainDiagnostics": "a535129a980eab1b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "534dd96554f5fcbb",
+            "CarrierSeats": "63366e71ace942ef",
+            "CarrierStations": "be40ecf401723d3d",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e3bfd938be28f4a2",
+            "EntityAppearance": "969387e9ffa04d83",
+            "EntityGuid": "ab19c4d526f4500c",
+            "EntityInfo": "dc7d6dd300a6e6f1",
+            "FlightParams": "98ccfe9ba0d0793e",
+            "FlightState": "9bb92a03a42c370b",
+            "Health": "942d596336a1c39f",
+            "HeatSource": "5a00e28ed28fb620",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "Locomotion": "86d66a54166baa5d",
+            "LocomotionChannel": "a72a477fb031a8af",
+            "MapDisplayComponent": "cd112677ba9e9000",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "9b38e14125c3781c",
+            "NavigationIntent": "ca38bfd2a89c26ee",
+            "NavigationStatus": "079240aeb31fc29b",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "c5e5112a76170967",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "d30ac1f49fbf24e8",
+            "PhysicsCollider": "2f34e5dc9e7cdfc5",
+            "PreviousCapabilities": "c96ce970ba4444ef",
+            "RadarSignature": "56ca49a93d49f8d4",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SensorMount": "bc30029e00287054",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "010c7c5d9245d653",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "4f42a4749b71102a",
+            "TkbIdentity": "982b2fc961bbfb50",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleLights": "9e8f892f5553db1c",
+            "VehicleOpenings": "aa453f567defe558",
+            "VisualData": "1f676c77595c666d",
+            "WeaponAmmo": "70608c99f213840f",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "9b074d98ba1c6fb0"
+          }
+        },
+        "Dragon route": {
+          "position": [
+            420,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend"
+          },
+          "components": {
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "90434dd51782a619",
+            "EntityInfo": "3c0f2b3a5c2b8d72",
+            "MapDisplayComponent": "d805bf71fabf7655",
+            "MapGraphic": "fcf7b120b61bb627",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "RoutePlan": "be0d8f24a6d300a4",
+            "RouteTrajectoryCache": "aef77c7b1ccc60e0",
+            "SimTransform": "9159d30c47638b48",
+            "TkbIdentity": "8831592b2d56c94e"
+          }
+        }
+      }
+    }
+  ],
+  "verdicts": {
+    "the dragon lifts off": 0.25,
+    "it lands on the meadow (within 8 m of (500, 350), on its legs)": 25,
+    "it takes off again after the landing": 33,
+    "it reaches the last point (620, 300)": 51
+  }
+}
