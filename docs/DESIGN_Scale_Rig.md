@@ -238,6 +238,15 @@ up to 6 m east / 2 m north of a random ROAD point (`scale-rig.py` `scenario()`),
 | `CycloneEgressSystem` 8.8 / 9.0 ms + `CycloneNetworkIngressSystem` 0.15 MB / frame | network egress (backend) | CE-3425 |
 | the warm load ≈ 36 s on a 4-core VM shared by three nodes (≈ 19.5 s alone) | measured on a 1-machine cluster; the budget is per node on its own machine | — |
 
+⭐ **Re-measured `2026-11-19` (backend, CE-3425 / CE-4395) — TWO SIDES FIGHTING** (`--sides 2`, the rig's default; the rows above are the one-side march, so not the same load), Release, 4 cores, recording off, load **33.0 s**:
+
+| | cgf work · garbage | simhost work · garbage | top costs |
+|---|---|---|---|
+| Debug, before | 869 ms · 4.1 MB | 1 069 ms · 2.7 MB | ⛔ **simhost `ConvoyLeadSystem` 683 ms** — every kinematic body carries a default Column `FormationController`, and the lead pass scanned every follower per lead (~1 M a frame); fixed `ba5bb322c` (one per-frame leader index, [DESIGN_Road_Convoy §6](designs/vehicle-tactics/DESIGN_Road_Convoy.md)) |
+| **Release, after** | **130.2 ms · 283 KB** | **59.8 ms · 1.86 MB** | cgf: `BrainTickSystem` 33.6, `WeaponDispatcherSystem` 15.6, `CycloneEgressSystem` 14.2 + 7.3, `StressSystem` 10.2 · simhost: [bg] `EqsSolverSystem` 160.9 ms / run and **1.69 MB / frame of garbage** (gc 86 / 37 / 19 in the window), [bg] `PathfindingSolverSystem` 26.7, `CycloneEgressSystem` 17.3 |
+
+⚠ Measuring trap found on the way: `scripts/cluster-node.sh` killed by `pgrep -f 'ClusterRunner[.]dll'`, which also matched the CALLER (a `scale-rig.py --runner-dll …ClusterRunner.dll`, a shell holding that path) — the rig killed itself before the load. The patterns now match only a `dotnet … ClusterRunner.dll` command line.
+
 ## 6. ⭐ The world-query timings — the TERRAIN's cost apart from the logic's *(`CE-3427`, backend `2026-11-10`; build-state: BUILT)*
 
 > 🔒 **User, `2026-11-10`:** *"focus on terrain dependent stuff like the eqs and sensor stuff timing only with 1000 men moving and fighting … We can run
