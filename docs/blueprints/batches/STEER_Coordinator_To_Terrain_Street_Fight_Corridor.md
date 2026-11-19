@@ -9,7 +9,7 @@ related-designs:
 very dense. you need to find such place in existing terrains or build a terrain for that"* · ⭐ then: *"no railway needed just wide corridor"*.
 
 ## What changes
-The ground of `pc-street-fight` (rename it `pc-rail-corridor` if you like) is NOT a dense 18 m town street: it is a **straight, WIDE OPEN corridor ~30 m
+The ground of `pc-street-fight` (rename it `pc-corridor-fight` if you like) is NOT a dense 18 m town street: it is a **straight, WIDE OPEN corridor ~30 m
 wide, ~400 m long (⛔ no railway needed — no track, no rails), with detached family houses on both sides, not dense** (gardens, gaps, fences between houses). Everything else in the handoff stands —
 the platoon setup, the expect rows, and CE-4673's cover measure (now: cover along the corridor's edges — fences / hedges / the nearest house walls —
 and how far from a post on the corridor's centreline the nearest cover is).
