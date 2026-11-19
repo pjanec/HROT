@@ -3793,7 +3793,7 @@ public sealed class Map3DFrameRail
         Assert.Equal(1, bodies.ChargeLightsDrawn);   // the placed charge's light, on at t = 0
 
         // ⭐ CE-1177 (U16) — four faces close up: calm, afraid, angry, in pain
-        world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
+        world.RegisterComponent<Fdp.Toolkit.Creatures.Mood>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
         float fy = spot.Y + 6f;
@@ -3808,8 +3808,8 @@ public sealed class Map3DFrameRail
             return e;
         }
         Face(-1.2f);                                                                                                  // calm
-        Fdp.Toolkit.Civilians.Demeanours.Set(world, Face(-0.4f), Fdp.Toolkit.Civilians.CivilianMode.Panic, fear: 1f, anger: 0f);
-        Fdp.Toolkit.Civilians.Demeanours.Set(world, Face(0.4f), Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0f, anger: 1f);
+        Fdp.Toolkit.Creatures.Moods.Set(world, Face(-0.4f), Fdp.Toolkit.Civilians.CivilianMode.Panic, fear: 1f, anger: 0f);
+        Fdp.Toolkit.Creatures.Moods.Set(world, Face(0.4f), Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0f, anger: 1f);
         var hurt = Face(1.2f);
         world.AddComponent(hurt, new Fdp.Toolkit.Combat.Components.Health { Current = 40f, Max = 100f });
         world.AddComponent(hurt, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f, WoundedSpeedFactor = 0.6f });

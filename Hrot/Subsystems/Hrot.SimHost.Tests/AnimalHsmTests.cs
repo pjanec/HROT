@@ -10,6 +10,7 @@ using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
@@ -75,7 +76,7 @@ namespace Hrot.SimHost.Tests
                 CognitiveComponentRegistry.RegisterAll(Repo);
                 BlueprintTierTable.RegisterAll(Repo);
                 foreach (var t in new AnimalTkbTranslator().GetProducedComponents()) { }
-                Reg<AnimalState>(); Reg<Fear>(); Reg<HerdMember>(); Reg<HerdState>(); Reg<AnimalHome>(); Reg<FlockState>(); Reg<TkbIdentity>();
+                Reg<AnimalState>(); Reg<Fear>(); Reg<AnimalTasks>(); Reg<GroupMember>(); Reg<Group>(); Reg<HerdState>(); Reg<Home>(); Reg<FlockState>(); Reg<TkbIdentity>();
                 Reg<Fdp.Toolkit.Civilians.Utterance>();
                 if (!Repo.IsComponentTypeRegistered<StanceIntent>()) Repo.RegisterComponent<StanceIntent>();
                 if (!Repo.IsComponentTypeRegistered<InjuryThresholds>()) Repo.RegisterComponent<InjuryThresholds>();
@@ -93,7 +94,8 @@ namespace Hrot.SimHost.Tests
 
                 Herd = Repo.CreateEntity();
                 Repo.AddComponent(Herd, new HerdState { Species = AnimalSpecies.Cattle });
-                Repo.AddComponent(Herd, new AnimalHome { Centre = new Vector3(0, 0, 0), Radius = 60f });
+                Repo.AddComponent(Herd, new Group { Kind = GroupKind.Herd });   // ⭐ CE-4628 — the herd's header (centre, lead, count)
+                Repo.AddComponent(Herd, new Home { Centre = new Vector3(0, 0, 0), Radius = 60f });
                 A = Cow(new Vector3(0, 0, 0));
                 B = Cow(new Vector3(8, 0, 0));
                 Tick();
@@ -112,8 +114,9 @@ namespace Hrot.SimHost.Tests
                 Repo.AddComponent(e, new Health { Current = 80f, Max = 80f });
                 Repo.AddComponent(e, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
                 Repo.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)type });
-                Repo.AddComponent(e, new AnimalState { Species = species });
+                Repo.AddComponent(e, new AnimalState());   // ⭐ CE-4628 — its species is its TKB type's (the template above)
                 Repo.AddComponent(e, new Fear());
+                Repo.AddComponent(e, new AnimalTasks());
                 Repo.AddComponent(e, new Fdp.Toolkit.Civilians.Utterance());
                 if (!Repo.IsComponentTypeRegistered<EntityInfo>()) Repo.RegisterComponent<EntityInfo>();
                 Repo.AddComponent(e, new EntityInfo { ForceId = ForceId.Neutral });   // spawned neutral (AR-6)
@@ -142,9 +145,10 @@ namespace Hrot.SimHost.Tests
                 Repo.AddComponent(e, new Health { Current = 400f, Max = 400f });
                 Repo.AddComponent(e, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
                 Repo.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)CowType });
-                Repo.AddComponent(e, new AnimalState { Species = AnimalSpecies.Cattle });
+                Repo.AddComponent(e, new AnimalState());
                 Repo.AddComponent(e, new Fear());
-                Repo.AddComponent(e, new HerdMember { Herd = Herd });
+                Repo.AddComponent(e, new AnimalTasks());
+                Repo.AddComponent(e, new GroupMember { Group = Herd });
                 Repo.AddComponent(e, new Fdp.Toolkit.Civilians.Utterance());   // its voice, from spawn (the translator's)
                 return e;
             }
@@ -247,7 +251,7 @@ namespace Hrot.SimHost.Tests
             var w = new World { WithFear = true };
             if (!w.Repo.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()) w.Repo.RegisterComponent<CarKinem.Core.VehicleParams>();
             var dog = w.Animal(DogType, new Vector3(100, 0, 0), AnimalSpecies.Dog);
-            w.Repo.AddComponent(dog, new AnimalHome { Centre = new Vector3(100, 0, 0), Radius = 20f });
+            w.Repo.AddComponent(dog, new Home { Centre = new Vector3(100, 0, 0), Radius = 20f });
             w.Start(dog);
             var man = w.Man(new Vector3(100, 40, 0));                // outside its ground (home 20 m + 15 m)
             w.Run(1.0);
@@ -427,7 +431,7 @@ namespace Hrot.SimHost.Tests
             var w = new World();
             var handler = w.Man(new Vector3(100, 0, 0));
             var dog = w.Animal(HuntingDogType, new Vector3(100, 0, 0), AnimalSpecies.HuntingDog);
-            w.Repo.GetComponentRW<Fear>(dog).Handler = handler;
+            w.Repo.GetComponentRW<AnimalTasks>(dog).Handler = handler;
             w.Start(dog);
             var sides = new System.Collections.Generic.List<float>();
             for (int i = 0; i < 6; i++)
@@ -443,12 +447,12 @@ namespace Hrot.SimHost.Tests
             // a rabbit flushed ahead: the dog chases it a short way, barking
             var rabbit = w.Animal(RabbitType, new Vector3(140, 10, 0), AnimalSpecies.Rabbit);
             w.Repo.GetComponentRW<AnimalState>(rabbit).Mode = AnimalMode.Flee;
-            w.Repo.GetComponentRW<Fear>(dog).Quarry = rabbit;
+            w.Repo.GetComponentRW<AnimalTasks>(dog).Quarry = rabbit;
             w.Run(0.4);
             var chase = w.Move(dog);
             Assert.True(chase.Moving && chase.Speed == HuntingDog.FleeSpeed, "it gives chase at its flee speed");
             Assert.Equal(Fdp.Toolkit.Civilians.UtteranceKind.Bark, Fdp.Toolkit.Civilians.Utterances.Of(w.Repo, dog, w.Repo.SimulationTime, out _));
-            w.Repo.GetComponentRW<Fear>(dog).Quarry = Entity.Null;
+            w.Repo.GetComponentRW<AnimalTasks>(dog).Quarry = Entity.Null;
             w.Run(AnimalBehavior.ChaseSeconds + 1.0);
             // back to the sweeps: ahead of the handler again
             var (to2, _, m2) = w.Move(dog);
@@ -467,9 +471,9 @@ namespace Hrot.SimHost.Tests
         {
             var w = new World();
             var penned = w.Animal(CowType, new Vector3(-200, 50, 0), AnimalSpecies.Cattle);
-            w.Repo.AddComponent(penned, new AnimalHome { Centre = new Vector3(-200, 50, 0), Radius = 10f, Enclosed = 1 });
+            w.Repo.AddComponent(penned, new Home { Centre = new Vector3(-200, 50, 0), Radius = 10f, Enclosed = 1 });
             var open = w.Animal(CowType, new Vector3(-200, -50, 0), AnimalSpecies.Cattle);
-            w.Repo.AddComponent(open, new AnimalHome { Centre = new Vector3(-200, -50, 0), Radius = 10f, Enclosed = 0 });
+            w.Repo.AddComponent(open, new Home { Centre = new Vector3(-200, -50, 0), Radius = 10f, Enclosed = 0 });
             w.Start(penned); w.Start(open);
             w.Run(0.3);
             foreach (var (e, y) in new[] { (penned, 50f), (open, -50f) })
@@ -490,8 +494,8 @@ namespace Hrot.SimHost.Tests
         public void CE1958_AHerdMembersGrazingSpot_StaysInItsHome()
         {
             var w = new World();
-            var home = new AnimalHome { Centre = new Vector3(0, 0, 0), Radius = 6.5f, Enclosed = 1 };
-            w.Repo.GetComponentRW<AnimalHome>(w.Herd) = home;
+            var home = new Home { Centre = new Vector3(0, 0, 0), Radius = 6.5f, Enclosed = 1 };
+            w.Repo.GetComponentRW<Home>(w.Herd) = home;
             foreach (var cow in new[] { w.A, w.B })
             {
                 w.Repo.AddComponent(cow, home);

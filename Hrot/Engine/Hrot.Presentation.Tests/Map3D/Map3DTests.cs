@@ -2518,7 +2518,7 @@ public sealed class Map3DTests
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.Stress>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();
             world.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();
-            world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Mood>();
             world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
             Entity Person(int net, Vector3 at)
@@ -2554,11 +2554,13 @@ public sealed class Map3DTests
 
             // a civilian: his own fear on the brain node, else the replicated quarter
             var civilian = Person(2002, new Vector3(5f, 0f, 0f));
-            world.AddComponent(civilian, new Fdp.Toolkit.Civilians.CivilianState { Fear = 0.7f });
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Fear>()) world.RegisterComponent<Fdp.Toolkit.Creatures.Fear>();   // ⭐ CE-4628 — his fear is the shared Fear
+            world.AddComponent(civilian, new Fdp.Toolkit.Civilians.CivilianState());
+            world.AddComponent(civilian, new Fdp.Toolkit.Creatures.Fear { Value = 0.7f });
             var fear = Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, civilian);
             Assert.Equal((0.7f, -1f, Hrot.Common.Diagnostics.Gizmos.MindBand.Fear), (MathF.Round(fear.Fill, 3), fear.Tick, fear.Band));
             var onAPlayer = Person(2003, new Vector3(10f, 0f, 0f));
-            Fdp.Toolkit.Civilians.Demeanours.Set(world, onAPlayer, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.5f, anger: 0f);
+            Fdp.Toolkit.Creatures.Moods.Set(world, onAPlayer, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.5f, anger: 0f);
             Assert.Equal(0.5f, Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, onAPlayer).Fill, 3);
 
             // the gizmo: a card row right under the health bar, on its own layer; BROKEN under it
@@ -2593,7 +2595,7 @@ public sealed class Map3DTests
 
     /// <summary>
     /// ⭐ CE-1176 / CE-1177 (People Display §5 U15, U16) — ONE mark per person, by the priority rule: what he says (G1's Utterance, fading
-    /// over its last half second; the police warning gesture counts) beats how he feels (pain, then anger, fear, alarm — G2's Demeanour,
+    /// over its last half second; the police warning gesture counts) beats how he feels (pain, then anger, fear, alarm — G2's Mood (was Demeanour),
     /// from the second quarter); calm and silent shows nothing. His FACE shows the feeling whatever he says. ✅ Red-proof: speech checked
     /// after the mood ⇒ the insult case shows anger.
     /// </summary>
@@ -2604,16 +2606,16 @@ public sealed class Map3DTests
         using (world)
         {
             world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();
-            world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Mood>();
             world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
             world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
             var M = Hrot.Common.Diagnostics.Gizmos.MarkKind.None;
             var man = Man(world, Vector3.Zero);
             Assert.Equal(M, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);                      // calm and silent
 
-            Fdp.Toolkit.Civilians.Demeanours.Set(world, man, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.8f, anger: 0f);
+            Fdp.Toolkit.Creatures.Moods.Set(world, man, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.8f, anger: 0f);
             Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Fear, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);
-            Fdp.Toolkit.Civilians.Demeanours.Set(world, man, Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0.8f, anger: 0.6f);
+            Fdp.Toolkit.Creatures.Moods.Set(world, man, Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0.8f, anger: 0.6f);
             Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);   // anger before fear
 
             Fdp.Toolkit.Civilians.Utterances.Say(world, man, Fdp.Toolkit.Civilians.UtteranceKind.Insult, Entity.Null, now: 10.0, seconds: 2f);

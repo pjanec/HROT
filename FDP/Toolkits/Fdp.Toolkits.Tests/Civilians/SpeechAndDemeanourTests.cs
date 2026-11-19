@@ -1,6 +1,7 @@
 using System;
 using Fdp.Core;
 using Fdp.Toolkit.Civilians;
+using Fdp.Toolkit.Creatures;
 using Xunit;
 
 namespace Fdp.Toolkit.Tests.Civilians
@@ -16,7 +17,7 @@ namespace Fdp.Toolkit.Tests.Civilians
         public SpeechAndDemeanourTests()
         {
             _world.RegisterComponent<Utterance>();
-            _world.RegisterComponent<Demeanour>();
+            _world.RegisterComponent<Mood>();
         }
 
         public void Dispose() => _world.Dispose();
@@ -49,17 +50,17 @@ namespace Fdp.Toolkit.Tests.Civilians
         [Fact]
         public void CE3265_TheMood_InQuarters_IsWrittenOnlyWhenItChanges()
         {
-            Assert.Equal((byte)0, Demeanours.Quarter(0.1f));
-            Assert.Equal((byte)1, Demeanours.Quarter(0.2f));
-            Assert.Equal((byte)2, Demeanours.Quarter(0.5f));
-            Assert.Equal((byte)4, Demeanours.Quarter(1.3f));
+            Assert.Equal((byte)0, Moods.Quarter(0.1f));
+            Assert.Equal((byte)1, Moods.Quarter(0.2f));
+            Assert.Equal((byte)2, Moods.Quarter(0.5f));
+            Assert.Equal((byte)4, Moods.Quarter(1.3f));
 
             var man = _world.CreateEntity();
-            Assert.True(Demeanours.Set(_world, man, CivilianMode.Protest, 0.2f, 0.6f));
-            Assert.False(Demeanours.Set(_world, man, CivilianMode.Protest, 0.24f, 0.55f));   // the same quarters
-            Assert.True(Demeanours.Set(_world, man, CivilianMode.Protest, 0.4f, 0.55f));     // fear crossed a quarter
-            Assert.True(Demeanours.Set(_world, man, CivilianMode.Riot, 0.4f, 0.55f));        // the mode changed
-            Assert.True(Demeanours.Of(_world, man, out var d));
+            Assert.True(Moods.Set(_world, man, CivilianMode.Protest, 0.2f, 0.6f));
+            Assert.False(Moods.Set(_world, man, CivilianMode.Protest, 0.24f, 0.55f));   // the same quarters
+            Assert.True(Moods.Set(_world, man, CivilianMode.Protest, 0.4f, 0.55f));     // fear crossed a quarter
+            Assert.True(Moods.Set(_world, man, CivilianMode.Riot, 0.4f, 0.55f));        // the mode changed
+            Assert.True(Moods.Of(_world, man, out var d));
             Assert.Equal((CivilianMode.Riot, (byte)2, (byte)2), (d.Mode, d.Fear, d.Anger));
         }
     }

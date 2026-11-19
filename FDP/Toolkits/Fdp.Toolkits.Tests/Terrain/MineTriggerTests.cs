@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Terrain.Tests
     /// </summary>
     public sealed class MineTriggerTests : IDisposable
     {
-        private const long TankType = 9201, CarType = 9202;
+        private const long TankType = 9201, CarType = 9202, CattleType = 9203, FlockType = 9204;   // ⭐ CE-4628 — an animal's species is its TKB type's
         private readonly EntityRepository _w = new();
         private readonly MineTriggerSystem _trigger = new();
         private readonly List<MineStruck> _struck = new();
@@ -41,6 +41,8 @@ namespace Fdp.Toolkit.Terrain.Tests
             var db = new TkbDatabase();
             var tank = new TkbTemplate("tank", TankType); tank.AddDescriptor(new VehicleParametersDto { Mass = 60000f }); db.Register(tank);
             var car = new TkbTemplate("car", CarType); car.AddDescriptor(new VehicleParametersDto { Mass = 1000f }); db.Register(car);
+            var cattle = new TkbTemplate("cattle", CattleType); cattle.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.Cattle }); db.Register(cattle);
+            var flock = new TkbTemplate("flock", FlockType); flock.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.BirdFlock }); db.Register(flock);
             var lineCharge = new TkbTemplate("line charge", Minefields.MunitionLineCharge);
             lineCharge.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 0, PenetrationMm = 0f, Damage = 100f });
             db.Register(lineCharge);
@@ -200,14 +202,14 @@ namespace Fdp.Toolkit.Terrain.Tests
         public void CE4624_ABirdFlockNeverStrikes_LivestockStrikesAnAntiPersonnelMine()
         {
             Field(MineType.AntiPersonnel);
-            var flock = Body(LocomotionClass.Quadruped, new Vector2(0.1f, 0.1f));
-            _w.AddComponent(flock, new AnimalState { Species = AnimalSpecies.BirdFlock });
+            var flock = Body(LocomotionClass.Quadruped, new Vector2(0.1f, 0.1f), tkb: FlockType);
+            _w.AddComponent(flock, new AnimalState());
             var air = Body(LocomotionClass.Bird, new Vector2(0.1f, 0.1f));
             Frame(); Frame();
             Assert.Empty(_struck);
 
-            var cow = Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f));
-            _w.AddComponent(cow, new AnimalState { Species = AnimalSpecies.Cattle });
+            var cow = Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f), tkb: CattleType);
+            _w.AddComponent(cow, new AnimalState());
             Frame();
             MoveTo(cow, 0.1f, 0.1f);
             Frame();
@@ -227,8 +229,8 @@ namespace Fdp.Toolkit.Terrain.Tests
                 w.Field(MineType.AntiTank, spacing: 8f, seed: 0);
                 // burn entity indices so each animal has its own index (the hash is of the animal's index)
                 for (int k = 0; k < i; k++) w._w.CreateEntity();
-                var a = w.Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f));
-                w._w.AddComponent(a, new AnimalState { Species = AnimalSpecies.Cattle });
+                var a = w.Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f), tkb: CattleType);
+                w._w.AddComponent(a, new AnimalState());
                 w.Frame(); w.MoveTo(a, 0.1f, 0f); w.Frame();
                 if (w._struck.Count > 0) hits++;
             }
@@ -239,8 +241,8 @@ namespace Fdp.Toolkit.Terrain.Tests
                 using var w = new MineTriggerTests();
                 w.Field(MineType.AntiTank, spacing: 8f, seed: 0);
                 for (int k = 0; k < i; k++) w._w.CreateEntity();
-                var a = w.Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f));
-                w._w.AddComponent(a, new AnimalState { Species = AnimalSpecies.Cattle });
+                var a = w.Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f), tkb: CattleType);
+                w._w.AddComponent(a, new AnimalState());
                 w.Frame(); w.MoveTo(a, 0.1f, 0f); w.Frame();
                 if (w._struck.Count > 0) again++;
             }

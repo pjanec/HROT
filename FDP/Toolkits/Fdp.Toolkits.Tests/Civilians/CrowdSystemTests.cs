@@ -2,6 +2,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Civilians;
 using Fdp.Toolkit.Combat.Components;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Perception.Tests;
 using Xunit;
@@ -21,6 +22,10 @@ namespace Fdp.Toolkit.Civilians.Tests
             var w = PerceptionTestWorldFactory.Create();
             if (!w.IsComponentTypeRegistered<CivilianState>()) w.RegisterComponent<CivilianState>();
             if (!w.IsComponentTypeRegistered<Crowd>()) w.RegisterComponent<Crowd>();
+            // ⭐ CE-4628 — a civilian's fear, his crowd (GroupMember) and a crowd entity's header (Group) are the shared creature components
+            if (!w.IsComponentTypeRegistered<Creatures.Fear>()) w.RegisterComponent<Creatures.Fear>();
+            if (!w.IsComponentTypeRegistered<GroupMember>()) w.RegisterComponent<GroupMember>();
+            if (!w.IsComponentTypeRegistered<Group>()) w.RegisterComponent<Group>();
             if (!w.IsComponentTypeRegistered<Health>()) w.RegisterComponent<Health>();
             if (!w.IsComponentTypeRegistered<InjuryThresholds>()) w.RegisterComponent<InjuryThresholds>();
             if (!w.Bus.IsRegistered<SoundContactEvent>()) w.Bus.Register<SoundContactEvent>();
@@ -44,7 +49,9 @@ namespace Fdp.Toolkit.Civilians.Tests
         {
             var e = w.CreateEntity();
             w.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0), Rotation = Quaternion.Identity });
-            w.AddComponent(e, new CivilianState { Mode = mode, Fear = fear });
+            w.AddComponent(e, new CivilianState { Mode = mode });
+            w.AddComponent(e, new Creatures.Fear { Value = fear });
+            w.AddComponent(e, new GroupMember { Group = Entity.Null });
             return e;
         }
 
@@ -57,6 +64,9 @@ namespace Fdp.Toolkit.Civilians.Tests
         }
 
         private static ref CivilianState Mind(EntityRepository w, Entity e) => ref w.GetComponentRW<CivilianState>(e);
+        private static ref Creatures.Fear Fr(EntityRepository w, Entity e) => ref w.GetComponentRW<Creatures.Fear>(e);
+        /// <summary>The crowd entity a civilian stands in (Null = none).</summary>
+        private static Entity CrowdOf(EntityRepository w, Entity e) => w.GetComponentRO<GroupMember>(e).Group;
 
         private static void Move(EntityRepository w, Entity e, float x, float y)
             => w.GetComponentRW<SimTransform>(e).Position = new Vector3(x, y, 0);
@@ -73,8 +83,8 @@ namespace Fdp.Toolkit.Civilians.Tests
             var w = World();
             var chain = new[] { Civ(w, 0, 0), Civ(w, 10, 0), Civ(w, 20, 0) };
             Frame(w, new CrowdSystem());
-            int id = Mind(w, chain[0]).CrowdId;
-            Assert.NotEqual(0, id);
+            var id = CrowdOf(w, chain[0]);
+            Assert.False(id.IsNull);
 
             var kf = Fdp.Toolkit.Replay.WorldKeyframes.Capture(w, Fdp.Toolkit.Replay.CaptureOptions.Recording);
             var fresh = World();
@@ -86,9 +96,9 @@ namespace Fdp.Toolkit.Civilians.Tests
             int crowdsAlive = 0;
             foreach (var _ in fresh.Query().With<Crowd>().Build()) crowdsAlive++;
             Assert.Equal(2, crowdsAlive);
-            Assert.All(chain, e => Assert.Equal(id, Mind(fresh, e).CrowdId));
-            int second = Mind(fresh, other[0]).CrowdId;
-            Assert.NotEqual(0, second);
+            Assert.All(chain, e => Assert.Equal(id, CrowdOf(fresh, e)));
+            var second = CrowdOf(fresh, other[0]);
+            Assert.False(second.IsNull);
             Assert.NotEqual(id, second);
         }
 
@@ -101,26 +111,56 @@ namespace Fdp.Toolkit.Civilians.Tests
             var pair = new[] { Civ(w, 200, 0), Civ(w, 205, 0) };                                  // two are not a crowd
             Frame(w, crowds);
 
-            int id = Mind(w, chain[0]).CrowdId;
-            Assert.NotEqual(0, id);
-            Assert.All(chain, e => Assert.Equal(id, Mind(w, e).CrowdId));
-            Assert.All(pair, e => Assert.Equal(0, Mind(w, e).CrowdId));
-            var ce = crowds.EntityOf(id);
+            var ce = CrowdOf(w, chain[0]);
+            Assert.False(ce.IsNull);
+            Assert.All(chain, e => Assert.Equal(ce, CrowdOf(w, e)));
+            Assert.All(pair, e => Assert.True(CrowdOf(w, e).IsNull));
             Assert.True(w.IsAlive(ce));
-            var crowd = w.GetComponentRO<Crowd>(ce);
-            Assert.Equal(4, crowd.Count);
-            Assert.Equal(15f, crowd.Centroid.X, 3);
+            var header = w.GetComponentRO<Group>(ce);   // ⭐ CE-4628 — the crowd's count and centre are its Group header
+            Assert.Equal(GroupKind.Crowd, header.Kind);
+            Assert.Equal(4, header.Count);
+            Assert.Equal(15f, header.Centre.X, 3);
+            Assert.True(header.Lead.IsNull);
 
             Move(w, chain[3], 33, 4);   // still within 15 m of the third
             Frame(w, crowds);
-            Assert.All(chain, e => Assert.Equal(id, Mind(w, e).CrowdId));
+            Assert.All(chain, e => Assert.Equal(ce, CrowdOf(w, e)));
 
             Move(w, chain[2], 100, 100);   // the chain breaks: two and one and one
             Move(w, chain[3], 130, 100);
             Frame(w, crowds);
-            Assert.All(chain, e => Assert.Equal(0, Mind(w, e).CrowdId));
+            Assert.All(chain, e => Assert.True(CrowdOf(w, e).IsNull));
             Assert.False(w.IsAlive(ce), "a crowd with no members is destroyed");
-            Assert.Equal(Entity.Null, crowds.EntityOf(id));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4628</c> rail — when two crowds merge into one group with the SAME number of votes, the OLDER crowd (by <c>FormedAt</c>, then the entity index)
+        /// keeps its entity and the other is destroyed: the int id's tie-break was "the lower id", which was the older one. 🔴 Red-proof: the tie-break
+        /// reversed (the newer wins) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4628_WhenTwoCrowdsMergeOnATie_TheOlderCrowdKeepsItsEntity()
+        {
+            var w = World();
+            var crowds = new CrowdSystem();
+            var olderMembers = new[] { Civ(w, 0, 0), Civ(w, 10, 0), Civ(w, 20, 0) };
+            Frame(w, crowds);
+            var older = CrowdOf(w, olderMembers[0]);
+            Assert.False(older.IsNull);
+            for (int i = 0; i < 5; i++) Frame(w, crowds);   // time passes: the next crowd forms LATER
+            var newerMembers = new[] { Civ(w, 200, 0), Civ(w, 210, 0), Civ(w, 220, 0) };
+            Frame(w, crowds);
+            var newer = CrowdOf(w, newerMembers[0]);
+            Assert.False(newer.IsNull);
+            Assert.NotEqual(older, newer);
+            Assert.True(w.GetComponentRO<Crowd>(older).FormedAt < w.GetComponentRO<Crowd>(newer).FormedAt);
+
+            for (int i = 0; i < 3; i++) Move(w, newerMembers[i], 30 + i * 10, 0);   // the second crowd walks up to the first: one chain of six, three votes each
+            Frame(w, crowds);
+            Assert.All(olderMembers, e => Assert.Equal(older, CrowdOf(w, e)));
+            Assert.All(newerMembers, e => Assert.Equal(older, CrowdOf(w, e)));
+            Assert.Equal(6, w.GetComponentRO<Group>(older).Count);
+            Assert.False(w.IsAlive(newer), "the newer crowd's entity is gone");
         }
 
         [Fact]
@@ -143,8 +183,9 @@ namespace Fdp.Toolkit.Civilians.Tests
             Assert.Equal(1, Mind(w, looking).HasFocus);
             Assert.Equal(0, Mind(w, frightened).HasFocus);
             Assert.Equal(0, Mind(w, far).HasFocus);
-            var crowd = w.GetComponentRO<Crowd>(crowds.EntityOf(Mind(w, calm).CrowdId));
-            Assert.Equal(3, crowd.Count);   // the calm, the onlooker and the frightened one stand linked; the far one does not
+            var crowdEntity = CrowdOf(w, calm);
+            var crowd = w.GetComponentRO<Crowd>(crowdEntity);
+            Assert.Equal(3, w.GetComponentRO<Group>(crowdEntity).Count);   // the calm, the onlooker and the frightened one stand linked; the far one does not
             Assert.Equal(1, crowd.HasFocus);   // two of three are drawn to it
 
             w.GetComponentRW<Health>(hurt).Current = 100f;   // no longer hurt (a test's shortcut; nothing heals in play)
@@ -158,8 +199,8 @@ namespace Fdp.Toolkit.Civilians.Tests
             var w = World();
             var crowds = new CrowdSystem();
             var src = Civ(w, 0, 0, CivilianMode.Panic, 1f);
-            Mind(w, src).FrightFrom = new Vector3(-50, 0, 0);
-            Mind(w, src).HasFrightFrom = 1;
+            Fr(w, src).FrightFrom = new Vector3(-50, 0, 0);
+            Fr(w, src).HasFrightFrom = 1;
             var near = Civ(w, 8, 0);
             Civ(w, 0, 10);   // a third, so the two are a crowd
             var calmSource = Civ(w, 300, 0, CivilianMode.Routine, 0.9f);   // frightened inside, but showing nothing
@@ -167,12 +208,12 @@ namespace Fdp.Toolkit.Civilians.Tests
             Civ(w, 310, 0);
             for (int i = 0; i < 40; i++) Frame(w, crowds);   // 4 s
 
-            Assert.True(Mind(w, near).Fear > 0.6f, $"he caught it — past panic: {Mind(w, near).Fear}");
-            Assert.True(Mind(w, near).Fear <= 0.9f + 1e-4f, $"never above 0.9 of his source (design §5f — a literal, so a changed share reddens it): {Mind(w, near).Fear}");
-            Assert.Equal(0.0, Mind(w, near).HeardAt);
-            Assert.Equal(1, Mind(w, near).HasFrightFrom);
-            Assert.Equal(new Vector3(-50, 0, 0), Mind(w, near).FrightFrom);   // he runs from where the others run from
-            Assert.Equal(0f, Mind(w, calmNear).Fear);   // a man who shows nothing spreads nothing
+            Assert.True(Fr(w, near).Value > 0.6f, $"he caught it — past panic: {Fr(w, near).Value}");
+            Assert.True(Fr(w, near).Value <= 0.9f + 1e-4f, $"never above 0.9 of his source (design §5f — a literal, so a changed share reddens it): {Fr(w, near).Value}");
+            Assert.Equal(0.0, Fr(w, near).HeardAt);
+            Assert.Equal(1, Fr(w, near).HasFrightFrom);
+            Assert.Equal(new Vector3(-50, 0, 0), (Vector3)Fr(w, near).FrightFrom);   // he runs from where the others run from
+            Assert.Equal(0f, Fr(w, calmNear).Value);   // a man who shows nothing spreads nothing
         }
 
         [Fact]
@@ -184,7 +225,7 @@ namespace Fdp.Toolkit.Civilians.Tests
             var b = Civ(w, 5, 0, CivilianMode.Cower, 0.8f);
             Civ(w, 10, 0, CivilianMode.Cower, 0.8f);
             for (int i = 0; i < 100; i++) Frame(w, crowds, fade: true);   // 10 s of the fade at 0.05/s
-            Assert.True(Mind(w, a).Fear < 0.4f && Mind(w, b).Fear < 0.4f, $"both fade: {Mind(w, a).Fear}, {Mind(w, b).Fear}");
+            Assert.True(Fr(w, a).Value < 0.4f && Fr(w, b).Value < 0.4f, $"both fade: {Fr(w, a).Value}, {Fr(w, b).Value}");
         }
 
         /// <summary>⭐ <c>CE-2238</c> (§5i) — an INSTIGATOR raises the anger of his crowd near him (past the 0.6 riot line in a few seconds
