@@ -23,6 +23,7 @@ namespace Fdp.Toolkit.Civilians.Tests
             if (!w.IsComponentTypeRegistered<Creatures.Fear>()) w.RegisterComponent<Creatures.Fear>();
             if (!w.IsComponentTypeRegistered<Home>()) w.RegisterComponent<Home>();
             if (!w.IsComponentTypeRegistered<GroupMember>()) w.RegisterComponent<GroupMember>();
+            if (!w.IsComponentTypeRegistered<Creatures.Demeanour>()) w.RegisterComponent<Creatures.Demeanour>();   // ⭐ CE-4628 §10c — part of his mind from birth
             if (!w.Bus.IsRegistered<SoundContactEvent>()) w.Bus.Register<SoundContactEvent>();
             if (!w.Bus.IsRegistered<SensorChangedEvent>()) w.Bus.Register<SensorChangedEvent>();
             if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.EffectState>()) w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
@@ -88,6 +89,7 @@ namespace Fdp.Toolkit.Civilians.Tests
             Assert.Equal(new Vector3(12, 34, 5), (Vector3)home.Centre);
             Assert.Equal((0f, 0f), (home.Radius, home.TetherMetres));
             Assert.True(w.GetComponentRO<GroupMember>(man).Group.IsNull);
+            Assert.True(w.IsComponentTypeRegistered<Creatures.Demeanour>() && w.HasComponent<Creatures.Demeanour>(man), "⭐ CE-4628 §10c — his Demeanour from birth: its two writers never add it over each other");
 
             // SetMode on a man with no mind adds it WITH the mode (the parallel-phase rule), and the shared parts with it
             var other = Person(w, new Vector3(1, 2, 3), civilian: false);

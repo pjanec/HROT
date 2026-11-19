@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Civilians.Tests
             if (!w.IsComponentTypeRegistered<Creatures.Fear>()) w.RegisterComponent<Creatures.Fear>();
             if (!w.IsComponentTypeRegistered<GroupMember>()) w.RegisterComponent<GroupMember>();
             if (!w.IsComponentTypeRegistered<Group>()) w.RegisterComponent<Group>();
-            if (!w.IsComponentTypeRegistered<Mood>()) w.RegisterComponent<Mood>();   // ⭐ CE-4628 / CE-2250 — how he seems
+            if (!w.IsComponentTypeRegistered<Demeanour>()) w.RegisterComponent<Demeanour>();   // ⭐ CE-4628 / CE-2250 — how he seems
             if (!w.IsComponentTypeRegistered<Health>()) w.RegisterComponent<Health>();
             if (!w.IsComponentTypeRegistered<InjuryThresholds>()) w.RegisterComponent<InjuryThresholds>();
             if (!w.Bus.IsRegistered<SoundContactEvent>()) w.Bus.Register<SoundContactEvent>();
@@ -85,10 +85,10 @@ namespace Fdp.Toolkit.Civilians.Tests
             Mind(w, man).Anger = 0.3f;
             var crowds = new CrowdSystem();
             Frame(w, crowds);
-            Assert.True(Moods.Of(w, man, out var mood), "the crowd pass writes the civilian's Mood (CE-2250)");
+            Assert.True(Demeanours.Of(w, man, out var mood), "the crowd pass writes the civilian's Mood (CE-2250)");
             Assert.Equal(CivilianMode.Protest, mood.Mode);
-            Assert.Equal(Moods.Quarter(w.GetComponentRO<Creatures.Fear>(man).Value), mood.Fear);
-            Assert.Equal(Moods.Quarter(Mind(w, man).Anger), mood.Anger);
+            Assert.Equal(Demeanours.Quarter(w.GetComponentRO<Creatures.Fear>(man).Value), mood.Fear);
+            Assert.Equal(Demeanours.Quarter(Mind(w, man).Anger), mood.Anger);
         }
 
         /// <summary>

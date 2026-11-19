@@ -83,7 +83,7 @@ namespace Fdp.Toolkit.Combat
                 world.AddComponent(unit, fresh);
             }
             else Stamp(ref world.GetComponentRW<WarningLog>(unit), id, now);
-            if (world.IsComponentTypeRegistered<Gesture>()) Gestures.Set(world, unit, GestureKind.Warning);
+            if (world.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) Gestures.Set(world, unit, GestureKind.Warning);
         }
 
         private static void Stamp(ref WarningLog log, long id, double now)

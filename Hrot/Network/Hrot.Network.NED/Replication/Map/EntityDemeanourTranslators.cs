@@ -14,7 +14,7 @@ using Fdp.ModuleHost.Abstractions;
 namespace Hrot.Map.Common.Replication.Egress
 {
     /// <summary>
-    /// ⭐ <c>CE-3265</c> (G2; docs/DESIGN_Civilians_And_Crowd_Control.md §7.18) — publishes a civilian's <see cref="Mood"/> (mode, fear
+    /// ⭐ <c>CE-3265</c> (G2; docs/DESIGN_Civilians_And_Crowd_Control.md §7.18) — publishes a civilian's <see cref="Demeanour"/> (mode, fear
     /// and anger in quarters) from the node owning its <c>dtDemeanour</c> (the brain owner), on change. The gesture translators' shape.
     /// </summary>
     public sealed class EntityDemeanourEgressTranslator : IDescriptorTranslator, Fdp.Network.Cyclone.Egress.IOffFrameEgress
@@ -24,7 +24,7 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityDemeanour> _instances;
 
         [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
-        private static readonly int[] s_targetIds = { GlobalComponentIds.Mood };
+        private static readonly int[] s_targetIds = { GlobalComponentIds.Demeanour };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDemeanour>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtDemeanour;
@@ -55,13 +55,13 @@ namespace Hrot.Map.Common.Replication.Egress
         /// on the off-frame replica.</summary>
         public void ScanState(ISimulationView view, bool offFrame)
         {
-            if (view is EntityRepository r && !r.IsComponentTypeRegistered<Mood>()) return;
+            if (view is EntityRepository r && !r.IsComponentTypeRegistered<Demeanour>()) return;
             long packedKey = OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
-            foreach (var unit in view.Query().With<Mood>().DefaultRoutePublishable().Build())
+            foreach (var unit in view.Query().With<Demeanour>().DefaultRoutePublishable().Build())
             {
                 if (!view.HasAuthority(unit, packedKey)) continue;
                 int netId = view.GetComponentRO<NetworkIdentity>(unit).Value;
-                var sample = ToSample(netId, view.GetComponentRO<Mood>(unit));
+                var sample = ToSample(netId, view.GetComponentRO<Demeanour>(unit));
                 if (_instances.Unchanged(netId, sample)) continue;
                 _instances.Write(netId, sample);
                 SentSampleCount++;
@@ -69,8 +69,8 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         /// <summary>The wire form (the test seam).</summary>
-        internal static EntityDemeanour ToSample(int netId, in Mood c)
-            => new() { EntityId = netId, Mode = (byte)c.Mode, Fear = c.Fear, Anger = c.Anger };
+        internal static EntityDemeanour ToSample(int netId, in Demeanour c)
+            => new() { EntityId = netId, Kind = (byte)c.Kind, Mode = (byte)c.Mode, Fear = c.Fear, Anger = c.Anger };
 
         public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
@@ -82,7 +82,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
 namespace Hrot.Map.Common.Replication.Ingress
 {
-    /// <summary>⭐ <c>CE-3265</c> — applies a civilian's published <see cref="Mood"/> on this node (ui draws the mood). An unknown unit
+    /// <summary>⭐ <c>CE-3265</c> — applies a civilian's published <see cref="Demeanour"/> on this node (ui draws the mood). An unknown unit
     /// is dropped; the recorded owner never takes its own sample back.</summary>
     public sealed class EntityDemeanourIngressTranslator : IDescriptorTranslator, IDiscardableIngress
     {
@@ -124,7 +124,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!_entityMap.TryGetEntity(d.EntityId, out var unit) || !view.IsAlive(unit)) { DroppedSampleCount++; return; }
             if (view is EntityRepository repo
                 && AuthorityExtensions.IsRecordedOwner(repo, unit, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
-            cmd.AddComponent(unit, new Mood { Mode = (CivilianMode)d.Mode, Fear = d.Fear, Anger = d.Anger });
+            cmd.AddComponent(unit, new Demeanour { Kind = (Fdp.Toolkit.Combat.GestureKind)d.Kind, Mode = (CivilianMode)d.Mode, Fear = d.Fear, Anger = d.Anger });
         }
 
         public void ScanAndPublish(ISimulationView view) { }

@@ -79,8 +79,6 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.OperatorUseStatus);
         // ⭐ CE-3219 (civilians B-1, CV-6) — a person's stored non-lethal effects, written beside Health by its owner (dtEffectState).
         brain.SetBit(GlobalComponentIds.EffectState);
-        // ⭐ CE-3224 (civilians B-6, CV-13) — what a person is doing with his arms, chosen by his behaviour (dtGesture).
-        brain.SetBit(GlobalComponentIds.Gesture);
         // ⭐ CE-4617 (RS-10) — a radar's emission, switched by the carrier's behaviour (dtRadarEmission).
         brain.SetBit(GlobalComponentIds.RadarEmission);
         // ⭐ CE-4657 (thermal drivers TD-6, TD-16) — the fire on an entity, written by the Health owner when damage ignites it (dtFireState).
@@ -90,7 +88,7 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.Custody);   // ⭐ CE-3256 (BR-4) — a man in custody (dtCustody)
         brain.SetBit(GlobalComponentIds.Lean);      // ⭐ CE-3257 (BR-5) — a man leaning round a corner (dtLean)
         brain.SetBit(GlobalComponentIds.Utterance);           // ⭐ CE-3264 (G1) — what a man says now (dtUtterance)
-        brain.SetBit(GlobalComponentIds.Mood);           // ⭐ CE-3265 (G2) — how a civilian seems (dtDemeanour)
+        brain.SetBit(GlobalComponentIds.Demeanour);           // ⭐ CE-3265 (G2) — how a civilian seems (dtDemeanour)
         brain.SetBit(GlobalComponentIds.EngagementArea);      // ⭐ CE-3261 — a man's or a commander's sector: his men's brain nodes read it (dtEngagementArea)
         brain.SetBit(GlobalComponentIds.CombatProficiency);   // ⭐ CE-3259 (BR-6) — what a soldier CAN do; the muscle's hit model and perception read it (dtCombatProficiency)
         // ⭐ CE-3210 (hit location HL-6) — the damage per body part, written beside Health by its owner (dtPartDamage).

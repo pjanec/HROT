@@ -1538,7 +1538,7 @@ namespace Fdp.Toolkit.Combat.Tests
         public void CV13a_TheAiHoldsAtAHostileShowingHandsUp_AndFiresTheMomentTheyComeDown()
         {
             if (!_world.IsComponentTypeRegistered<EntityInfo>()) _world.RegisterComponent<EntityInfo>();
-            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Gesture>()) _world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) _world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             var rifle = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms };
             var (shooter, ch, enemy) = TypedShooter(rifle, range: 50f);
             _world.AddComponent(enemy, new EntityInfo { ForceId = ForceId.Hostile });

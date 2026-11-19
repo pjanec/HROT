@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Animals
     /// </list>
     /// Fear fades from 1 to 0 over the species' recovery time. ⭐ A FEARLESS species (the guard dog, the war horse) ignores all of it but a
     /// blast, which makes it flinch (<see cref="FearlessBlastFactor"/>). The band (calm · uneasy · frightened · panic) is written to the
-    /// replicated <see cref="Mood"/> (CE-4628: it replaced <c>AnimalState.FearBand</c>) only when it changes.
+    /// replicated <see cref="Demeanour"/> (CE-4628: it replaced <c>AnimalState.FearBand</c>) only when it changes.
     /// </summary>
     public static class AnimalFear
     {

@@ -289,7 +289,7 @@
       "name": "(3) at least half the Idlers show an idle gesture",
       "on": "field",
       "who": "*Idler ",
-      "path": "Gesture.Kind",
+      "path": "Demeanour.Kind",
       "op": "in",
       "value": [
         "IdleSmoking",
@@ -303,7 +303,7 @@
       "name": "(3) the Watchman shows an idle gesture",
       "on": "field",
       "who": "Watchman",
-      "path": "Gesture.Kind",
+      "path": "Demeanour.Kind",
       "op": "in",
       "value": [
         "IdleSmoking",
@@ -316,7 +316,7 @@
       "name": "(3) Held shows an idle gesture",
       "on": "field",
       "who": "Held",
-      "path": "Gesture.Kind",
+      "path": "Demeanour.Kind",
       "op": "in",
       "value": [
         "IdleSmoking",
@@ -329,7 +329,7 @@
       "name": "(3) the waiting civilian shows an idle gesture",
       "on": "field",
       "who": "Waiting civilian",
-      "path": "Gesture.Kind",
+      "path": "Demeanour.Kind",
       "op": "in",
       "value": [
         "IdleSmoking",
@@ -343,7 +343,7 @@
       "never": {
         "on": "field",
         "who": "Down",
-        "path": "Gesture.Kind",
+        "path": "Demeanour.Kind",
         "op": "in",
         "value": [
           "IdleSmoking",

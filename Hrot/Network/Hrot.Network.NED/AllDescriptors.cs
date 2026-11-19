@@ -116,9 +116,7 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-3219 (civilians B-1, CV-6) — a person's stored non-lethal effects, beside Health (Brain group → every node).
         //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.3. Measured free on ui, behaviors, backend, coordinator.
         dtEffectState                 = 142,
-        // ⭐ CE-3224 (civilians B-6, CV-13) — what a person is doing with his arms (Brain group → every node).
-        //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.7. Measured free on ui, behaviors, backend, coordinator.
-        dtGesture                     = 143,
+        // 143 retired (CE-4628 §10c: dtGesture's gesture is the Kind of dtDemeanour 153 now; never reuse)
         // ⭐ CE-3219 part 3 (civilians B-1, R-3014) — a gas / smoke cloud's description, its creator → every node (no group).
         //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b. Measured free on ui, behaviors, backend, coordinator.
         dtAreaEffectCloud             = 144,

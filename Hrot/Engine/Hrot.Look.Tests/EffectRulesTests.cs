@@ -105,6 +105,35 @@ public sealed class EffectRulesTests
                      specs.Select(s => s.EffectType).ToArray());
     }
 
+    /// <summary>⭐ CE-4635 (flame weapons §8 U-5, the <c>EffectRules</c> row) — a fuel shot from a FLAMETHROWER mount makes no muzzle flash and no blast (the jet is its look; it fires
+    /// 10×/s), while a rifle's shot from the same kind of soldier still flashes. 🔒 Red-proved: the Flamethrower early-out removed ⇒ the flamethrower's shot flashes.</summary>
+    [Fact]
+    public void CE4635_AFlamethrowersFuelShot_MakesNoFlash_ARiflesShotStillDoes()
+    {
+        var (world, tkb) = World();
+        const long Flamer = 0x6C11, Fuel = 0x6C12, Rifle = 0x6C13, Bullet = 0x6C14;
+        var db = (Fdp.Toolkit.Tkb.TkbDatabase)tkb;
+        var f = new TkbTemplate("test flamer", Flamer);
+        f.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower, AmmoGuid = Fuel, InitialAmmunition = 100 } } });
+        db.Register(f); db.Register(new TkbTemplate("test fuel", Fuel));
+        var r = new TkbTemplate("test rifleman", Rifle);
+        r.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, AmmoGuid = Bullet, InitialAmmunition = 30, DamagePerHit = 25f } } });
+        db.Register(r); db.Register(new TkbTemplate("test bullet", Bullet));
+        var flamer = Unit(world, Flamer, new Vector3(0, 0, 0));
+        var rifle = Unit(world, Rifle, new Vector3(10, 0, 0));
+        world.Bus.Publish(new WeaponFireNotification { Shooter = flamer, WeaponIndex = 0 });
+        world.Bus.SwapBuffers();
+        var specs = new List<EffectSpec>();
+        EffectRules.ForFrame(world, tkb, specs);
+        Assert.Empty(specs);                                            // no flash, no blast, nothing
+
+        world.Bus.Publish(new WeaponFireNotification { Shooter = rifle, WeaponIndex = 0 });
+        world.Bus.SwapBuffers();
+        specs.Clear();
+        EffectRules.ForFrame(world, tkb, specs);
+        Assert.Contains(specs, s => s.Kind == Fdp.Toolkit.Tkb.Domain.EffectKind.MuzzleFlash);
+    }
+
     /// <summary>LK-2 — 0 B on the steady path: the rules on a frame with no events allocate nothing (R-2084). 🔒 Red-proved: a list made per call in
     /// <c>ForFrame</c> ⇒ red.</summary>
     [Fact]

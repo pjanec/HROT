@@ -505,7 +505,7 @@ namespace Hrot.AI.Behaviors.Brains
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
                 .Unmanaged<Fdp.Toolkit.Replication.Components.TkbIdentity>()
                 .Unmanaged<StanceIntent>()
-                .Unmanaged<Fdp.Toolkit.Combat.Gesture>();   // a man's surrender / hands-up gesture (written by his brain, not here)
+                .Unmanaged<Fdp.Toolkit.Creatures.Demeanour>();   // a man's surrender / hands-up gesture (written by his brain, not here)
             public EntityRepository Repo;
             public double Now;
             public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx)

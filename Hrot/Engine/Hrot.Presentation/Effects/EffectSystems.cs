@@ -364,92 +364,21 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 }
 
 /// <summary>
-/// ⭐⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P, R-269 (ui)) — <b>a vehicle that is destroyed burns:</b> when a VEHICLE's Health
-/// crosses from above zero to zero, this makes two effect entities attached to its body (<see cref="EffectAnchorKind.Body"/>) —
-/// flames (<see cref="EffectTkbCatalog.Fire"/>, ≈ 60 s) and smoke (<see cref="EffectTkbCatalog.Smoke"/>, ≈ 180 s, fading) — each with a
-/// <see cref="Lifespan"/>, so <see cref="LifespanSystem"/> removes them. On every map host, like <see cref="EffectSpawnSystem"/>:
-/// Health reaches every node, so each host makes its own.
-/// <list type="bullet">
-///   <item>⭐ CE-4660: flames when the hull's replicated <c>FireState</c> starts burning — or is first SEEN burning (a late-joining host shows the
-///   fire it joined). Whether a hull burns is the simulation's (its TKB <c>FireSeconds</c>, lit once at its death crossing by <c>BurnSystem</c>):
-///   a wreck loaded already dead has no fire and shows none (VE-P holds), a soldier never burns.</item>
-///   <item>⛔ OFF during a replay (the world's <see cref="Fdp.Toolkit.Replay.ReplayState"/>, VE-R): the recording holds the flames; and its memory is dropped, so
-///   coming back live cannot mistake the replayed wrecks for fresh kills.</item>
-/// </list>
+/// ⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P, R-269 (ui)) — <b>RETIRED by CE-4635</b> (docs/designs/weapons/DESIGN_Flame_Weapons.md §8 U-2): it used to spawn one
+/// Fire + one Smoke effect entity at a vehicle's hull centre when its replicated <c>FireState</c> started burning. Every burning spot of EVERY holder (a vehicle,
+/// a wagon, a building's record, a cell's) is now drawn straight from the state by <see cref="EffectLayer.ResolveStateInto"/> — the same flames on every node, a replay
+/// and a late joiner included, with nothing spawned, aged or removed — so a second flame from here would only double it.
+/// <para>⭐ Kept as an EMPTY registered shell (it is named by the map packs, the composition snapshots and the hosts' registration lists): it does nothing. Delete it
+/// together with those names when a pass over them is wanted.</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
 [TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class WreckSpawnSystem : IEcsModuleSystem
 {
-    [Fdp.Core.WorldDerived("visual edge memory (first seen never burns); designed to drop on replay/world change")]
-    private readonly Dictionary<Entity, bool> _wasDestroyed = new();
-    [Fdp.Core.WorldDerived("scratch cleared before each pass")]
-    private readonly HashSet<Entity> _seen = new();
-    [Fdp.Core.WorldDerived("scratch cleared before each use")]
-    private readonly List<Entity> _gone = new();
-    private EntityRepository? _queryWorld;
-    private EntityQuery? _query;
-    private int _epoch;   // ⭐ CE-3294 — the world _wasDestroyed describes
+    /// <summary>Effect entities made in the last tick — always 0 now (the rails' counter, kept).</summary>
+    public int Spawned => 0;
 
-    /// <summary>Effect entities made in the last tick — the rail's counter.</summary>
-    [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
-    public int Spawned { get; private set; }
-
-    public void Execute(ISimulationView view, float deltaTime)
-    {
-        Spawned = 0;
-        if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()
-            || !world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() || !world.IsComponentTypeRegistered<TkbIdentity>()) return;
-        if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) { _wasDestroyed.Clear(); return; }   // ⭐ CE-3329 P2
-        // ⭐ CE-3294 — a reload is a new world in the same repository (its units under the same handles): forget like a new instance
-        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch) | !ReferenceEquals(world, _queryWorld))
-        {
-            _queryWorld = world;
-            _query = world.Query().With<Fdp.Toolkit.Combat.Components.Health>().With<TkbIdentity>().With<SimTransform>().Build();
-            _wasDestroyed.Clear();
-        }
-        var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
-        var cmd = view.GetCommandBuffer();
-        double now = SimClock.Of(world).TotalTime;
-        bool fires = world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>();   // ⭐ CE-4660
-        _seen.Clear();
-        foreach (var e in _query!)
-        {
-            _seen.Add(e);
-            // ⭐ CE-4660 (backend, a cross-lane edit — NOTE_Backend_To_Ui_Wreck_Reads_Fire.md; thermal drivers TD-6 / TD-16): the burn is SIMULATION state now —
-            //   the hull's replicated FireState, lit by its Health owner (BurnSystem). Flames when it STARTS burning — or is first seen burning (a late joiner
-            //   sees the fire too, which the Health crossing could never show). ⛔ Was: this node seeing Health cross 0, for a vehicle family.
-            bool destroyed = fires && world.HasComponent<Fdp.Toolkit.Perception.Signatures.FireState>(e)
-                             && world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.FireState>(e).IsBurning(now);
-            if (destroyed && !(_wasDestroyed.TryGetValue(e, out bool was) && was))
-            {
-                var at = world.GetComponentRO<SimTransform>(e).Position;
-                Spawn(cmd, tkb, EffectTkbCatalog.Fire, e, at, now);
-                Spawn(cmd, tkb, EffectTkbCatalog.Smoke, e, at, now);
-            }
-            _wasDestroyed[e] = destroyed;
-        }
-        if (_wasDestroyed.Count > _seen.Count)
-        {
-            _gone.Clear();
-            foreach (var e in _wasDestroyed.Keys) if (!_seen.Contains(e)) _gone.Add(e);
-            foreach (var e in _gone) _wasDestroyed.Remove(e);
-        }
-    }
-
-    // ⛔ CE-4660: `Burns(type)` (a vehicle family burns) retired — whether a hull burns is the simulation's (TKB FireSeconds, BurnSystem).
-
-    private void Spawn(IEntityCommandBuffer cmd, ITkbDatabase? tkb, long type, Entity wreck, Vector3 at, double now)
-    {
-        if (EffectTkbCatalog.VisualOf(tkb, type) is not { } look) return;
-        var e = cmd.CreateEntity();
-        cmd.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
-        cmd.AddComponent(e, Lifespan.Starting(now, look.Duration));
-        cmd.AddComponent(e, new EffectAnchor { Shooter = wreck, Kind = EffectAnchorKind.Body });
-        cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario
-        Spawned++;
-    }
+    public void Execute(ISimulationView view, float deltaTime) { }
 }
 
 // ⛔ RETIRED (W1, docs/DESIGN_Visual_Effects.md §7 VE-Q): `EffectLifetimeSystem` — it aged every effect by the frame delta and removed

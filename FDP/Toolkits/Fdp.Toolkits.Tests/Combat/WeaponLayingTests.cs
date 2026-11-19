@@ -134,7 +134,7 @@ namespace Fdp.Toolkit.Tests.Combat
         [Fact]
         public void CE2241_OutOfTheFight_OnlyWhenEveryWeaponIsLaidDown_AndHisHandsAreUp()
         {
-            if (!_world.IsComponentTypeRegistered<Gesture>()) _world.RegisterComponent<Gesture>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) _world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             var him = Rifleman(Vector3.Zero);
             Assert.False(Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(_world, him));
 

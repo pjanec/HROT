@@ -1683,14 +1683,14 @@ public sealed class FilmDirectorTests
     {
         using var world = new EntityRepository();
         world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Health>();
-        world.RegisterComponent<BehaviorState>(); world.RegisterComponent<IsEmbarkedTag>(); world.RegisterComponent<Gesture>();
+        world.RegisterComponent<BehaviorState>(); world.RegisterComponent<IsEmbarkedTag>(); world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
         var man = world.CreateEntity();
         world.AddComponent(man, new NetworkIdentity { Value = 5 });
         world.AddComponent(man, new EntityInfo { Name = "Alpha", ForceId = ForceId.Hostile });
         world.AddComponent(man, new Health { Current = 20, Max = 100 });
         world.AddComponent(man, new BehaviorState { ActiveBehaviorHash = 42 });
         world.AddComponent(man, new IsEmbarkedTag());
-        world.AddComponent(man, new Gesture { Kind = GestureKind.Waving });
+        world.AddComponent(man, new Fdp.Toolkit.Creatures.Demeanour { Kind = GestureKind.Waving });
         var units = new WorldUnits(() => world);
         Func<int, string?> names = h => h == 42 ? "Wander" : null;
 

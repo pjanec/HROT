@@ -32,7 +32,7 @@ namespace Hrot.SimHost.Tests
             var w = new EntityRepository();
             w.RegisterComponent<NetworkIdentity>();
             w.RegisterComponent<Utterance>();
-            w.RegisterComponent<Mood>();
+            w.RegisterComponent<Demeanour>();
             w.RegisterEvent<StrikeNotification>();
             var map = new NetworkEntityMap();
             Entity a = w.CreateEntity(), b = w.CreateEntity();
@@ -61,14 +61,14 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3265_ADemeanour_ReachesTheOtherNode()
         {
-            var sample = EntityDemeanourEgressTranslator.ToSample(60, new Mood { Mode = CivilianMode.Riot, Fear = 1, Anger = 4 });
+            var sample = EntityDemeanourEgressTranslator.ToSample(60, new Demeanour { Mode = CivilianMode.Riot, Fear = 1, Anger = 4 });
             var (node, map, man, _) = Node();
             using (node)
             {
                 using var cmd = new EntityCommandBuffer();
                 new EntityDemeanourIngressTranslator(participant: null, map).Apply(in sample, cmd, node);
                 cmd.Playback(node);
-                Assert.True(Moods.Of(node, man, out var d));
+                Assert.True(Demeanours.Of(node, man, out var d));
                 Assert.Equal((CivilianMode.Riot, (byte)1, (byte)4), (d.Mode, d.Fear, d.Anger));
             }
         }
