@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · HANDOFF_Coordinator_To_Terrain_Street_Fight_Scenario (CE-4672) — the street fight on wide-corridor: the chain, and REALISM rows that are expected RED until behaviors' CE-4666…CE-4669 land (the point of the scenario). The cover cue reads the terrain's cover database (editor tier). Conditions only, no golden.",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · HANDOFF_Coordinator_To_Terrain_Street_Fight_Scenario (CE-4672) — the street fight on wide-corridor: the chain, and REALISM rows that are expected RED until behaviors' CE-4666…CE-4669 land (the point of the scenario). The cover cue reads the terrain's cover database (editor tier). Conditions only, no golden. ⭐ 2026-11-19: Red's SearchRadius 10 → 25 (behaviors, with the user — D-11; NOTE_Behaviors_To_Terrain_Corridor_Fight_D11.md).",
   "runFor": 180,
   "golden": false,
   "expect": [

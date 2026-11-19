@@ -178,7 +178,8 @@ namespace Hrot.Editor.Director
                     var units = UnitsNamed(a.Who!).ToList();
                     if (c.Dead) units = units.Where(id => HealthOf(id) is <= 0f).ToList();   // ⭐ CE-4672 — only the dead the name matches
                     var want = c.Value is JsonValue v && v.ToString() == "$now" ? JsonValue.Create(_rel + _t0) : c.Value;
-                    int held = units.Count(id => FieldHolds(Components(id), c.Path!, c.Op, want, c.Elements, c.Where));
+                    int held = units.Count(id => FieldHolds(Components(id), c.Path!, c.Op, want, c.Elements, c.Where)
+                                                 && c.Also.All(x => FieldHolds(Components(id), x.Path, x.Op, x.Value, 1)));   // ⭐ CE-2443 — the same unit meets every "also" too
                     bool ok = c.Quantifier switch
                     {
                         "any" => held > 0,
@@ -232,6 +233,16 @@ namespace Hrot.Editor.Director
                 var field = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
                 if (field.IsNull || !world.HasComponent<Fdp.Toolkit.Terrain.Minefield>(field)) continue;
                 if (state == "Marked") { if (table.Marked((int)force, field)) return true; continue; }
+                if (state == "Lane")   // ⭐ CE-2443 (MF-10) — the lane is in the side's knowledge as a lane RECORD of its side (a marked field reads every cell known-mined)
+                {
+                    if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.MinefieldLanes>() || !Fdp.Toolkit.Terrain.MinefieldIds.TryGuid(world, field, out var fg)) continue;
+                    var lanes = new List<Fdp.Toolkit.Terrain.LaneItem>();
+                    Fdp.Toolkit.Terrain.MinefieldLanesSystem.LanesOf(world, fg, lanes);
+                    int own = 0;
+                    foreach (var l in lanes) if (l.SidePlus1 == (int)force + 1) own++;
+                    if (Compare(JsonValue.Create(own), c.Op, c.Value)) return true;
+                    continue;
+                }
                 if (!Enum.TryParse<Fdp.Toolkit.Terrain.MineCellKnowledge>(state, out var want)) return false;
                 outline.Clear();
                 if (!Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.TryOutline(world, field, outline, out var anchor)) continue;

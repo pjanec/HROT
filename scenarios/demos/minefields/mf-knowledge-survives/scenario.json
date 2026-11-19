@@ -1,0 +1,291 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: a side's minefield KNOWLEDGE survives a save + load and a replay seek (Minefields MF-14 / KR-15, CE-4624). 'Field E' is an old Hostile anti-personnel field (x 120-140, y 50-110, a mine every 3 m) that NOBODY knows at start; the scenario carries a saved 'Knowledge' section - written by the real save writer (PlaceKnowledgeSection) - in which Friend has MARKED it and cleared a 5 m LANE along y 80 (its six mines cleared). A Friend 'Squad' (Man Leader + Man 1-3, no commander) marches east from (58-70, 80) to (160, 80), beyond the field. Judge: after the load Friend knows the field in full and holds the lane, Hostile knows nothing (before and at the end); the squad goes THROUGH its lane - no halt for a minefield ahead, no mine goes off, every man inside the lane band (y 77.5-82.5) while inside the field - and reaches (160, 80). The replay half (runner --verify-replay): REPLAY and PLAYBACK same - every recorded component, the knowledge, strikes and lane records included, as live (121 snapshots, 2026-11-19); the shuffled SEEK phase times out for every scenario (CE-5041, backend). Check: scripts/scenario-regression.sh mf-knowledge-survives"
+  },
+  "entities": {
+    "a4624f40-0000-4000-8000-0000000000f1": {
+      "SimTransform": {
+        "Position": [
+          120,
+          50,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8830
+      },
+      "EntityInfo": {
+        "Name": "Field E",
+        "ForceId": "Hostile"
+      },
+      "Minefield": {
+        "Type": "AntiPersonnel",
+        "SpacingM": 3,
+        "OrientationDeg": 0,
+        "Seed": 5,
+        "KnownAtStartSides": 0
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 20,
+            "Y": 0
+          },
+          {
+            "X": 20,
+            "Y": 60
+          },
+          {
+            "X": 0,
+            "Y": 60
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "a4624f40-0000-4000-8000-0000000000c0": {
+      "SimTransform": {
+        "Position": [
+          70,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Squad",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SquadMarch",
+        "Params": {
+          "Objective": [
+            160,
+            80,
+            0
+          ],
+          "Shape": 0,
+          "Spacing": 4,
+          "DangerAreas": true
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "a4624f40-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          70,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f40-0000-4000-8000-0000000000c0",
+        "Designation": "SquadLeader"
+      }
+    },
+    "a4624f40-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          66,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f40-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f40-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          62,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f40-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    },
+    "a4624f40-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          58,
+          80,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Man 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "a4624f40-0000-4000-8000-0000000000c0",
+        "Designation": "Wingman"
+      }
+    }
+  },
+  "Knowledge": {
+    "a4624f40-0000-4000-8000-0000000000f1|2|1|0": {
+      "cells": [],
+      "marked": true,
+      "learnedAt": 30,
+      "source": 2
+    },
+    "a4624f40-0000-4000-8000-0000000000f1|lanes": {
+      "lanes": [
+        [
+          112,
+          80,
+          148,
+          80,
+          5,
+          2
+        ]
+      ]
+    },
+    "a4624f40-0000-4000-8000-0000000000f1|strikes": {
+      "mines": [
+        [
+          10,
+          1,
+          2
+        ],
+        [
+          10,
+          2,
+          2
+        ],
+        [
+          10,
+          3,
+          2
+        ],
+        [
+          10,
+          4,
+          2
+        ],
+        [
+          10,
+          5,
+          2
+        ],
+        [
+          10,
+          6,
+          2
+        ]
+      ]
+    }
+  }
+}
