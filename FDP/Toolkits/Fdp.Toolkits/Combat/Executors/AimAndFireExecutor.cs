@@ -947,7 +947,7 @@ namespace Fdp.Toolkit.Combat.Executors
         {
             var warhead = CombatTkb.WarheadOf(world, CombatTkb.MountOf(world, unit, index));
             if (GrenadeRules.KindOf(warhead) != GrenadeKind.Fragmentation || !world.HasComponent<SimTransform>(target)) return false;
-            return HiddenTargetThrow.FriendlyInBurst(world, unit, world.GetComponentRO<SimTransform>(target).Position, GrenadeRules.LethalRadius(warhead!));
+            return HiddenTargetThrow.FriendHurtByBurst(world, unit, world.GetComponentRO<SimTransform>(target).Position, warhead!);
         }
 
         /// <summary>The target this action engages (channel state bytes 0–7).</summary>
