@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// per-bit checkboxes, so no custom inspector renderer is needed.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(BehaviorApplicationComponentIds.DebugState)]
+    [ComponentId(GlobalComponentIds.DebugState)]
     [DataPolicy(DataPolicy.Transient)]
     public struct DebugState
     {

@@ -19,7 +19,7 @@ namespace Hrot.Common.Serializers
     /// <c>GenesisMaterializationSystem</c>.</para>
     /// </summary>
     [DataPolicy(DataPolicy.Transient)]
-    [ComponentId(HrotComponentIds.InitialPassengersIntent)]
+    [ComponentId(GlobalComponentIds.InitialPassengersIntent)]
     public sealed class InitialPassengersIntent
     {
         /// <summary>Network IDs of all passenger entities at scenario load time.</summary>
@@ -47,7 +47,7 @@ namespace Hrot.Common.Serializers
     /// <c>GenesisMaterializationSystem</c>.</para>
     /// </summary>
     [DataPolicy(DataPolicy.Transient)]
-    [ComponentId(HrotComponentIds.InitialVehicleIntent)]
+    [ComponentId(GlobalComponentIds.InitialVehicleIntent)]
     public sealed class InitialVehicleIntent
     {
         /// <summary>Network ID of the vehicle entity this soldier is embarked in.</summary>
@@ -67,7 +67,7 @@ namespace Hrot.Common.Serializers
     /// reference was <see langword="null"/> in the scenario file.</para>
     /// </summary>
     [DataPolicy(DataPolicy.Transient)]
-    [ComponentId(HrotComponentIds.InitialHierarchyIntent)]
+    [ComponentId(GlobalComponentIds.InitialHierarchyIntent)]
     public sealed class InitialHierarchyIntent
     {
         /// <summary>Network ID of the parent entity (0 = no parent).</summary>
@@ -89,7 +89,7 @@ namespace Hrot.Common.Serializers
     /// <c>GenesisMaterializationSystem</c>.</para>
     /// </summary>
     [DataPolicy(DataPolicy.Transient)]
-    [ComponentId(HrotComponentIds.InitialRouteIntent)]
+    [ComponentId(GlobalComponentIds.InitialRouteIntent)]
     public sealed class InitialRouteIntent
     {
         /// <summary>Network ID of the personal route entity (0 = none).</summary>
@@ -137,7 +137,7 @@ namespace Hrot.Common.Serializers
     /// targets whose Network ID cannot be resolved are silently dropped.</para>
     /// </summary>
     [DataPolicy(DataPolicy.Transient)]
-    [ComponentId(HrotComponentIds.InitialTargetsIntent)]
+    [ComponentId(GlobalComponentIds.InitialTargetsIntent)]
     public sealed class InitialTargetsIntent
     {
         /// <summary>Target entries stored at scenario load time.</summary>
@@ -154,7 +154,7 @@ namespace Hrot.Common.Serializers
     /// <c>GenesisMaterializationSystem</c> (Phase 4).</para>
     /// </summary>
     [DataPolicy(DataPolicy.Transient)]
-    [ComponentId(HrotComponentIds.InitialUnitSubordinateIntent)]
+    [ComponentId(GlobalComponentIds.InitialUnitSubordinateIntent)]
     public sealed class InitialUnitSubordinateIntent
     {
         /// <summary>Network ID of the commander entity (0 = unassigned).</summary>
@@ -175,7 +175,7 @@ namespace Hrot.Common.Serializers
     /// <c>BlueprintBlackboard*</c> slots by <c>BlueprintMaterializationSystem</c>.</para>
     /// </summary>
     [DataPolicy(DataPolicy.Transient)]
-    [ComponentId(HrotComponentIds.InitialBlueprintsIntent)]
+    [ComponentId(GlobalComponentIds.InitialBlueprintsIntent)]
     public sealed class InitialBlueprintsIntent
     {
         /// <summary>Blueprint assignments to materialize at scenario load.</summary>

@@ -1,3 +1,4 @@
+using Fdp.Core;
 namespace Fdp.Toolkit.Scenario
 {
     /// <summary>
@@ -6,12 +7,14 @@ namespace Fdp.Toolkit.Scenario
     /// ID 201 is freed (was previously <c>FDP.Toolkit.Scenario.EpisodeTag</c> — removed in
     /// CGF-1-BATCH-12 A.7; use <c>Fdp.Core.EpisodeTag</c> with component ID 84 instead).
     /// </summary>
+    // ⛔ ALIASES ONLY (CE-4628 follow-up, user 2026-11-19: "all component ids ... written at one single place"): every id lives in
+    //   Fdp.Core GlobalComponentIds (values unchanged); a NEW id is added THERE, never here. Rail: ComponentIdCatalogueTests.
     public static class ScenarioComponentIds
     {
         /// <summary>
         /// Component ID for <see cref="ScenarioIgnoreTag"/> — entity-level exclusion tag.
         /// Entities carrying this component are skipped by the serializer entirely.
         /// </summary>
-        public const int ScenarioIgnoreTag = 200;
+        public const int ScenarioIgnoreTag = GlobalComponentIds.ScenarioIgnoreTag;
     }
 }

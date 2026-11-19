@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     /// here) so toggling verbosity does not dirty the ECS chunk.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential, Size = 1024)]
-    [ComponentId(BehaviorApplicationComponentIds.HsmTraceWorkingMemory)]
+    [ComponentId(GlobalComponentIds.HsmTraceWorkingMemory)]
     [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct HsmTraceWorkingMemory1024
     {

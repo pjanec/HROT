@@ -75,7 +75,7 @@ namespace Fdp.Toolkit.Utility
     /// </para>
     /// </remarks>
     [StructLayout(LayoutKind.Sequential, Size = 1024)]
-    [ComponentId(UtilityApplicationComponentIds.UtilityTraceWorkingMemory)]
+    [ComponentId(GlobalComponentIds.UtilityTraceWorkingMemory)]
     [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct UtilityTraceWorkingMemory1024
     {
