@@ -90,7 +90,7 @@ namespace Fdp.Core.FlightRecorder
             // ⭐ CE-4050 — the assemblies that declare the recorded types are loaded BEFORE anything resolves an id: assemblies load lazily,
             //   and a type of one this process has not touched yet was "not found", which stopped playback (the browser, the dumper)
             RecordedAssemblies.EnsureLoaded(_metadata);
-            SchemaValidator.Validate(_metadata);
+            var layoutChanged = SchemaValidator.Validate(_metadata);   // ⭐ CE-4628 — a component whose layout changed is skipped, not a refusal
 
             // Step 2: Open the binary frame stream.
             // ⭐ CE-3329 P3 (M1, row 43, F16) — ReadWrite: a REVIEW reads the recording its own recorder still holds open for writing
@@ -99,6 +99,7 @@ namespace Fdp.Core.FlightRecorder
             _fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             _reader = new BinaryReader(_fileStream);
             _playback = new PlaybackSystem();
+            _playback.SkipLayoutChanged(layoutChanged);
             if (EnvVars.Read(EnvVars.HrotReplayFullRepair) == "1") _playback.ForceFullRepair = true;
 
             // Pre-size the frame index based on the file length to avoid repeated List growth

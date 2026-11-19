@@ -13,9 +13,9 @@ namespace Fdp.Core.FlightRecorder
     /// <para>
     /// Called by <see cref="PlaybackController"/> immediately after deserialising the
     /// <c>.meta.json</c> file, before any binary frame data is read.  If any component's
-    /// struct layout (size or field topology) has changed since recording, an
-    /// <see cref="InvalidOperationException"/> is thrown to prevent silent memory
-    /// corruption during playback.
+    /// struct layout (size or field topology) has changed since recording, it is REPORTED (the returned set) and the playback SKIPS that
+    /// component's data — ⭐ CE-4628 (docs/designs/animals/DESIGN_Animals.md §10a): an old recording still loads; ⛔ SUPERSEDED: an
+    /// <see cref="InvalidOperationException"/> that refused the whole recording. A changed EVENT layout still refuses.
     /// </para>
     ///
     /// <para>
@@ -41,9 +41,10 @@ namespace Fdp.Core.FlightRecorder
         /// Thrown if a component ID in the manifest is not registered in the current binary,
         /// or if the component's struct size or layout hash has changed since recording.
         /// </exception>
-        public static void Validate(RecordingMetadata meta)
+        public static System.Collections.Generic.IReadOnlyCollection<int> Validate(RecordingMetadata meta)
         {
             if (meta == null) throw new ArgumentNullException(nameof(meta));
+            var changed = new System.Collections.Generic.HashSet<int>();   // ⭐ CE-4628 — the components whose layout changed since recording: the playback skips them
 
             if (meta.SchemaManifest == null)
             {
@@ -52,7 +53,7 @@ namespace Fdp.Core.FlightRecorder
                 FdpLog<PlaybackController>.Warn(
                     "WARNING: Recording has no SchemaManifest. " +
                     "Playback may fail silently if any struct layouts changed since recording.");
-                return;
+                return changed;
             }
 
             foreach (var (componentId, recorded) in meta.SchemaManifest)
@@ -75,21 +76,25 @@ namespace Fdp.Core.FlightRecorder
                     int currentSize = TypeLayout.SizeOf(currentType);   // ⭐ CE-2044 — managed, as recorded
                     if (currentSize != recorded.Size)
                     {
-                        throw new InvalidOperationException(
+                        FdpLog<PlaybackController>.Warn(
                             $"Schema mismatch: component '{recorded.Name}' (ID {componentId}) layout has changed. " +
                             $"Recorded size = {recorded.Size} bytes, current size = {currentSize} bytes. " +
-                            "The recording cannot be played back safely.");
+                            "Its recorded data is SKIPPED in playback (CE-4628); the rest of the recording plays.");
+                        changed.Add(componentId);
+                        continue;
                     }
 
                     // Validate layout hash (detects field reordering / renames even when size is stable).
                     ulong currentHash = ComponentLayoutHasher.ComputeHash(currentType);
                     if (currentHash != recorded.LayoutHash)
                     {
-                        throw new InvalidOperationException(
+                        FdpLog<PlaybackController>.Warn(
                             $"Schema mismatch: component '{recorded.Name}' (ID {componentId}) layout has changed. " +
                             $"Recorded hash 0x{recorded.LayoutHash:X16}, current hash 0x{currentHash:X16} " +
                             $"(recorded size = {recorded.Size} bytes, current size = {currentSize} bytes). " +
-                            "The recording cannot be played back safely.");
+                            "Its recorded data is SKIPPED in playback (CE-4628); the rest of the recording plays.");
+                        changed.Add(componentId);
+                        continue;
                     }
                 }
                 else if (!currentType.IsValueType)
@@ -98,10 +103,12 @@ namespace Fdp.Core.FlightRecorder
                     ulong currentHash = ComponentLayoutHasher.ComputeManagedHash(currentType);
                     if (currentHash != recorded.LayoutHash)
                     {
-                        throw new InvalidOperationException(
+                        FdpLog<PlaybackController>.Warn(
                             $"Schema mismatch: managed component '{recorded.Name}' (ID {componentId}) logical layout has changed. " +
                             $"Recorded hash 0x{recorded.LayoutHash:X16}, current hash 0x{currentHash:X16}. " +
-                            "The recording cannot be played back safely.");
+                            "Its recorded data is SKIPPED in playback (CE-4628); the rest of the recording plays.");
+                        changed.Add(componentId);
+                        continue;
                     }
                 }
             }
@@ -153,6 +160,7 @@ namespace Fdp.Core.FlightRecorder
                     }
                 }
             }
+            return changed;
         }
     }
 }
