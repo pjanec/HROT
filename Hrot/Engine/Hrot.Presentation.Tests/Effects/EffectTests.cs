@@ -716,7 +716,7 @@ public sealed partial class EffectTests
         return l;
     }
 
-    /// <summary>⭐ CE-4635 (flame weapons §7 U-2) — the W3 wreck rule is RETIRED: a vehicle killed now makes NO effect entity any more (<c>WreckSpawnSystem</c> is an empty
+    /// <summary>⭐ CE-4635 (flame weapons §8 U-2) — the W3 wreck rule is RETIRED: a vehicle killed now makes NO effect entity any more (<c>WreckSpawnSystem</c> is an empty
     /// registered shell, also in a replay); its simulation fire (<c>FireState</c>, lit by <c>BurnSystem</c> on a destroyed FUELLED hull — not a soldier, not a weapon, not a
     /// wreck loaded dead) is drawn from the STATE: one Fire + one small Smoke per burning spot.</summary>
     [Fact]

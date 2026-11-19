@@ -17,7 +17,7 @@ using Xunit;
 namespace Hrot.Presentation.Tests.Effects;
 
 /// <summary>
-/// ⭐⭐ <c>CE-4635</c> / <c>CE-4637</c> (flame weapons, docs/designs/weapons/DESIGN_Flame_Weapons.md §7; handoff HANDOFF_Backend_To_Ui_Flame_Visuals) — the STATE as a second source
+/// ⭐⭐ <c>CE-4635</c> / <c>CE-4637</c> (flame weapons, docs/designs/weapons/DESIGN_Flame_Weapons.md §8; handoff HANDOFF_Backend_To_Ui_Flame_Visuals) — the STATE as a second source
 /// of effect items (<see cref="EffectLayer.ResolveStateInto"/>): every burning <c>FireState</c> spot (U-2), every lit flame jet (U-1), every burning man (U-3), every
 /// <c>BurnedArea</c> mark (U-4). Each picture is drawn where §6 says AND is gone when it is out (A-1); the steady frame allocates nothing (A-2). The GL frames of the same pictures:
 /// <c>FlameVisualsFrameRail</c>. 🔴 Red-proofs: see each test.

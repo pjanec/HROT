@@ -20,7 +20,7 @@ using Pixels = Hrot.Presentation.Tests.Map3D.AirCombatLooksRail.Pixels;
 namespace Hrot.Presentation.Tests.Map3D;
 
 /// <summary>
-/// ⭐⭐ <c>CE-4635</c> / <c>CE-4637</c> (flame weapons §7, A-1; mockup <c>docs/UX/flame-visuals.svg</c>) — the five pictures of the flame visuals on a REAL GL frame, each drawn where §6 says
+/// ⭐⭐ <c>CE-4635</c> / <c>CE-4637</c> (flame weapons §8, A-1; mockup <c>docs/UX/flame-visuals.svg</c>) — the five pictures of the flame visuals on a REAL GL frame, each drawn where §6 says
 /// and GONE when its state is out: a burning truck (a vehicle's three spots in ITS frame), a building record's and a napalm cell's spots, a flamethrower's jet, a burning man, scorched ground.
 /// Method: the same camera, three frames — the baseline (nothing lit), lit, then out — and the pixels that differ are the picture: they must be many, centred on the point the camera
 /// looks at (the spot's WORLD position, so a dropped vehicle rotation puts them elsewhere), and the out frame must equal the baseline again. The scorch must be DARKER than the

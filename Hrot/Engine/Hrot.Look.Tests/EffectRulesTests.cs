@@ -105,7 +105,7 @@ public sealed class EffectRulesTests
                      specs.Select(s => s.EffectType).ToArray());
     }
 
-    /// <summary>⭐ CE-4635 (flame weapons §7 U-5, the <c>EffectRules</c> row) — a fuel shot from a FLAMETHROWER mount makes no muzzle flash and no blast (the jet is its look; it fires
+    /// <summary>⭐ CE-4635 (flame weapons §8 U-5, the <c>EffectRules</c> row) — a fuel shot from a FLAMETHROWER mount makes no muzzle flash and no blast (the jet is its look; it fires
     /// 10×/s), while a rifle's shot from the same kind of soldier still flashes. 🔒 Red-proved: the Flamethrower early-out removed ⇒ the flamethrower's shot flashes.</summary>
     [Fact]
     public void CE4635_AFlamethrowersFuelShot_MakesNoFlash_ARiflesShotStillDoes()

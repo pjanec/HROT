@@ -42,7 +42,7 @@ namespace Hrot.Core.Tkb
         /// <c>Effect.Set.MuzzleFlash</c>, anchored to the muzzle like every flash) and the puff of smoke it leaves there (<c>FiringBlast.Launch</c>, ui).</summary>
         public const long MissileLaunchFlash = 7173, MissileLaunchSmoke = 7174;
 
-        /// <summary>⭐ CE-4635 (docs/designs/weapons/DESIGN_Flame_Weapons.md §7 U-5) — a flamethrower's JET: drawn from STATE (<c>FlameJets.TryGet</c>), never spawned
+        /// <summary>⭐ CE-4635 (docs/designs/weapons/DESIGN_Flame_Weapons.md §8 U-5) — a flamethrower's JET: drawn from STATE (<c>FlameJets.TryGet</c>), never spawned
         /// as an effect entity; this type only carries its look (colour, the muzzle-end size in metres).</summary>
         public const long FlameJet = 7175;
 

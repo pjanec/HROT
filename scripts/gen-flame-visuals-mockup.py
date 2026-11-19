@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mockup for docs/designs/weapons/DESIGN_Flame_Weapons.md §7 (ui's flame visuals, HANDOFF_Backend_To_Ui_Flame_Visuals): a flame jet into a window,
+"""Mockup for docs/designs/weapons/DESIGN_Flame_Weapons.md §8 (ui's flame visuals, HANDOFF_Backend_To_Ui_Flame_Visuals): a flame jet into a window,
 a burning truck, a napalm field, a burning man, scorched ground — each drawn FROM THE SIMULATION'S STATE (§6), the same on every node.
 Built on scripts/mockup_kit.py (R-4143).
 

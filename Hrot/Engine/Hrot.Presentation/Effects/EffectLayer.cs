@@ -67,7 +67,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         /// <summary>⭐ CE-1146 PR-2 (Map 3-D §6aa.next SW) — the wind at a smoke column (m/s, toward; X east, Y north), from the world's
         /// weather; null where the world models no weather (the old light breeze).</summary>
         public Vector2? Wind { get; init; }
-        /// <summary>⭐ CE-4635 (flame weapons §7) — the size this item draws at (m), when it is not the look's own (a burning spot sized by its radius): 0 ⇒ <c>Look.Size</c>.
+        /// <summary>⭐ CE-4635 (flame weapons §8) — the size this item draws at (m), when it is not the look's own (a burning spot sized by its radius): 0 ⇒ <c>Look.Size</c>.
         /// Presentation only — a state item shares ONE cached look, so its size cannot ride on a per-item copy of the look (that would allocate).</summary>
         public float Extent { get; init; }
         /// <summary>⭐ CE-4635 — a flame jet's half-angle (radians): it widens from the muzzle (<see cref="At"/>) to <see cref="Toward"/> by this much.</summary>
@@ -148,7 +148,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     /// <summary>The draw passes' order over BOTH sources (entities, then state): decals underneath … (a rail may call it too).</summary>
     public static void SortForDraw(List<Resolved> list) => list.Sort(ByOrder);
 
-    // ---- the STATE as a second source (CE-4635, docs/designs/weapons/DESIGN_Flame_Weapons.md §7) --------------------------------------------
+    // ---- the STATE as a second source (CE-4635, docs/designs/weapons/DESIGN_Flame_Weapons.md §8) --------------------------------------------
 
     private EntityRepository? _stateWorld;
     private EntityQuery? _fireQuery, _jetQuery, _burnQuery, _markQuery;
@@ -194,7 +194,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
     }
 
     /// <summary>
-    /// ⭐⭐ CE-4635 / CE-4637 (flame weapons §7) — the STATE as a second source of <see cref="Resolved"/> items, APPENDED to <paramref name="list"/> (not cleared — call
+    /// ⭐⭐ CE-4635 / CE-4637 (flame weapons §8) — the STATE as a second source of <see cref="Resolved"/> items, APPENDED to <paramref name="list"/> (not cleared — call
     /// <see cref="ResolveInto"/> first): every burning <c>FireState</c> spot (flames + a small smoke; vehicle, wagon, building, cell), every lit flame jet
     /// (<c>FlameJets.TryGet</c>), every burning man (<c>PersonLook.IsBurning</c>: one body-sized fire) and every <c>BurnedArea</c> ground mark (a dark decal). They
     /// are drawn by the same Fire / Smoke / Decal code as effect entities, in 2-D and 3-D. Stateless: the sim clock and the replicated state only, so a replay, a
@@ -499,7 +499,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         }
         else if (r.Look.Kind == EffectKind.FlameJet)
         {
-            // ⭐ CE-4635 (flame weapons §7 U-1) — a STREAM of tongues from the muzzle (At) to the end of the reach (Toward), widening to the cone's half-angle: each puff
+            // ⭐ CE-4635 (flame weapons §8 U-1) — a STREAM of tongues from the muzzle (At) to the end of the reach (Toward), widening to the cone's half-angle: each puff
             //   runs its own loop along the jet (0.35 s end to end), offset round the axis by a hash of (seed, i); the stream's head races out over the first 0.2 s of
             //   the burst. Yellow at the muzzle → orange → soot at the far end. Stateless like the fire (seed + age only).
             var path = r.Toward - r.At;

@@ -100,7 +100,7 @@ public static class EffectRules
         if (fire.Shooter == Entity.Null || !world.IsAlive(fire.Shooter) || !world.HasComponent<SimTransform>(fire.Shooter)) return 0;
         if (PersonHands.Threw(world, in fire)) return 0;   // ⭐ CE-3248 — a THROW is no gunshot: no flash, no blast
         var mount = CombatTkb.MountOf(world, fire.Shooter, fire.WeaponIndex);
-        // ⭐ CE-4635 (flame weapons §7 U-5) — a FLAMETHROWER's fuel shot (600 a minute, a normal fired notification, no round) makes no flash and no blast: the JET is its look
+        // ⭐ CE-4635 (flame weapons §8 U-5) — a FLAMETHROWER's fuel shot (600 a minute, a normal fired notification, no round) makes no flash and no blast: the JET is its look
         //   (EffectLayer draws it from FlameJets.TryGet) — otherwise it would flash like a rifle ten times a second under its own flames.
         if (mount?.Category == WeaponCategory.Flamethrower) return 0;
         long fired = fire.AmmoGuid != 0 ? fire.AmmoGuid : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;   // ⭐ CE-1115 — the round actually fired

@@ -364,7 +364,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 }
 
 /// <summary>
-/// ⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P, R-269 (ui)) — <b>RETIRED by CE-4635</b> (docs/designs/weapons/DESIGN_Flame_Weapons.md §7 U-2): it used to spawn one
+/// ⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P, R-269 (ui)) — <b>RETIRED by CE-4635</b> (docs/designs/weapons/DESIGN_Flame_Weapons.md §8 U-2): it used to spawn one
 /// Fire + one Smoke effect entity at a vehicle's hull centre when its replicated <c>FireState</c> started burning. Every burning spot of EVERY holder (a vehicle,
 /// a wagon, a building's record, a cell's) is now drawn straight from the state by <see cref="EffectLayer.ResolveStateInto"/> — the same flames on every node, a replay
 /// and a late joiner included, with nothing spawned, aged or removed — so a second flame from here would only double it.
