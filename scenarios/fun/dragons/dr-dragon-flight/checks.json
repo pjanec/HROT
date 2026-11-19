@@ -1,0 +1,108 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4634 D-1 (DESIGN_Dragon DR-1): the dragon flies a route and lands on its legs like a helicopter.",
+  "runFor": 90,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "up": {
+      "on": "field",
+      "who": "Dragon",
+      "path": "FlightState.VerticalSpeed",
+      "op": ">",
+      "value": 1
+    },
+    "landed": {
+      "on": "field",
+      "who": "Dragon",
+      "path": "FlightState.Airborne",
+      "op": "==",
+      "value": 0,
+      "also": [
+        {
+          "path": "SimTransform.Position.0",
+          "op": ">",
+          "value": 492
+        },
+        {
+          "path": "SimTransform.Position.0",
+          "op": "<",
+          "value": 508
+        },
+        {
+          "path": "SimTransform.Position.1",
+          "op": ">",
+          "value": 342
+        },
+        {
+          "path": "SimTransform.Position.1",
+          "op": "<",
+          "value": 358
+        }
+      ]
+    }
+  },
+  "expect": [
+    {
+      "name": "the dragon lifts off",
+      "on": "field",
+      "who": "Dragon",
+      "path": "FlightState.VerticalSpeed",
+      "op": ">",
+      "value": 1,
+      "before": 10
+    },
+    {
+      "name": "it lands on the meadow (within 8 m of (500, 350), on its legs)",
+      "on": "field",
+      "who": "Dragon",
+      "path": "FlightState.Airborne",
+      "op": "==",
+      "value": 0,
+      "also": [
+        {
+          "path": "SimTransform.Position.0",
+          "op": ">",
+          "value": 492
+        },
+        {
+          "path": "SimTransform.Position.0",
+          "op": "<",
+          "value": 508
+        },
+        {
+          "path": "SimTransform.Position.1",
+          "op": ">",
+          "value": 342
+        },
+        {
+          "path": "SimTransform.Position.1",
+          "op": "<",
+          "value": 358
+        }
+      ],
+      "after": "up",
+      "before": 70
+    },
+    {
+      "name": "it takes off again after the landing",
+      "on": "field",
+      "who": "Dragon",
+      "path": "FlightState.VerticalSpeed",
+      "op": ">",
+      "value": 1,
+      "after": "landed"
+    },
+    {
+      "name": "it reaches the last point (620, 300)",
+      "on": "close",
+      "who": "Dragon",
+      "point": [
+        620,
+        300
+      ],
+      "m": 15,
+      "after": "landed"
+    }
+  ]
+}

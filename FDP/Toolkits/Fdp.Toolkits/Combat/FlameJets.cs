@@ -49,6 +49,24 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>Is <paramref name="unit"/>'s flame jet lit at <paramref name="now"/> (sim s)? False for every other unit, mount or munition.</summary>
+        /// <summary>
+        /// ⭐ <c>CE-4634</c> D-1 (DESIGN_Dragon DR-5) — where the jet LEAVES: the mount's MUZZLE when the type places one (a dragon's mouth at the end of its
+        /// neck turret, a flame tank's nozzle) — <see cref="ShotOrigin.From"/>, the one rule a round starts by — else the shooter's eye (a man's flamethrower).
+        /// Read by every flame reader (<c>FlameSystem</c>, <c>StructureFlameSystem</c>) so the jet the sim burns with is the jet the look draws.
+        /// </summary>
+        public static System.Numerics.Vector3 Origin(EntityRepository world, Entity unit, in Jet jet)
+        {
+            var eye = ShotOrigin.Eye(world, unit, out _);
+            return ShotOrigin.From(world, unit, jet.Mount, eye, (System.Numerics.Vector3)jet.AimPoint, out _);
+        }
+
+        /// <summary>⭐ <c>CE-4634</c> D-1 (DR-6) — is <paramref name="man"/> aboard <paramref name="carrier"/> (its rider, its pillion)? A carrier's own riders are
+        /// never in its own jet.</summary>
+        public static bool RidesOn(EntityRepository world, Entity man, Entity carrier)
+            => world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+               && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(man)
+               && world.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(man).VehicleEntity == carrier;
+
         public static bool TryGet(EntityRepository world, Entity unit, double now, out Jet jet)
         {
             jet = default;

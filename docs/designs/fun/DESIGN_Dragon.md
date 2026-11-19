@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE — ✅ APPROVED 2026-11-19 (R-3112); nothing built — D-1 next; DR-8 (the attack pattern) to be DESIGNED (CE-3490)
 updated: 2026-11-19
-build-state: READY-TO-BUILD (D-1, D-3, D-4, D-5) · DESIGN (D-2: DR-8's attack pattern, CE-3490)
-current-answer: §0 the picture · §2 decisions DR-1…DR-12 (leans) · §3 UML · §5 slices and scenarios
+build-state: BUILDING — ✅ D-1 BUILT (§7); READY-TO-BUILD D-3, D-4 (ui), D-5 · DESIGN D-2 (DR-8's attack pattern, CE-3490)
+current-answer: §0 the picture · §2 decisions DR-1…DR-12 (approved R-3112) · §3 UML · §5 slices and scenarios · §7 D-1 as built
 stale-below: none
 known-rot: none
 known-conflict: CE-4634's row says "the bird model scaled up" — this design leans to the ROTORCRAFT model instead (DR-1, the user's "a helicopter in disguise"); the row is updated with it
@@ -189,3 +189,20 @@ scheduled, so nothing can be unreachable on a host.
 - **DR-7**: if the user wants the RIDER to fire a weapon of his own too (a lance, a crossbow), the rider seat becomes a firing seat and the breath
   moves to a second trigger key — an input change on the possession station, ui's.
 - **DR-2**: if dragons should be invisible to radar (a creature, not a machine), that is one exception in the radar's target filter.
+
+## 7. D-1 as built *(backend, `2026-11-19`; where it differs from the plan above, ⭐ this wins)*
+
+| piece | as built |
+|---|---|
+| the type | `TkbEntityTypes.Dragon` = **411** (the aircraft block, free on every lane), `FunTkbCatalog.DefineDragon` with the vehicle builder (R-4281: fun content in the fun catalogue): `LocomotionClass.Rotorcraft`, `FlightParamsDto` 35 m/s · climb 8 · turn 60°/s · hover 25 m · accel 5; a 20 × 26 × 6 m body with four LEG contacts (wheel kind) at −3 m; DIS **1.2.0.20.99** (`FunTkbCatalog.DragonDisSubcategory`: the attack-helicopter class for the air orders, 99 tells the look it is a dragon); health 1 500, armour 10 / 6 / 6 / 6 mm; radar 20 m² |
+| the breath | mount 0 `Flamethrower` on TURRET 0 (the neck: pivot 5 m ahead, 4 m to the head, ±70°, −60…+15°), muzzle 1.5 m past the head; 600 shots at 10 a second; its fuel `MunitionTkbCatalog.TkbDragonFire` **6072** ("dragon fire": 50 m, 9°, intensity 1, burns 60 s) |
+| the seats | `FunTkbCatalog.DragonSeats`: seat 0 Driver, `SeatPose.Ride` (3 m ahead, 2.4 m up — not a firing seat); seat 1 Passenger, `SeatPose.Ride`, a firing seat 100…260° |
+| the sound | `SoundSourceClass.Roar` = **10** (new, appended): its moving sound at 1.5 km; its fire the flame's (`Flame`, 300 m). The hearing gizmo draws it red (ui's file, one line) |
+| DR-5 the mouth | `FlameJets.Origin` — `ShotOrigin.From` (the muzzle when the type places one, else the eye); read by `FlameSystem` and `StructureFlameSystem`. ⚠ the flame TANK's jet now starts at its nozzle too (its scenarios re-run, §7 gates) |
+| DR-6 the riders | `FlameJets.RidesOn` (the man's `IsEmbarkedTag.VehicleEntity` is the thrower) ⇒ skipped by `FlameSystem` |
+| the player's breath | ✅ measured by reading: the operator path (`AimAndFireExecutor.OperatorFire`) goes through the SAME `TurretPath` / `ShootAtPoint` as the AI's `FireAtPoint`, which lights the jet in `dr-dragon-breath` and lit the flame tank's in `fl-clear-the-bunker`; ⏳ a possessed-dragon rail is D-3's (the player cases) |
+| ⚠ found | `LineOfFire.NeutralInFlame` (the AI's Protocol III hold) measures from the body's centre in 2-D — ~9 m short on a dragon; left to CE-3490 (the AI attack's design), noted there |
+| ⭐ found by the parallel checks | `dr-dragon-breath` under `HROT_READ_CHECK=1` THREW: the threat phase (`ThreatEvaluationSystem`) reads a remembered AIRCRAFT's `FlightState` (`AirContacts.IsAir` → `FlightGround.OnTheGround`) undeclared — ⚠ true of ANY aircraft a ground unit remembers (the AH-64, a drone), latent because no air scenario had run under the read check. ✅ `FlightState` declared as the phase's stable read (only the motion model writes it, never inside the phase); both dragon scenarios then pass under the checks with the same golden |
+| the catalogue | `EntityTypeCatalogTests.CE2138_*` (ui's file) gains 411 — listed as family `AttackHelicopter` until ui's `VisualFamily.Dragon` (the NOTE) — and the four earlier backend types it lacked since they were added (117 flame tank, 215 thermal observer, 410 napalm A-10, 2022 flamethrower soldier): purely additive |
+| rails | `FlameSystemTests.CE4634_TheJetLeavesTheMuzzle_*`, `CE4634_ACarriersOwnRider_*` (each red-proved: the origin back at the eye ⇒ red; the riders' test dropped ⇒ red) · `DragonTkbTests` ×3 (the type, the breath, the seats + sound) |
+| scenarios | ✅ `scenarios/fun/dragons/dr-dragon-flight` — lifts off 0.25 s, lands on the meadow 25 s (on its legs), takes off again 33 s, reaches the last point 51 s · ✅ `dr-dragon-breath` — both field men burn at 1 s, Field Man 1 dies at 10 s, the bystander, the pillion and the dragon itself (a hostile flamer on its flank) are never hurt |

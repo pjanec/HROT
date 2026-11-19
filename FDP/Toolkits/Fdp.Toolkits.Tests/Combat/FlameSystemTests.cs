@@ -97,6 +97,59 @@ namespace Fdp.Toolkit.Tests.Combat
 
         private bool Burning(Entity man) => Effects.IsBurning((Fdp.ModuleHost.Abstractions.ISimulationView)_w, man, _now);
 
+        /// <summary>A carrier whose flamethrower's muzzle stands <paramref name="mouthAheadM"/> ahead of its body (a dragon's mouth at the end of its neck) — the thrower
+        /// from now on.</summary>
+        private Entity Carrier(float mouthAheadM)
+        {
+            const long Dragonish = 0x6B06;
+            var db = (TkbDatabase)_w.GetSingletonManaged<ITkbDatabase>();
+            if (!db.TryGetByType(Dragonish, out _))
+            {
+                var t = new TkbTemplate("test flame carrier", Dragonish);
+                t.AddDescriptor(new WeaponSuiteDto { Mounts = { new WeaponMountDto { Category = WeaponCategory.Flamethrower, AmmoGuid = Fuel, InitialAmmunition = 100,
+                                                                                     MuzzleOffsetX = mouthAheadM, MuzzleOffsetZ = 1f } } });
+                db.Register(t);
+            }
+            _thrower = Body(Dragonish, new Vector3(50, 100, 0), VehicleClass.Pedestrian);
+            _w.AddComponent(_thrower, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Point = new Vector3(80, 100, 1), ActiveMount = 0 });
+            _w.AddComponent(_thrower, new WeaponAmmo { Count = 1, Load0 = Fuel, LastShotAt0 = double.NegativeInfinity, BurstStartedAt0 = double.NegativeInfinity });
+            return _thrower;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4634</c> D-1 (DESIGN_Dragon DR-5) — the jet LEAVES THE MOUTH: a carrier whose type puts the flamethrower's muzzle 10 m ahead of its body
+        /// reaches 40 m from there — a man 45 m from the body (35 from the mouth) burns; a man-portable flamethrower (no muzzle) still reaches 40 m from his
+        /// eye. 🔴 Red-proof: the origin back at the eye ⇒ the far man never burns.
+        /// </summary>
+        [Fact]
+        public void CE4634_TheJetLeavesTheMuzzle_WhenTheTypePlacesOne()
+        {
+            Carrier(mouthAheadM: 10f);
+            var far = Body(Rifleman, new Vector3(95, 100, 0), VehicleClass.Pedestrian);   // 45 m from the body, 35 from the mouth
+            Fire(0.5);
+            Assert.True(Burning(far));
+            Assert.Equal(new Vector3(60f, 100f, 1f), FlameJets.Origin(_w, _thrower, FlameJet()));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4634</c> D-1 (DR-6) — a carrier's OWN RIDERS are never in its own jet: a man aboard it (its pillion) standing in the cone does not burn; the
+        /// same man not aboard does. 🔴 Red-proof: the riders' test dropped ⇒ the rider burns.
+        /// </summary>
+        [Fact]
+        public void CE4634_ACarriersOwnRider_IsNeverInItsOwnJet()
+        {
+            _w.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
+            var carrier = Carrier(mouthAheadM: 2f);
+            var rider = Body(Rifleman, new Vector3(62, 100, 0), VehicleClass.Pedestrian);
+            _w.AddComponent(rider, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = carrier, Seat = 1 });
+            var stranger = Body(Rifleman, new Vector3(64, 100, 0), VehicleClass.Pedestrian);
+            Fire(0.5);
+            Assert.False(Burning(rider));
+            Assert.True(Burning(stranger));
+        }
+
+        private FlameJets.Jet FlameJet() => FlameJets.TryGet(_w, _thrower, _now, out var jet) ? jet : throw new InvalidOperationException("no lit jet");
+
         [Fact]
         public void AManInTheCone_IsSetAlight_After0_3sOfFlame_NotBefore()
         {

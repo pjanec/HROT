@@ -269,6 +269,11 @@ namespace Hrot.Map.Common
         /// ⛔ A permanent wire value (410 measured free on every lane 2026-11-19).</summary>
         public const long Jet_AttackA10Napalm = 410;
 
+        /// <summary>⭐ <c>CE-4634</c> D-1 (docs/designs/fun/DESIGN_Dragon.md, R-3112) — the fun pack's DRAGON: a rotorcraft "helicopter in disguise" with a
+        /// breath on its neck turret, a rider and a firing pillion (411 — the aircraft block, free on every lane <c>2026-11-19</c>; defined by
+        /// <c>FunTkbCatalog</c>, R-4281).</summary>
+        public const long Dragon = 411;
+
         // Composite Units
         public const long Unit_TankPlatoon = 301;
         public const long Unit_InfantrySquad = 302;

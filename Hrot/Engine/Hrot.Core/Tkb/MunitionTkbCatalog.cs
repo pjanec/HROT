@@ -194,6 +194,12 @@ namespace Hrot.Core.Tkb
         /// incendiary canister that lays its fire in an ellipse <see cref="NapalmLengthM"/> × <see cref="NapalmWidthM"/> along the flight line, burning
         /// <see cref="NapalmBurnSeconds"/>, under a smoke cloud. No blast, no fragments. ⛔ A permanent wire value.</summary>
         public const int TkbMk77Firebomb = 6071;
+        /// <summary>⭐ <c>CE-4634</c> D-1 (DESIGN_Dragon DR-4) — a DRAGON's FIRE: its breath as the flame's fuel (6072 free on every lane, <c>2026-11-19</c>) — a jet
+        /// <see cref="DragonFireReachM"/> long, wider than a pump's (9°), burning what it lights 60 s. ⛔ A permanent wire value.</summary>
+        public const int TkbDragonFire = 6072;
+        public const string DragonFireName = "dragon fire";
+        /// <summary>⭐ CE-4634 — how far a dragon's breath reaches (m).</summary>
+        public const float DragonFireReachM = 50f;
         public const string Mk77Name = "Mk-77 firebomb";
         public const float NapalmLengthM = 80f, NapalmWidthM = 25f, NapalmBurnSeconds = 300f;
         public const string ArrowName = "arrow", CrossbowBoltName = "crossbow bolt";
@@ -437,6 +443,9 @@ namespace Hrot.Core.Tkb
             // ⭐ CE-3486 FL-2 — the flame tank's fuel
             Register(tkb, TankFlameFuelName, TkbTankFlameFuel, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Incendiary, FlameRangeM = TankFlameReachM, FlameHalfAngleDeg = 5f, FlameIntensity = 1f, BurnSeconds = 60f });
+            // ⭐ CE-4634 D-1 — a dragon's breath (the fun pack's carrier of the shared flame, DESIGN_Flame_Weapons F-11)
+            Register(tkb, DragonFireName, TkbDragonFire, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Incendiary, FlameRangeM = DragonFireReachM, FlameHalfAngleDeg = 9f, FlameIntensity = 1f, BurnSeconds = 60f });
             Register(tkb, SmokeGrenadeName, TkbSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 8f, CloudHeightM = 4f, CloudSeconds = 75f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-2278 — thrown on the arc (as the stun grenade, CE-3230)
@@ -562,6 +571,7 @@ namespace Hrot.Core.Tkb
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds
                 [TkbVehicleSmokeGrenade] = 6,                                                    // ⭐ CE-4670 — the discharger's
                 [TkbFlameFuel] = 1,
+                [TkbDragonFire] = 1,                                                             // ⭐ CE-4634 — one breath shot of a dragon
                 [TkbTankFlameFuel] = 1,                                                          // ⭐ CE-3486 — one fuel shot of the flame tank                                                              // ⭐ CE-4635 — one fuel shot (a tenth of a second of flame)
                 [Tkb60mmMortarSmoke] = 25, [Tkb81mmMortarSmoke] = 40, [Tkb120mmMortarSmoke] = 60, // ⭐ CE-7025 — the smoke bombs
                 [TkbThrowingHatchet] = 1, [TkbThrowingSpear] = 1, [TkbThrowingStar] = 0.5f,      // ⭐ CE-3247 — the thrown blades
