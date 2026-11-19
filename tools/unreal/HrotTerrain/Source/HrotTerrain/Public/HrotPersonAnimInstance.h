@@ -6,6 +6,9 @@
 #include "HrotPersonAnimInstance.generated.h"
 
 class UAnimSequence;
+class USkeletalMeshComponent;
+class UStreamableRenderAsset;
+class UMeshComponent;
 
 /**
  * A person's pose from four inputs, layered the standard way:
@@ -37,6 +40,43 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float BlendTime = 0.25f;
 	/** degrees a second the aim turns toward AimYaw / AimPitch (0 = at once) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float AimTurnRate = 240.f;
+
+	/** ⭐ the weapon in the hand (null = unarmed / holstered) — PART OF THE PERSON: a component of this actor, so it survives into
+	 *  play (measured: a separate weapon actor attached to a Blueprint body lost its attachment in Simulate) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person", meta = (AllowedClasses = "/Script/Engine.StaticMesh,/Script/Engine.SkeletalMesh"))
+	TObjectPtr<UStreamableRenderAsset> Weapon;   // a static or a skinned mesh (Lyra's SK_Rifle: its Muzzle / ShellEject sockets)
+	/** where it is held: the socket / bone, and the weapon's transform relative to it */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") FName WeaponSocket = TEXT("weapon_r");
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") FTransform WeaponOffset;
+
+	/** set by the first tick in play (ApplyAnimation + ApplyWeapon ran) — a check the anim lab reads */
+	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Person") bool bAppliedInPlay = false;
+
+	UHrotPersonState();
+
+	/** Puts `Weapon` in the hand (creates / updates / hides the "HrotWeapon" component). Called in play by the first tick too. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Person")
+	UMeshComponent* ApplyWeapon();
+
+	/** The weapon component in the hand, or null. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Person")
+	UMeshComponent* GetWeaponComponent() const;
+
+	/** The skeletal mesh the person's pose is computed on: the one the other parts follow (leader pose), else the first with a mesh. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Person")
+	USkeletalMeshComponent* FindLeader() const;
+
+	/** Makes the leader run UHrotPersonAnimInstance (true when it had to change something). */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Person")
+	bool ApplyAnimation();
+
+protected:
+	/** ⭐ In play, once, AFTER the owner's own BeginPlay: a body Blueprint may start its own animation there (measured: the US_Soldier
+	 *  Character sets a single-node idle on BeginPlay, replacing ours) — the person state owns the pose, so it re-applies. */
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	/** an editor rebuild of a Blueprint person (any property edit re-runs its construction) re-registers this component: the leader
+	 *  gets our animation back (measured: the rebuild reset it to the Blueprint's own) */
+	virtual void OnRegister() override;
 };
 
 UCLASS(Transient, Blueprintable)

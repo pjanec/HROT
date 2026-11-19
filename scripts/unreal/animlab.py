@@ -73,6 +73,16 @@ GROUPS = [
         {"label": "pistol aimed yaw 45", "base": "MM_Pistol_Idle_Hipfire", "upper": "MM_Pistol_Idle_ADS", "yaw": 45, "weapon": "pistol",
          "body": "BP_Person_05"},
         {"label": "prone", "base": "RTG_Prone_Idle.*", "body": "BP_Person_06"}]},
+    # ⭐ the US soldier (Fab "US_Soldier": its own skeleton, mannequin proportions; clips retargeted → /Game/Hrot/People/Anims_USSoldier)
+    {"name": "soldier", "anims": [
+        {"label": "rifle lowered", "base": "MM_Rifle_Idle_Hipfire", "weapon": "rifle", "body": "US_Soldier"},
+        {"label": "walk rifle aimed", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "US_Soldier"},
+        {"label": "crouch-walk aimed", "base": "MM_Rifle_Crouch_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "US_Soldier"},
+        {"label": "aimed yaw -45", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "yaw": -45, "weapon": "rifle", "body": "US_Soldier"},
+        {"label": "jog + reload", "base": "MF_Rifle_Jog_Fwd", "upper": "MM_Rifle_Idle_Hipfire", "action": "MM_Rifle_Reload_Additive", "weapon": "rifle",
+         "body": "US_Soldier"},
+        {"label": "pistol aimed", "base": "MM_Pistol_Idle_Hipfire", "upper": "MM_Pistol_Idle_ADS", "weapon": "pistol", "body": "US_Soldier"},
+        {"label": "prone", "base": "RTG_Prone_Idle.*", "body": "US_Soldier"}]},
     # the aim pitch seen from the SIDE (facing 90: the barrel crosses the picture) — to judge the angle, not foreshortened
     {"name": "pitch-side", "anims": [
         {"label": "pitch 0", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 0, "facing": 90, "weapon": "rifle"},
@@ -82,7 +92,7 @@ GROUPS = [
     # ⭐ PLAY MODE (Simulate): the engine ticks the people itself (no explicit posing); every `seq` entry is a state applied live,
     # held `hold` s, then shot (live-<n>.png); `speed` cm/s moves the actor along its facing (the clip plays in place)
     {"name": "live", "live": True, "anims": [
-        {"label": "soldier", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "BP_Person_03", "seq": [
+        {"label": "soldier", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "US_Soldier", "fire": True, "seq": [
             {"base": "MF_Rifle_Walk_Fwd", "speed": 150}, {"base": "MF_Rifle_Jog_Fwd", "speed": 350},
             {"base": "MM_Rifle_Crouch_Walk_Fwd", "speed": 120}, {"base": "MM_Rifle_Idle_Hipfire", "yaw": 60, "speed": 0},
             {"base": "RTG_Prone_Idle.*", "upper": None, "yaw": 0, "speed": 0}]},

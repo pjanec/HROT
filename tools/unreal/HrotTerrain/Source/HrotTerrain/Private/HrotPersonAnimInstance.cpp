@@ -7,6 +7,10 @@
 #include "AnimationRuntime.h"
 #include "BonePose.h"
 #include "GameFramework/Actor.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/SkeletalMesh.h"
 
 namespace
 {
@@ -176,6 +180,110 @@ namespace
 			return true;
 		}
 	};
+}
+
+UHrotPersonState::UHrotPersonState()
+{
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = true;
+	PrimaryComponentTick.TickGroup = TG_PrePhysics;
+	bAutoActivate = true;   // an inactive component never ticks (a component added in the editor is not active by default)
+}
+
+USkeletalMeshComponent* UHrotPersonState::FindLeader() const
+{
+	const AActor* Owner = GetOwner();
+	if (!Owner) return nullptr;
+	TArray<USkeletalMeshComponent*> Meshes;
+	Owner->GetComponents<USkeletalMeshComponent>(Meshes);
+	for (USkeletalMeshComponent* M : Meshes)
+		for (const USkeletalMeshComponent* F : Meshes)
+			if (F != M && F->LeaderPoseComponent.Get() == M) return M;
+	for (USkeletalMeshComponent* M : Meshes)
+		if (M->GetSkinnedAsset()) return M;
+	return nullptr;
+}
+
+bool UHrotPersonState::ApplyAnimation()
+{
+	USkeletalMeshComponent* M = FindLeader();
+	if (!M) return false;
+	if (M->GetAnimationMode() == EAnimationMode::AnimationBlueprint && M->GetAnimInstance()
+		&& M->GetAnimInstance()->IsA<UHrotPersonAnimInstance>()) return false;
+	M->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+	M->SetAnimInstanceClass(UHrotPersonAnimInstance::StaticClass());
+	return true;
+}
+
+UMeshComponent* UHrotPersonState::GetWeaponComponent() const
+{
+	const AActor* Owner = GetOwner();
+	if (!Owner) return nullptr;
+	TArray<UMeshComponent*> All;
+	Owner->GetComponents<UMeshComponent>(All);
+	for (UMeshComponent* C : All)
+		if (C->GetFName() == TEXT("HrotWeapon")) return C;
+	return nullptr;
+}
+
+UMeshComponent* UHrotPersonState::ApplyWeapon()
+{
+	AActor* Owner = GetOwner();
+	USkeletalMeshComponent* Hand = FindLeader();
+	UMeshComponent* C = GetWeaponComponent();
+	if (!Owner || !Hand) return C;
+	UStaticMesh* const SM = Cast<UStaticMesh>(Weapon);
+	USkeletalMesh* const SK = Cast<USkeletalMesh>(Weapon);
+	const bool bWrongKind = C && ((SM && !C->IsA<UStaticMeshComponent>()) || (SK && !C->IsA<USkeletalMeshComponent>()));
+	if (bWrongKind || (!SM && !SK))
+	{
+		if (C) { Owner->RemoveInstanceComponent(C); C->DestroyComponent(); C = nullptr; }   // unarmed / holstered, or the kind changed
+		if (!SM && !SK) return nullptr;
+	}
+	if (!C)
+	{
+		if (SM) C = NewObject<UStaticMeshComponent>(Owner, TEXT("HrotWeapon"), RF_Transactional);
+		else
+		{
+			USkeletalMeshComponent* K = NewObject<USkeletalMeshComponent>(Owner, TEXT("HrotWeapon"), RF_Transactional);
+			K->SetAnimationMode(EAnimationMode::AnimationSingleNode);   // the weapon's own bones stay in their reference pose
+			// ⭐ its sockets ride on its bones (Lyra's Muzzle is on "Barrel"): bones never refreshed ⇒ the muzzle read beside the grip,
+			// pointing sideways (measured, live fire) — a weapon has a handful of bones, always refreshed
+			K->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+			C = K;
+		}
+		C->SetMobility(EComponentMobility::Movable);
+		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Owner->AddInstanceComponent(C);   // an instance component: saved with the actor, duplicated into play
+		C->RegisterComponent();
+	}
+	if (SM) CastChecked<UStaticMeshComponent>(C)->SetStaticMesh(SM);
+	else
+	{
+		USkeletalMeshComponent* K = CastChecked<USkeletalMeshComponent>(C);
+		K->SetSkeletalMeshAsset(SK);
+		K->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // also on a copy made in play
+		K->RefreshBoneTransforms();
+	}
+	C->SetVisibility(true);
+	C->AttachToComponent(Hand, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocket);
+	C->SetRelativeTransform(WeaponOffset);
+	return C;
+}
+
+void UHrotPersonState::OnRegister()
+{
+	Super::OnRegister();
+	if (!IsTemplate() && GetOwner()) ApplyAnimation();
+}
+
+void UHrotPersonState::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	ApplyAnimation();
+	ApplyWeapon();   // a body Blueprint rebuilt in play keeps the weapon in the hand
+	bAppliedInPlay = true;
+	SetComponentTickEnabled(false);   // once: nothing per frame
 }
 
 void UHrotPersonAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
