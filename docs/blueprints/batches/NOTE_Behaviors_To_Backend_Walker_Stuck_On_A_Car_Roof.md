@@ -20,6 +20,10 @@ related-designs:
 
 The mirrored 'Cautious' (same setup at x 500) walks the same kind of line past his car and keeps going.
 
+⭐ **A second instance, `bt-window-duel` (same day, stepped):** the 'Street Rifleman' (behind 'Van 1' at (104, 82), TKB 8806) starts a
+`FightFromCover` cover move at 12.75 s to (105, 80); at 18 s he stands at (105.2, 81.1, **1.8**) — on Van 1's roof — and stays there to the end (60 s),
+his cover moves re-sent ((103, 80), (105, 80)). The scenario's row *"the Street Rifleman bounds to Van 2's cover"* can never pass.
+
 ⚠ **Suspect, not measured:** the walker's ground snap takes the car's top as his surface (a step-up of 1.5 m), and from the roof every step is
 refused (the edge is a drop). ⛔ No line instrumented.
 
