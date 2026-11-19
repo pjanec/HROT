@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · docs/DESIGN_Terrain_Base_Edits.md §7 (CE-5029 BE-3, CE-5030 BE-4) — a baked solid block made enterable by a scenario edit: a man ordered inside gets in through its generated door. Golden off until a measured run shows it repeats. ⚠ RED until CE-5039: the deterministic run starts before the scenario's live overlay is baked, so the first plan runs on the base mesh (the block still solid) and is never retried — measured; in Preview after the bake he walks in through the new door.",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 · docs/DESIGN_Terrain_Base_Edits.md §7 (CE-5029 BE-3, CE-5030 BE-4) — a baked solid block made enterable by a scenario edit: a man ordered inside gets in through its generated door. Golden off until a measured run shows it repeats. ⭐ CE-5039 (ui, 2026-11-19): the load now waits for the live overlay's first bake (DESIGN_Cluster_Load_Phase §11.10d), so his first plan runs on the merged mesh. 📐 Measured: he reaches (110, 160.16) at t 20 s, then Idle's fidget (Restless) moves him ~1.6 m inside the room — so the centre is a 'once' row and 'inside at the end' its own row (the 1.5 m atEnd row measured the fidget, not the conversion).",
   "runFor": 60,
   "golden": false,
   "expect": [
@@ -12,14 +12,24 @@
       "value": 152
     },
     {
-      "name": "he ends within 1.5 m of the centre (110,160), inside",
+      "name": "he reaches the centre (110,160), inside, within 1.5 m",
       "on": "near",
       "who": "Walker",
       "point": [
         110,
         160
       ],
-      "within": 1.5,
+      "within": 1.5
+    },
+    {
+      "name": "he is still inside the block at the end (within 8 m of its centre; the block is x 100..120, y 150..170)",
+      "on": "near",
+      "who": "Walker",
+      "point": [
+        110,
+        160
+      ],
+      "within": 8,
       "atEnd": true
     }
   ]

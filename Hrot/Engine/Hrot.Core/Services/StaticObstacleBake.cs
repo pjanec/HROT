@@ -26,6 +26,29 @@ public sealed class StaticObstacleBakery
 
     /// <summary>The residency's base version (bumped by every terrain commit / unload).</summary>
     public int BaseVersion => Residency.BaseVersion;
+
+    // ⭐ CE-5039 — what the node's obstacle bake has COMMITTED of the live terrain overlay (the editor's blocks and features), so the load can wait for it.
+    //   Written by StaticObstacleBakeSystem only (frame thread); read by the scenario load's readiness predicate (frame thread).
+    [Fdp.Core.NotState("injected live-overlay dependency, handed over by the bake system")]
+    internal LiveOverlay? Overlay;
+    [Fdp.Core.WorldDerived("the overlay signature the last committed bake held; re-derived by the next bake")]
+    internal ulong CommittedOverlay = LiveOverlay.EmptySignature;
+    [Fdp.Core.WorldDerived("the base version that committed overlay was baked on; re-derived by the next bake")]
+    internal int CommittedOverlayBase = int.MinValue;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-5039</c> (DECISIONS_Terrain CE-5039, <c>docs/DESIGN_Cluster_Load_Phase.md</c> §11.10d) — true while this node's live terrain overlay (the scenario's blocks and features, expanded
+    /// live on the editor) holds something the terrain does NOT yet: its first bake for this world has not committed. ⭐ False at once on a node with no live overlay (every host but the
+    /// editor: the compiled overlay reaches them in the terrain itself) and for a scenario with no blocks or features — those loads are not delayed. Allocation-free (a cached query).
+    /// </summary>
+    public bool AwaitsLiveOverlay(EntityRepository world)
+    {
+        var overlay = Overlay;
+        if (overlay == null) return false;
+        ulong now = overlay.SignatureOfWorld(world);
+        if (now == LiveOverlay.EmptySignature) return false;
+        return now != CommittedOverlay || CommittedOverlayBase != BaseVersion;
+    }
 }
 
 /// <summary>
@@ -72,6 +95,10 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     private List<Entity> _runningBatch = new();
     [Fdp.Core.ProtocolCache("signature of the in-flight bake; just handshake bookkeeping")]
     private ulong _runningSignature;
+    [Fdp.Core.WorldDerived("live-overlay signature of the in-flight bake (CE-5039); re-derived by the next bake")]
+    private ulong _runningOverlay = LiveOverlay.EmptySignature;
+    [Fdp.Core.FrameScratch("the live overlay's signature this frame, set by SignatureNow before every use")]
+    private ulong _overlayNow = LiveOverlay.EmptySignature;
 
     [Fdp.Core.WorldDerived("what terrain holds baked; empty just triggers an identical rebake")]
     private ulong _bakedSignature = EmptySignature;
@@ -156,6 +183,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         ulong obstacleSig = SignatureOfWorld(world, _probe, _pending);
         bool hasObstacles = obstacleSig != EmptySignature;
 
+        if (bakery != null) bakery.Overlay = _liveOverlay;   // ⭐ CE-5039 — the load's readiness predicate asks the bakery whether the overlay is baked yet
         if (bakery == null)
         {
             // No terrain on this node: nothing to bake — the obstacle needs no wait here.
@@ -220,6 +248,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
         ulong overlayHash = _liveOverlay?.SignatureOfWorld(world) ?? LiveOverlay.EmptySignature;
         hasOverlay = overlayHash != LiveOverlay.EmptySignature;
+        _overlayNow = overlayHash;
         if (hasOverlay) { signature ^= overlayHash; signature *= 1099511628211UL; }
         return signature;
     }
@@ -235,6 +264,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         _runningOn = residency;
         _runningBatch = new List<Entity>(_pending);
         _runningSignature = signature;
+        _runningOverlay = hasOverlay ? _overlayNow : LiveOverlay.EmptySignature;   // ⭐ CE-5039 — what this bake will have committed of the overlay
         // ⭐ O-7 B — the blocks are read here, on the frame thread; their EXPANSION runs on the bake's task (B-2: only a changed entity re-expands)
         var overlay = _liveOverlay;
         var sources = hasOverlay && overlay != null ? overlay.Snapshot(world) : null;
@@ -299,6 +329,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
             //    node's terrain does not hold them — said loudly.
             FdpLog<StaticObstacleBakeSystem>.Error(
                 $"[Obstacles] Bake of {batch.Count} obstacle(s) FAILED — they are live but NOT in this node's terrain: {task.Exception?.GetBaseException().Message}");
+            MarkOverlayCommitted(world, residency);   // ⭐ CE-5039 — a failed bake must not hold the load for ever either (said loudly above)
             foreach (var e in batch) Ack(world, e);
             return;
         }
@@ -309,6 +340,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 
         _bakedSignature = _runningSignature;
         _bakedBase = residency.BaseVersion;
+        MarkOverlayCommitted(world, residency);
         Bakes++;
         LastBakeMilliseconds = bake.Milliseconds;
         BakedParts = bake.Parts; LastDirty = bake.Dirty;
@@ -320,6 +352,14 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         FdpLog<StaticObstacleBakeSystem>.Info(
             $"[Obstacles] Baked {bake.Obstacles} static obstacle(s) into the terrain in {bake.Milliseconds} ms; acking {batch.Count}.");
         foreach (var e in batch) Ack(world, e);
+    }
+
+    /// <summary>⭐ CE-5039 — the bakery learns what of the live overlay the terrain now holds (the load's readiness predicate reads it: <see cref="StaticObstacleBakery.AwaitsLiveOverlay"/>).</summary>
+    private void MarkOverlayCommitted(EntityRepository world, TerrainResidency residency)
+    {
+        if (!world.HasSingletonManaged<StaticObstacleBakery>() || world.GetSingletonManaged<StaticObstacleBakery>() is not { } bakery || !ReferenceEquals(bakery.Residency, residency)) return;
+        bakery.CommittedOverlay = _runningOverlay;
+        bakery.CommittedOverlayBase = residency.BaseVersion;
     }
 
     /// <summary>
