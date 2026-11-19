@@ -1,7 +1,7 @@
 <!--STATUS
-state: LIVE — DESIGN for the user's approval (nothing built)
+state: LIVE — ✅ APPROVED 2026-11-19 (R-3112); nothing built — D-1 next; DR-8 (the attack pattern) to be DESIGNED (CE-3490)
 updated: 2026-11-19
-build-state: DESIGN
+build-state: READY-TO-BUILD (D-1, D-3, D-4, D-5) · DESIGN (D-2: DR-8's attack pattern, CE-3490)
 current-answer: §0 the picture · §2 decisions DR-1…DR-12 (leans) · §3 UML · §5 slices and scenarios
 stale-below: none
 known-rot: none
@@ -21,6 +21,10 @@ related-designs:
 > sitting on it in a similar way how the dragons in the Games of Thrones series. So the dragon should be similar size and should fire flames … it's
 > basically just a helicopter in disguise with dragon breath weapon, including the autonomous behaviors."* · *"having a passenger seat like on a
 > motorcycle so that the passenger can fire … his own weapon independently on the dragon."*
+> 🔒 **User, `2026-11-19` (R-3112):** *"Dragon approved."* · *"record a task that we need to design the attack pattern for the dragon and helicopter
+> with dragon breath for autonomous attack."* ⇒ DR-8 below is a STARTING POINT, not the decision: the autonomous breath attack (dragon and a flame
+> helicopter alike) gets its own design first — [CE-3490](../../blueprints/Blueprint_Issues_Tracker.md). The UI lane has the look:
+> [NOTE_Backend_To_Ui_Dragon_Visuals.md](../../blueprints/batches/NOTE_Backend_To_Ui_Dragon_Visuals.md).
 
 ## 0. The picture
 
@@ -75,7 +79,7 @@ through the CLI, so the absence claims below rest on graph + grep.
 | **DR-5** | where the jet leaves | ⭐ **the muzzle, when the type places one** — `FlameSystem` / `StructureFlameSystem` read `ShotOrigin.From` (the mouth) instead of `ShotOrigin.Eye`; the sight line from there. ⭐ The flame tank's nozzle gains the same | keep the eye — the cone would start 10 m inside the dragon |
 | **DR-6** | riders and their own breath | ⭐ **a carrier's embarked men are never in its own jet** (one line beside `target == thrower`) | rely on geometry — true today, but a rider leaning into a neck-down breath is one turret pose away from burning |
 | **DR-7** | the seats | ⭐ **seat 0 RIDER** — `SeatRole.Driver`, `SeatPose.Ride`, at the base of the neck; he steers and his hand is the breath (the dragon's mount), NOT a firing seat. **Seat 1 PILLION** — a firing seat (PF-1) behind him, arc 100…260° (both flanks and the rear), its man fires his own weapon, AI or player | rider fires his own rifle too (as on a horse, R-4269) — ⏸ v2: one man cannot aim a neck and a rifle; the pillion is the gun |
-| **DR-8** | the AI attack | ⭐ **a new profile `BreathPass`** for a rotorcraft whose only weapon is a flamethrower: run in at 15 m above ground, slow to 8 m/s inside 60 m, the neck tracks the target, breathe while it is in the cone (the existing fire path), pass over and climb out to 60 m; repeat while men are seen. `Scan` learns `Flamethrower`; `Pick` returns it | RunningFire — it runs in at 60 m above ground, out of a 50 m breath |
+| **DR-8** | the AI attack — ⏸ **TO BE DESIGNED (CE-3490, user `2026-11-19`)**; the lean is its starting point | ⭐ **a new profile `BreathPass`** for a rotorcraft whose only weapon is a flamethrower: run in at 15 m above ground, slow to 8 m/s inside 60 m, the neck tracks the target, breathe while it is in the cone (the existing fire path), pass over and climb out to 60 m; repeat while men are seen. `Scan` learns `Flamethrower`; `Pick` returns it | RunningFire — it runs in at 60 m above ground, out of a 50 m breath |
 | **DR-9** | its brain | ⭐ **the attack helicopter's brain** — `AirPlatformMove`, `AirPlatformAttack` / `Strike` (→ `BreathPass`), `AirArmedSearch` (hunt an area), a route with a Ground waypoint to LAND (perch); the dragon is its own crew like the AH-64 — it flies with no rider | a dragon-only behaviour tree — the air behaviours already do every verb the user named |
 | **DR-10** | the player | ⭐ **three ways, all built mechanisms**: ① *Drive* — boards the rider seat, flies it with the helicopter keys, the fire key breathes; ② *Board* the pillion — fires his own weapon in the arc while the AI (or another player) flies (PL-2 / PL-3); ③ possess the dragon directly (no man) — the same keys | — |
 | **DR-11** | the look *(ui lane)* | ⭐ **`VisualFamily.Dragon` + a `ShapeKit`** of box parts (body, neck on the turret's pose, head, tail, legs, two wings on flap pivots); wing beat ≈ 1 Hz in climb / slow flight, glide at speed, folded when landed; the rider drawn seated for any `SeatPose.Ride` carrier (no longer horse-only); the breath's effect is the flame look already built. ⭐ A mockup first (R-4143), ui's | a skeletal mesh — the engine draws procedural part kits only |
@@ -172,7 +176,7 @@ scheduled, so nothing can be unreachable on a host.
 | slice | lane | builds | scenario — what it proves |
 |---|---|---|---|
 | **D-1** the beast | backend | ⚠ first: measure the operator trigger on a flame (fix the path if dark); the type (DR-1…DR-4, DR-7); DR-5 the mouth; DR-6 the riders; the sound | `dr-dragon-flight` — takes off, flies a route, LANDS on its Ground waypoint, takes off again (`Airborne` 1 → 0 → 1) · `dr-dragon-breath` — a `FireAtPoint` order: the men in the cone burn, the man behind a brick wall does not, the pillion rider is never burnt by his own dragon, a hostile flamer cannot burn the dragon |
-| **D-2** the hunt | behaviors | DR-8 `BreathPass`; DR-9 the brain's verbs | `dr-dragon-attack` — `AirPlatformAttack` on a squad in the open: the dragon runs in, burns it, climbs out; a squad 200 m off untouched · `dr-dragon-village` — a timber house set alight by the breath (FL-4), a brick one never |
+| **D-2** the hunt | behaviors | ⏸ after CE-3490's design: DR-8 the breath attack; DR-9 the brain's verbs | `dr-dragon-attack` — `AirPlatformAttack` on a squad in the open: the dragon runs in, burns it, climbs out; a squad 200 m off untouched · `dr-dragon-village` — a timber house set alight by the breath (FL-4), a brick one never |
 | **D-3** the gunner | behaviors | the pillion's arc on a flyer (`InStationArc` from a moving, tilting body) | `dr-pillion-fires` — the dragon overflies an enemy squad on a route; its AI pillion opens fire inside his arc only; the rider never fires |
 | **D-4** the look | ui | DR-11, mockup first | rails on the kit (wing pose by speed, folded when landed, rider seated) |
 | **D-5** air defence *(fun)* | behaviors | none expected — DR-2 | `dr-shoot-the-dragon` — a ZU-23 engages a dragon flying past (it is an aircraft), it is hurt and lands or falls |
