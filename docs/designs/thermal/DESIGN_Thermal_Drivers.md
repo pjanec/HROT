@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../weapons/DESIGN_Flame_Weapons.md — what LIGHTS a fire (the flamethrower cone, napalm's ellipse, one Ignition rule) into the FireState this design stores
   - ../vehicle-appearance/DESIGN_Vehicle_Appearance_State.md — the renderer-facing vehicle state (lights, openings, the kill kind, one reader `VehicleLook`) that READS `HeatSource` and `FireState` for rotors, engines and burning parts
   - ../../DESIGN_Glass_Windows.md — a window's pane is the `glass` thermal class (TD-9); a broken one is a hole
   - ../IG/DRAFT_Unreal_Image_Generator.md — the Unreal image generator connects the same way (DDS, an outside IG node; a draft, CE-4651)
