@@ -68,7 +68,7 @@ room entry is the cornered path). Cost: a StressSystem rule + a rail; touches ev
 
 ## D-5 · CE-9023 — `uc-urban-battle` "the convoy moves on": the platoon holds while the ambush lasts — what should the row wait for? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — author the ambush's END (the fire team withdraws or is killed by a fixed time); runFor stays 200; DA-100 unchanged**
+**✅ BUILT `2026-11-19` (behaviors): a scenario Trigger at 100 s orders the fire team to withdraw north out of the street (`AdvanceTo` (720, 330)); `uc-urban-battle` 20/20 — the convoy moves on at 194.75 s (runFor 200). ⚠ close to the end: a later withdrawal or a longer remount would miss it.** **DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — author the ambush's END (the fire team withdraws or is killed by a fixed time); runFor stays 200; DA-100 unchanged**
 
 **Measured** (editor, after the boarding fix `b7a088964`): one defect found and FIXED — a KILLED man (body, Health 0) held a squad's boarding back:
 Squad A's leader boarded at 79 s, yet SquadEmbark failed on its 60 s timeout and the remount waited its 120 s (the move-on at 195 s). ⚠ What remains is
