@@ -6,6 +6,28 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-14 · CE-8308 — a round is released with a friend 0.65 m off its line, 45 m out: the spread hits him (the friend check ignores the spread; the neutral check does not) *(2026-11-19, agg-behaviors)*
+
+**Measured** (`pc-corridor-fight`, agg-behaviors `2247b504d` — D-13's prone half; deterministic, 2 runs): the new red *"no Blue round hits a Blue man"* at
+72.58 s — shot seq 159: **Blue Squad 1 Rifleman 2** at (240.8, 194.2), suppressing at the POINT (412.8, 185.9) (no target), hits **Blue Squad 3
+Rifleman 1**, alone ~45 m out on that line (0.04 m off it at 70 s, ~0.65 m at the shot, moving). The base (`b8ff411f4`) has no friendly hit — only
+the two "wholly in the open" rows (Blue S1 162.25 s, S3 91.5 s); with D-13's prone half Blue S1's open row PASSES, S3's moves to 158.5 s. ⇒ prone
+moved the fight; the hit exposes a latent rule gap.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a friend holds the shot only within his strike radius of the LINE | ✅ `LineOfFire.FriendOnLine.Test` — `StrikeRadius` (collider / pose reach), no spread | ✅ CE-321: "a unit never fires through a friendly" (the line only) |
+| a NEUTRAL holds it within the spread too | ✅ `LineOfFire.NeutralOnLine` — circle widened by `HitModel.Sigma` × his range (AW-20) | ✅ R-2026 / Civilians §5h |
+| the round leaves inside the spread, not on the line | ✅ `HitModel.Sigma` (the uniform cone's half-width × moving × under fire × stance) | — |
+
+**My lean: ① widen the FRIEND's circle by the same spread** (`StrikeRadius + σ × his distance along the line`, exactly AW-20's rule — one rule for
+friend and neutral, ruling 9). Doctrine: you do not fire with a friend near your line of fire. Blast radius: every direct shot (AI and the
+point/burst forms) holds a little more often near friends ⇒ goldens of close fights move; an engine change in `Fdp.Toolkits/Combat/LineOfFire.cs`.
+- ② a fixed safety margin (e.g. +1 m) instead of the spread: simpler, but a second rule beside AW-20's and wrong at long range.
+- ③ keep it; re-author the scenario: hides a real fratricide.
+
+⛔ Not built — the change touches every direct shot. D-13's prone half stays committed (it is right on its own, and fixes Blue S1's open row).
+
 ## D-13 · CE-4666 — a squad's post plan finds too few cover posts: every man WITHOUT a post holds where he stands, shoulder to shoulder *(2026-11-19)*
 
 **Measured** (`pc-corridor-fight`, behaviors `e661d0936`, the last red rows — Blue Squad 3 "bunched" 131.25 s, "wholly in the open" 146.75 s):
