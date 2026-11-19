@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-idle — waiting for a handoff (last: the flame visuals DONE `2026-11-19`).
+IN PROGRESS: the flame ROAR (audio) — NOTE_Backend_To_Ui_Flamethrower_Sound_Answer (merged backend).
 
 ## 2. The queue (in order)
 
@@ -88,3 +88,4 @@ idle — waiting for a handoff (last: the flame visuals DONE `2026-11-19`).
 | row | state | finding | gates | design |
 |---|---|---|---|---|
 | U-1 the flame jet · U-2 every burning spot · U-3 a burning man · U-4 scorched ground · U-5 the effect data (CE-4635, CE-4637) | DONE — `EffectLayer.ResolveStateInto`: the state as a second source of the same `Resolved` items (jet, spots in their holder's frame, burning man, scorch); the wreck rule retired; a Flamethrower shot makes no muzzle flash (the EffectRules row); `SimClock.TotalTimeOf` (cross-lane, Fdp.Toolkits Time: a 24 B box per frame gone). Merged backend FL-1 (the look section is §8). NOTE to backend: the flamethrower is heard as a rifle 10×/s | worker: 7 logic rails + 5 GL frame rails (xvfb, 0 skipped) + the Look rail, red-proved (frame rotation, cone, kind filter, 3-D case, out-when-out, A-2 0 B, the flash); Presentation 409 pass (+19 skip, 1 red at base); frame rails 296 pass, 7 red — 5 red at base (LR1, ADeadJet, ColourIcons, LabelFirstForms, CE4388) + E2b; ⚠ CE4582 / P7B red in the full run only, green alone at base and here — NOT proven pre-existing (gizmo / card-occlusion rails, no effects); Time suites: 4 S0 type-rail reds name other lanes' members + 2 order-dependent (green alone 13/13); scenarios: th-burning-wreck 10/10 (golden re-captured — behaviour identical; layout: Gesture → Demeanour, HeatSource), fl-flamethrower-cone 7/7 (golden same) | frames compared with the mockup (truck, jet, man, napalm cell, building, scorch) — FYI sent | designs/weapons/DESIGN_Flame_Weapons.md §6 · §8 (as-built) · UX/flame-visuals.svg |
+| the flame ROAR (NOTE_Backend_To_Ui_Flamethrower_Sound_Answer: `SoundSourceClass.Flame`, 200 m) — a held loop while `FlameJets.TryGet` is lit (the flail's precedent), no gunshot per fuel shot, a synthesized FlameRoar clip | IN PROGRESS — dispatched to the worker | | | DESIGN_Flame_Weapons §8 · DESIGN_FPS_Audio |
