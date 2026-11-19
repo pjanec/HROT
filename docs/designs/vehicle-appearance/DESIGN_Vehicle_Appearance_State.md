@@ -417,8 +417,10 @@ effects, and people (`DESIGN_Person_Outfits.md`). ⛔ Not three libraries.
 | anchor, lifetime, size | as today |
 
 ⭐ The category set is chosen so that kind × size × surface maps 1:1 onto DIS's detonation-result codes (HE hit small / medium / large, dirt blast
-small / medium / large, water blast, building hit, air burst, smoke …). ⚠ The exact code list is pinned by the gateway slice (VA-S6) against the
-SISO reference — not verified here.
+small / medium / large, water blast, building hit, air burst, smoke …). ⭐ **Pinned `2026-11-19` (VA-S6):** the table is in
+[`NED_DDS_Protocol.md`](../../reference/NED_DDS_Protocol.md) §"Appearance and thermal mapping" → *Detonation result* — SISO-REF-010 codes 0–33 as KDIS and
+OpenDIS-7 both state them (⚠ not read from the SISO document itself); a KINETIC round on a vehicle ⇒ 10 Armor-piercing hit, a smoke burst ⇒ 5 Detonation
+(the munition type says smoke). ⛔ SUPERSEDED: "the exact code list is pinned by the gateway slice (VA-S6) — not verified here".
 
 
 ### 7b. LK-S1 — the effect rules in `Hrot.Look` *(ui, `2026-11-18`; UML drawn before the build, folded to the as-built after)*
