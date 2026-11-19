@@ -426,12 +426,39 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void BeginIssue(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
 
+        /// <summary>⭐ D-13 — the interval between the men's points on the move to the position (m).</summary>
+        public const float MovingIntervalMetres = 4f;
+
+        /// <summary>⭐ D-13 — the interval for <paramref name="n"/> men: <see cref="MovingIntervalMetres"/>, narrower when the line would reach past
+        /// <see cref="ArrivedMetres"/> − 1 of the position (so every man's point still counts as arrived).</summary>
+        public static float MovingInterval(int n) => n <= 1 ? 0f : MathF.Min(MovingIntervalMetres, 2f * (ArrivedMetres - 1f) / (n - 1));
+
+        /// <summary>⭐ D-13 — man <paramref name="member"/>'s point on the move: the position offset across the line from the squad's centre to it, by his
+        /// rank among the roster, <see cref="MovingIntervalMetres"/> apart, never beyond <see cref="ArrivedMetres"/> − 1 (so arriving still counts).</summary>
+        private static Vector3 MovingPoint(ref SquadDefendParams p, in SquadPlayContext ctx, int member, Vector3 at)
+        {
+            int n = ctx.Roster.Count;
+            if (n <= 1) return p.Position;
+            var centre = Vector3.Zero; int live = 0;
+            for (int i = 0; i < n; i++) if (ctx.Live(i, out var m)) { centre += ctx.At(m); live++; }
+            centre = live > 0 ? centre / live : at;
+            var dir = new Vector2(p.Position.X - centre.X, p.Position.Y - centre.Y);
+            if (dir.LengthSquared() < 1e-4f) dir = Vector2.UnitY;
+            dir = Vector2.Normalize(dir);
+            var across = new Vector2(-dir.Y, dir.X);
+            float off = (member - (n - 1) * 0.5f) * MovingInterval(n);
+            return p.Position + new Vector3(across * off, 0f);
+        }
+
         public unsafe MemberOrder OrderFor(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
         {
             if (ctx.Squad.PhaseId == SquadDefendManeuver.PhaseMoving)
                 return new MemberOrder
                 {
-                    Kind = MemberOrderKind.AdvanceTo, Point = p.Position, Speed = p.Speed, ArrivalRadius = ArrivedMetres * 0.5f,
+                    // ⭐ D-13 (CE-4666, user-approved: dispersion) — each man to HIS point across the line of travel, MovingIntervalMetres apart and
+                    //   inside ArrivedMetres of the position, never all to one point: 📌 live (pc-corridor-fight) the Red Reserve's two survivors
+                    //   walked to the same point side by side, 0.5–1 m apart, for 20 s. ⛔ Was: Point = p.Position for every man
+                    Kind = MemberOrderKind.AdvanceTo, Point = MovingPoint(ref p, in ctx, member, at), Speed = p.Speed, ArrivalRadius = ArrivedMetres * 0.5f,
                     RoleId = SquadDefendManeuver.RoleMoving,
                 };
             bool hasEa = EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea);

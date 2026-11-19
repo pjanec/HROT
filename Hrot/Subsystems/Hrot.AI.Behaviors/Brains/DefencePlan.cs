@@ -46,6 +46,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ D-11 B — the point the posts FACE (a sector plan: the window / roof / cover asks and the gun fan aim at it); false ⇒ an
         /// all-round plan. A defence's is its engagement area (<see cref="EngagementAreas.TryAllowPoint"/>); a base of fire's, its reported posts.</summary>
         bool Facing(out Vector3 at);
+        /// <summary>⭐ D-13 — does a man left WITHOUT a post get a dispersal spot (<see cref="DefencePlan.DispersalMetres"/> apart)? True for real men;
+        /// ⛔ false for a stochastic squad's slots: their "no post" IS a designed place, the D-P5 fallback line the manager materialises (DP3).</summary>
+        bool DispersesUnposted { get; }
     }
 
     /// <summary>⭐ <c>CE-8303</c> (DP3-A) — the PHYSICAL squad's crew: its roster, exactly what <see cref="SquadDefendPlay"/> read before the
@@ -69,6 +72,7 @@ namespace Hrot.AI.Behaviors.Brains
         public bool Support(int i) => SquadRoles.CarriesSupportWeapon(SquadRoles.Of(_ctx.World, in _ctx.Roster, i));
         public Entity Origin() => SquadManeuverRunner.FirstLive(in _ctx);
         public bool Facing(out Vector3 at) => EngagementAreas.TryAllowPoint(_ctx.World, _ctx.Commander, out at);
+        public bool DispersesUnposted => true;
 
         /// <summary>⭐ D-2b (DA-6, DA-16, DA-42) — the squad's median live man's tier.</summary>
         public ProficiencyTier MedianTier()
@@ -122,6 +126,7 @@ namespace Hrot.AI.Behaviors.Brains
         public Entity Origin() => _unit;
         public ProficiencyTier MedianTier() => ProficiencyOf.Tier(_world, _unit);
         public bool Facing(out Vector3 at) => EngagementAreas.TryAllowPoint(_world, _unit, out at);
+        public bool DispersesUnposted => false;   // ⭐ D-13 — the slots' no-post is the D-P5 fallback line (DP3)
 
     }
 
@@ -214,9 +219,83 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (posts.CoverageStage < 2 && !hasEa && !Coverage(ref posts, in crew, position, radius)) return false;   // ⭐ CE-2373 (D-2m, DL-1) — all-round only
             if (posts.FanStage < 2 && !GunOnTheLongestView(ref posts, in crew, position, hasEa, ea)) return false;
+            if (crew.DispersesUnposted) Disperse(ref posts, in crew, position, radius, hasEa, ea);   // ⭐ D-13 — a man the asks gave no post still never stands next to another
             posts.Ready = 1;
             posts.RoundSince = (SimInstant)crew.Now;
             return true;
+        }
+
+        /// <summary>⭐ D-13 (CE-4666, user-approved 2026-11-19) — the least distance between a dispersal spot and any other man's post (m): doctrine's
+        /// 5–10 m interval between men in the open.</summary>
+        public const float DispersalMetres = 5f;
+
+        /// <summary>
+        /// ⭐⭐ D-13 (CE-4666, user-approved 2026-11-19; Defend &amp; Attack §8c D-2n) — every live man the asks left WITHOUT a post (too few window /
+        /// roof / cover points in reach) gets a DISPERSAL spot: on the line across the facing through the position (a ring round it when all-round),
+        /// inside the radius, at least <see cref="DispersalMetres"/> from every other man's post or spot — the nearest such spot to where he stands.
+        /// 📌 Live (`pc-corridor-fight`): the reserve's wait found cover for two men; the other two held where they stood, 1.6 m apart, and read as a
+        /// knot. ⛔ Was: no post ⇒ <c>Hold</c> where he stands. No candidate left (a tiny radius, a full table) ⇒ he keeps no post, as before.
+        /// Allocation-free (stack spans).
+        /// </summary>
+        private static unsafe void Disperse<TCrew>(ref DefencePosts posts, in TCrew crew, Vector3 position, float radius, bool hasEa, Vector3 facing)
+            where TCrew : struct, IDefenceCrew
+        {
+            int n = Math.Min(crew.Count, DefencePosts.Capacity);
+            Span<Vector3> taken = stackalloc Vector3[DefencePosts.Capacity];
+            int t = 0;
+            bool any = false;
+            for (int i = 0; i < n; i++)
+            {
+                if (!crew.Live(i)) continue;
+                if (posts.PostOf[i] != DefencePosts.None && posts.PostOf[i] < posts.Count) taken[t++] = posts.Point(posts.PostOf[i]);
+                else any = true;
+            }
+            if (!any) return;
+            // the candidates: along the line across the facing (0, ±5, ±10 …), or two rings round the point when all-round
+            Span<Vector3> cand = stackalloc Vector3[16];
+            int c = 0;
+            var f = new Vector2(facing.X - position.X, facing.Y - position.Y);
+            if (hasEa && f.LengthSquared() > 1e-4f)
+            {
+                f = Vector2.Normalize(f);
+                var across = new Vector2(-f.Y, f.X);
+                for (int k = 0; c < cand.Length; k++)
+                {
+                    float off = (k + 1) / 2 * DispersalMetres * (k % 2 == 0 ? 1f : -1f);
+                    if (MathF.Abs(off) > radius) break;
+                    cand[c++] = position + new Vector3(across * off, 0f);
+                }
+            }
+            else
+            {
+                cand[c++] = position;
+                for (int ring = 1; ring <= 2 && ring * DispersalMetres <= radius; ring++)
+                    for (int k = 0; k < 6 && c < cand.Length; k++)
+                    {
+                        float a = (k + ring * 0.5f) * MathF.PI / 3f;
+                        cand[c++] = position + new Vector3(MathF.Cos(a), MathF.Sin(a), 0f) * (ring * DispersalMetres);
+                    }
+            }
+            for (int i = 0; i < n && posts.Count < DefencePosts.Capacity; i++)
+            {
+                if (posts.PostOf[i] != DefencePosts.None && posts.PostOf[i] < posts.Count) continue;
+                if (!crew.Live(i, out var at)) continue;
+                int best = -1; float bestD = float.MaxValue;
+                for (int k = 0; k < c; k++)
+                {
+                    bool free = true;
+                    for (int j = 0; j < t && free; j++)
+                        if (new Vector2(cand[k].X - taken[j].X, cand[k].Y - taken[j].Y).Length() < DispersalMetres) free = false;
+                    if (!free) continue;
+                    float d = new Vector2(cand[k].X - at.X, cand[k].Y - at.Y).Length();
+                    if (d < bestD) { bestD = d; best = k; }
+                }
+                if (best < 0) continue;
+                var spot = new Vector3(cand[best].X, cand[best].Y, at.Z);
+                posts.Add(spot);
+                posts.PostOf[i] = (byte)(posts.Count - 1);
+                taken[t++] = spot;
+            }
         }
 
         /// <summary>The asks' child sensors of <paramref name="carrier"/> go (a plan abandoned mid-stage).</summary>
