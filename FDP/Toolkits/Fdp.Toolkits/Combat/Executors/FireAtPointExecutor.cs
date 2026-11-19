@@ -307,6 +307,9 @@ namespace Fdp.Toolkit.Combat.Executors
             // ⭐ CE-3486 (flame F-9) — and the ROE's incendiary rule (an operator decides himself)
             if (obeyRoe && !ForceLevels.IncendiaryPermits(world, unit, ammo, CombatTkb.MountOf(world, firing, mountIndex)))
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldIncendiary;
+            // ⭐ CE-3487 (flame FL-3 N-7) — nor a napalm bomb with a neutral person inside the ellipse it would lay at the point
+            if (obeyRoe && LineOfFire.NeutralInNapalm(world, unit, CombatTkb.MountOf(world, firing, mountIndex), ammo, point))
+                return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldNeutralOnLine;
             // ⭐ CE-3158 G3 — a DIRECT burst never flies through a friend (CE-321's rule, to a point); held like the aimed guard
             //   (Running, no round spent). An INDIRECT warhead (a mortar, a thrown grenade) arcs over them — exempt.
             //   ⭐ CE-3230 (H-5) — the warhead of the round that flies: the loaded one when there is one, else the mount's own

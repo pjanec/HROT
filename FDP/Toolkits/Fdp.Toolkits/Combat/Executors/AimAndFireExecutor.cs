@@ -738,6 +738,10 @@ namespace Fdp.Toolkit.Combat.Executors
             //   bomb dropped now lands has reached the target, within 10 m across the track). The behaviour flies the run-in; the
             //   weapon brain releases — the same gate for a player who holds the trigger (R-261).
             if (mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb && !ReleaseCue(world, unit, target)) return ActionReason.AwaitingRelease;
+            // ⭐ CE-3487 (flame FL-3 N-7, F-9) — a NAPALM bomb is never released with a neutral person inside the ellipse it would lay
+            if (!target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target)
+                && LineOfFire.NeutralInNapalm(world, unit, mount, ammo, world.GetComponentRO<SimTransform>(target).Position))
+                return ActionReason.HoldNeutralOnLine;
             // ⭐ Air Ops slice 6a (AW-1, §7a) — a FIXED gun / pod fires only inside its nose cone: the behaviour points the aircraft.
             if (BodyAim.TargetPoint(world, target, out var targetAt) && BodyAim.OutsideFixedCone(world, unit, mount, targetAt)) return ActionReason.OutOfArc;
             return null;

@@ -190,6 +190,12 @@ namespace Hrot.Core.Tkb
         public const string TankFlameFuelName = "flame tank fuel";
         /// <summary>⭐ CE-3486 — how far a flame tank's jet reaches (m).</summary>
         public const float TankFlameReachM = 60f;
+        /// <summary>⭐ <c>CE-3487</c> FL-3 (DESIGN_Flame_Weapons F-5, §7b) — the Mk 77 FIREBOMB (napalm; 6071 free on every lane, <c>2026-11-19</c>): a free-fall
+        /// incendiary canister that lays its fire in an ellipse <see cref="NapalmLengthM"/> × <see cref="NapalmWidthM"/> along the flight line, burning
+        /// <see cref="NapalmBurnSeconds"/>, under a smoke cloud. No blast, no fragments. ⛔ A permanent wire value.</summary>
+        public const int TkbMk77Firebomb = 6071;
+        public const string Mk77Name = "Mk-77 firebomb";
+        public const float NapalmLengthM = 80f, NapalmWidthM = 25f, NapalmBurnSeconds = 300f;
         public const string ArrowName = "arrow", CrossbowBoltName = "crossbow bolt";
         /// <summary>⭐ CE-4649 (BW-6, §5) — a bow arrow's penetration (mm RHA: a soft vest and a helmet stop it) and damage (0.45 of a soldier's 100 health), a bolt's 6 mm / 0.55;
         /// how long a stuck round lies (BW-4).</summary>
@@ -303,6 +309,10 @@ namespace Hrot.Core.Tkb
             // ⭐ Air Ops slice 4 — a free-fall bomb: indirect + area from the library (falls under gravity, bursts where it lands)
             Register(tkb, Mk82Name, TkbMk82Bomb, Dis(9, Usa, 2, 73),                                // "Mk-82" (ballistic)
                      LibraryWarhead(Mk82Name), 50f, 1200f);   // CE-3201: the library's own bomb entry (indirect, 94 kg)
+            // ⭐ CE-3487 FL-3 — the napalm firebomb: falls like the Mk 82 (indirect), bursts into the ellipse of fire (NapalmSystem) under a smoke cloud
+            Register(tkb, Mk77Name, TkbMk77Firebomb, Dis(9, Usa, 2),
+                     new WarheadDto { Kind = WarheadKind.Incendiary, Indirect = true, AreaLengthM = NapalmLengthM, AreaWidthM = NapalmWidthM,
+                                      BurnSeconds = NapalmBurnSeconds, FlameIntensity = 1f, CloudRadiusM = 30f, CloudHeightM = 12f });
             // ⭐ Air Ops 6a (AW-2, AW-4) — the air weapons' rounds: every number from the library entry (its generic pair: penetration
             //   and damage; its generated warhead); the rocket's flight is its own (700 m/s, self-destruct after 6 s, ~4 km).
             Register(tkb, Gau8HeiName, TkbGau8Hei, Dis(2, Usa, 2, 4),     // "30 mm" (SISO lists only the PGU-14 / PGU-13 belts, not each round)
@@ -540,7 +550,7 @@ namespace Hrot.Core.Tkb
                 [Tkb105mmHowitzerHe] = 80, [TkbTankHeatMp] = 80, [Tkb120mmApfsds] = 100, [Tkb125mmApfsds] = 100,
                 [Tkb155mmHowitzerHe] = 100,                                                      // shells
                 [TkbFpvWarhead] = 50, [TkbHydra70Rocket] = 100, [TkbTowMissile] = 300, [TkbNlawMissile] = 300,
-                [TkbKornetMissile] = 300, [TkbMk82Bomb] = 300, [TkbJavelinMissile] = 500,         // guided / air
+                [TkbKornetMissile] = 300, [TkbMk82Bomb] = 300, [TkbMk77Firebomb] = 300, [TkbJavelinMissile] = 500,         // guided / air
                 [Tkb23mmHei] = 15, [Tkb23mmApi] = 15,                                            // ⭐ CE-2190 — the ZU-23's rounds
                 [TkbIglaMissile] = 400, [TkbStingerMissile] = 600,                               // ⭐ CE-2187 — the MANPADS
                 [TkbRadarSamMissile] = 800,                                                      // ⭐ CE-4617 — the radar SAM's missile
@@ -600,6 +610,7 @@ namespace Hrot.Core.Tkb
                 [TkbTankHeFrag] = new() { Shape = MunitionShape.Shell, Length = 0.98f, Diameter = 0.12f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FFB050" },
                 [Tkb762Tracer] = new() { Shape = MunitionShape.Bullet, Length = 0.033f, Diameter = 0.0078f, Tracer = true, TracerColorHex = "#FF6A30" },
                 [TkbMk82Bomb] = new() { Shape = MunitionShape.Bomb, Length = 2.2f, Diameter = 0.27f, ColorHex = "#4B5320" },
+                [TkbMk77Firebomb] = new() { Shape = MunitionShape.Bomb, Length = 3.0f, Diameter = 0.5f, ColorHex = "#8A8F86" },   // ⭐ CE-3487
                 // ⭐ Air Ops 6a — the GAU-8's rounds trace (a gun run is seen); the Hydra is a rocket with a smoke trail
                 [TkbGau8Hei] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
                 [TkbGau8Api] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },

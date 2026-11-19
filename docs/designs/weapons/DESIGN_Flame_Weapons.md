@@ -1,8 +1,8 @@
 <!--STATUS
-state: LIVE — ✅ APPROVED 2026-11-19 (R-3111); FL-0, FL-1, FL-2 BUILT (§6, §7, §7a); FL-3 / FL-4 to build (CE-3487 / CE-3488)
-build-state: BUILDING — FL-0…FL-2 built (§7, §7a); FL-3 napalm, FL-4 buildings next
+state: LIVE — ✅ APPROVED 2026-11-19 (R-3111); FL-0…FL-3 BUILT (§6, §7, §7a, §7b); FL-4 to build (CE-3488)
+build-state: BUILDING — FL-0…FL-3 built (§7, §7a, §7b); FL-4 buildings next
 updated: 2026-11-19
-current-answer: §0 the picture · §3 decisions (F-1…F-12, approved) · §5 slices · §7 / §7a as built (FL-1, FL-2)
+current-answer: §0 the picture · §3 decisions (F-1…F-12, approved) · §5 slices · §7 / §7a / §7b as built (FL-1, FL-2, FL-3)
 related-designs:
   - ../thermal/DESIGN_Thermal_Drivers.md — OWNS how fire is STORED and SENT (§3b TD-16 the coupling to damage, §3c the three FireState holders, §4b the BurnedArea mark, §4g BurnSystem as built); this design adds what LIGHTS it
   - ../vehicle-appearance/DESIGN_Vehicle_Appearance_State.md — §7 / §7a: Hrot.Look's effect rules and categories — the flame and the burning-ground look go through them
@@ -300,6 +300,61 @@ round count (`WeaponAmmoMirrorSystem`), so a muscle refusal (where `Masked` live
 | ⚠ **the weapon choice prefers the coax to the flamethrower against a man** in the open (measured: 5 coax rounds, target dead at 0.7 s) | ⇒ when to burn is the DRILL's decision (FL-5), not the weapon scorer's; ⛔ not changed here |
 | a window's opening `at` is its START edge along the wall from its first corner (`TerrainOpening.At`) | 📌 the first placement hit brick — `/perception/los` names the panel a line crosses |
 | an unbroken GLASS pane passes sight (transmittance 1) and so the flame | a v2 question: should a flame break the pane (GW's shatter) |
+
+## 7b. FL-3 napalm — plan and AS BUILT *(backend, `2026-11-19`, CE-3487; `build-state: BUILT` — as built in the table at the end of this section; where it differs, the as-built wins)*
+
+```mermaid
+classDiagram
+  direction LR
+  class DetonationNotification { <<exists, SimHost>> +Ammo +Hit +Travel }
+  class NapalmSystem { <<new, DamageAssessmentModule>> +the ellipse along Travel }
+  class DamageAssessedEvent { <<exists, crosses nodes>> +Effect Burning +EffectSeconds }
+  class HealthApplicationSystem { <<exists, Health owner>> +Effects.Apply }
+  class GroundFireEvent { <<new event>> +FireSpot in WORLD metres }
+  class CellRecordSystem~TRecord,TItem~ { <<exists, CE-5000>> +IsRecord(e) (new hook) +AfterApply (new hook) }
+  class GroundFireSystem { <<new>> CellRecordSystem~FireState,FireSpot~ +a spot gone out ⇒ BurnedArea }
+  class FireState { <<exists>> +ICellRecord~FireSpot~ (new) +RecordCellX/Y (appended, owner-local) }
+  class BurnSystem { <<exists, Health owner>> +bodies in any holder's spots }
+  class AreaEffectClouds { <<exists>> +Request(smoke) }
+  class GroundHeatMarkEvent { <<exists>> +BurnedArea }
+  DetonationNotification --> NapalmSystem : an Incendiary warhead with an area
+  NapalmSystem --> DamageAssessedEvent : the fireball — each man in the ellipse
+  DamageAssessedEvent --> HealthApplicationSystem
+  NapalmSystem --> GroundFireEvent : 3..n spots along the flight line
+  NapalmSystem --> AreaEffectClouds : the smoke
+  GroundFireEvent --> GroundFireSystem
+  GroundFireSystem --|> CellRecordSystem~TRecord,TItem~
+  GroundFireSystem --> FireState : on the cell's record entity (TKB 7210)
+  GroundFireSystem --> GroundHeatMarkEvent : a spot gone out
+  BurnSystem --> FireState : reads
+```
+*What the picture shows that the prose hid:* napalm adds ONE decider (`NapalmSystem`) and ONE writer (`GroundFireSystem`), and the writer is
+the existing per-cell record writer (ruling 9 — CE-5000's one implementation), not a fourth copy; every other box exists. The fireball reaches a
+man through the damage event that already crosses nodes, so it lands on whichever node owns his Health.
+
+| decision | ⭐ lean (engineering — F-5's numbers stand) | why / what would change it |
+|---|---|---|
+| **N-1** the holder of ground fire | the CELL record (TD-6, 64 m cells, `GroundDamages.Anchor`), made by `CellRecordSystem` with `FireState` AS the record (`ICellRecord<FireSpot>`; the cell kept in two appended owner-local fields — not on the wire: only the owner writes) | ⛔ a new `GroundFire` component — a second fire component beside `FireState`, which `BurnSystem`, the look and the thermal sensor would each have to learn |
+| **N-2** a burning vehicle is not a record | `CellRecordSystem` gains a `IsRecord(e)` hook; the fire writer accepts only its own TKB type (7210) | a vehicle's `FireState` would otherwise read as cell (0, 0) |
+| **N-3** where it is decided | `DamageAssessmentModule` (SimHost), after `AreaEffectSystem`, beside the crater writer — the detonation's node | the effect on a man crosses nodes as a `DamageAssessedEvent` (`Effect = Burning`), exactly as a stun does |
+| **N-4** the ellipse | along the round's `Travel` (the flight line), `AreaLengthM` × `AreaWidthM`; spots `n = round(L / W)` along the axis, radius `W/2 × 1.2`, each burning the warhead's `BurnSeconds` | — |
+| **N-5** the fireball | every person inside the ellipse is set alight (F-3's one 1 s exposure crosses a man's 0.3 s, not a hull's 1.5 s — vehicles burn by standing in the spots) | — |
+| **N-6** the scorch | a spot gone out ⇒ one `BurnedArea` heat mark at its place (the owner, once: the spot's seconds set to 0 after) | — |
+| **N-7** the ROE | `IncendiaryPermits` holds a napalm release already (it asks the round's warhead); ⭐ the civilian hold = a neutral person inside the ellipse at the impact point (F-9) | — |
+| **N-8** the delivery | a Mk 77 firebomb (TKB munition 6071) on an A-10 variant, released by the existing `AirPlatformStrike` | the air lane's own napalm aircraft, when it has one |
+
+Scenario `fl-napalm-treeline`: the strike burns the treeline's men and leaves the ground burning for its time; a scorch is left; vehicles 50 m away untouched.
+
+| ⭐ as built (`2026-11-19`) | |
+|---|---|
+| the plan above | ✅ built as drawn: `NapalmSystem` + `GroundFireSystem` in `DamageAssessmentModule`; `FireState : ICellRecord<FireSpot>` (`RecordCellX/Y` appended, owner-local); `CellRecordSystem` gained `IsRecord` and `AfterApply`; the record type `GroundFireTkb` 7210 (hidden from the palette; the 3-D body layer skips it — ui's file, one line); the event `GroundFireEvent` (id 5113) |
+| ⭐ found by a rail | `GroundHeatMarkRules.Leaves` took only a vehicle STAND (≥ 60 s, engine on) — a 50 s fire left no scorch. ✅ a `BurnedArea` mark needs only a size (a fire scorches however briefly it burned); the stand rule stays a vehicle's |
+| ⭐ added, found by the scenario | the burst is written into the combat report's `DetonationLog` (`Warhead` "Incendiary, 80 x 25 m ellipse") — `AreaEffectSystem` logs only bursts with blast or fragments, so the scenario's `blast` cue saw none |
+| N-7 | `LineOfFire.NeutralInNapalm` at both release gates (`AimAndFireExecutor.HoldOf` after the release cue; `FireAtPointExecutor.ShootAtPoint`) ⇒ `HoldNeutralOnLine`; the shared body grid walks the axis padded by the half-width, the exact `NapalmSystem.InEllipse` judges |
+| N-8 | the A-10 definition takes its bomb as a parameter: `Jet_AttackA10` (405, Mk 82) and `Jet_AttackA10Napalm` (**410** — the aircraft block; DIS specific 1) with the Mk 77 (`MunitionTkbCatalog.TkbMk77Firebomb` 6071: 80 × 25 m, 300 s, a 30 m smoke cloud, no blast) |
+| ⛔ deviation from §5's scenario | **`fl-napalm-strike`** on basic-desert, not `fl-napalm-treeline`: a vegetation's own burn time is FL-4's materials; ⭐ the GROUND fire is proved by its effect on a man who walks into it after the fireball (a record entity has no name a check could hold) |
+| rails | `NapalmSystemTests.CE3487_*` (the ellipse along the flight line, the spots) · `GroundFireTests.CE3487_*` (the record in the anchor's frame, never a burning car; one scorch per spot) · `AimAndFireExecutorTests.CE3487_ANapalmBomb_*` — each red-proved |
+| scenario | ✅ `fl-napalm-strike`: the firebomb released (19.7 s) and bursting; the three line men lit (27.5 s) and dead (32 s); the Late Man — never in the fireball — burned by the ground fire (84 s); the Far Car 50 m off untouched |
 
 ## 8. The look — as ui builds it *(ui, `2026-11-19`; HANDOFF_Backend_To_Ui_Flame_Visuals; `build-state: BUILT` (ui, `2026-11-19`; as-built below, the design table under it is the plan and where they differ ⛔ the as-built wins); mockup [`UX/flame-visuals.svg`](../../UX/flame-visuals.svg), generated by `scripts/gen-flame-visuals-mockup.py`)*
 

@@ -125,6 +125,8 @@ namespace Fdp.Toolkit.Terrain
         public const int WindowHit = 5111;
         /// <summary>⭐ CE-5033 (glass windows GW-2, D-8) — <c>WindowBrokenEvent</c>: a pane shattered (its sound; 5112 free on every lane, <c>2026-11-18</c>).</summary>
         public const int WindowBroken = 5112;
+        /// <summary>⭐ CE-3487 (flame FL-3) — <c>GroundFireEvent</c>: a ground fire spot a napalm strike lays (5113 free on every lane, <c>2026-11-19</c>).</summary>
+        public const int GroundFire = 5113;
     }
 
     /// <summary>

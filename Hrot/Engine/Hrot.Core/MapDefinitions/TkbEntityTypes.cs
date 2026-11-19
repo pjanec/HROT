@@ -265,6 +265,9 @@ namespace Hrot.Map.Common
         /// (a HROT subcategory, R-10002), class <c>TwinEngineFighter</c> (its own body, ui's). The better instantaneous turn; the F-16 the better
         /// sustained one. Faction from the scenario. ⛔ A permanent wire value.</summary>
         public const long Jet_MiG29 = 409;
+        /// <summary>⭐ CE-3487 (flame FL-3, N-8) — the A-10 with a Mk 77 FIREBOMB (napalm) rack in place of the Mk 82s; DIS 1.2.225.2.0.1 (the A-10's, specific 1).
+        /// ⛔ A permanent wire value (410 measured free on every lane 2026-11-19).</summary>
+        public const long Jet_AttackA10Napalm = 410;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

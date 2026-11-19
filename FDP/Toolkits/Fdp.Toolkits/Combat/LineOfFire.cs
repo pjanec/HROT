@@ -65,6 +65,42 @@ namespace Fdp.Toolkit.Combat
             return NeutralOnLine(world, shooter, Entity.Null, new Vector3(a3.X + d.X, a3.Y + d.Y, aim.Z), spread);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3487</c> (flame FL-3, N-7 — F-9's Protocol III rule for napalm; DESIGN_Flame_Weapons §7b) — a NAPALM round is never released while a NEUTRAL
+        /// person stands inside the ellipse it would lay at <paramref name="impact"/>: the warhead's <c>AreaLengthM</c> × <c>AreaWidthM</c> along the carrier's
+        /// flight line (its replicated motion; east when it stands). The shared body grid walks the ellipse's axis padded by its half-width; each candidate is
+        /// judged by the exact ellipse (<see cref="Systems.NapalmSystem.InEllipse"/>, the one the burst lays). False for any other round. 0 B per call.
+        /// </summary>
+        public static bool NeutralInNapalm(EntityRepository world, Entity shooter, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Vector3 impact)
+        {
+            var warhead = loadedAmmo != 0 ? CombatTkb.WarheadOf(world, loadedAmmo) : mount != null ? CombatTkb.WarheadOf(world, mount) : null;
+            if (warhead is not { Kind: Fdp.Toolkit.Tkb.Domain.WarheadKind.Incendiary, AreaLengthM: > 0f, AreaWidthM: > 0f } w) return false;
+            if (!world.IsComponentTypeRegistered<PhysicsCollider>() || !world.IsComponentTypeRegistered<EntityInfo>()) return false;
+            if (world.HasComponent<EntityInfo>(shooter) && world.GetComponentRO<EntityInfo>(shooter).ForceId == ForceId.Neutral) return false;
+            var axis = Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, shooter, out _, out var v) ? Systems.NapalmSystem.Axis(v.X, v.Y) : Vector2.UnitX;
+            var half = axis * (w.AreaLengthM * 0.5f);
+            var c = new Vector2(impact.X, impact.Y);
+            var bodies = Bodies.Of(world);
+            lock (bodies) bodies.Refresh(world);   // ⭐ CE-4516 — the lock covers only the build (as NeutralOnLine)
+            var test = new NeutralInEllipseTest { World = world, Shooter = shooter, Health = world.IsComponentTypeRegistered<Health>(), At = impact, Axis = axis,
+                                                  Length = w.AreaLengthM, Width = w.AreaWidthM };
+            return bodies.Grid.AnySegmentCandidate(c - half, c + half, bodies.Pad(w.AreaWidthM * 0.5f), ref test, Bodies.EveryBodyForRails);
+        }
+
+        /// <summary>The napalm-ellipse rule (N-7), applied LIVE to each body the frame grid gives.</summary>
+        private struct NeutralInEllipseTest : Fdp.Toolkit.Spatial.FrameEntityGrid.ICandidateTest
+        {
+            public EntityRepository World; public Entity Shooter; public bool Health; public Vector3 At; public Vector2 Axis; public float Length, Width;
+            public bool Test(Entity e)
+            {
+                var world = World;
+                if (!world.IsAlive(e) || e == Shooter || !world.HasComponent<PhysicsCollider>(e)) return false;
+                if (!Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e) || !PhysicsColliderReaders.IsPerson(world, e)) return false;
+                if (Health && world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f) return false;
+                return Systems.NapalmSystem.InEllipse(At, Axis, Length, Width, world.GetComponentRO<SimTransform>(e).Position);
+            }
+        }
+
         /// <summary>⭐ <c>CE-3486</c> — the same, toward a target entity (its position).</summary>
         public static bool NeutralInFlame(EntityRepository world, Entity shooter, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Entity target)
             => world.IsAlive(target) && world.HasComponent<SimTransform>(target)

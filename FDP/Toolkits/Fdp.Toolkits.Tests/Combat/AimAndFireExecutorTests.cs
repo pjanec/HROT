@@ -638,6 +638,41 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3487</c> (flame FL-3 N-7, F-9) — a NAPALM bomb is held while a neutral person stands anywhere inside the ellipse it would lay at the impact point
+        /// (80 × 25 m along the carrier's flight line — east for a carrier with no motion); one outside it does not hold it; a Mk 82-like bomb is never asked.
+        /// 🔴 Red-proof: the ellipse test replaced by "within the half-width of the point" ⇒ the man 30 m along the axis does not hold it.
+        /// </summary>
+        [Fact]
+        public void CE3487_ANapalmBomb_IsHeld_WhileANeutralIsInsideItsEllipse()
+        {
+            const long Firebomb = 0x6C21, Iron = 0x6C22;
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            _world.RegisterComponent<Health>();
+            var db = _world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? (Fdp.Toolkit.Tkb.TkbDatabase)_world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : new Fdp.Toolkit.Tkb.TkbDatabase();
+            var napalm = new Fdp.Interfaces.TkbTemplate("test firebomb", Firebomb);
+            napalm.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Incendiary, Indirect = true, AreaLengthM = 80f, AreaWidthM = 25f });
+            db.Register(napalm);
+            var iron = new Fdp.Interfaces.TkbTemplate("test iron bomb", Iron);
+            iron.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive, Indirect = true, ExplosiveKg = 90f });
+            db.Register(iron);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var rack = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = Firebomb };
+            var ironRack = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = Iron };
+            var plane = _world.CreateEntity();
+            _world.AddComponent(plane, new SimTransform { Position = new Vector3(-2000f, 0f, 300f), Rotation = Quaternion.Identity });
+            _world.AddComponent(plane, new EntityInfo { ForceId = ForceId.Friend });
+            var impact = new Vector3(500f, 500f, 0f);
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInNapalm(_world, plane, rack, 0L, impact), "no one there");
+
+            var aside = Neutral(new Vector3(500f, 520f, 0f), person: true);        // 20 m across the axis: outside the 12.5 m half-width
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInNapalm(_world, plane, rack, 0L, impact), "outside the ellipse");
+            Neutral(new Vector3(530f, 503f, 0f), person: true);                     // 30 m along the (east) axis: inside
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInNapalm(_world, plane, rack, 0L, impact), "inside the ellipse");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInNapalm(_world, plane, ironRack, 0L, impact), "an iron bomb never asks it");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-3486</c> (flame F-9) — the INCENDIARY rule of the ROE: a flamethrower's round is refused where the ROE forbids it, ordered on the
         /// man or on his commander (down the chain, as every ROE field); no rule ⇒ allowed; a rifle's round never asks it; and the weapon choice drops
         /// a forbidden flamethrower mount (so a flame tank's coax is taken). 🔴 Red-proof: IncendiaryPermits always true ⇒ the forbidden man fires.
