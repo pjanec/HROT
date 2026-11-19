@@ -367,10 +367,11 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
-        /// <summary>⭐ CE-4666 — a heard class that is weapon fire (small arms, a heavy weapon, an explosion): never the heard-close term.</summary>
+        /// <summary>⭐ CE-4666 — a heard class that is weapon fire (small arms, a heavy weapon, an explosion, a flame roar): never the heard-close term.</summary>
         public static bool IsFireClass(byte sourceClass)
             => sourceClass is (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon
-                           or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Explosion;
+                           or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Explosion
+                           or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Flame;   // ⭐ CE-4635 — a flamethrower's roar is weapon fire
 
         internal static bool Ensure(EntityRepository world, Entity e, double now)
         {

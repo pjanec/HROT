@@ -34,6 +34,7 @@ namespace Fdp.Toolkit.Civilians
             {
                 SoundSourceClass.SmallArms => SmallArmsImpulse,
                 SoundSourceClass.HeavyWeapon => HeavyWeaponImpulse,
+                SoundSourceClass.Flame => HeavyWeaponImpulse,   // ⭐ CE-4635 — a flamethrower's roar terrifies
                 SoundSourceClass.Explosion => ExplosionImpulse,
                 _ => 0f,
             };
