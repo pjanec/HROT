@@ -248,3 +248,19 @@ same place `BurnSystem` lives) — a system registered by a pack instead would n
 `AreaLengthM` / `AreaWidthM` / `BurnSeconds`, `TerrainMaterial.BurnSeconds` — the simulation's (FL-1…FL-4); `FlameJets` already reads the ones a
 renderer needs.
 
+
+## 7. As built — FL-1 the cone, ignition, `FlameSystem` *(backend, `2026-11-19`)*
+
+| piece | as built |
+|---|---|
+| **`FlameCone.Contains`** (`Combat/FlameRules.cs`) | ahead of the muzzle, within the reach, within the cone — never thinner than `StreamRadiusM` 0.5 m (the stream near the muzzle) |
+| **`Ignition`** (same file) | `Of(world, e)` ⇒ `Person` (pedestrian / quadruped) · `SoftVehicle` · `None` (aircraft, not a vehicle, or ⭐ an ARMOURED hull: side armour ≥ `ArmorModel.SoftSkinArmourMm` 40 — the ONE soft-skin line the blast already uses, instead of a second number); thresholds 0.3 s / 1.5 s; a burning man 6 s; a vehicle fire the munition's `BurnSeconds`, else 120 s; a stay broken > 1 s restarts |
+| **`FlameSystem`** (`Combat/Systems/`, `HealthApplication` capability, just before `BurnSystem`) | for each unit whose `FlameJets.TryGet` is lit: from `ShotOrigin.Eye` along the aim, every live man / vehicle in the cone with a clear EQS sight line (`EqsTerrainSight.Sight` — walls and hulls stop, openings pass; a vehicle's line is judged to just short of its own box) gains exposure × the jet's intensity; at the threshold, on the Health owner: a man ⇒ `Effects.Apply(Burning)` (`EffectState` added with its final value when absent); a soft vehicle ⇒ a `FireState` spot (its own frame, half-length + 1.5 m, as a wreck's). Exposure lives in the system's own buffer (F-12) |
+| **`BurnSystem`** | + a man with `BurningUntil` ahead burns at full intensity each whole second |
+| **`FireProcessingSystem`** | a `Flamethrower` mount's intent spawns NO round: it answers a fired `WeaponFireNotification` (no `Round`, `Quantity` 1, its direction × `FlameStreamMps` 40) so the brain's ledger clears (Q94 A-1) |
+| rails | `FlameSystemTests` (a man lit after 0.3 s not 0.2; outside the cone / beyond the reach never; a car lit after 1.5 s and hiding the man behind it — 🔴 red-proved by dropping the sight test; an armoured hull never; a burning man −10 % a whole second) · `FlameJetsTests` · `BurnSystemTests` |
+
+| ⛔ deviation from §5 — and why | |
+|---|---|
+| FL-1's scenario `fl-cone-hits-what-it-reaches` | ⏳ moved to **FL-2**: a scenario needs a flamethrower TYPE in the shipped TKB (FL-2's), and a test weapon exists only in the rails |
+| "the stream's END leaves a burning-fuel spot" (F-3) | ⏳ with **FL-3**: a ground spot needs the cell-record holder napalm builds |

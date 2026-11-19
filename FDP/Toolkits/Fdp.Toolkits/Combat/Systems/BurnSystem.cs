@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Combat.Systems
     /// <item><b>damage IGNITES</b> — a type that burns (TKB <c>ThermalSignatureDto.FireSeconds</c> &gt; 0, else its body's default — a wheeled hull 10 min,
     /// a tracked one 30 min) destroyed ⇒ <see cref="FireState"/> ADDED with its final value (D-31): one spot on the hull, its radius the hull's
     /// half-length + <see cref="ReachM"/>, burning for its <c>FireSeconds</c>. ONCE per death — a crossing (<see cref="DeathCrossings"/>, the rule the
-    /// wreck obstacle uses): a wreck a scenario starts with (Health 0, no fire) is never lit. ⏳ An incendiary hit (CE-4635 / CE-4637) — not built.</item>
+    /// wreck obstacle uses): a wreck a scenario starts with (Health 0, no fire) is never lit. ⭐ A flame jet lights a man or a soft vehicle: <see cref="FlameSystem"/> (CE-4635 FL-1), just before this.</item>
     /// <item><b>fire DAMAGES</b> — every whole <see cref="StepSeconds"/> of sim time, a BODY (a person, an animal) inside a burning spot loses
     /// <see cref="BurnPerSecond"/> × intensity of its maximum, and a holder still alive burns too; written only where that body's Health is owned, one
     /// sample per step (the <c>BleedOutSystem</c> pattern). 0 ⇒ the ordinary death (<see cref="CombatLife.ApplyHitCapabilities"/>).</item>
@@ -107,6 +107,12 @@ namespace Fdp.Toolkit.Combat.Systems
                     }
                 }
             }
+            // ⭐ CE-4635 FL-1 (flame weapons F-4) — a MAN on fire (a flame or napalm lit him: EffectState.BurningUntil) burns like a body in a spot,
+            //   at full intensity, until his time ends
+            if (repo.IsComponentTypeRegistered<EffectState>())
+                foreach (var body in _bodies)
+                    if (repo.HasComponent<EffectState>(body) && repo.GetComponentRO<EffectState>(body).BurningUntil > now && IsBody(repo, body))
+                        Burn(repo, body, 1f);
         }
 
         private static void Burn(EntityRepository repo, Entity body, float intensity)

@@ -36,10 +36,13 @@ namespace Fdp.Toolkit.Combat
             public readonly float Intensity;
             /// <summary>When this burst began (sim s) — a renderer's ramp-up.</summary>
             public readonly double BurstStartedAt;
+            /// <summary>How long what it lights burns (s; the munition's <see cref="WarheadDto.BurnSeconds"/>, 0 = not stated) — the simulation's.</summary>
+            public readonly float BurnSeconds;
 
-            public Jet(int mount, Entity target, WorldPoint aim, float range, float halfAngleRad, float intensity, double burstStartedAt)
+            public Jet(int mount, Entity target, WorldPoint aim, float range, float halfAngleRad, float intensity, double burstStartedAt, float burnSeconds = 0f)
             {
                 Mount = mount; Target = target; AimPoint = aim; RangeM = range; HalfAngleRad = halfAngleRad; Intensity = intensity; BurstStartedAt = burstStartedAt;
+                BurnSeconds = burnSeconds;
             }
         }
 
@@ -61,7 +64,7 @@ namespace Fdp.Toolkit.Combat
             if (!posture.Target.IsNull && world.IsAlive(posture.Target) && world.HasComponent<SimTransform>(posture.Target))
                 aim = (WorldPoint)world.GetComponentRO<SimTransform>(posture.Target).Position;
             jet = new Jet(mount, posture.Target, aim, w.FlameRangeM, w.FlameHalfAngleDeg * (MathF.PI / 180f),
-                w.FlameIntensity > 0f ? MathF.Min(w.FlameIntensity, 1f) : 1f, ammo.BurstStartedAtOf(mount));
+                w.FlameIntensity > 0f ? MathF.Min(w.FlameIntensity, 1f) : 1f, ammo.BurstStartedAtOf(mount), w.BurnSeconds);
             return true;
         }
     }
