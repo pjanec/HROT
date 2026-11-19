@@ -897,13 +897,57 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 int kept = aim.ChosenMount == 0 ? 0 : MountByIndex(world, unit, aim.ChosenMount, out mountEntity);
                 if (kept == aim.ChosenMount && world.HasComponent<WeaponState>(mountEntity) && world.GetComponentRO<WeaponState>(mountEntity).Ammo > 0)
-                    return kept;
+                    return SpareFriends(world, unit, target, kept, ref mountEntity);
             }
             int chosen = WeaponChoice.Choose(world, unit, target, out mountEntity);
             aim.ChosenMount = (byte)chosen;
             aim.HasChoice = level;
             engaged = target;
-            return chosen;
+            return SpareFriends(world, unit, target, chosen, ref mountEntity);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2452</c> (AQ102 I-4's own rule, L-2: <i>"no friendly — the thrower included — inside the warhead's lethal radius"</i>) —
+        /// the engagement's mount when its round BURSTS (a fragmenting warhead: an M67, an RPG) and a friend of <paramref name="unit"/> stands
+        /// inside its lethal radius (<see cref="GrenadeRules.LethalRadius"/>) of the target: a loaded mount whose round does not burst fires
+        /// instead (the rifle), else the chosen one stands. Judged per shot, the engagement's remembered choice unchanged — once the friends
+        /// are clear the grenade is his again. 📐 <c>rf-wall-hugger</c>: a defender's AIMED M67 at a man in the back doorway burst among his
+        /// own squad (164–202 at 3.4 m) — only the hidden-target throw carried the friend check. An explicit mount (an order) is not judged.
+        /// </summary>
+        internal static int SpareFriends(EntityRepository world, Entity unit, Entity target, int index, ref Entity mountEntity)
+        {
+            if (WeaponSystems.IsControlledIndex(index) || !BurstsNearFriend(world, unit, target, index)) return index;
+            int primary = WeaponSystems.PrimaryMount(world, unit, out var primaryEntity);
+            if (primary != index && Loaded(world, primaryEntity) && !Bursts(world, unit, primary))
+            {
+                mountEntity = primaryEntity;
+                return primary;
+            }
+            if (!world.IsComponentTypeRegistered<WeaponMountInfo>()) return index;
+            System.Span<Entity> mounts = stackalloc Entity[8];
+            int n = WeaponMountQuery.EnumerateMounts(world, unit, mounts);
+            for (int i = 0; i < n; i++)
+            {
+                if (!world.HasComponent<WeaponMountInfo>(mounts[i]) || !Loaded(world, mounts[i])) continue;
+                int other = world.GetComponentRO<WeaponMountInfo>(mounts[i]).MountIndex;
+                if (other == index || Bursts(world, unit, other)) continue;
+                mountEntity = mounts[i];
+                return other;
+            }
+            return index;
+        }
+
+        private static bool Loaded(EntityRepository world, Entity weapon)
+            => world.HasComponent<WeaponState>(weapon) && world.GetComponentRO<WeaponState>(weapon).Ammo > 0;
+
+        private static bool Bursts(EntityRepository world, Entity unit, int index)
+            => GrenadeRules.KindOf(CombatTkb.WarheadOf(world, CombatTkb.MountOf(world, unit, index))) == GrenadeKind.Fragmentation;
+
+        private static bool BurstsNearFriend(EntityRepository world, Entity unit, Entity target, int index)
+        {
+            var warhead = CombatTkb.WarheadOf(world, CombatTkb.MountOf(world, unit, index));
+            if (GrenadeRules.KindOf(warhead) != GrenadeKind.Fragmentation || !world.HasComponent<SimTransform>(target)) return false;
+            return HiddenTargetThrow.FriendlyInBurst(world, unit, world.GetComponentRO<SimTransform>(target).Position, GrenadeRules.LethalRadius(warhead!));
         }
 
         /// <summary>The target this action engages (channel state bytes 0–7).</summary>
