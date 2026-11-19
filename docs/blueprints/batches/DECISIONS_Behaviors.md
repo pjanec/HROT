@@ -6,6 +6,29 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-11 · CE-4666 — the street fight (`pc-corridor-fight`): Red's line breaks before it reaches its cover; Blue's base of fire bunches on one point. Two calls *(2026-11-19)*
+
+**Measured (terrain's `pc-corridor-fight`, CE-4672, stepped; reproduces terrain's verdicts):**
+1. Red's posts ON the corridor's centreline with `SearchRadius` 10 find no cover (terrain: the nearest is 13.5–16 m). With 25 the defence plan DOES post the men at the corridor's edge, on cover: (399, 185) · (385, 185) · (404, 181).
+2. **They never get there:** Blue opens fire at **5.4 s from ~160 m**; Red Squad 1's men BREAK (TS-6) at **11.45 · 13.92 · 14.5 s** and lie prone where they are — 4–8 m short of their posts, in the open grass — the whole first minute. ⇒ the line rows stay red with 25 too.
+3. **Blue Squad 2 is the base of fire:** `SupportByFire` phase 0 holds EVERY man at the ONE support point (`SquadManeuverRunner.Hold(…, p.Position)` — Assault Under Fire §9.1 as built: *"hold at the point (CombatPosture)"*) ⇒ bunched by construction (the 2 m row red at 30 s), and in the open where the point is.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a man's stress rises per near miss regardless of the range it was fired from | ✅ `StressSystem` (stimulus × reach × nerve); the break line = effective nerve, default obedience 0.8 pulls it to ≤ ~0.8 (D-4's finding) | ⚠ Temperament & Stress TS-2/TS-6 set the model; nothing names how fast a line should break at 160 m |
+| a broken man lies where he broke unless a retreat point is found | ✅ `StressSystem` RetreatMetres 30 / gain 3 m (CE-4666 noted it "finds nothing or does not run", unmeasured) | ⛔ searched: no design says a man moving to his ordered post under fire should break before reaching it |
+| the base of fire's men share one point | ✅ `SupportByFireBehavior.cs` phase 0 | ✅ the handoff: *"the base of fire takes a covered position on the line of fire … prone / crouched, spread"*; the squad's post planner (`SquadDefend` / `DefencePlan`: per-man posts with a cover search and a sector) exists |
+
+**A — the line breaks before its cover. My lean: ① a man MOVING TO HIS ORDERED POST takes the near misses as "go to cover" (his post IS his cover) — the break waits until he is there or has stopped trying (a stalled move), and a broken man's retreat point is first his own post when it is behind cover.** Cost: every defence under fire on its way in breaks later ⇒ defence goldens move. 
+- ② slow the stimulus with range (a near miss from 160 m frightens less than one from 20 m): physically right, but a model-wide calibration change — every stress scenario moves.
+- ③ keep it (a line caught in the open under fire does break): then the scenario's posts belong on the cover from the start (author `SearchRadius` 25 and start the men there) — tests the fight, not the deployment.
+
+**B — the base of fire bunches. My lean: ① `SupportByFire`'s phase 0 places its men with the squad's own post planner (`SquadDefend`'s `DefencePlan`: a line across the line of fire at the support point, each post with a cover search, a sector on the posts) — then fires from the posts.** Reuse, not a new planner (shared and unified). Cost: every attack's base of fire spreads and takes cover ⇒ attack goldens move.
+- ② spread only (fixed intervals across the line of fire, no cover search): smaller, but still in the open on a corridor.
+- ③ per-man cover pick around the one point (CombatPosture's own search): no line; men may cluster on the one cover nearest the point.
+
+⛔ Not built. Each half independent.
+
 ## D-10 · CE-4670 — who decides a crewman's head-out and a vehicle's light discipline? (backend built the asks; the deciding is ours) *(2026-11-19)*
 
 **✅ BUILT `2026-11-19` (behaviors, `4df705ac1`): A — `BasicVehicleSop`'s side step `VehicleCrewNodes.HatchByThreat` (commander OUT while calm, IN on a hit / near miss / first threat / new contact within 30 s, one ask per change); B — the standing discipline is the vehicle's authored `VehicleLights.Discipline` (⚠ an SOP takes no params, CE-2132), `MoveOrder` / `ConvoyOrder` gain `Lights` (`OrderLights`), `VehicleCrewNodes.LightsByOrder` asks for it while the order runs and the standing one after. Rails red-proved; `va-crew-switches` 7/7, `va-lights-night` 4/4, `uc-convoy-hit` 10/10. Vehicle Appearance §6a/§6b.** **DECIDED `2026-11-19` (user, via coordinator: "approved"): A ① the vehicle's SOP decides head-out (out while calm; in on the contact / hit / under-fire rows that start VehicleFightFromCover; out again after ~30 s quiet; one ask per change, an event) · B ① an SOP parameter `LightDiscipline` (default Normal — no golden moves), set per side / unit by the scenario; an order carrying one overrides it while it runs**
