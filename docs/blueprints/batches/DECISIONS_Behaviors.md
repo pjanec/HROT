@@ -86,7 +86,7 @@ So *when* the convoy moves on is how long the ambush lives, not the convoy play.
 
 ## D-4 · `uf-squad-under-fire` row (4) "the bounds complete" — the squad now needs ~300 s: change the hostiles, or the clock? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — the two hostiles get a real soldier's SOP (they react to fire); runFor stays 120; the near-miss row must still pass**
+**✅ BUILT `2026-11-19` (behaviors): both hostiles run `BasicInfantrySop` with an authored temperament `nerve 0.97, resolve 0.9, obedience 0` (a break line of 0.97 — the effective nerve is `v + obedience × (0.75 − v)`, so with the default obedience 0.8 ANY authored nerve breaks at ≤ 0.8). `uf-squad-under-fire` 5/5: rounds near the squad 4.5 s · a mover drops 3.5 s · crouched under fire 4.5 s · covered 4.5 s · the bounds complete 78 s (runFor 120); golden re-captured. 📐 measured on the way: a soldier's SOP alone (default temperament) ⇒ both break by 3.5–5 s under the squad's fire and only one round reaches a rifleman (rows 1/3 red); nerve 1 + obedience 0 (never breaks) ⇒ rows 1–4 pass but the bounds miss 120 s — so the hostiles' break time IS what sets this scenario. ⚠ the margin: rows 1/3 at 4.5 s vs a break at ~5–7 s; a change to stress gain moves it.** **DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — the two hostiles get a real soldier's SOP (they react to fire); runFor stays 120; the near-miss row must still pass**
 
 **Measured** (live, after CE-4652's fixes): the two InertSop hostiles now lie down and fire the whole run (Hostile 2: 103 rounds by 80 s,
 empty at 200 s — the old passing golden's ~100). Every near miss drops a mover (row 2 now PASSES), so the squad closes ~45 m by 120 s, ~60 m by
