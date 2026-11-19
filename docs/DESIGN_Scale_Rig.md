@@ -245,6 +245,8 @@ up to 6 m east / 2 m north of a random ROAD point (`scale-rig.py` `scenario()`),
 | Debug, before | 869 ms · 4.1 MB | 1 069 ms · 2.7 MB | ⛔ **simhost `ConvoyLeadSystem` 683 ms** — every kinematic body carries a default Column `FormationController`, and the lead pass scanned every follower per lead (~1 M a frame); fixed `ba5bb322c` (one per-frame leader index, [DESIGN_Road_Convoy §6](designs/vehicle-tactics/DESIGN_Road_Convoy.md)) |
 | **Release, after** | **130.2 ms · 283 KB** | **59.8 ms · 1.86 MB** | cgf: `BrainTickSystem` 33.6, `WeaponDispatcherSystem` 15.6, `CycloneEgressSystem` 14.2 + 7.3, `StressSystem` 10.2 · simhost: [bg] `EqsSolverSystem` 160.9 ms / run and **1.69 MB / frame of garbage** (gc 86 / 37 / 19 in the window), [bg] `PathfindingSolverSystem` 26.7, `CycloneEgressSystem` 17.3 |
 
+⭐ **Fixed after it (`2026-11-19`):** the EQS sight (`EqsTerrainSight.Sight`) rebuilt every vehicle's cover box for EVERY batch of every sight test (a query, a list, a prism and a name per vehicle) — `CheapLineOfSightTest` + `ThreatExposureTest` ~385 KB / frame of the 1.69 MB; now one sight per thread per tick (same view, tick and world query ⇒ the same boxes). Rail `StaticObstacleTests.CE3425_TheSight_*` (red-proved).
+
 ⚠ Measuring trap found on the way: `scripts/cluster-node.sh` killed by `pgrep -f 'ClusterRunner[.]dll'`, which also matched the CALLER (a `scale-rig.py --runner-dll …ClusterRunner.dll`, a shell holding that path) — the rig killed itself before the load. The patterns now match only a `dotnet … ClusterRunner.dll` command line.
 
 ## 6. ⭐ The world-query timings — the TERRAIN's cost apart from the logic's *(`CE-3427`, backend `2026-11-10`; build-state: BUILT)*
