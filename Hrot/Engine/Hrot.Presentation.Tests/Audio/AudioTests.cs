@@ -25,7 +25,7 @@ namespace Hrot.Presentation.Tests.Audio;
 /// ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md) — FPS audio: the generated sounds, the spatial rules, the voice budget, which sound a
 /// shot / burst / mover makes, and the layer — silent until a unit is held, a sound device optional — all on the recording null output.
 /// </summary>
-public sealed class AudioTests
+public sealed partial class AudioTests
 {
     private static readonly Ear North = new(new Vector3(0f, 0f, 1.7f), Vector3.UnitY);
 
