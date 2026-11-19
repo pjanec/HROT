@@ -97,6 +97,9 @@ namespace Fdp.Toolkit.Civilians
             if (repo.IsComponentTypeRegistered<Home>() && !repo.HasComponent<Home>(unit))
                 repo.AddComponent(unit, new Home { Centre = repo.HasComponent<SimTransform>(unit) ? (WorldPoint)repo.GetComponentRO<SimTransform>(unit).Position : default });
             if (repo.IsComponentTypeRegistered<GroupMember>() && !repo.HasComponent<GroupMember>(unit)) repo.AddComponent(unit, new GroupMember { Group = Entity.Null });
+            // ⭐ CE-4628 §10c — his Demeanour from birth (calm, no gesture): its two writers — the behaviour's gesture (a DEFERRED add inside the parallel
+            //   brain phase) and the crowd pass's mood (serial) — then only ever write their own fields, and neither add can land over the other's value
+            if (repo.IsComponentTypeRegistered<Demeanour>() && !repo.HasComponent<Demeanour>(unit)) repo.AddComponent(unit, new Demeanour());
         }
 
         /// <summary>Records the mode the HSM is in (adds the mind when missing).</summary>
