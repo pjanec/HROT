@@ -8,7 +8,7 @@ related-designs:
 # STATUS — terrain, the queue
 
 ## 1. Now
-**GLASS WINDOWS FIRST (user, `2026-11-18`: "take this window breaking first, then continue with the terrain editor")** — GW-1 CE-5032 and GW-2 CE-5033 DONE (scenarios `gw-shoot-the-window`, `gw-fire-out` pass); GW-3 CE-5034 (the look) BUILT by terrain (the coordinator's handoff); BE-1 CE-5027, BE-2 CE-5028, BE-3 CE-5029 DONE; ⏭ BE-4 CE-5030 (the Buildings tools on the terrain toolbar). ⏸ CE-5024 / CE-5025 **BE-1** is PARKED in a local `git stash` ("BE-1 (CE-5025) paused …"; a copy as a patch in the session scratchpad) — written, NOT built green (one compile error to fix: `TerrainWorldMerge.cs:74`, a nullable label); ⚠ a stash lives only in this container: if the container is replaced, BE-1 is re-done from DESIGN_Terrain_Base_Edits.md. Waiting: CE-3424 (coordinator), CE-4630 (user).
+**GLASS WINDOWS FIRST (user, `2026-11-18`: "take this window breaking first, then continue with the terrain editor")** — GW-1 CE-5032 and GW-2 CE-5033 DONE (scenarios `gw-shoot-the-window`, `gw-fire-out` pass); GW-3 CE-5034 (the look) BUILT by terrain (the coordinator's handoff); BE-1 CE-5027, BE-2 CE-5028, BE-3 CE-5029, BE-5 CE-5031 DONE; BE-4 CE-5030 part 1 DONE (the Buildings tools on the terrain toolbar, the edit placed on a click); ⏭ BE-4 part 2 (hover highlight + tooltip, the removed building's ghost, the edit's Details form, frame rails against `UX/terrain-base-edits.svg`). Waiting: CE-3424 (coordinator), CE-4630 (user).
 Self-wake-up: `terrain self-wake-up` (`trig_01MWxGq2irAJ7jQwQQZ4eRUR`, hourly at :57) — created at the run's start without an approval prompt; ⭐ KEPT when the queue empties (R-4292); its message is now §1a's text VERBATIM (updated `2026-11-18` 12:05).
 
 ## 2. The queue (in order)

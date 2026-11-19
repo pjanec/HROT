@@ -272,7 +272,9 @@ namespace Fdp.Toolkit.Terrain.Tests
                 var sc = FeatureExpander.OfKind(TerrainFeature.Scatter, "k", "litter", 0, 3.9f, seed, default, poly, _f.BaseWorld(), TerrainAssets.ForFolder(_f.TerrainFolder), new[] { _f.Recipes });
                 all.Append(new JsonArray(sc.Select(f => (JsonNode)f.DeepClone()).ToArray()).ToJsonString());
             }
-            Assert.Equal("A04A89CEC7ACB293DB606D5E246CF27ADCD75E496B3EC587E73CD39D66A0E15C", Sha(all.ToString()));
+            // ⭐ re-pinned `2026-11-19`: CE-3473 made the generated barrel an EMPTY drum (material "steel-plate" → "drum-empty") — proven the only change (the old material restores the old hash)
+            string sha = Sha(all.ToString());
+            Assert.True(sha == "F175C660B36357C188200EA2F0D074BCC0B1DB3BD7614E248CC7DB94C0EE70C1", $"the expansions changed: {sha}");
         }
 
         private System.Collections.Generic.IReadOnlyList<JsonObject> Of(byte kind, float pad, uint seed, params Vector2[] pts)

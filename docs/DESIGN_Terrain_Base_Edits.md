@@ -238,6 +238,15 @@ Rail: `LiveOverlayBakeTests.CE5028_AddedHousesGainTheirDoors_ARemovedHouseTakesI
 
 Rails: `OpeningPlacerDoorRuleTests` (5), `BaseEditHouseTests` (2, the real generator), both red-proved.
 
+### 6d. As built — BE-5 *(terrain, `2026-11-19`)*
+
+| design said | as built — and why |
+|---|---|
+| D-8 delete the removed buildings' features from `world.json` (by label) before the append | ⭐ `TerrainBake.BakeFeatures(baseFeatures, overlayFeatures)` — ONE step used by both `SaveAs` and the save's in-memory check (`TerrainBake` preview): the targets of the overlay's `"remove"` parts are deleted from the base's features by `label` (the same key `TerrainWorldMerge.Without` drops), then the overlay's features are appended **without** their remove parts (a baked world has nothing left for them to remove) |
+| D-8 write the templates | nothing new: the levelled ground and a made-enterable house are ordinary overlay features, the house's template INLINE (§6c) ⇒ the existing append carries them |
+
+Rail: `TerrainBakeTests.CE5031_ARemovedBaseHouse_IsGoneFromTheSavedTerrain` (the saved folder read on its own: no "B", no door, no remove part, the levelled ground kept), red-proved. ⚠ The made-enterable house in a SAVED terrain is not railed on its own — it rides the same append as every overlay feature, which `TheSavedFolder_ParsesToTheSameWorldAsTheMerge` covers.
+
 ## 7. Acceptance *(the scenarios — R-4277, by §6a proportionate)*
 
 | scenario | expect rows |
