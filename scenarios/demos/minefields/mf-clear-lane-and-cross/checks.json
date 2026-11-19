@@ -1,6 +1,6 @@
 {
   "$doc": "DRAFT — stage rows to learn the chain's timing",
-  "runFor": 2000,
+  "runFor": 2800,
   "golden": false,
   "anchors": {
     "strike": {
