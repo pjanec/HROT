@@ -44,7 +44,7 @@ CE-3464 PARKED 2026-11-19 (stepped probe: three causes, tracker row). CE-3463 pa
 | CE-3465 no grenade at the wall-hugger | ⚠ re-cast as Grenadiers (2002 had no grenade) ⇒ 2/2, but that pass was the self-wounding aimed M67 ⇒ **CE-2452 FIXED** (aimed area rounds spare friends) ⇒ correctly 1/2 again. ✅ the friend check is now ONE wall-aware law (GrenadeRules.Hurts, the room drill's CB-70; red-proved). ⏭ needs only backend's drift fix (NOTE): the Hugger in the open doorway is genuinely in the burst | 4951719e6, (this) | `AimAndFireExecutorTests.CE2452_*` | `rf-wall-hugger` 1/2 · `rf-grenade-reaction` 3/3 · `ua-weapon-choice` 4/4 |
 | CE-3444 a unit thrashes between cover points | TODO | | | `uc-urban-battle` |
 | CE-2442 no HQ answers an `Engineers` request | ✅ DONE via D-2 | | | |
-| CE-3470 the mounted riders abort under the strict parallel env | TODO | | | |
+| CE-3470 the mounted riders abort under the strict parallel env | ✅ DONE — riders already pass; DeployWeapon's cross-entity write deferred + 2 reads declared | (this) | `WeaponSystem*` 8/8 | 7 scenarios strict PASS |
 
 ## 3. Taken from new handoffs
 

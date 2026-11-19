@@ -50,6 +50,9 @@ namespace Hrot.AI.Behaviors.Brains
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Civilians.HostileAct>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Civilians.Custody>();
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Behavior.Components.ActiveMissionPlan>(); // MissionCommand — the unit's plan
+            // ⭐ CE-3470 — a gunner's DeployWeapon reads the weapon system's deploy state; written only outside the phase (WeaponDeploySystem, and the
+            //   gunner's own deploy as a follow-up) ⇒ a declared read, served from the tick-start view
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.WeaponSystemState>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Traffic.TrafficDemand>();   // ⭐ CE-9010 — a convoy lead asks whether SUMO traffic runs (nobody writes it in the phase)
             // ⭐ agg-behaviors ST-0 (design §23.7) — a commander's strength / fight readers (UnitStrength, CombatEffective, the census) read a STOCHASTIC member's
             //   resolution and slots; measured by the acceptance rail under HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1. Written only by ST-3's phase B, never in the brain phase

@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Behavior.Components.PausedTask>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.Roe>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.NetworkAuthority>();   // ⭐ CE-3470 — WeaponDeployment.Owns: does this node own the gunner's weapon? (OwnershipApplier writes it, outside the phase)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Squad.SquadLeadership>();   // a member's brain asks who leads his squad
             ParallelReadCheck.DeclareUnmanaged<Fdp.Core.CommandHierarchy.UnitRoster>();          // the squad assignment (StandardInputs.IsAssignedTarget)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Squad.SquadCognitiveState>();          // — and its squad's assigned targets
