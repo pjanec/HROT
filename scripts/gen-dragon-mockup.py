@@ -16,7 +16,7 @@ s = Svg(W, H, "The dragon on the 3-D map — a box-part kit posed by the simulat
         "Annotations in grey are not drawn by the app. One kit (20 m nose to tail, 26 m wingspan, ~6 m standing) in the states the frame rails render.")
 K = 11.0                      # px per metre
 PW, PH = 460, 300             # a panel
-SKY, GROUND, BODY, BELLY, WING, WINGEDGE, DARK, HORN = "#26313F", "#3A3A2E", "#4E6B3A", "#7E8F55", "#6B3F32", "#8A5446", "#2A2E22", "#D8D0B8"
+SKY, GROUND, BODY, BELLY, WING, WINGEDGE, DARK, HORN = "#26313F", "#3A3A2E", "#7A1F1F", "#A24A42", "#C07A6E", "#8A5446", "#3E1414", "#D8D0B8"   # as built (CE-4634): the TKB's own #7A1F1F body; the wing membrane the body LIGHTENED (ColourRole.Light)
 MAN, RIFLE, FLAME, FLAMEHOT, SADDLE = "#7A6A50", "#2B2B2B", "#F29B38", "#FFE28A", "#5A3A22"
 
 
@@ -43,7 +43,7 @@ def box(ox, oy, cx, cz, l, h, pitch_deg, fill, stroke=DARK, op=1.0):
     poly(pts, fill, stroke, op)
 
 
-def side(ox, oy, legs="planted", neck_el=25, wings="folded", lift=0.0):
+def side(ox, oy, legs="planted", neck_el=0, wings="folded", lift=0.0):
     """The kit from the left: x forward (right on the page). lift raises the whole body (in flight)."""
     z0 = lift
     # tail: two tapering boxes
@@ -62,10 +62,10 @@ def side(ox, oy, legs="planted", neck_el=25, wings="folded", lift=0.0):
         poly([(ox + 1.8 * K, oy - (4.7 + z0) * K), (ox - 5.5 * K, oy - (4.2 + z0) * K), (ox - 4.0 * K, oy - (2.8 + z0) * K), (ox + 1.2 * K, oy - (3.6 + z0) * K)], WING, WINGEDGE)
     elif wings == "up":
         poly([(ox + 1.8 * K, oy - (4.7 + z0) * K), (ox + 0.5 * K, oy - (11.5 + z0) * K), (ox - 4.5 * K, oy - (9.5 + z0) * K), (ox - 2.5 * K, oy - (4.6 + z0) * K)], WING, WINGEDGE, 0.9)
-    # neck (pitched by the turret's elevation) and head
-    a = math.radians(neck_el + 20)
+    # neck (as built, CE-4634: LEVEL — the TKB puts the neck pivot and the head trunnion at one height) and head
+    a = math.radians(neck_el)
     nx, nz = 3.6 + 2.2 * math.cos(a), 4.1 + z0 + 2.2 * math.sin(a)
-    box(ox, oy, nx, nz, 4.6, 1.2, neck_el + 20, BODY)
+    box(ox, oy, nx, nz, 4.6, 1.2, neck_el, BODY)
     hx, hz = 3.6 + 4.6 * math.cos(a) + 0.9 * math.cos(math.radians(neck_el)), 4.1 + z0 + 4.6 * math.sin(a) + 0.9 * math.sin(math.radians(neck_el))
     box(ox, oy, hx, hz, 2.4, 1.1, neck_el, BODY); box(ox, oy, hx + 0.4, hz - 0.45, 1.6, 0.3, neck_el, DARK)   # head, jaw
     box(ox, oy, hx - 0.9, hz + 0.75, 1.0, 0.18, neck_el + 35, HORN)                                            # a horn
@@ -111,7 +111,7 @@ s.note(x1 + 10, y0 + PH - 22, ["front view"], C.NOTE, 10.5)
 
 x2 = x1 + PW + 20
 panel(x2, y0, "A3 · LANDED — wings folded, legs planted", "the flight state's Airborne = 0: on its four legs")
-side(x2 + PW / 2 + 20, y0 + PH - 46, legs="planted", wings="folded", neck_el=10)
+side(x2 + PW / 2 + 20, y0 + PH - 46, legs="planted", wings="folded", neck_el=0)
 s.callout(x2 + PW / 2 + 20 - 2 * K, y0 + PH - 46 - 4.4 * K, x2 + 20, y0 + 70, ["the wings fold back along", "the flanks (tips down)"])
 
 # ── Row B: breathing, the riders, dead ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -141,7 +141,7 @@ K = 22.0
 s.raw(f"<clipPath id='b2'><rect x='{x1}' y='{y1 + 44}' width='{PW}' height='{PH - 44}'/></clipPath><g clip-path='url(#b2)'>")
 ox, oy = x1 + PW / 2 - 60, y1 + PH - 46 + 2.2 * K
 s.rect(x1, y1 + PH - 46, PW, 46, GROUND)
-side(ox, oy, legs="planted", wings="folded", neck_el=10)
+side(ox, oy, legs="planted", wings="folded", neck_el=0)
 box(ox, oy, 2.6, 4.75, 2.6, 0.3, 0, SADDLE)                       # the saddle at the neck's base
 rider(ox, oy, 3.0, 5.0); rider(ox, oy, 1.6, 5.0, aiming=True, pillion=True)
 s.callout(ox + 3.1 * K, oy - 6.6 * K, x1 + 20, y1 + 66, ["the rider: hands to the neck (the", "horse's Mounted pose, any mount)"])

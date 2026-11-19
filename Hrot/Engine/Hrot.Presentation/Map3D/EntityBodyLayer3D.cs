@@ -374,7 +374,9 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             if (band == ScreenBand.Far) { DrawFar(world, e, look, size, type, colour, hasNet); continue; }
             BodiesFull++;
             bool deadAnimal = animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);   // ⭐ CE-4623 (AR-8) — a dead animal LIES; it is never the burnt-out wreck of a vehicle
-            bool wreck = look.Family != VisualFamily.Person && !animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
+            // ⭐ CE-4634 (DESIGN_Dragon §8.2 D) — a dead DRAGON is not a burnt-out wreck either: it lies wings out, legs folded (the flying kit, still)
+            bool deadDragon = look.Family == VisualFamily.Dragon && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
+            bool wreck = look.Family is not (VisualFamily.Person or VisualFamily.Dragon) && !animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
             ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
             var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
             var carriage = look.Family == VisualFamily.Person ? Carriage.Of(world, e, tkb) : FigureCarriage.Free;   // ⭐ CE-1081..1084 (§6m)
@@ -382,12 +384,14 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             bool rotorTurning = !wreck && (look.Family == VisualFamily.Drone   // ⭐ CE-1086 — a drone's rotors run while it lives
                                            || look.Family is VisualFamily.Helicopter or VisualFamily.AttackHelicopter && IsAirborne(world, tf.Position, look.Geometry)
                                            || look.Family == VisualFamily.MineClearer && FlailActivity.IsOn(world, e)   // ⭐ CE-4624 — the flail drum spins while the flail is on
-                                           || look.Family == VisualFamily.AirDefenceVehicle && RadarActivity.IsOn(world, e));   // ⭐ CE-4618 — the antenna spins while the radar radiates
+                                           || look.Family == VisualFamily.AirDefenceVehicle && RadarActivity.IsOn(world, e)   // ⭐ CE-4618 — the antenna spins while the radar radiates
+                                           || look.Family == VisualFamily.Dragon && !deadDragon && DragonFlies(world, e, tf.Position, look.Geometry));   // ⭐ CE-4634 — its wings beat / glide while it flies   // ⭐ CE-4618 — the antenna spins while the radar radiates
             var animalMode = animal ? AnimalReader.ModeOf(world, e) : AnimalMode.Calm;
             if (look.Family == VisualFamily.Horse && type is 703 or 704 && animalMode == AnimalMode.Calm) animalMode = AnimalMode.Guard;   // ⭐ CE-4623 — a saddled (riding / war) horse stands head up, it does not graze
             float animalHeight = animal && look.Family is VisualFamily.Horse or VisualFamily.Goat or VisualFamily.Cat or VisualFamily.Poultry
                 ? tf.Position.Z - (Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(tf.Position.X, tf.Position.Y) ?? 0f) : 0f;   // ⭐ CE-4623 — a jump's height: the legs tuck
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning, _frameClock, animalMode, animalHeight);   // ⭐ CE-1353
+            if (deadDragon) motion = MotionPose.Still with { Tuck = 1f };   // ⭐ CE-4634 — dead: wings still, legs folded
             if (motion.Bank != 0f) body = Matrix4x4.CreateRotationX(motion.Bank) * body;   // ⭐ CE-4621 — a motorcycle leans into its turn, about its ground line (its riders lean with it: HeldFigure)
 
             KitPart[] parts;
@@ -499,6 +503,14 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
                 }
                 else _fall.Alive(e, StanceId.Standing, simTime);
             }
+            else if (look.Family == VisualFamily.Dragon)
+            {
+                // ⭐ CE-4634 (DESIGN_Dragon §8.2 K-2, W) — wings spread in flight (and dead), folded when it stands; the neck and the head turn and nod with turret 0 (the breath's
+                //   aim) about the TKB's pivots (the placed kit's, cached per type: 0 B) — so the drawn mouth is where the flame leaves
+                parts = DragonKits.For(rotorTurning, deadDragon).Parts;
+                pivots = PlacedKit(DragonKits.Flying, type, tkb, size).Pivots;
+                if (_poseOf != null && !deadDragon) pose = _poseOf(world, e);
+            }
             else
             {
                 var kit = KitOf(look);
@@ -566,7 +578,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
                 DrawFittings(world, e, tkb != null && tkb.TryGetByType(type, out var fittingType) ? fittingType : null, parts, size, pivots, pose, motion,
                              kitToBody, body, colour, shader, simTime);
             _expression = Vector3.Zero;
-            if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
+            if (geometry != null && look.Family != VisualFamily.Dragon) DrawGear(world, geometry, tf.Position, body, shader, wreck);   // ⭐ CE-4634 — a dragon's "wheels" are its feet (the kit's)
             if (mortarFired) DrawMortar(e, body, colour, shader);   // ⭐ CE-1236 — after the figure: its muzzle is the shot's
             if (chargeBlink)   // ⭐ CE-1179 — the detonator's light, over the bundle
             {
@@ -1497,9 +1509,17 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// <summary>⭐ CE-4623 — birds drawn from flocks by the last frame (rails).</summary>
     public int FlockBirdsDrawn { get; private set; }
 
-    /// <summary>⭐ CE-4623 — is <paramref name="holder"/> a horse (what a Ride seat sits on)?</summary>
+    /// <summary>⭐ CE-4623 — is <paramref name="holder"/> a horse (what a Ride seat sits on)? ⭐ CE-4634 — or a DRAGON (its rider and pillion sit astride the same way, R-4269's
+    /// riding pose: legs round the barrel, firing from the saddle).</summary>
     private bool IsHorse(EntityRepository world, Entity holder)
-        => world.HasComponent<TkbIdentity>(holder) && LookOf(world.GetComponentRO<TkbIdentity>(holder).TkbType, _tkb()).Family == VisualFamily.Horse;
+        => world.HasComponent<TkbIdentity>(holder) && LookOf(world.GetComponentRO<TkbIdentity>(holder).TkbType, _tkb()).Family is VisualFamily.Horse or VisualFamily.Dragon;
+
+    /// <summary>⭐ CE-4634 — does the dragon <paramref name="e"/> fly? Its motion model's word (<see cref="Fdp.Toolkit.Motion.FlightState"/>.Airborne, the rotorcraft's take-off / landing);
+    /// the height heuristic only when it has no flight state yet.</summary>
+    private static bool DragonFlies(EntityRepository world, Entity e, Vector3 position, BodyGeometryDto? geometry)
+        => world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>() && world.HasComponent<Fdp.Toolkit.Motion.FlightState>(e)
+            ? world.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(e).Airborne != 0
+            : IsAirborne(world, position, geometry);
 
     /// <summary>
     /// ⭐ CE-4623 (AU-4, AR-14) — a flock: N birds, each a closed-form offset of (seed, index, sim time, mode) in the flock's frame (<see cref="FlockBirds"/>); a dot each when far, the bird
@@ -1809,8 +1829,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// Pure — the rail runs it over every kind.
     /// </summary>
     /// <summary>⭐ <c>CE-1974</c> — a carrier its rider sits ON in the open (an animal): drawn even while it is the operator's own body. (The motorcycle has a windscreen, so it
-    /// already has a crew eye and is drawn.)</summary>
-    public static bool OpenCarrier(VisualFamily family) => VisualFamilies.IsAnimal(family);
+    /// already has a crew eye and is drawn.) ⭐ CE-4634 — and a DRAGON: its rider sits on its back in the open, and sees its neck and wings.</summary>
+    public static bool OpenCarrier(VisualFamily family) => VisualFamilies.IsAnimal(family) || family == VisualFamily.Dragon;
 
     public static Vector3? CrewEye(VisualFamily family, Vector3 size)
     {
@@ -2392,6 +2412,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     {
         VisualFamily.Person => Hrot.Look.People.PersonLook.DefaultColour.ToColor(),   // ⭐ CE-4671 LK-S2
         VisualFamily.Tank => new Color(112, 120, 82, 255),
+        VisualFamily.Dragon => new Color(122, 31, 31, 255),   // ⭐ CE-4634 — TKB 411's own #7A1F1F (the TKB's colour wins anyway)
         VisualFamily.Afv => new Color(122, 116, 84, 255),
         VisualFamily.WheeledCar => new Color(72, 104, 168, 255),
         VisualFamily.WheeledUtility => new Color(128, 120, 92, 255),

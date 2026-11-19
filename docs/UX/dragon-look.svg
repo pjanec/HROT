@@ -6,18 +6,18 @@
 <rect x='20' y='324' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
 <text x='30' y='90' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>A1 · FLYING — the wings BEAT</text>
 <text x='30' y='106' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>≈ 1 Hz while climbing or slow (&lt; 10 m/s); legs tucked</text>
-<polygon points='234.6,250.3 265.4,250.3 265.4,221.7 234.6,221.7' fill='#4E6B3A' fill-opacity='0.3' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='264.3,226.1 365.7,146.9 316.3,200.9 264.3,239.3' fill='#6B3F32' fill-opacity='0.3' stroke='#8A5446' stroke-width='1'/>
-<polygon points='235.7,226.1 134.3,146.9 183.7,200.9 235.7,239.3' fill='#6B3F32' fill-opacity='0.3' stroke='#8A5446' stroke-width='1'/>
-<polygon points='243.9,222.2 256.1,222.2 256.1,207.9 243.9,207.9' fill='#4E6B3A' fill-opacity='0.3' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='234.6,250.3 265.4,250.3 265.4,221.7 234.6,221.7' fill='#4E6B3A' fill-opacity='0.55' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='264.3,226.1 392.5,214.9 330.0,235.7 264.3,239.3' fill='#6B3F32' fill-opacity='0.55' stroke='#8A5446' stroke-width='1'/>
-<polygon points='235.7,226.1 107.5,214.9 170.0,235.7 235.7,239.3' fill='#6B3F32' fill-opacity='0.55' stroke='#8A5446' stroke-width='1'/>
-<polygon points='243.9,222.2 256.1,222.2 256.1,207.9 243.9,207.9' fill='#4E6B3A' fill-opacity='0.55' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='234.6,250.3 265.4,250.3 265.4,221.7 234.6,221.7' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='264.3,226.1 377.9,286.5 322.6,272.5 264.3,239.3' fill='#6B3F32' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
-<polygon points='235.7,226.1 122.1,286.5 177.4,272.5 235.7,239.3' fill='#6B3F32' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
-<polygon points='243.9,222.2 256.1,222.2 256.1,207.9 243.9,207.9' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
+<polygon points='234.6,250.3 265.4,250.3 265.4,221.7 234.6,221.7' fill='#7A1F1F' fill-opacity='0.3' stroke='#3E1414' stroke-width='1'/>
+<polygon points='264.3,226.1 365.7,146.9 316.3,200.9 264.3,239.3' fill='#C07A6E' fill-opacity='0.3' stroke='#8A5446' stroke-width='1'/>
+<polygon points='235.7,226.1 134.3,146.9 183.7,200.9 235.7,239.3' fill='#C07A6E' fill-opacity='0.3' stroke='#8A5446' stroke-width='1'/>
+<polygon points='243.9,222.2 256.1,222.2 256.1,207.9 243.9,207.9' fill='#7A1F1F' fill-opacity='0.3' stroke='#3E1414' stroke-width='1'/>
+<polygon points='234.6,250.3 265.4,250.3 265.4,221.7 234.6,221.7' fill='#7A1F1F' fill-opacity='0.55' stroke='#3E1414' stroke-width='1'/>
+<polygon points='264.3,226.1 392.5,214.9 330.0,235.7 264.3,239.3' fill='#C07A6E' fill-opacity='0.55' stroke='#8A5446' stroke-width='1'/>
+<polygon points='235.7,226.1 107.5,214.9 170.0,235.7 235.7,239.3' fill='#C07A6E' fill-opacity='0.55' stroke='#8A5446' stroke-width='1'/>
+<polygon points='243.9,222.2 256.1,222.2 256.1,207.9 243.9,207.9' fill='#7A1F1F' fill-opacity='0.55' stroke='#3E1414' stroke-width='1'/>
+<polygon points='234.6,250.3 265.4,250.3 265.4,221.7 234.6,221.7' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='264.3,226.1 377.9,286.5 322.6,272.5 264.3,239.3' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='235.7,226.1 122.1,286.5 177.4,272.5 235.7,239.3' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='243.9,222.2 256.1,222.2 256.1,207.9 243.9,207.9' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
 <path d='M376.5 153.5 L324 140' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
 <text x='330' y='144' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>one beat: up → level → down,</text>
 <text x='330' y='158' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a slow heavy stroke</text>
@@ -26,29 +26,29 @@
 <rect x='500' y='324' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
 <text x='510' y='90' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>A2 · GLIDING — wings out, still</text>
 <text x='510' y='106' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>≥ 10 m/s and not climbing: no beat, a small dihedral</text>
-<polygon points='714.6,250.3 745.4,250.3 745.4,221.7 714.6,221.7' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='744.3,226.1 872.3,212.6 809.9,234.6 744.3,239.3' fill='#6B3F32' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
-<polygon points='715.7,226.1 587.7,212.6 650.1,234.6 715.7,239.3' fill='#6B3F32' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
-<polygon points='724.0,222.2 736.0,222.2 736.0,207.9 724.0,207.9' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
+<polygon points='714.6,250.3 745.4,250.3 745.4,221.7 714.6,221.7' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='744.3,226.1 872.3,212.6 809.9,234.6 744.3,239.3' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='715.7,226.1 587.7,212.6 650.1,234.6 715.7,239.3' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='724.0,222.2 736.0,222.2 736.0,207.9 724.0,207.9' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
 <text x='510' y='348' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>front view</text>
 <rect x='980' y='70' width='460' height='300' fill='#26313F' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
 <rect x='980' y='324' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
 <text x='990' y='90' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>A3 · LANDED — wings folded, legs planted</text>
 <text x='990' y='106' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the flight state's Airborne = 0: on its four legs</text>
-<polygon points='1127.8,289.5 1188.0,295.8 1189.2,283.7 1129.0,277.4' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1087.9,292.2 1133.6,298.6 1134.5,292.0 1088.8,285.6' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1084.8,296.5 1093.6,287.7 1098.0,297.6' fill='#2A2E22' fill-opacity='1.0'/>
-<polygon points='1198.7,324.0 1208.5,324.0 1208.5,298.7 1198.7,298.7' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1200.3,324.0 1213.5,324.0 1213.5,320.7 1200.3,320.7' fill='#2A2E22' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1253.7,324.0 1263.5,324.0 1263.5,298.7 1253.7,298.7' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1255.3,324.0 1268.5,324.0 1268.5,320.7 1255.3,320.7' fill='#2A2E22' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1183.8,300.9 1276.2,300.9 1276.2,272.3 1183.8,272.3' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1188.2,300.9 1271.8,300.9 1271.8,295.4 1188.2,295.4' fill='#7E8F55' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1249.8,272.3 1169.5,277.8 1186.0,293.2 1243.2,284.4' fill='#6B3F32' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
-<polygon points='1271.9,285.2 1315.8,259.9 1309.2,248.4 1265.3,273.7' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1311.2,260.1 1337.2,255.5 1335.1,243.6 1309.1,248.2' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1319.2,260.0 1336.5,256.9 1336.0,253.7 1318.6,256.7' fill='#2A2E22' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1310.1,248.2 1317.9,240.4 1316.5,239.0 1308.7,246.8' fill='#D8D0B8' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
+<polygon points='1127.8,289.5 1188.0,295.8 1189.2,283.7 1129.0,277.4' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1087.9,292.2 1133.6,298.6 1134.5,292.0 1088.8,285.6' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1084.8,296.5 1093.6,287.7 1098.0,297.6' fill='#3E1414' fill-opacity='1.0'/>
+<polygon points='1198.7,324.0 1208.5,324.0 1208.5,298.7 1198.7,298.7' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1200.3,324.0 1213.5,324.0 1213.5,320.7 1200.3,320.7' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1253.7,324.0 1263.5,324.0 1263.5,298.7 1253.7,298.7' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1255.3,324.0 1268.5,324.0 1268.5,320.7 1255.3,320.7' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1183.8,300.9 1276.2,300.9 1276.2,272.3 1183.8,272.3' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1188.2,300.9 1271.8,300.9 1271.8,295.4 1188.2,295.4' fill='#A24A42' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1249.8,272.3 1169.5,277.8 1186.0,293.2 1243.2,284.4' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='1268.5,285.5 1319.1,285.5 1319.1,272.3 1268.5,272.3' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1316.9,284.9 1343.3,284.9 1343.3,272.9 1316.9,272.9' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1325.7,285.5 1343.3,285.5 1343.3,282.2 1325.7,282.2' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1316.3,274.6 1325.3,268.3 1324.1,266.7 1315.1,273.0' fill='#D8D0B8' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
 <path d='M1208.0 275.6 L994 140' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
 <text x='1000' y='144' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the wings fold back along</text>
 <text x='1000' y='158' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the flanks (tips down)</text>
@@ -56,12 +56,12 @@
 <rect x='20' y='654' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
 <text x='30' y='420' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>B1 · BREATHING — the neck on turret 0</text>
 <text x='30' y='436' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>azimuth ±70°, elevation −60…+15° (the AH-64 chin gun's pose)</text>
-<polygon points='57.8,594.4 141.4,594.4 141.4,585.6 57.8,585.6' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='133.0,603.2 207.0,603.2 207.0,576.8 133.0,576.8' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='127.0,580.2 188.0,571.6 186.6,561.1 125.6,569.7' fill='#6B3F32' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='125.6,610.3 186.6,618.9 188.0,608.4 127.0,599.8' fill='#6B3F32' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='210.4,594.0 241.4,568.0 234.6,559.9 203.6,586.0' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='238.4,570.0 254.6,556.4 248.3,549.0 232.2,562.5' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
+<polygon points='57.8,594.4 141.4,594.4 141.4,585.6 57.8,585.6' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='133.0,603.2 207.0,603.2 207.0,576.8 133.0,576.8' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='127.0,580.2 188.0,571.6 186.6,561.1 125.6,569.7' fill='#C07A6E' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='125.6,610.3 186.6,618.9 188.0,608.4 127.0,599.8' fill='#C07A6E' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='210.4,594.0 241.4,568.0 234.6,559.9 203.6,586.0' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='238.4,570.0 254.6,556.4 248.3,549.0 232.2,562.5' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
 <polygon points='250.1,553.8 321.1,470.9 344.1,498.3' fill='#F29B38' fill-opacity='0.85'/>
 <polygon points='250.1,553.8 290.8,514.8 295.5,520.5' fill='#FFE28A' fill-opacity='0.9'/>
 <path d='M344.1188475771143 498.27176463188886 L304 610' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
@@ -75,29 +75,29 @@
 <text x='510' y='436' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>seat 0 the rider (Driver), seat 1 the pillion: a firing seat, 100–260°</text>
 <clipPath id='b2'><rect x='500' y='444' width='460' height='256'/></clipPath><g clip-path='url(#b2)'>
 <rect x='500' y='654' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
-<polygon points='465.6,633.3 585.9,646.0 588.4,621.9 468.1,609.2' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='385.7,638.7 477.2,651.6 479.1,638.5 387.6,625.6' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='379.6,647.4 397.2,629.8 406.0,649.6' fill='#2A2E22' fill-opacity='1.0'/>
-<polygon points='607.3,702.4 627.1,702.4 627.1,651.8 607.3,651.8' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='610.6,702.4 637.0,702.4 637.0,695.8 610.6,695.8' fill='#2A2E22' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='717.3,702.4 737.1,702.4 737.1,651.8 717.3,651.8' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='720.6,702.4 747.0,702.4 747.0,695.8 720.6,695.8' fill='#2A2E22' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='577.6,656.2 762.4,656.2 762.4,599.0 577.6,599.0' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='586.4,656.2 753.6,656.2 753.6,645.2 586.4,645.2' fill='#7E8F55' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='709.6,599.0 549.0,610.0 582.0,640.8 696.4,623.2' fill='#6B3F32' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
-<polygon points='753.9,624.7 841.5,574.1 828.3,551.3 740.7,601.9' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='832.4,574.7 884.4,565.5 880.2,541.7 828.2,550.8' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='848.4,574.4 883.0,568.3 881.9,561.8 847.2,567.9' fill='#2A2E22' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='830.2,550.8 845.7,535.3 842.9,532.5 827.4,548.0' fill='#D8D0B8' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='698.6,601.2 755.8,601.2 755.8,594.6 698.6,594.6' fill='#5A3A22' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='728.1,614.9 737.6,617.5 743.9,594.1 734.4,591.5' fill='#7A6A50' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='729.3,590.9 741.3,592.6 744.9,567.5 732.9,565.8' fill='#7A6A50' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<circle cx='738.2' cy='560.5' r='7.0' fill='#7A6A50' stroke='#2A2E22'/>
-<polygon points='738.3,577.9 756.2,586.3 757.9,582.7 740.0,574.3' fill='#7A6A50' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='697.3,614.9 706.8,617.5 713.1,594.1 703.6,591.5' fill='#7A6A50' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='700.2,591.9 712.4,591.9 712.4,566.5 700.2,566.5' fill='#7A6A50' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<circle cx='707.4' cy='560.5' r='7.0' fill='#7A6A50' stroke='#2A2E22'/>
-<polygon points='707.4,573.0 742.6,573.0 742.6,570.0 707.4,570.0' fill='#2B2B2B' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
+<polygon points='465.6,633.3 585.9,646.0 588.4,621.9 468.1,609.2' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='385.7,638.7 477.2,651.6 479.1,638.5 387.6,625.6' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='379.6,647.4 397.2,629.8 406.0,649.6' fill='#3E1414' fill-opacity='1.0'/>
+<polygon points='607.3,702.4 627.1,702.4 627.1,651.8 607.3,651.8' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='610.6,702.4 637.0,702.4 637.0,695.8 610.6,695.8' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='717.3,702.4 737.1,702.4 737.1,651.8 717.3,651.8' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='720.6,702.4 747.0,702.4 747.0,695.8 720.6,695.8' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='577.6,656.2 762.4,656.2 762.4,599.0 577.6,599.0' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='586.4,656.2 753.6,656.2 753.6,645.2 586.4,645.2' fill='#A24A42' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='709.6,599.0 549.0,610.0 582.0,640.8 696.4,623.2' fill='#C07A6E' fill-opacity='1.0' stroke='#8A5446' stroke-width='1'/>
+<polygon points='747.0,625.4 848.2,625.4 848.2,599.0 747.0,599.0' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='843.8,624.3 896.6,624.3 896.6,600.1 843.8,600.1' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='861.4,625.4 896.6,625.4 896.6,618.8 861.4,618.8' fill='#3E1414' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='842.5,603.6 860.5,591.0 858.3,587.8 840.3,600.4' fill='#D8D0B8' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='698.6,601.2 755.8,601.2 755.8,594.6 698.6,594.6' fill='#5A3A22' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='728.1,614.9 737.6,617.5 743.9,594.1 734.4,591.5' fill='#7A6A50' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='729.3,590.9 741.3,592.6 744.9,567.5 732.9,565.8' fill='#7A6A50' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<circle cx='738.2' cy='560.5' r='7.0' fill='#7A6A50' stroke='#3E1414'/>
+<polygon points='738.3,577.9 756.2,586.3 757.9,582.7 740.0,574.3' fill='#7A6A50' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='697.3,614.9 706.8,617.5 713.1,594.1 703.6,591.5' fill='#7A6A50' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='700.2,591.9 712.4,591.9 712.4,566.5 700.2,566.5' fill='#7A6A50' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<circle cx='707.4' cy='560.5' r='7.0' fill='#7A6A50' stroke='#3E1414'/>
+<polygon points='707.4,573.0 742.6,573.0 742.6,570.0 707.4,570.0' fill='#2B2B2B' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
 <path d='M738.2 557.2 L514 466' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
 <text x='520' y='470' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the rider: hands to the neck (the</text>
 <text x='520' y='484' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>horse's Mounted pose, any mount)</text>
@@ -110,12 +110,12 @@
 <rect x='980' y='654' width='460' height='46' fill='#3A3A2E' rx='0' opacity='1'/>
 <text x='990' y='420' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>B3 · DEAD — fallen, wings spread</text>
 <text x='990' y='436' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a dead body falls (the rotorcraft model); it lies wings out — NO fire (fireproof)</text>
-<polygon points='1163.8,652.9 1256.2,652.9 1256.2,626.5 1163.8,626.5' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1108.2,648.5 1168.8,648.5 1168.8,637.5 1108.2,637.5' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1068.1,649.6 1114.3,649.6 1114.3,643.0 1068.1,643.0' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1250.1,646.6 1300.2,653.6 1301.9,641.6 1251.8,634.6' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1295.4,651.7 1321.7,654.0 1322.6,643.1 1296.3,640.8' fill='#4E6B3A' fill-opacity='1.0' stroke='#2A2E22' stroke-width='1'/>
-<polygon points='1177.0,636.4 1232.0,625.4 1221.0,652.9 1155.0,652.9' fill='#6B3F32' fill-opacity='0.85' stroke='#8A5446' stroke-width='1'/>
+<polygon points='1163.8,652.9 1256.2,652.9 1256.2,626.5 1163.8,626.5' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1108.2,648.5 1168.8,648.5 1168.8,637.5 1108.2,637.5' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1068.1,649.6 1114.3,649.6 1114.3,643.0 1068.1,643.0' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1250.1,646.6 1300.2,653.6 1301.9,641.6 1251.8,634.6' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1295.4,651.7 1321.7,654.0 1322.6,643.1 1296.3,640.8' fill='#7A1F1F' fill-opacity='1.0' stroke='#3E1414' stroke-width='1'/>
+<polygon points='1177.0,636.4 1232.0,625.4 1221.0,652.9 1155.0,652.9' fill='#C07A6E' fill-opacity='0.85' stroke='#8A5446' stroke-width='1'/>
 <text x='990' y='678' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>side view; legs folded under, the head on the ground</text>
 <text x='20' y='730' fill='#C8C8D0' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>C · THE 2-D MAP, THE PARTS, THE SOUNDS</text>
 <rect x='20' y='742' width='300' height='150' fill='#141418' rx='3' stroke='#3A3A44' stroke-width='1' opacity='1'/>
