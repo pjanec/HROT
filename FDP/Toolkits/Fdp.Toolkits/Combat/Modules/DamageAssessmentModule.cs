@@ -28,12 +28,15 @@ namespace Fdp.Toolkit.Combat.Modules
         /// <summary>Systems that run in the Simulation phase.</summary>
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; } =
             new IEcsModuleSystem[] { new DamageCalculationSystem(), new AreaEffectSystem(),   // ⭐ CE-1032 W-5 — the area effect beside the direct hit
+                                     new NapalmSystem(),
+                                     new StructureFlameSystem(),   // ⭐ CE-3488 (flame FL-4) — a flame jet on a burnable wall sets its building alight (before the record writer below)   // ⭐ CE-3487 (flame FL-3) — a napalm burst: the fireball (men alight) and the ground fire's spots, from the same bursts
                                      new Fdp.Toolkit.Squad.DangerArea.ShelledAreaSystem(),   // ⭐ CE-4583 — the shelled areas, from the same bursts
                                      new Fdp.Toolkit.Terrain.BuildingDamageSystem(),   // ⭐ CE-4391 S-1 — the breaches it decided, written into the building's damage entity (after it: B-5)
                                      new Fdp.Toolkit.Terrain.GroundDamageSystem(),   // ⭐ CE-4591 (P-4) — the craters it decided, written into the cell's ground-damage entity
                                      new Fdp.Toolkit.Terrain.CraterRegroundSystem(),   // ⭐ CE-4591 (G-11) — an owned man standing where a crater opened takes the new ground
                                      new Fdp.Toolkit.Terrain.DozerCutSystem(),   // ⭐ CE-4601 (B-4) — a bulldozer's blade cuts the wall / fells the trunk its order marked (before the writers)
                                      new Fdp.Toolkit.Terrain.TreeDamageSystem(),
+                                     new Fdp.Toolkit.Terrain.GroundFireSystem(),   // ⭐ CE-3487 (flame FL-3, TD-6) — the ground fire NapalmSystem laid, written into the cell's fire record; a spot gone out leaves a scorch
                                      new Fdp.Toolkit.Terrain.GroundHeatMarkSystem(),   // ⭐ CE-4664 (TD-14) — the warm stands HeatSourceSystem (CE-4658) reports here, written into the cell's heat-marks entity
                                      new Fdp.Toolkit.Terrain.MinefieldStrikesSystem(),   // ⭐ CE-4624 MS-T1 — the mines that went off, written into the field's strikes record
                                      new Fdp.Toolkit.Terrain.PlaceKnowledgeSystem(),

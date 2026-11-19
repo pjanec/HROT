@@ -373,6 +373,7 @@ namespace Hrot.Editor.DebugApi
                     ["fire"]                    = RoeOf.Fire(_world, entity).ToString(),
                     ["reactions"]               = RoeOf.Reactions(_world, entity).ToString(),
                     ["forceLevel"]              = RoeOf.ForceLevel(_world, entity).ToString(),
+                    ["incendiary"]              = RoeOf.Incendiary(_world, entity).ToString(),   // CE-3486 (F-9)
                     ["returnFireWindowSeconds"] = RoeOf.ReturnFireWindowSeconds(_world, entity),
                 };
 

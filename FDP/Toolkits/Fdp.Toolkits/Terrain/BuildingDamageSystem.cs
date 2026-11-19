@@ -11,6 +11,21 @@ using Fdp.Toolkit.Replication.Components;
 namespace Fdp.Toolkit.Terrain
 {
     /// <summary>
+    /// ⭐ <c>CE-3488</c> (flame FL-4 B-1; 📄 docs/designs/weapons/DESIGN_Flame_Weapons.md §7c) — "building <see cref="Building"/> is set alight": raised by the flame and
+    /// napalm igniters on the record writer's node, read by <see cref="BuildingDamageSystem"/> the same frame. The spot in WORLD metres. LOCAL.
+    /// </summary>
+    [EventId(TerrainEventIds.BuildingFire)]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BuildingFireEvent
+    {
+        public int Building;
+        public float X, Y, Z, Radius;
+        public SimInstant Since;
+        public float Seconds, Intensity;
+        public readonly Fdp.Toolkit.Perception.Signatures.FireSpot Spot => new(X, Y, Z, Radius, Since, Seconds, Intensity);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-4391</c> S-1 (UTM §8.2 B-5) — "a detonation breached this wall": published by <c>AreaEffectSystem.BreachWalls</c> (the deciding node, a
     /// non-remote detonation) for each breach, read by <see cref="BuildingDamageSystem"/> the frame after. LOCAL (never on the wire): the entity the
     /// system writes is what replicates. <see cref="Panel"/> is the global panel index, <see cref="Kind"/> a <see cref="BreachKind"/>.
@@ -76,6 +91,7 @@ namespace Fdp.Toolkit.Terrain
             public int Age;
             public readonly List<WallBreach> Later = new();
             public readonly List<WindowHitEvent> LaterWindows = new();   // ⭐ CE-5033
+            public readonly List<BuildingFireEvent> LaterFires = new();   // ⭐ CE-3488
             public bool Collapse;
         }
 
@@ -113,6 +129,14 @@ namespace Fdp.Toolkit.Terrain
                 BreakWindowsUnder(repo, terrain, evt.Building, evt.Breach);   // ⭐ CE-5033 D-10 — the glass goes with its wall
             }
 
+            // ⭐ CE-3488 (flame FL-4 B-1) — the buildings set alight: a FireState on the building's record (TD-6's second holder)
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>() && repo.Bus.IsRegistered<BuildingFireEvent>())
+            {
+                var fires = repo.ReadEvents<BuildingFireEvent>();
+                for (int i = 0; i < fires.Length; i++)
+                    if (WallGroups.IsBuilding(terrain, fires[i].Building)) ApplyFire(repo, terrain, in fires[i]);
+            }
+
             // ⭐ CE-5033 (glass windows GW-2, D-4) — the panes rounds and bursts hit
             if (!repo.IsComponentTypeRegistered<WindowDamage>() || !repo.Bus.IsRegistered<WindowHitEvent>()) return;
             var hits = repo.ReadEvents<WindowHitEvent>();
@@ -124,6 +148,38 @@ namespace Fdp.Toolkit.Terrain
                 if (terrain.Panels[h.Panel].Building != h.Building || (uint)h.Opening >= (uint)openings.Count || !openings[h.Opening].Glazed) continue;
                 ApplyWindow(repo, terrain, in h);
             }
+        }
+
+        /// <summary>Buildings set alight (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of buildings set alight")]
+        public long Ignited { get; private set; }
+
+        /// <summary>
+        /// ⭐ CE-3488 (flame FL-4 B-1) — writes a building's fire into THIS node's damage entity for it (the one with a <c>FireState</c>, else the first, which gains one
+        /// with its final value), else asks for an entity born holding it — the way a window is written. The spot is held in the record's frame (its anchor). v1: ONE
+        /// fire per building — a building already burning takes no second.
+        /// </summary>
+        private void ApplyFire(EntityRepository repo, TerrainWorld terrain, in BuildingFireEvent f)
+        {
+            string key = BuildingDamages.KeyOf(terrain, f.Building);
+            if (_pending.TryGetValue(key, out var waiting)) { waiting.LaterFires.Add(f); return; }
+            Entity target = Entity.Null;
+            foreach (var e in Query(repo))
+            {
+                if (!OwnsDamage(repo, e) || repo.GetComponentRO<BuildingDamage>(e).Building != f.Building) continue;
+                if (repo.HasComponent<Fdp.Toolkit.Perception.Signatures.FireState>(e)) { target = e; break; }
+                if (target.IsNull) target = e;
+            }
+            var anchor = WallGroups.Anchor(terrain, f.Building);
+            var local = f.Spot.Offset(-anchor);
+            double now = f.Since.Seconds;
+            bool has = !target.IsNull && repo.HasComponent<Fdp.Toolkit.Perception.Signatures.FireState>(target);
+            var fire = has ? repo.GetComponentRO<Fdp.Toolkit.Perception.Signatures.FireState>(target) : new Fdp.Toolkit.Perception.Signatures.FireState();
+            if (fire.IsBurning(now) || !fire.TryAdd(in local, now)) return;   // already alight (v1: one fire), or full
+            Ignited++;
+            if (target.IsNull) Request(repo, terrain, f.Building, key, default, fire: fire);
+            else if (has) repo.SetComponent(target, fire);
+            else repo.AddComponent(target, fire);   // a record made before it burned: added with its final value (D-31)
         }
 
         /// <summary>Panes broken (a rail and a diagnostics counter read it).</summary>
@@ -248,18 +304,21 @@ namespace Fdp.Toolkit.Terrain
                 if (p.Collapse) ApplyCollapse(repo, terrain, p.Building);
                 for (int i = 0; i < p.Later.Count; i++) Apply(repo, terrain, p.Building, p.Later[i]);
                 for (int i = 0; i < p.LaterWindows.Count; i++) ApplyWindow(repo, terrain, p.LaterWindows[i]);   // ⭐ CE-5033
+                for (int i = 0; i < p.LaterFires.Count; i++) ApplyFire(repo, terrain, p.LaterFires[i]);   // ⭐ CE-3488
             }
         }
 
-        private void Request(EntityRepository repo, TerrainWorld terrain, int building, string key, in WallBreach breach, bool collapse = false, WindowDamage? windows = null)
+        private void Request(EntityRepository repo, TerrainWorld terrain, int building, string key, in WallBreach breach, bool collapse = false, WindowDamage? windows = null,
+                             Fdp.Toolkit.Perception.Signatures.FireState? fire = null)
         {
             var d = new BuildingDamage { Building = building };
-            if (collapse) d.Collapsed = 1; else if (windows == null) BuildingDamages.Add(ref d, in breach, terrain);
+            if (collapse) d.Collapsed = 1; else if (windows == null && fire == null) BuildingDamages.Add(ref d, in breach, terrain);
             var anchor = WallGroups.Anchor(terrain, building);   // ⭐ CE-4599 — a building's position, a line's first post
             int node = repo.HasSingletonManaged<INetworkTopology>() ? (int)(repo.GetSingletonManaged<INetworkTopology>()?.LocalNodeId ?? default) : 0;
             var initial = new List<object> { new SimTransform { Position = anchor, Rotation = Quaternion.Identity }, d, new TerrainObjectKey { Key = key } };
             // ⭐ CE-5033 — every damage entity carries its windows (born with their final value), where the world knows the component
             if (repo.IsComponentTypeRegistered<WindowDamage>()) initial.Add(windows ?? new WindowDamage { Building = building });
+            if (fire is { } burning) initial.Add(burning);   // ⭐ CE-3488 — born burning (its final value)
             repo.Bus.PublishManaged(new EntityCreationRequest
             {
                 RequestId = Guid.NewGuid(),

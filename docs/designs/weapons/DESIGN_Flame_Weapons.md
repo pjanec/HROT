@@ -1,10 +1,12 @@
 <!--STATUS
-state: LIVE — ✅ APPROVED 2026-11-19 (R-3111); nothing built yet (HANDOFF_Coordinator_To_Backend_Reload_And_Fire_Weapons.md row 2)
-build-state: DESIGN
+state: LIVE — ✅ APPROVED 2026-11-19 (R-3111); FL-0…FL-4 BUILT (§6, §7, §7a, §7b, §7c); FL-5 drills are the behaviors lane's
+build-state: BUILT — FL-0…FL-4 (§7, §7a, §7b, §7c)
 updated: 2026-11-19
-current-answer: §0 the picture · §3 decisions (leans F-1…F-12) · §5 slices
+current-answer: §0 the picture · §3 decisions (F-1…F-12, approved) · §5 slices · §7 / §7a / §7b / §7c as built (FL-1, FL-2, FL-3, FL-4)
 related-designs:
   - ../audio/DESIGN_FPS_Audio.md — §10 how the mover loops (the flail, the flame roar) are held; §8 here owns the roar (CE-4635)
+  - ../air-attack/DESIGN_Breath_Attack.md — how a FLYER delivers the flame on its own (a strafing pass, a hover for a wall); moves NeutralInFlame to the jet's origin (BA-6)
+  - ../fun/DESIGN_Dragon.md — the F-11 carrier: the breath on a dragon's neck turret; moves the jet's origin to the muzzle (DR-5) and keeps a carrier's riders out of its own jet (DR-6)
   - ../thermal/DESIGN_Thermal_Drivers.md — OWNS how fire is STORED and SENT (§3b TD-16 the coupling to damage, §3c the three FireState holders, §4b the BurnedArea mark, §4g BurnSystem as built); this design adds what LIGHTS it
   - ../vehicle-appearance/DESIGN_Vehicle_Appearance_State.md — §7 / §7a: Hrot.Look's effect rules and categories — the flame and the burning-ground look go through them
   - DESIGN_Weapon_Systems.md — mounts, stations and the TKB weapon rows a flamethrower is one more of
@@ -272,6 +274,138 @@ renderer needs.
 | ~~FL-1's scenario moved to FL-2~~ | ⛔ REVERSED (user, `2026-11-19`: *"the feature is not done until it has a testing scenario"*): FL-1 ships the man-portable flamethrower TYPE (`UrbanCombatTkbCatalog.TkbFlamethrowerSoldier` 2022, his fuel `MunitionTkbCatalog.TkbFlameFuel` 6069: 40 m, 6°, 60 s, 10 shots a second, 90 shots) and **`fl-flamethrower-cone`** — 7 / 7, golden captured and repeating, and 7 / 7 under the parallel checks (read check + world guard). The flame tank and the ROE rule stay FL-2 |
 | ⭐ found BY the scenario, fixed | ① a mount with no loadout leaves `WeaponAmmo.Load0` 0 (the mount's own round) ⇒ `FlameJets` read no warhead — it now falls back to the mount's munition (rail `AMountWithNoLoadout_*`, red-proved); ② the barrel-heat model held the flamethrower "too hot" after 0.7 s (10 fuel shots a second) ⇒ `BarrelHeat`: a flamethrower has no barrel; ③ a man lit once burned 6 s and LIVED while the jet still played on him ⇒ each tick past the threshold extends his burning (the ignition counts once) |
 | "the stream's END leaves a burning-fuel spot" (F-3) | ⏳ with **FL-3**: a ground spot needs the cell-record holder napalm builds |
+
+## 7a. As built — FL-2 the ROE, the civilian hold, the flame tank *(backend, `2026-11-19`, CE-3486)*
+
+```mermaid
+sequenceDiagram
+  participant B as brain (AimAndFire / FireAtPoint executor)
+  participant F as ForceLevels
+  participant L as LineOfFire
+  participant M as muscle (FireProcessingSystem)
+  B->>F: Permits (force level) then IncendiaryPermits(ammo, mount)
+  F-->>B: RoeOf.Incendiary down the chain — Forbidden ⇒ HoldIncendiary, nothing spent
+  B->>L: BlockedByNeutral (the bullet's line) or NeutralInFlame (the flame's reach and cone)
+  L-->>B: a neutral in it ⇒ HoldNeutralOnLine, nothing spent
+  B->>M: WeaponFireIntent — a fuel shot (the jet lights from the burst record)
+```
+*What the picture shows that the prose hid:* both F-9 holds are on the BRAIN, before a fuel shot is spent — the jet lights from the brain's own
+round count (`WeaponAmmoMirrorSystem`), so a muscle refusal (where `Masked` lives) would have come after the flame was already lit.
+
+| piece | as built |
+|---|---|
+| **`Roe.Incendiary`** (`RoeIncendiary`: `IncendiaryUnset` ⇒ allowed · `IncendiaryForbidden` · `IncendiaryAllowed`) | appended to `Roe`, `SetRoeEvent`, `SavedRoe` (so the scenario's `Roe` block and the replicated brain intent carry it — no IDL change), `RoeSystem`, `BrainHandOverSystem`, `BehaviorProfileDto.DefaultRoeIncendiary`, the operator wire (`RoeDirectiveJson` `"Incendiary"`), the editor and `/entities/{id}` brain view; read by `RoeOf.Incendiary` down the chain of command like every ROE field. ⭐ A police / civil force needs nothing new: an incendiary round is LETHAL (`Armament.IsLethal`), so its NonLethal cap holds it already |
+| **`ForceLevels.IncendiaryPermits`** | an incendiary munition (warhead `Incendiary`, the loaded or the mount's own) is refused where the ROE forbids it — ⚠ self-defence does NOT lift it; asked at both places a round leaves (`AimAndFireExecutor.HoldOf` ⇒ `ActionReason.HoldIncendiary`, appended; `FireAtPointExecutor`) and by `AllowsMount`, so the weapon choice drops a forbidden flamethrower and a flame tank fights with its coax |
+| **`LineOfFire.NeutralInFlame`** (Protocol III's rule) | ⭐ ONE rule with AW-20's neutral-on-the-line (`NeutralOnLine`, the shared per-frame body grid, 0 B): the line run to the jet's FULL REACH (a flame does not stop at its target) with the cone as the spread (tan of the half-angle); held as `HoldNeutralOnLine` at the three AW-20 sites |
+| **the M67 flame tank** (`TkbEntityTypes.Tank_FlameM67` 117, DIS 1.1.225.1.20) | an M48 hull and turret: mount 0 a turret flamethrower (600 fuel shots, 10 a second), its fuel `MunitionTkbCatalog.TkbTankFlameFuel` 6070 (60 m, 5°, 60 s); the coax and smoke dischargers kept; side armour 76 mm ⇒ its own hull never catches fire; heard as `SoundSourceClass.Flame` |
+| rails | `AimAndFireExecutorTests.CE3486_AFlamethrower_IsHeld_WhileANeutralIsAnywhereInItsFlame` (🔴 red-proved: the flame stopped at the target) · `CE3486_TheRoesIncendiaryRule_ForbidsAFlame_DownTheChain_AndTheWeaponChoiceDropsIt` (🔴 red-proved: the rule always true) · `TacticalIntentIngressTranslatorTests.CE3251_*` (the wire carries `Incendiary`) |
+| scenarios | ✅ `fl-clear-the-bunker` (4 / 4): the tank flames a window of the CQB house; the man inside on its line is lit at 0.5 s and dies; the man just inside the wall, in the cone but behind brick, never burns · ✅ `fl-roe-holds` (9 / 9): each hold beside a CONTROL given the same order — the flamer with a civilian beyond his target never fires (his control does, and lights his target); the tank whose ROE forbids incendiaries never spends fuel (its control does) |
+
+| 📐 learned by the scenarios — for the drills (FL-5, behaviors) | |
+|---|---|
+| ⭐ **a flame clears a building by being thrown INTO THE OPENING** (`FireAtPoint`, mount 0, at the window) — it does not need to see who is inside | 📌 `FireAtTarget` at a man inside never engaged: the tank must see him first, and a man 4 m inside reads "not seen" |
+| ⚠ **the weapon choice prefers the coax to the flamethrower against a man** in the open (measured: 5 coax rounds, target dead at 0.7 s) | ⇒ when to burn is the DRILL's decision (FL-5), not the weapon scorer's; ⛔ not changed here |
+| a window's opening `at` is its START edge along the wall from its first corner (`TerrainOpening.At`) | 📌 the first placement hit brick — `/perception/los` names the panel a line crosses |
+| an unbroken GLASS pane passes sight (transmittance 1) and so the flame | a v2 question: should a flame break the pane (GW's shatter) |
+
+## 7b. FL-3 napalm — plan and AS BUILT *(backend, `2026-11-19`, CE-3487; `build-state: BUILT` — as built in the table at the end of this section; where it differs, the as-built wins)*
+
+```mermaid
+classDiagram
+  direction LR
+  class DetonationNotification { <<exists, SimHost>> +Ammo +Hit +Travel }
+  class NapalmSystem { <<new, DamageAssessmentModule>> +the ellipse along Travel }
+  class DamageAssessedEvent { <<exists, crosses nodes>> +Effect Burning +EffectSeconds }
+  class HealthApplicationSystem { <<exists, Health owner>> +Effects.Apply }
+  class GroundFireEvent { <<new event>> +FireSpot in WORLD metres }
+  class CellRecordSystem~TRecord,TItem~ { <<exists, CE-5000>> +IsRecord(e) (new hook) +AfterApply (new hook) }
+  class GroundFireSystem { <<new>> CellRecordSystem~FireState,FireSpot~ +a spot gone out ⇒ BurnedArea }
+  class FireState { <<exists>> +ICellRecord~FireSpot~ (new) +RecordCellX/Y (appended, owner-local) }
+  class BurnSystem { <<exists, Health owner>> +bodies in any holder's spots }
+  class AreaEffectClouds { <<exists>> +Request(smoke) }
+  class GroundHeatMarkEvent { <<exists>> +BurnedArea }
+  DetonationNotification --> NapalmSystem : an Incendiary warhead with an area
+  NapalmSystem --> DamageAssessedEvent : the fireball — each man in the ellipse
+  DamageAssessedEvent --> HealthApplicationSystem
+  NapalmSystem --> GroundFireEvent : 3..n spots along the flight line
+  NapalmSystem --> AreaEffectClouds : the smoke
+  GroundFireEvent --> GroundFireSystem
+  GroundFireSystem --|> CellRecordSystem~TRecord,TItem~
+  GroundFireSystem --> FireState : on the cell's record entity (TKB 7210)
+  GroundFireSystem --> GroundHeatMarkEvent : a spot gone out
+  BurnSystem --> FireState : reads
+```
+*What the picture shows that the prose hid:* napalm adds ONE decider (`NapalmSystem`) and ONE writer (`GroundFireSystem`), and the writer is
+the existing per-cell record writer (ruling 9 — CE-5000's one implementation), not a fourth copy; every other box exists. The fireball reaches a
+man through the damage event that already crosses nodes, so it lands on whichever node owns his Health.
+
+| decision | ⭐ lean (engineering — F-5's numbers stand) | why / what would change it |
+|---|---|---|
+| **N-1** the holder of ground fire | the CELL record (TD-6, 64 m cells, `GroundDamages.Anchor`), made by `CellRecordSystem` with `FireState` AS the record (`ICellRecord<FireSpot>`; the cell kept in two appended owner-local fields — not on the wire: only the owner writes) | ⛔ a new `GroundFire` component — a second fire component beside `FireState`, which `BurnSystem`, the look and the thermal sensor would each have to learn |
+| **N-2** a burning vehicle is not a record | `CellRecordSystem` gains a `IsRecord(e)` hook; the fire writer accepts only its own TKB type (7210) | a vehicle's `FireState` would otherwise read as cell (0, 0) |
+| **N-3** where it is decided | `DamageAssessmentModule` (SimHost), after `AreaEffectSystem`, beside the crater writer — the detonation's node | the effect on a man crosses nodes as a `DamageAssessedEvent` (`Effect = Burning`), exactly as a stun does |
+| **N-4** the ellipse | along the round's `Travel` (the flight line), `AreaLengthM` × `AreaWidthM`; spots `n = round(L / W)` along the axis, radius `W/2 × 1.2`, each burning the warhead's `BurnSeconds` | — |
+| **N-5** the fireball | every person inside the ellipse is set alight (F-3's one 1 s exposure crosses a man's 0.3 s, not a hull's 1.5 s — vehicles burn by standing in the spots) | — |
+| **N-6** the scorch | a spot gone out ⇒ one `BurnedArea` heat mark at its place (the owner, once: the spot's seconds set to 0 after) | — |
+| **N-7** the ROE | `IncendiaryPermits` holds a napalm release already (it asks the round's warhead); ⭐ the civilian hold = a neutral person inside the ellipse at the impact point (F-9) | — |
+| **N-8** the delivery | a Mk 77 firebomb (TKB munition 6071) on an A-10 variant, released by the existing `AirPlatformStrike` | the air lane's own napalm aircraft, when it has one |
+
+Scenario `fl-napalm-treeline`: the strike burns the treeline's men and leaves the ground burning for its time; a scorch is left; vehicles 50 m away untouched.
+
+| ⭐ as built (`2026-11-19`) | |
+|---|---|
+| the plan above | ✅ built as drawn: `NapalmSystem` + `GroundFireSystem` in `DamageAssessmentModule`; `FireState : ICellRecord<FireSpot>` (`RecordCellX/Y` appended, owner-local); `CellRecordSystem` gained `IsRecord` and `AfterApply`; the record type `GroundFireTkb` 7210 (hidden from the palette; the 3-D body layer skips it — ui's file, one line); the event `GroundFireEvent` (id 5113) |
+| ⭐ found by a rail | `GroundHeatMarkRules.Leaves` took only a vehicle STAND (≥ 60 s, engine on) — a 50 s fire left no scorch. ✅ a `BurnedArea` mark needs only a size (a fire scorches however briefly it burned); the stand rule stays a vehicle's |
+| ⭐ added, found by the scenario | the burst is written into the combat report's `DetonationLog` (`Warhead` "Incendiary, 80 x 25 m ellipse") — `AreaEffectSystem` logs only bursts with blast or fragments, so the scenario's `blast` cue saw none |
+| N-7 | `LineOfFire.NeutralInNapalm` at both release gates (`AimAndFireExecutor.HoldOf` after the release cue; `FireAtPointExecutor.ShootAtPoint`) ⇒ `HoldNeutralOnLine`; the shared body grid walks the axis padded by the half-width, the exact `NapalmSystem.InEllipse` judges |
+| N-8 | the A-10 definition takes its bomb as a parameter: `Jet_AttackA10` (405, Mk 82) and `Jet_AttackA10Napalm` (**410** — the aircraft block; DIS specific 1) with the Mk 77 (`MunitionTkbCatalog.TkbMk77Firebomb` 6071: 80 × 25 m, 300 s, a 30 m smoke cloud, no blast) |
+| ⛔ deviation from §5's scenario | **`fl-napalm-strike`** on basic-desert, not `fl-napalm-treeline`: a vegetation's own burn time is FL-4's materials; ⭐ the GROUND fire is proved by its effect on a man who walks into it after the fireball (a record entity has no name a check could hold) |
+| rails | `NapalmSystemTests.CE3487_*` (the ellipse along the flight line, the spots) · `GroundFireTests.CE3487_*` (the record in the anchor's frame, never a burning car; one scorch per spot) · `AimAndFireExecutorTests.CE3487_ANapalmBomb_*` — each red-proved |
+| scenario | ✅ `fl-napalm-strike`: the firebomb released (19.7 s) and bursting; the three line men lit (27.5 s) and dead (32 s); the Late Man — never in the fireball — burned by the ground fire (84 s); the Far Car 50 m off untouched |
+
+## 7c. FL-4 buildings burn — plan and AS BUILT *(backend, `2026-11-19`, CE-3488; `build-state: BUILT` — as built in the table at the end of this section; where it differs, the as-built wins)*
+
+```mermaid
+classDiagram
+  direction LR
+  class FlameJets { <<built>> +TryGet }
+  class StructureFlameSystem { <<new, DamageAssessmentModule>> +a burnable panel in the cone, clear line ⇒ exposure per building }
+  class NapalmSystem { <<built>> +a burnable building in the ellipse (new) }
+  class BuildingFireEvent { <<new event>> +Building +spot in WORLD metres }
+  class BuildingDamageSystem { <<exists, CE-4391>> +ApplyFire (new, beside ApplyWindow) }
+  class BuildingDamage { <<exists, record per building>> }
+  class FireState { <<exists>> +on the building record (TD-6's second holder) }
+  class TerrainWallPanel { <<exists>> +Material.BurnSeconds (FL-0) +Building }
+  class BurnSystem { <<exists>> +bodies in any holder's spots }
+  StructureFlameSystem --> FlameJets
+  StructureFlameSystem --> TerrainWallPanel
+  StructureFlameSystem --> BuildingFireEvent
+  NapalmSystem --> BuildingFireEvent
+  BuildingFireEvent --> BuildingDamageSystem
+  BuildingDamageSystem --> BuildingDamage
+  BuildingDamageSystem --> FireState : added on the building's record (final value)
+  BurnSystem --> FireState
+```
+*What the picture shows that the prose hid:* the building record's writer already queues three kinds of item while its entity is being made
+(breaches, a collapse, windows); a fire is the fourth, written the way a window is — no second building-record writer.
+
+| decision | ⭐ lean | why |
+|---|---|---|
+| **B-1** the holder | `FireState` on the building's damage record (TD-6), added by `BuildingDamageSystem.ApplyFire` (or born with it); ONE spot per building in v1: the footprint's centre, radius to its farthest corner, its material's `BurnSeconds`, in the record's frame (`WallGroups.Anchor`) | the men inside burn by `BurnSystem`'s one rule; a room-by-room spread is v2 |
+| **B-2** the flame igniter | `StructureFlameSystem` (SimHost's `DamageAssessmentModule`, beside the record writer — so the event never crosses nodes): a lit jet (`FlameJets`, replicated) whose cone holds a point of a BURNABLE panel (`Material.BurnSeconds > 0`) with a clear line to just short of it gains exposure on that building; ≥ `Ignition.BuildingSeconds` (2 s, F-3) ⇒ a `BuildingFireEvent`; its own buffer, cleared on a new world | ⛔ in `FlameSystem` (the Health owner, any node) the event would be lost where no record writer runs |
+| **B-3** the napalm igniter | `NapalmSystem`: a building with a burnable panel whose footprint centre lies in the ellipse (grown by its radius) burns | — |
+| **B-4** the materials | a `timber` wall material (thermal class `wood` ⇒ 600 s) and a `timber-house` template; brick, concrete and stone stay unburnable | no building in the repo burns today — every template is brick or concrete |
+| **B-5** the scenario | `fl-timber-house` (⛔ not `fl-thatched-village`: no thatch material; the same test): on basic-desert, a placed timber house and a placed brick shed, a man in each, a flamer on each; the timber house burns and its man dies, the shed never burns and its man lives | the houses are placed by the scenario (`TerrainFeature.House`), so no terrain changes |
+
+| ⭐ as built (`2026-11-19`) | |
+|---|---|
+| B-1 | ✅ as drawn: `BuildingFireEvent` (id 5114, `TerrainEventIds.BuildingFire`; the spot in WORLD metres) → `BuildingDamageSystem.ApplyFire`: an existing record gains ONE spot (in its frame, `WallGroups.Anchor`) unless it already burns; a record still being made queues it (`Pending.LaterFires`, the fourth queued kind); no record yet ⇒ the creation request is BORN holding the `FireState` and no breach. `Ignited` counts them |
+| B-1 the one rule | `Terrain/BuildingFires.cs`: `BurnSecondsOf` (the most burnable wall's `BurnSeconds`) · `Extent` (footprint centre, radius to the farthest corner) · `TryOf` (the event; Z a metre above the floor) · `Burnable` / `BurnablePanels` (built once per world, per thread) — read by both igniters, so they cannot light a building differently |
+| B-2 | ✅ `Combat/Systems/StructureFlameSystem.cs` in `DamageAssessmentModule` after `NapalmSystem`: per lit jet, each burnable panel's point nearest the jet's axis (`NearestToAxis`) in the `FlameCone`, sight line to 0.4 m short of it ⇒ exposure on its building (once per building per tick; the gap rule of `Ignition.ExposureGapSeconds`); `Ignition.BuildingSeconds` = 2 s ⇒ the event, exposure cleared |
+| B-3 | ✅ `NapalmSystem.LightBuildings`: a burnable building whose footprint centre lies in the ellipse grown by its radius |
+| B-4 | ✅ `materials.json` `timber` (thermal class `wood` ⇒ 600 s) · `assets/buildings/timber-house.building.json` (8 × 6 m). ⚠ the template is the terrain lane's area (assets/buildings) — named in the commit |
+| B-5 | ✅ `scenarios/demos/weapons-and-fires/fl-timber-house`: the timber house's man burns (3 s) and dies (12 s), never caught by the jet itself (the walls stop it — the house's fire burns him); the brick shed's man is never hurt; both flamers spend fuel. Passes under the parallel checks (`HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) with the same golden |
+| rails | `BuildingFireTests.CE3488_*` (the burn time and the one spot; the record born holding the fire, once; 2 s on timber lights it, brick never) · `NapalmSystemTests.CE3488_*` (the burnable building in the ellipse, never brick, never one outside) — red-proved: the "already burning" test dropped (a second spot); the 2 s threshold cut (lit early); brick is guarded TWICE (the burnable-panel filter and `TryOf`'s 0 s refusal — each alone holds; both dropped ⇒ brick lit) |
 
 ## 8. The look — as ui builds it *(ui, `2026-11-19`; HANDOFF_Backend_To_Ui_Flame_Visuals; `build-state: BUILT` (ui, `2026-11-19`; as-built below, the design table under it is the plan and where they differ ⛔ the as-built wins); mockup [`UX/flame-visuals.svg`](../../UX/flame-visuals.svg), generated by `scripts/gen-flame-visuals-mockup.py`)*
 

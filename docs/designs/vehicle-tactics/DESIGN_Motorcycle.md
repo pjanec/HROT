@@ -7,6 +7,7 @@ stale-below: § HISTORY at the bottom (§2–§6 as first written); §8 is the r
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../fun/DESIGN_Dragon.md — the dragon's pillion is this firing seat on a flyer (DR-7, slice D-3)
   - ../../DESIGN_Operations_Behaviour_Catalogue.md — §12.3 / §12.6 / §12.6a: the analysis and the open sources this design builds (VEH-3, ASY-3, IM-*, PF-*)
   - DESIGN_Checkpoint_And_Ramming.md — OWNS the checkpoint, `RamTarget`, the vehicle ladder and the hostile act the bike-borne bomb (IM-3) and the two-up indicator (IM-8) use
   - DESIGN_FPV_Drone.md — OWNS the FPV's search / pursue / dive the dash is played against

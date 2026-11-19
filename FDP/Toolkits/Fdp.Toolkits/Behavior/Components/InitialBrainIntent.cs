@@ -25,6 +25,8 @@ namespace Fdp.Toolkit.Behavior.Components
         public SimDuration ReturnFireWindowSeconds { get; set; }
         /// <summary>⭐ <c>CE-2239</c> part 1 — the force level; <c>ForceUnset</c> = the default. JSON-carried, as the window.</summary>
         public RoeForceLevel ForceLevel { get; set; }
+        /// <summary>⭐ <c>CE-3486</c> (F-9) — the incendiary rule; <c>IncendiaryUnset</c> = the default. JSON-carried, as the force level.</summary>
+        public RoeIncendiary Incendiary { get; set; }
     }
 
     /// <summary>

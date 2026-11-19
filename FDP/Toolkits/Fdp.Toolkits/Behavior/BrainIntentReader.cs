@@ -98,7 +98,8 @@ namespace Fdp.Toolkit.Behavior
             if (scope == BrainIntentScope.Ordered && roe.SetBy == BehaviorOrigin.Unmarked) return null;   // the template's default
             return new SavedRoe { Fire = roe.Fire, Reactions = roe.Reactions, SetBy = roe.SetBy,
                                   ReturnFireWindowSeconds = roe.ReturnFireWindowSeconds,   // CE-2095
-                                  ForceLevel = roe.ForceLevel };   // CE-2239 part 1
+                                  ForceLevel = roe.ForceLevel,     // CE-2239 part 1
+                                  Incendiary = roe.Incendiary };   // CE-3486 (F-9)
         }
 
         /// <summary>A mission plan with phases left drives the task slot — the plan is saved, not the phase's behaviour.</summary>

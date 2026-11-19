@@ -41,6 +41,8 @@ namespace Fdp.Toolkit.Combat
         public const float PersonSeconds = 0.3f;
         /// <summary>The exposure that lights a soft vehicle (a car, a truck, a wagon, a light APC).</summary>
         public const float SoftVehicleSeconds = 1.5f;
+        /// <summary>⭐ <c>CE-3488</c> (FL-4, F-3) — a BUILDING with a burnable wall (timber, thatch) catches after this much flame on it (s × intensity).</summary>
+        public const float BuildingSeconds = 2f;
         /// <summary>How long a man set alight burns (s) — rolling on the ground to put it out is v2.</summary>
         public const float BurningManSeconds = 6f;
         /// <summary>A vehicle's fire burns this long when the munition names no <see cref="WarheadDto.BurnSeconds"/> (s).</summary>

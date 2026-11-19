@@ -100,6 +100,9 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         /// <summary>⭐ <c>CE-4623</c> AB-5 (Animals AR-10) — the ridden horse BOLTS: fear above its bolt line overrides the rider's controls for a
         /// while (the HUD's cue). Appended.</summary>
         Bolting,
+        /// <summary>⭐ <c>CE-3486</c> (flame F-9) — the unit's ROE forbids an INCENDIARY round (a flamethrower, napalm): held (Running, nothing spent);
+        /// its weapon choice drops such a mount, so this shows only when nothing else is left.</summary>
+        HoldIncendiary,
     }
 
     /// <summary>One channel's last status: the action, the reason, a progress pair, the target and when (sim seconds).</summary>
@@ -203,6 +206,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             ActionReason.HoldNeutralOnLine  => "hold: neutral on line",      // ⭐ AW-20 — a civilian in the line or the spread
             ActionReason.HoldSurrender      => "hold: hands up",             // ⭐ CV-13a — a surrender
             ActionReason.HoldForceLevel     => "hold: force level",          // ⭐ CE-2239 — the ROE caps the force
+            ActionReason.HoldIncendiary     => "hold: no incendiary",        // ⭐ CE-3486 — the ROE forbids a flame
             ActionReason.HoldConduct        => "hold: unarmed civilian",     // ⭐ CE-2238 part 4 — non-lethal force only
             ActionReason.HoldWarn           => "hold: warning",              // ⭐ CE-2239 part 3 — the ladder's Warn rung
             ActionReason.HoldStunned        => "hold: stunned",              // ⭐ CE-3255 (BR-2) — a flash-bang
@@ -225,7 +229,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             or ActionReason.TooClose or ActionReason.HoldMoving or ActionReason.WrongDomain
             or ActionReason.NotControlled or ActionReason.NoGunner or ActionReason.NotDeployed or ActionReason.OutOfRange
             or ActionReason.Masked or ActionReason.HoldNeutral or ActionReason.HoldNeutralOnLine
-            or ActionReason.HoldSurrender or ActionReason.HoldForceLevel or ActionReason.HoldConduct or ActionReason.HoldWarn
+            or ActionReason.HoldSurrender or ActionReason.HoldForceLevel or ActionReason.HoldIncendiary or ActionReason.HoldConduct or ActionReason.HoldWarn
             or ActionReason.HoldStunned or ActionReason.HoldRestrained or ActionReason.HoldNoFireArea
             or ActionReason.Overheated;   // ⭐ CE-3255 (BR-2) · CE-3256 (BR-4)   // ⭐ CE-2218 · ⭐ CE-2233 — the gizmo drew these unlabelled and not amber
 

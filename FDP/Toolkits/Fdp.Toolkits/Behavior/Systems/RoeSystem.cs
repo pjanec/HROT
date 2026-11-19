@@ -62,6 +62,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (evt.Reactions != RoeReactions.ReactionsUnset) roe.Reactions = evt.Reactions;
             if (evt.ReturnFireWindowSeconds > 0f) roe.ReturnFireWindowSeconds = evt.ReturnFireWindowSeconds;   // CE-2095
             if (evt.ForceLevel != RoeForceLevel.ForceUnset) roe.ForceLevel = evt.ForceLevel;   // CE-2239 part 1
+            if (evt.Incendiary != RoeIncendiary.IncendiaryUnset) roe.Incendiary = evt.Incendiary;   // CE-3486 (F-9)
             roe.SetBy = origin == BehaviorOrigin.Unmarked ? BehaviorOrigin.Operator : origin;
             return true;
         }
