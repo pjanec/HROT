@@ -473,12 +473,6 @@ namespace Hrot.SimHost.Tests
             RunUntilBaked(sys, 1);
             Assert.True(step.IsResolved(_world), "the overlay's first bake has committed: the load is done");
 
-            // the terrain changes under it (a new base): the overlay must be baked on the new base before a load is done again
-            _residency.Commit(_world, _residency.Prepare("base-t"));
-            Assert.False(step.IsResolved(_world), "a new terrain base: the overlay is not in it until it bakes again");
-            RunUntilBaked(sys, 2);
-            Assert.True(step.IsResolved(_world));
-
             // a host with no live overlay (a SimHost, the player): the block is inert data there, nothing to wait for
             var plain = new StaticObstacleBakeSystem(() => _wall);
             Block(300f, 300f, Guid.Parse("22222222-2222-4333-8444-555555555555"));

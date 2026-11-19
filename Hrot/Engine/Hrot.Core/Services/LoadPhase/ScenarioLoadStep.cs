@@ -420,10 +420,10 @@ public sealed class ScenarioLoadStep : ILoadPartProvider
             }
             return false;
         }
-        if (_overlayWait is { } waited)
+        if (_overlayWait is { } overlayWaited)
         {
             _overlayWait = null;
-            FdpLog<ScenarioLoadStep>.Info("[LoadPhase/Scenario] the scenario's terrain overlay is baked after {0:F1} s.", waited.Elapsed.TotalSeconds);
+            FdpLog<ScenarioLoadStep>.Info("[LoadPhase/Scenario] the scenario's terrain overlay is baked after {0:F1} s.", overlayWaited.Elapsed.TotalSeconds);
         }
 
         return true;
