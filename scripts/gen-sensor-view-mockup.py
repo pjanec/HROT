@@ -12,7 +12,7 @@ import math, os, random, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mockup_kit import Svg, C, FA
 
-W, H = 1500, 1110
+W, H = 1500, 1420
 s = Svg(W, H, "Sensor views on the 3-D map — night vision and thermal, one shared post-process  (CE-1984 / CE-1985)",
         "Annotations in grey are not drawn by the app. Every panel is the SAME scene; only the light (night vision) or the time of day (thermal) changes.")
 PW, PH = 350, 230   # one view panel
@@ -127,8 +127,8 @@ s.text(20, 770, "C · THE CONTROLS — View menu, the legend strip on the map, t
 s.window(20, 790, 300, 230, "View")
 y0 = 828
 for i, (label, sel, key) in enumerate((("2-D / 3-D Map", False, ""), ("First Person: Over the Shoulder", False, ""), ("Director", False, ""),
-                                       (None, False, ""), ("Sensor View ▸ Off", False, ""), ("Sensor View ▸ Night Vision", False, "Ctrl+N"),
-                                       ("Sensor View ▸ Thermal", True, "Ctrl+T"))):
+                                       (None, False, ""), ("Sensor View ▸ Off", False, ""), ("Sensor View ▸ Night Vision", False, "F4"),
+                                       ("Sensor View ▸ Thermal", True, "F4"))):
     if label is None:
         s.line(32, y0 + i * 26 - 8, 308, y0 + i * 26 - 8, C.SEP); continue
     if sel: s.rect(28, y0 + i * 26 - 16, 284, 24, C.BTNSEL)
@@ -149,7 +149,7 @@ for i, (lab, on) in enumerate((("Halo", True), ("Sensor resolution", True), ("No
 for i in range(240):
     s.rect(lx + 16 + i * 3, ly + 46, 3, 14, wh(i / 239))
 s.text(lx + 16, ly + 78, "−4 °C", C.SUB, 11); s.text(lx + 16 + 720, ly + 78, "38 °C", C.SUB, 11, anchor="end")
-s.text(lx + 300, ly + 78, "outlined units: above the SELECTED observer's threshold (Infantry_ThermalObserver, signature 0.3)", C.PEND, 11)
+s.text(lx + 90, ly + 78, "outlined units: above the SELECTED observer's threshold (Infantry_ThermalObserver, signature 0.3)", C.PEND, 11)
 
 # the night-vision legend
 ny = 900
@@ -165,11 +165,70 @@ s.tooltip(1160, 800, 320, ["T-72  ·  41.3 °C  (rear 74 °C)", "engine Idle for
 s.note(1160, 880, ["hover any unit in thermal: its temperature and WHY", "(the drivers the AI's sensor reads); in night", "vision: its light level and lamps"], C.NOTE, 11)
 
 s.callout(lx + 300, ly + 92, 700, 975, ["drawn after the post-process: sharp, never grainy or green"])
-s.note(20, 1050, [
+s.note(20, 1048, [
     "Scope: the two sensor views, their menu items, the legend strips and the hover readout. Everything else on the map (panels, HUD, the 2-D map,",
-    "the normal 3-D view) is unchanged. ⛔ Lamps, flames and flashes are SEEN, they light nothing around them (user, 2026-11-19).",
+    "the normal 3-D view) is unchanged except for row D. Lamps, flames, flashes and embers are SEEN in every view and light their surroundings (no shadows) except in thermal (R-1057).",
     "⭐ The labels and cards a layer draws in screen space stay on top, sharp; the 3-D gizmos are part of the scene and take the sensor's look.",
 ], C.NOTE, 11.5)
+
+# ── Row D: light sources — seen in every view, and (cheaply) lighting their surroundings except in thermal (R-1057) ────────────
+s.text(20, 1108, "D · LIGHT SOURCES at night — headlamps, a blast, a muzzle flash, a burning cigarette: SEEN in every view, LIGHTING their surroundings "
+       "(no shadows) except in thermal", C.SUB, 13, weight="bold")
+DPW = 460
+
+
+def night_scene(x, y, pal, lit, title, sub, seed, thermal=False):
+    """lit(name) -> brightness; pools: (cx, cy, rx, ry, v) light pools on the ground / walls (normal + NV only)."""
+    clip = f"dclip{seed}"
+    s.raw(f"<clipPath id='{clip}'><rect x='{x}' y='{y}' width='{DPW}' height='{PH}'/></clipPath><g clip-path='url(#{clip})'>")
+    s.rect(x, y, DPW, PH, pal(lit("sky")))
+    s.rect(x, y + 95, DPW, PH - 95, pal(lit("field")))
+    s.raw(f"<polygon points='{x},{y + 175} {x + DPW},{y + 150} {x + DPW},{y + 170} {x},{y + 200}' fill='{pal(lit('road'))}'/>")
+    s.rect(x + 300, y + 40, 120, 60, pal(lit("wall")))                                  # a wall
+    if not thermal:
+        for (cx, cy, rx, ry, v) in ((120, 182, 70, 14, lit("pool_head")), (360, 72, 55, 30, lit("pool_blast")), (215, 120, 16, 10, lit("pool_muzzle"))):
+            s.raw(f"<ellipse cx='{x + cx}' cy='{y + cy}' rx='{rx}' ry='{ry}' fill='{pal(v)}' fill-opacity='0.85'/>")
+    s.rect(x + 30, y + 160, 40, 16, pal(lit("car")), rx=3)                              # the car, headlamps toward +x
+    s.raw(f"<circle cx='{x + 70}' cy='{y + 166}' r='3' fill='{pal(lit('lamp'))}'/><circle cx='{x + 70}' cy='{y + 172}' r='3' fill='{pal(lit('lamp'))}'/>")
+    s.raw(f"<circle cx='{x + 365}' cy='{y + 98}' r='14' fill='{pal(lit('blast'))}'/>")  # the blast at the wall's foot
+    s.rect(x + 200, y + 108, 5, 16, pal(lit("soldier"))); s.raw(f"<circle cx='{x + 202}' cy='{y + 105}' r='3' fill='{pal(lit('soldier'))}'/>")
+    s.raw(f"<circle cx='{x + 211}' cy='{y + 116}' r='3.5' fill='{pal(lit('flash'))}'/>")   # muzzle flash
+    s.rect(x + 130, y + 112, 5, 16, pal(lit("smoker"))); s.raw(f"<circle cx='{x + 132}' cy='{y + 109}' r='3' fill='{pal(lit('smoker'))}'/>")
+    s.raw(f"<circle cx='{x + 136}' cy='{y + 110}' r='1.6' fill='{pal(lit('ember'))}'/>")   # the cigarette's ember at his lips
+    for (cx, cy, r, v) in ((70, 169, 4, lit("lamp")), (365, 98, 14, lit("blast")), (211, 116, 4, lit("flash")), (136, 110, 2, lit("ember"))):
+        for k in range(3):
+            s.raw(f"<circle cx='{x + cx}' cy='{y + cy}' r='{r * (1.6 + k * 1.2):.1f}' fill='{pal(v)}' fill-opacity='{0.45 / (1 + k * 1.8):.2f}'/>")
+    s.raw("</g>")
+    s.rect(x, y, DPW, PH, "none", stroke=C.BORDER)
+    s.text(x, y - 22, title, C.TXT, 13, weight="bold")
+    s.text(x, y - 7, sub, C.NOTE, 11)
+
+
+def normal_pal(v):
+    v = max(0.0, min(1.0, v)); return f"#{int(18 + 200 * v):02X}{int(22 + 180 * v):02X}{int(40 + 150 * v):02X}"
+
+
+def warm_normal(k):
+    return dict(sky=0.08, field=0.12, road=0.14, wall=0.18, pool_head=0.55, pool_blast=0.7, pool_muzzle=0.45, car=0.2, lamp=1.0, blast=1.0,
+                soldier=0.22, flash=1.0, smoker=0.24, ember=0.95)[k]
+
+
+def nv_lit(k):
+    return dict(sky=0.25, field=0.42, road=0.38, wall=0.5, pool_head=0.8, pool_blast=0.85, pool_muzzle=0.7, car=0.4, lamp=1.0, blast=1.0,
+                soldier=0.5, flash=1.0, smoker=0.5, ember=1.0)[k]
+
+
+def th_lit(k):
+    return dict(sky=0.0, field=0.18, road=0.4, wall=0.35, car=0.55, lamp=0.6, blast=1.0, soldier=0.85, flash=1.0, smoker=0.85, ember=1.0)[k]
+
+
+night_scene(20, 1150, normal_pal, warm_normal, "D1 · NORMAL view, night", "lamps / blast / flash light pools around them (cheap, no shadows)", 31)
+night_scene(500, 1150, nv, nv_lit, "D2 · NIGHT VISION", "the same pools amplified; every source blooms; the ember is a bright point", 32)
+night_scene(980, 1150, wh, th_lit, "D3 · THERMAL", "no light pools (light is not heat); blast, flash and ember saturate, the lamp is warm", 33, thermal=True)
+s.callout(20 + 136, 1150 + 110, 300, 1395, ["the cigarette's ember: brighter while it is at his lips (the drag, on the", "smoker's own idle clock) — a 0.4 m light, seen in every view"])
+s.callout(500 + 211, 1150 + 116, 760, 1395, ["the muzzle flash: a 6 m light for 60 ms, a", "bloom in night vision, saturated in thermal"])
+s.callout(980 + 70, 1150 + 169, 1150, 1395, ["F4 cycles: normal → night vision → thermal → normal", "(the legend strip names the view and \"F4: next\")"])
+
 out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "UX", "sensor-view.svg")
 s.save(out)
 print("wrote", os.path.normpath(out))

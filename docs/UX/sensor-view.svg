@@ -1,5 +1,5 @@
-<svg xmlns='http://www.w3.org/2000/svg' width='1500' height='1110' viewBox='0 0 1500 1110'>
-<rect x='0' y='0' width='1500' height='1110' fill='#1B1B1F' rx='0' opacity='1'/>
+<svg xmlns='http://www.w3.org/2000/svg' width='1500' height='1420' viewBox='0 0 1500 1420'>
+<rect x='0' y='0' width='1500' height='1420' fill='#1B1B1F' rx='0' opacity='1'/>
 <text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Sensor views on the 3-D map — night vision and thermal, one shared post-process  (CE-1984 / CE-1985)</text>
 <text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Annotations in grey are not drawn by the app. Every panel is the SAME scene; only the light (night vision) or the time of day (thermal) changes.</text>
 <defs><radialGradient id='vig' cx='50%' cy='50%' r='62%'><stop offset='72%' stop-color='#000' stop-opacity='0'/><stop offset='100%' stop-color='#000' stop-opacity='0.92'/></radialGradient></defs>
@@ -1681,11 +1681,11 @@
 <text x='56' y='932' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Sensor View ▸ Off</text>
 <path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64Z' fill='#808080' fill-opacity='0.5' transform='translate(40,965.171875) scale(0.015625,-0.015625)'/>
 <text x='56' y='958' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Sensor View ▸ Night Vision</text>
-<text x='300' y='958' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>Ctrl+N</text>
+<text x='300' y='958' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>F4</text>
 <rect x='28' y='968' width='284' height='24' fill='#3369AD' rx='0' opacity='1'/>
 <path d='M256 -64Q326 -63 384 -30Q442 4 478 64Q512 125 512 192Q512 259 478 320Q442 380 384 414Q326 447 256 448Q186 447 128 414Q70 380 34 320Q0 259 0 192Q0 125 34 64Q70 4 128 -30Q186 -63 256 -64Z' fill='#4296FA' fill-opacity='1' transform='translate(40,991.171875) scale(0.015625,-0.015625)'/>
 <text x='56' y='984' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Sensor View ▸ Thermal</text>
-<text x='300' y='984' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>Ctrl+T</text>
+<text x='300' y='984' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>F4</text>
 <rect x='350' y='795' width='780' height='92' fill='#101014' rx='4' stroke='#3A3A44' stroke-width='1' opacity='0.92'/>
 <path d='M159 443Q173 454 187 442Q228 404 265 358Q281 381 302 401Q316 413 330 401Q356 376 377 345Q399 315 414 283Q430 252 439 223Q448 194 448 171Q447 107 418 54Q388 1 337 -31Q287 -63 224 -64Q161 -63 110 -31Q60 1 30 54Q1 107 0 171Q2 231 45 303Q88 376 159 443ZM226 32Q263 32 295 53Q326 76 334 114Q341 151 323 187Q313 201 300 189L275 160Q262 149 250 161Q237 177 219 200Q201 223 187 240Q175 252 163 241Q137 209 125 186Q112 163 112 141Q113 89 145 61Q177 32 226 32Z' fill='#F29B38' fill-opacity='1' transform='translate(366,831.55078125) scale(0.02734375,-0.02734375)'/>
 <text x='384' y='819' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>THERMAL</text>
@@ -1949,7 +1949,7 @@
 <rect x='1083' y='841' width='3' height='14' fill='#FFFFFF' rx='0' opacity='1'/>
 <text x='366' y='873' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>−4 °C</text>
 <text x='1086' y='873' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>38 °C</text>
-<text x='650' y='873' fill='#F2C033' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>outlined units: above the SELECTED observer's threshold (Infantry_ThermalObserver, signature 0.3)</text>
+<text x='440' y='873' fill='#F2C033' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>outlined units: above the SELECTED observer's threshold (Infantry_ThermalObserver, signature 0.3)</text>
 <rect x='350' y='900' width='780' height='48' fill='#101014' rx='4' stroke='#3A3A44' stroke-width='1' opacity='0.92'/>
 <path d='M288 416Q227 415 179 392Q131 369 95 335Q60 302 37 267Q14 232 3 204Q-2 192 3 180Q14 152 37 117Q60 82 95 49Q131 15 179 -8Q227 -31 288 -32Q349 -31 397 -8Q445 15 481 49Q516 82 539 117Q562 152 574 180Q579 192 574 204Q562 232 539 267Q516 302 481 335Q445 369 397 392Q349 415 288 416ZM144 192Q144 231 163 264Q182 297 216 317Q250 336 288 336Q326 336 360 317Q394 297 413 264Q432 231 432 192Q432 153 413 120Q394 87 360 67Q326 48 288 48Q250 48 216 67Q182 87 163 120Q144 153 144 192ZM288 256Q287 229 269 211Q251 193 224 192Q213 192 204 195Q194 197 192 188Q192 178 195 167Q207 128 240 109Q273 90 313 99Q352 111 371 144Q390 177 381 217Q372 248 348 267Q323 286 292 288Q283 286 285 276Q288 267 288 256Z' fill='#5BD06A' fill-opacity='1' transform='translate(366,940.55078125) scale(0.02734375,-0.02734375)'/>
 <text x='384' y='928' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>NIGHT VISION</text>
@@ -1970,7 +1970,113 @@
 <text x='1160' y='908' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>vision: its light level and lamps</text>
 <path d='M650 887 L694 975' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
 <text x='700' y='979' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>drawn after the post-process: sharp, never grainy or green</text>
-<text x='20' y='1050' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the two sensor views, their menu items, the legend strips and the hover readout. Everything else on the map (panels, HUD, the 2-D map,</text>
-<text x='20' y='1064' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the normal 3-D view) is unchanged. ⛔ Lamps, flames and flashes are SEEN, they light nothing around them (user, 2026-11-19).</text>
-<text x='20' y='1078' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⭐ The labels and cards a layer draws in screen space stay on top, sharp; the 3-D gizmos are part of the scene and take the sensor's look.</text>
+<text x='20' y='1048' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the two sensor views, their menu items, the legend strips and the hover readout. Everything else on the map (panels, HUD, the 2-D map,</text>
+<text x='20' y='1062' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the normal 3-D view) is unchanged except for row D. Lamps, flames, flashes and embers are SEEN in every view and light their surroundings (no shadows) except in thermal (R-1057).</text>
+<text x='20' y='1076' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>⭐ The labels and cards a layer draws in screen space stay on top, sharp; the 3-D gizmos are part of the scene and take the sensor's look.</text>
+<text x='20' y='1108' fill='#C8C8D0' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>D · LIGHT SOURCES at night — headlamps, a blast, a muzzle flash, a burning cigarette: SEEN in every view, LIGHTING their surroundings (no shadows) except in thermal</text>
+<clipPath id='dclip31'><rect x='20' y='1150' width='460' height='230'/></clipPath><g clip-path='url(#dclip31)'>
+<rect x='20' y='1150' width='460' height='230' fill='#222434' rx='0' opacity='1'/>
+<rect x='20' y='1245' width='460' height='135' fill='#2A2B3A' rx='0' opacity='1'/>
+<polygon points='20,1325 480,1300 480,1320 20,1350' fill='#2E2F3D'/>
+<rect x='320' y='1190' width='120' height='60' fill='#363643' rx='0' opacity='1'/>
+<ellipse cx='140' cy='1332' rx='70' ry='14' fill='#80797A' fill-opacity='0.85'/>
+<ellipse cx='380' cy='1222' rx='55' ry='30' fill='#9E9491' fill-opacity='0.85'/>
+<ellipse cx='235' cy='1270' rx='16' ry='10' fill='#6C676B' fill-opacity='0.85'/>
+<rect x='50' y='1310' width='40' height='16' fill='#3A3A46' rx='3' opacity='1'/>
+<circle cx='90' cy='1316' r='3' fill='#DACABE'/><circle cx='90' cy='1322' r='3' fill='#DACABE'/>
+<circle cx='385' cy='1248' r='14' fill='#DACABE'/>
+<rect x='220' y='1258' width='5' height='16' fill='#3E3D49' rx='0' opacity='1'/>
+<circle cx='222' cy='1255' r='3' fill='#3E3D49'/>
+<circle cx='231' cy='1266' r='3.5' fill='#DACABE'/>
+<rect x='150' y='1262' width='5' height='16' fill='#42414C' rx='0' opacity='1'/>
+<circle cx='152' cy='1259' r='3' fill='#42414C'/>
+<circle cx='156' cy='1260' r='1.6' fill='#D0C1B6'/>
+<circle cx='90' cy='1319' r='6.4' fill='#DACABE' fill-opacity='0.45'/>
+<circle cx='90' cy='1319' r='11.2' fill='#DACABE' fill-opacity='0.16'/>
+<circle cx='90' cy='1319' r='16.0' fill='#DACABE' fill-opacity='0.10'/>
+<circle cx='385' cy='1248' r='22.4' fill='#DACABE' fill-opacity='0.45'/>
+<circle cx='385' cy='1248' r='39.2' fill='#DACABE' fill-opacity='0.16'/>
+<circle cx='385' cy='1248' r='56.0' fill='#DACABE' fill-opacity='0.10'/>
+<circle cx='231' cy='1266' r='6.4' fill='#DACABE' fill-opacity='0.45'/>
+<circle cx='231' cy='1266' r='11.2' fill='#DACABE' fill-opacity='0.16'/>
+<circle cx='231' cy='1266' r='16.0' fill='#DACABE' fill-opacity='0.10'/>
+<circle cx='156' cy='1260' r='3.2' fill='#D0C1B6' fill-opacity='0.45'/>
+<circle cx='156' cy='1260' r='5.6' fill='#D0C1B6' fill-opacity='0.16'/>
+<circle cx='156' cy='1260' r='8.0' fill='#D0C1B6' fill-opacity='0.10'/>
+</g>
+<rect x='20' y='1150' width='460' height='230' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='20' y='1128' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>D1 · NORMAL view, night</text>
+<text x='20' y='1143' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>lamps / blast / flash light pools around them (cheap, no shadows)</text>
+<clipPath id='dclip32'><rect x='500' y='1150' width='460' height='230'/></clipPath><g clip-path='url(#dclip32)'>
+<rect x='500' y='1150' width='460' height='230' fill='#345625' rx='0' opacity='1'/>
+<rect x='500' y='1245' width='460' height='135' fill='#4D7C38' rx='0' opacity='1'/>
+<polygon points='500,1325 960,1300 960,1320 500,1350' fill='#477334'/>
+<rect x='800' y='1190' width='120' height='60' fill='#598E42' rx='0' opacity='1'/>
+<ellipse cx='620' cy='1332' rx='70' ry='14' fill='#89D26B' fill-opacity='0.85'/>
+<ellipse cx='860' cy='1222' rx='55' ry='30' fill='#91DD73' fill-opacity='0.85'/>
+<ellipse cx='715' cy='1270' rx='16' ry='10' fill='#79BB5D' fill-opacity='0.85'/>
+<rect x='530' y='1310' width='40' height='16' fill='#4A7836' rx='3' opacity='1'/>
+<circle cx='570' cy='1316' r='3' fill='#AAFF8A'/><circle cx='570' cy='1322' r='3' fill='#AAFF8A'/>
+<circle cx='865' cy='1248' r='14' fill='#AAFF8A'/>
+<rect x='700' y='1258' width='5' height='16' fill='#598E42' rx='0' opacity='1'/>
+<circle cx='702' cy='1255' r='3' fill='#598E42'/>
+<circle cx='711' cy='1266' r='3.5' fill='#AAFF8A'/>
+<rect x='630' y='1262' width='5' height='16' fill='#598E42' rx='0' opacity='1'/>
+<circle cx='632' cy='1259' r='3' fill='#598E42'/>
+<circle cx='636' cy='1260' r='1.6' fill='#AAFF8A'/>
+<circle cx='570' cy='1319' r='6.4' fill='#AAFF8A' fill-opacity='0.45'/>
+<circle cx='570' cy='1319' r='11.2' fill='#AAFF8A' fill-opacity='0.16'/>
+<circle cx='570' cy='1319' r='16.0' fill='#AAFF8A' fill-opacity='0.10'/>
+<circle cx='865' cy='1248' r='22.4' fill='#AAFF8A' fill-opacity='0.45'/>
+<circle cx='865' cy='1248' r='39.2' fill='#AAFF8A' fill-opacity='0.16'/>
+<circle cx='865' cy='1248' r='56.0' fill='#AAFF8A' fill-opacity='0.10'/>
+<circle cx='711' cy='1266' r='6.4' fill='#AAFF8A' fill-opacity='0.45'/>
+<circle cx='711' cy='1266' r='11.2' fill='#AAFF8A' fill-opacity='0.16'/>
+<circle cx='711' cy='1266' r='16.0' fill='#AAFF8A' fill-opacity='0.10'/>
+<circle cx='636' cy='1260' r='3.2' fill='#AAFF8A' fill-opacity='0.45'/>
+<circle cx='636' cy='1260' r='5.6' fill='#AAFF8A' fill-opacity='0.16'/>
+<circle cx='636' cy='1260' r='8.0' fill='#AAFF8A' fill-opacity='0.10'/>
+</g>
+<rect x='500' y='1150' width='460' height='230' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='500' y='1128' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>D2 · NIGHT VISION</text>
+<text x='500' y='1143' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the same pools amplified; every source blooms; the ember is a bright point</text>
+<clipPath id='dclip33'><rect x='980' y='1150' width='460' height='230'/></clipPath><g clip-path='url(#dclip33)'>
+<rect x='980' y='1150' width='460' height='230' fill='#121212' rx='0' opacity='1'/>
+<rect x='980' y='1245' width='460' height='135' fill='#3C3C3C' rx='0' opacity='1'/>
+<polygon points='980,1325 1440,1300 1440,1320 980,1350' fill='#707070'/>
+<rect x='1280' y='1190' width='120' height='60' fill='#646464' rx='0' opacity='1'/>
+<rect x='1010' y='1310' width='40' height='16' fill='#949494' rx='3' opacity='1'/>
+<circle cx='1050' cy='1316' r='3' fill='#A0A0A0'/><circle cx='1050' cy='1322' r='3' fill='#A0A0A0'/>
+<circle cx='1345' cy='1248' r='14' fill='#FFFFFF'/>
+<rect x='1180' y='1258' width='5' height='16' fill='#DBDBDB' rx='0' opacity='1'/>
+<circle cx='1182' cy='1255' r='3' fill='#DBDBDB'/>
+<circle cx='1191' cy='1266' r='3.5' fill='#FFFFFF'/>
+<rect x='1110' y='1262' width='5' height='16' fill='#DBDBDB' rx='0' opacity='1'/>
+<circle cx='1112' cy='1259' r='3' fill='#DBDBDB'/>
+<circle cx='1116' cy='1260' r='1.6' fill='#FFFFFF'/>
+<circle cx='1050' cy='1319' r='6.4' fill='#A0A0A0' fill-opacity='0.45'/>
+<circle cx='1050' cy='1319' r='11.2' fill='#A0A0A0' fill-opacity='0.16'/>
+<circle cx='1050' cy='1319' r='16.0' fill='#A0A0A0' fill-opacity='0.10'/>
+<circle cx='1345' cy='1248' r='22.4' fill='#FFFFFF' fill-opacity='0.45'/>
+<circle cx='1345' cy='1248' r='39.2' fill='#FFFFFF' fill-opacity='0.16'/>
+<circle cx='1345' cy='1248' r='56.0' fill='#FFFFFF' fill-opacity='0.10'/>
+<circle cx='1191' cy='1266' r='6.4' fill='#FFFFFF' fill-opacity='0.45'/>
+<circle cx='1191' cy='1266' r='11.2' fill='#FFFFFF' fill-opacity='0.16'/>
+<circle cx='1191' cy='1266' r='16.0' fill='#FFFFFF' fill-opacity='0.10'/>
+<circle cx='1116' cy='1260' r='3.2' fill='#FFFFFF' fill-opacity='0.45'/>
+<circle cx='1116' cy='1260' r='5.6' fill='#FFFFFF' fill-opacity='0.16'/>
+<circle cx='1116' cy='1260' r='8.0' fill='#FFFFFF' fill-opacity='0.10'/>
+</g>
+<rect x='980' y='1150' width='460' height='230' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='980' y='1128' fill='#FFFFFF' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>D3 · THERMAL</text>
+<text x='980' y='1143' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>no light pools (light is not heat); blast, flash and ember saturate, the lamp is warm</text>
+<path d='M156 1260 L294 1395' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='300' y='1399' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the cigarette's ember: brighter while it is at his lips (the drag, on the</text>
+<text x='300' y='1413' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>smoker's own idle clock) — a 0.4 m light, seen in every view</text>
+<path d='M711 1266 L754 1395' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='760' y='1399' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the muzzle flash: a 6 m light for 60 ms, a</text>
+<text x='760' y='1413' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>bloom in night vision, saturated in thermal</text>
+<path d='M1050 1319 L1144 1395' stroke='#5A5A66' stroke-width='1' stroke-dasharray='3 3' fill='none'/>
+<text x='1150' y='1399' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>F4 cycles: normal → night vision → thermal → normal</text>
+<text x='1150' y='1413' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(the legend strip names the view and "F4: next")</text>
 </svg>

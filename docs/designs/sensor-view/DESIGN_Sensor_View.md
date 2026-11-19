@@ -2,9 +2,9 @@
 state: LIVE
 updated: 2026-11-19
 build-state: READY-TO-BUILD
-current-answer: §3 the decisions · §4 night vision · §5 thermal · §6 UML · §8 slices
+current-answer: §3 the decisions · §4 night vision · §5 thermal · §6 UML · §8 slices · §9 light sources (seen + cheap lighting) · §10 the F4 cycle
 stale-below: nothing yet
-known-rot: none
+known-rot: D-4's "they light nothing" is SUPERSEDED by R-1057 (§9): sources may light their surroundings, cheaply, except in thermal
 known-conflict: none
 related-designs:
   - ../thermal/DESIGN_Thermal_Drivers.md — owns the HEAT DRIVERS and the calculator (`ThermalDriversOps`): this view only READS them; TD-14's "instructor's thermal-marks layer" is built HERE (§5d)
@@ -25,6 +25,9 @@ related-designs:
 > it as well, cheaply?"* · *"Well, vehicles have lights and we have flames and explosions and stuff like that. So these should be shown at least in some
 > cheap way. It doesn't mean that they should illuminate the surrounding. Just be shown, just be visible themselves. And yes, your suggestion is fine. Some
 > simple moon, shared post process, okay."*
+> · *"And if the explosions and lights can illuminate the surrounding and be cheap at the same time, it's no problem for me. Please first write a
+> design. And we will need some hotkey for switching the mode of the 3D map for normal view, thermal and night vision. Also guys with a cigarette
+> burning and the muzzle flashes, they are also important light sources in both"* (R-1057)
 
 📄 **Mockup (the acceptance spec, R-4138):** [`docs/UX/sensor-view.svg`](../../UX/sensor-view.svg) — `python3 scripts/gen-sensor-view-mockup.py`.
 
@@ -69,7 +72,7 @@ Queries: `search_graph name_pattern=".*(Thermal|Heat|Infrared|Temperature|Burn|S
 | **D-1** | ⭐ ONE `SensorView` with two modes (Night Vision, Thermal) on ONE post-process; Off = the normal view, untouched | shared, not duplicated (CLAUDE.md) · ⛔ two separate views |
 | **D-2** | the scene pass writes the SENSOR's quantity (NV: light; thermal: °C), never "the normal image recoloured" | ⛔ a post-process alone on the colour image — paint brightness ≠ heat (a white car would be "hot") |
 | **D-3** | the canvas' 3-D layer pass is drawn into a `RenderTexture` while a sensor mode is on; the post pass draws it to the screen; then `DrawOverlays` (labels, cards, HUD, legend) — sharp | the film precedent; 3-D gizmos are part of the scene and take the sensor's look (accepted) |
-| **D-4** | lamps, flames, flashes, blasts are **seen, never lighting** — emissive, they bloom in the post pass | 🔒 user |
+| **D-4** | lamps, flames, flashes, blasts are **seen** — emissive, they bloom in the post pass. ⛔ *"never lighting"* SUPERSEDED by R-1057: they may light their surroundings, cheaply (§9) | 🔒 user |
 | **D-5** | a simple MOON (position + lit fraction) in the shared `WeatherSample`, beside `SolarPosition` | night vision without a moon is always starlight · ⛔ a view-only moon (the sky and later the AI need the same one) |
 | **D-6** | thermal surfaces: three numbers per thermal class (α absorption, τ inertia, ε emissivity) + an evaporation pin; the steady daily cycle in closed form; sky reflection by ε; wind and rain couple to the air | 🔒 user: *"cheap but not completely out of reality"* · ⛔ a heat solver with history |
 | **D-7** | units in °C = their surface (the same model, metal / body) + their own heat from `ThermalDriversOps` (engine at the hot end, barrel, fire, a corpse cooling) | ONE calculator for the AI and the view's units |
@@ -257,4 +260,88 @@ lamps on, a man, a burning wreck, a ground heat mark), whose `checks.json` pins 
 | **SV-2** | **CE-1985** | `ThermalScene`; thermal mode in `LitShader` (class uniforms, the heat encoding); units / marks / fires in °C; hover readout and observer outlines | TH-1…5, ALLOC, COST green; the frames match the mockup's B row |
 | later | **CE-1986** | the AI's night sight reads the moon (`NaturalLight`) — perception lane | its own scenarios |
 | later | **CE-1987** | the AI's thermal sensor on °C contrast from `ThermalScene` (retires `BaseContrast`'s crossover) — perception lane | `th-idling-tank` and its siblings |
+| **SV-1b** | **CE-1989** | the F4 cycle (§10) | KEY green |
+| **SV-3** | **CE-1990** | `SceneLights` + the forward lights in `LitShader` (§9 L-1, L-3, L-4, L-7) | LS-1, LS-2, LS-4 green |
+| **SV-3b** | **CE-1991** | the cigarette ember (L-5) and every source's look in thermal (L-2, L-6; needs CE-1985) | LS-3 green |
 | later | **CE-1988** | a film frame through the sensor view (a texture target inside the film's) | a film clip in NV |
+
+## 9. Light sources — seen in every view, and lighting their surroundings cheaply *(R-1057; CE-1990, CE-1991)*
+
+### 9a. INVENTORY *(measured `2026-11-19`)*
+
+Queries: `search_code "[Cc]igarette|[Ss]moking|[Ss]moker"` (regex, 40) · grep `enum LightKind`, `_lightsNow`, `EffectKind.MuzzleFlash`, `FragmentMain`.
+
+| source | exists as | where | today |
+|---|---|---|---|
+| vehicle lamps (head, tail, brake, interior, convoy, searchlight, nav, anti-collision, landing) | `VehicleLights.OnMask` per type group (`LightKind`), brake lights derived | `Tkb/Domain/VehicleLightsDto.cs:8`, `VehicleLook.Lights`, `EntityBodyLayer3D.Fittings.cs:112` (`_lightsNow`: point + colour) | small unlit spheres + a halo; ⛔ no direction kept (a headlamp's beam is the hull's forward) |
+| fires (vehicle, building, cell), flame jets, burning men | `FireState`, `FlameJets`, `EffectState.BurningUntil` | `EffectLayer.ResolveStateInto` | flames + smoke; emissive under NV (SV-1) |
+| explosions, muzzle flashes, tracers, flares | effects (`EffectKind.Explosion / MuzzleFlash / Tracer / Flare`) with an age and a phase | `EffectLayer.Draw3D` | additive spheres; emissive under NV (SV-1) |
+| ⭐ a burning CIGARETTE | `GestureKind.IdleSmoking` in the replicated `Demeanour` (CE-4628); the hand at his lips on his own gesture clock (`BlockFigure.SmokeLift`, cycle 9 s, 2.5 s at the lips) | `Combat/Gestures.cs:26`, `Map3D/ShapeKit.cs` (`IdleArms`, `Lips`) | the cigarette is drawn in his fingers; ⛔ no ember, no glow |
+| the lit shader | ONE fragment source for the per-draw AND the instanced program | `LitShader.FragmentSource` | one sun + ambient + fog; ⛔ no local lights |
+
+### 9b. The decisions *(leans — the user decides)*
+
+| # | decision | why · rejected |
+|---|---|---|
+| **L-1** | ⭐ ONE per-frame list `SceneLights` (position, colour, intensity, radius, optional spot direction + cone), filled by the layers that already know the sources (the body layer: lamps, embers; the effect layer: fires, jets, blasts, flashes, flares); a preallocated buffer, 0 B per frame | one owner; ⛔ each layer lighting on its own |
+| **L-2** | every source is SEEN in every view: normal — its own emissive draw; night vision — near-white, blooming (SV-1); thermal — hot: a blast, a flash, a fire and an ember saturate, a lamp's lens is warm (+30 K), a barrel stays hot after (TD's `BarrelHeat`) | 🔒 user: *"important light sources in both"* |
+| **L-3** | ⭐ cheap ILLUMINATION: forward lights in `LitShader` — at most **16 per frame**, chosen on the CPU by `intensity × radius² / distance-to-camera²`; per fragment a smooth falloff `(1 − (d/r)²)²` × two-sided N·L, × a cone for a spot (headlamps, searchlight, landing light). Added to the normal view and to night vision (amplified by the gain); ⛔ NOT to thermal (light is not heat) | one loop over ≤ 16 uniforms; the instanced program shares the fragment source ⇒ bodies are lit too. ⛔ shadow maps (the expensive part); ⛔ deferred lighting (a second geometry pass) |
+| **L-4** | ⚠ no shadows ⇒ a light passes through walls — kept small where it matters: headlamp a 25 m spot (30° half-angle), tail / brake 2 m, interior 1.5 m, a blast 15–40 m by its charge for its first 0.3 s, a muzzle flash 6 m for 60 ms, a fire 3× its radius (flickering on its seed), a flare 120 m for its burn, an ember 0.4 m | accepted; the radius table is the tuning surface |
+| **L-5** | ⭐ the cigarette EMBER: a point at the cigarette's tip — computed by ONE function shared with the arm pose (`BlockFigure.CigaretteTip`, the same math as `IdleArms`, never a copy), glowing 0.4 resting and 1.0 while at his lips (the drag) on his own gesture clock; a tiny emissive sphere in every view and a 0.4 m light | 🔒 user; ⛔ a new component (the gesture and its clock are already replicated) |
+| **L-6** | the muzzle flash: the existing effect — a 6 m light for its 60 ms; saturated in thermal | 🔒 user |
+| **L-7** | `View ▸ Scene Lights` (checked, default ON) switches the illumination off for a slow machine; the sources stay SEEN | the cost is the user's call per machine |
+
+### 9c. UML
+
+```mermaid
+classDiagram
+  direction LR
+  class SceneLights { <<NEW, Hrot.Presentation Map3D>> Clear() Add(SceneLight) Choose(eye, 16) Lights }
+  class SceneLight { <<NEW, struct>> Position Colour Intensity Radius Direction ConeCos Kind }
+  class EntityBodyLayer3D { <<existing>> _lightsNow (lamps) +embers }
+  class EffectLayer { <<existing>> fires · jets · blasts · flashes · flares }
+  class BlockFigure { <<existing>> IdleArms +CigaretteTip (shared math) }
+  class LitShader { <<existing>> +SetLights(count, arrays) }
+  class SensorView { <<SV-1>> Mode }
+  EntityBodyLayer3D --> SceneLights : adds lamps, embers
+  EffectLayer --> SceneLights : adds fires, blasts, flashes, flares
+  EntityBodyLayer3D --> BlockFigure : CigaretteTip
+  SceneLights --> LitShader : the chosen 16 (none in thermal)
+  SensorView --> SceneLights : thermal ⇒ no illumination
+```
+*What the picture shows that prose hid:* the lights are COLLECTED where the sources are already resolved for drawing — no second resolve of lamps or
+effects — and handed to the ONE shader every lit draw uses; the only new state is a per-frame buffer.
+
+```mermaid
+sequenceDiagram
+  participant B as EntityBodyLayer3D.Draw3D
+  participant E as EffectLayer.Draw3D
+  participant L as SceneLights
+  participant S as LitShader
+  Note over B,E: frame N
+  B->>L: lamps, embers (resolved for drawing anyway)
+  E->>L: fires, blasts, flashes, flares
+  Note over L,S: frame N+1, before the terrain draws
+  L->>S: the 16 chosen for the eye (thermal: 0)
+```
+*What the picture shows that prose hid:* the terrain draws BEFORE the bodies and effects, so this frame's sources light the NEXT frame — one frame
+late (16 ms), invisible for lamps and fires, and a muzzle flash still lights three or four frames of its 60 ms. ⛔ Rejected: resolving the sources
+twice to light the same frame.
+
+## 10. The F4 cycle *(R-1057; CE-1989)*
+
+| | |
+|---|---|
+| the key | ⭐ **F4** cycles **normal → night vision → thermal → normal** (thermal skipped until CE-1985) — 📐 measured free in every scope (the F-keys in use: F2 rename, F3 the performance overlay, F6–F10 audio; `N` is the first person's message log) |
+| where | a keymap row (`docs/UX/DESIGN_Input_And_Commands.md` K4): Global scope, read by the map's `SensorView` through a `KeymapReader` like `DebugKeys` — so it works on the map AND in first person, is listed in the Keyboard shortcuts window and can be rebound |
+| shown | the View ▸ Sensor View items show `F4`; the legend strip ends *"F4: next view"* |
+
+## 11. How §9–§10 are judged
+
+| rail | asserts |
+|---|---|
+| LS-1 | a lit headlamp brightens the road AHEAD of the car (a region in its cone) and not behind it, in the normal view and in night vision; ⛔ not in thermal |
+| LS-2 | a blast brightens the wall beside it for its first 0.3 s, then the wall is back to its baseline |
+| LS-3 | an IdleSmoking man shows an ember at his lips that is brighter during the drag than when his hand is down (his own clock) — in all three views |
+| LS-4 | more than 16 sources in view ⇒ the 16 nearest-strongest light the scene, 0 B per frame; COST with Scene Lights on vs off, reported |
+| KEY | F4 three times returns to normal; with thermal not offered it goes normal → night vision → normal |
