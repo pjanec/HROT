@@ -29,6 +29,8 @@ namespace Fdp.Toolkit.Utility
                 //   (it waits on the chosen mount's cooldown). Matches Utility AI design §11.4: "effectiveness × ammo-gate × range-band".
                 // ⭐ CE-3071 (design §9) — keep the scarce round for the target only it can hurt: with 7 TOW and 300 of 25 mm
                 //   the 25 mm wins on infantry, the TOW on a tank (effectiveness comes from ArmorModel, not range).
-                .Consider(In.RoundsLeft(),                  1.0f, Curve.Linear));
+                .Consider(In.RoundsLeft(),                  1.0f, Curve.Linear)
+                // ⭐⭐ CE-2451 D-9 (Aggregate Squad R-3) — an anti-armour mount scores 0 against a man while another loaded mount can hurt him
+                .Consider(In.MountSuitsTarget(),            1.0f, Curve.Step));
     }
 }
