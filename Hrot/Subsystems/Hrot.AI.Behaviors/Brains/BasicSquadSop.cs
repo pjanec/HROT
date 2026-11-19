@@ -122,9 +122,17 @@ namespace Hrot.AI.Behaviors.Brains
                     Id("c7029000-0000-0000-0000-000000000010"))
                     .Label("Drone → every man takes cover")
                     .Comment("CE-7029 (City Battle R-1d): a man senses a drone ⇒ the squad does (SquadSensing.AirThreat); every live man is sent ShelterFromAir (overhead cover, else keep moving; fire at it while seen) until the sky has been clear 10 s. Above 'under a platoon': a drone is the squad's own immediate threat, as the carrier rows are its own.")
+                .Sequence(row => row
+                    .Condition(bb => bb.AreaAhead, SquadSopConditions.MinefieldAhead, Id("c4624000-0000-0000-0000-000000000b41"))
+                        .Label("A minefield ahead (within 30 m)")
+                    .React(BehaviorNames.MinefieldAhead, ReactionUrgency.Alert, Id("c4624000-0000-0000-0000-000000000b42"))
+                        .Label("React: MinefieldAhead"),
+                    Id("c4624000-0000-0000-0000-000000000b40"))
+                    .Label("Minefield ahead → halt, call the engineers")
+                    .Comment("CE-4624 MS-B4 (Minefields KG-7): the route reaches a minefield the planner could not go round — halt short of it and call the engineers; never crossed as a drill. ⭐ CE-5040 (terrain, user: \"we cant wait for behaviors\"): ABOVE the UnderCommand row, like the carrier rows — the halt and the request are the squad's own (MS-B5 sends the Engineers request UP the chain, so the asking squad always has a commander); below it a squad under a live HQ never reached this row and walked into the field.")
                 .Condition(SopConditions.UnderCommand, Id("c2123000-0000-0000-0000-0000000000c1"))
                     .Label("Under a platoon → the platoon reacts for the squad")
-                    .Comment("CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride). Every squad type now carries this SOP by default.")
+                    .Comment("CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride) — ⭐ and the minefield halt (CE-5040: the squad stops and asks its HQ for engineers). Every squad type now carries this SOP by default.")
                 .Sequence(row => row
                     .Condition(SquadDefendBehavior.NotDefending, Id("c2359000-0000-0000-0000-0000000000d1"))
                         .Label("Not defending a position")
@@ -177,14 +185,6 @@ namespace Hrot.AI.Behaviors.Brains
                         .Comment("Hold and return fire, decide once (assault / break contact / hold), run the drill."),
                     Id("c2123000-0000-0000-0000-000000000020"))
                     .Label("Squad contact → react")
-                .Sequence(row => row
-                    .Condition(bb => bb.AreaAhead, SquadSopConditions.MinefieldAhead, Id("c4624000-0000-0000-0000-000000000b41"))
-                        .Label("A minefield ahead (within 30 m)")
-                    .React(BehaviorNames.MinefieldAhead, ReactionUrgency.Alert, Id("c4624000-0000-0000-0000-000000000b42"))
-                        .Label("React: MinefieldAhead"),
-                    Id("c4624000-0000-0000-0000-000000000b40"))
-                    .Label("Minefield ahead → halt, call the engineers")
-                    .Comment("CE-4624 MS-B4 (Minefields KG-7): the route reaches a minefield the planner could not go round — halt short of it and call the engineers; never crossed as a drill.")
                 .Sequence(row => row
                     .Condition(bb => bb.AreaAhead, SquadSopConditions.DangerAreaAhead, Id("c2123000-0000-0000-0000-000000000061"))
                         .Label("Danger area ahead (within 30 m, not yet crossed)")

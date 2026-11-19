@@ -7686,6 +7686,40 @@ namespace Hrot.SimHost.Tests
         /// <c>MinefieldAhead</c> as a reaction (<c>Alert</c>) that PAUSES the march — every man holds, and the squad's outbox carries a request for
         /// ENGINEERS at the field's near side; once the area is gone the reaction ends and the march resumes. ✅ Red-proofs: the SOP row dropped ⇒
         /// no reaction ⇒ red; the hold dropped ⇒ red; the request dropped ⇒ red.</summary>
+        /// <summary>⭐⭐ <c>CE-5040</c> (terrain, mf-clear-lane-and-cross) — the SAME minefield ahead stops a squad under a LIVE platoon / HQ: the halt and the
+        /// Engineers request are the squad's own (MS-B5 sends the request UP the chain, so the asking squad always has a commander), like the carrier rows —
+        /// ⛔ the <c>UnderCommand</c> row (CE-2358, "the platoon reacts for the squad") stood above it, so a commanded squad never reached it and walked into
+        /// the field. ✅ Red-proof: the minefield row back below <c>UnderCommand</c> ⇒ the march runs on ⇒ red.</summary>
+        [Fact]
+        public void CE5040_BasicSquadSop_UnderALivePlatoon_AMinefieldAhead_StillHalts_AndCallsTheEngineers()
+        {
+            var s = new Squad(members: 4);
+            var platoon = s.Repo.CreateEntity();
+            s.Repo.AddComponent(platoon, new UnitEntity());
+            s.Repo.AddComponent(s.Commander, new UnitSubordinate { Commander = platoon });
+            s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(10f, 5f, 0f), Rotation = Quaternion.Identity });
+            s.Order("{\"Objective\":[10,100,0]}", BehaviorNames.SquadMarch);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 10; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadMarch, s.TaskName);
+            Assert.True(SopConditions.UnderCommand(s.Commander, s.Repo));                                // the platoon is live: the contact rows stand aside
+
+            var near = new Vector3(10f, 20f, 0f);
+            AreaAhead(s, distanceAlongRoute: 12f, near: near, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Minefield);
+            s.Orders.Clear();
+            for (int i = 0; i < SopReactionFrames + 1; i++) s.Tick();
+            Assert.Equal(BehaviorNames.MinefieldAhead, s.TaskName);                                        // ⭐ the squad halts all the same
+            Assert.Equal(BehaviorNames.SquadMarch, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
+            s.Tick(); s.Tick();
+            var q = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander).Queued;
+            int engineers = 0;
+            for (int i = 0; i < q.Count; i++)
+                if (q.Items[i].Report.Kind == Fdp.Toolkit.Squad.Command.ReportKind.Request
+                    && q.Items[i].Report.Subtype == (byte)Fdp.Toolkit.Squad.Command.RequestKind.Engineers) engineers++;
+            Assert.Equal(1, engineers);                                                                    // ⭐ and asks up the chain
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
         [Fact]
         public void CE4624_MS_B4_BasicSquadSop_AMinefieldAhead_Halts_AndCallsTheEngineers()
         {
