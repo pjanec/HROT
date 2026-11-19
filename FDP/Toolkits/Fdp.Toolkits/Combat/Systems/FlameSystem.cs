@@ -75,22 +75,20 @@ namespace Fdp.Toolkit.Combat.Systems
                     if (!sightAsked) { sight = Fdp.Toolkit.Spatial.Eqs.EqsTerrainSight.Sight(repo, null); sightAsked = true; }
                     if (sight != null && !sight.HasLineOfSight(origin, SightEnd(repo, origin, point, kind, target))) continue;
                     if (!HealthOwnership.AppliesHere(repo, target)) continue;
-                    if (Expose(target, kind, deltaTime * jet.Intensity, now)) Ignite(repo, target, kind, in jet, now);
+                    if (Expose(target, deltaTime * jet.Intensity, now) >= Ignition.Threshold(kind)) Ignite(repo, target, kind, in jet, now);
                 }
             }
         }
 
-        /// <summary>Adds <paramref name="amount"/> to <paramref name="target"/>'s stay in the flame; true the tick it reaches the kind's threshold.</summary>
-        private bool Expose(Entity target, Ignition.Kind kind, float amount, double now)
+        /// <summary>Adds <paramref name="amount"/> to <paramref name="target"/>'s stay in the flame; the stay's exposure so far.</summary>
+        private float Expose(Entity target, float amount, double now)
         {
             _exposure.TryGetValue(target, out var e);
             if (now - e.Last > Ignition.ExposureGapSeconds) e.Seconds = 0f;   // a new stay
-            float before = e.Seconds;
             e.Seconds += amount;
             e.Last = now;
             _exposure[target] = e;
-            float threshold = Ignition.Threshold(kind);
-            return before < threshold && e.Seconds >= threshold;
+            return e.Seconds;
         }
 
         /// <summary>Where the sight line to <paramref name="point"/> ends: at a man's middle; short of a vehicle's own box (its box would hide itself).</summary>
@@ -107,8 +105,15 @@ namespace Fdp.Toolkit.Combat.Systems
         {
             if (kind == Ignition.Kind.Person)
             {
+                // ⭐ a man STAYING in the flame burns on: each tick past the threshold extends his time (📌 measured in fl-flamethrower-cone: lit once,
+                //   he burned 6 s and lived while the jet still played on him); the ignition counts once
                 if (repo.HasComponent<EffectState>(target))
-                    Effects.Apply(ref repo.GetComponentRW<EffectState>(target), HitEffect.Burning, Ignition.BurningManSeconds, now);
+                {
+                    ref var fx = ref repo.GetComponentRW<EffectState>(target);
+                    bool already = fx.BurningUntil > now;
+                    Effects.Apply(ref fx, HitEffect.Burning, Ignition.BurningManSeconds, now);
+                    if (already) return;
+                }
                 else
                 {
                     var state = new EffectState();
