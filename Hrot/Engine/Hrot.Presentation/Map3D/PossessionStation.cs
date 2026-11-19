@@ -565,7 +565,8 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, verdict, cx - vw / 2, uy, Color.SkyBlue);
             }
             var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending,
-                                  _driver.Scheme, _driver.Running, _driver.LookFree, Hud.SeatLine(w, _driver.Unit), _driver.FireModeLine(w));
+                                  _driver.Scheme, _driver.Running, _driver.LookFree, Hud.SeatLine(w, _driver.Unit), _driver.FireModeLine(w),
+                                  _driver.CrewLines(w));   // ⭐ CE-4670 (§7d D-6)
             if (OverShoulder && lines.Length > 0) lines = [.. lines[..^1], Hud.ShoulderLine, lines[^1]];   // ⭐ CE-1201 (§8p OS-1)
             // ⭐ CE-1140 — bottom-left of the VISIBLE map (out of the forward view), the labels' font (Roboto, smoothed), a colour per kind
             int width = 0;
@@ -1046,13 +1047,16 @@ namespace Hrot.UI.Common.Map3D
                 if (line.StartsWith("STANCE", StringComparison.Ordinal)) return new Color(120, 220, 255, 255);
                 if (line == LookFreeLine) return new Color(255, 220, 120, 255);   // ⭐ CE-1204
                 if (line.StartsWith("SPD", StringComparison.Ordinal)) return new Color(150, 200, 255, 255);
+                if (line.StartsWith(CrewControls.HatchPrefix, StringComparison.Ordinal) || line.StartsWith(CrewControls.HeadOutPrefix, StringComparison.Ordinal))
+                    return new Color(159, 215, 255, 255);   // ⭐ CE-4670 — the mockup's pale blue
+                if (line.StartsWith(CrewControls.LightsPrefix, StringComparison.Ordinal)) return new Color(242, 192, 51, 255);   // the mockup's amber
                 return Color.RayWhite;
             }
 
             public static string[] Lines(EntityRepository w, Entity unit, int mount, bool vehicle, bool hullLocked,
                                          Fdp.Toolkit.Tkb.Domain.StanceId? stance = null, bool shotPending = false,
                                          ControlScheme scheme = ControlScheme.Person, bool running = false, bool lookFree = false,
-                                         string? seat = null, string? fireMode = null)
+                                         string? seat = null, string? fireMode = null, (string? Hatch, string? Lights) crew = default)
             {
                 var lines = new System.Collections.Generic.List<string>();
                 bool flyer = scheme is ControlScheme.Rotorcraft or ControlScheme.FixedWing;
@@ -1089,6 +1093,8 @@ namespace Hrot.UI.Common.Map3D
                               + (st != Fdp.Toolkit.Tkb.Domain.StanceId.Standing && Hrot.MuscleCharacter.Animation.Components.LogicalStance.Refuses(w, unit)
                                   ? $"  - {st.ToString().ToUpperInvariant()}: not for this unit" : ""));
                 if (lookFree && !vehicle && !flyer) lines.Add(LookFreeLine);   // ⭐ CE-1204 (§8l LK-4)
+                if (crew.Hatch != null) lines.Add(crew.Hatch);                 // ⭐ CE-4670 (§7d D-6)
+                if (crew.Lights != null) lines.Add(crew.Lights);
                 if (seat != null) lines.Add(seat);                             // ⭐ CE-1210 (§8n MS-3)
                 lines.Add(scheme switch
                 {
@@ -1421,6 +1427,14 @@ namespace Hrot.UI.Common.Map3D
             if (Fdp.Toolkit.Combat.CombatTkb.MountOf(w, holder, local) is not { } dto) return null;
             return $"AIM {FireMode.ToString().ToUpperInvariant()}"
                    + (Fdp.Toolkit.Combat.OperatorFireModes.CanChoose(dto) ? $"  ({_keys.ChordOf(EmbodiedKeys.FireMode)}: switch)" : "");
+        }
+
+        /// <summary>⭐ CE-4670 (§7d D-6) — the HUD's hatch and lights lines for the held crewman (null where they do not apply), the keys as bound.</summary>
+        public (string? Hatch, string? Lights) CrewLines(EntityRepository w)
+        {
+            if (!IsVehicle && SeatSwitch.VehicleOf(w, Unit).IsNull) return default;
+            var tkb = w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
+            return (CrewControls.HatchLine(w, tkb, Unit, _keys.ChordOf(EmbodiedKeys.HeadOut) ?? "H"), CrewControls.LightsLine(w, tkb, Unit, _keys.ChordOf(EmbodiedKeys.Lights) ?? "U"));
         }
 
         /// <summary>⭐ CE-4143 (R-2) — L: toggle the selected weapon's SIGHT / LOCK preference where both apply; else say which one only.</summary>
@@ -2005,6 +2019,13 @@ namespace Hrot.UI.Common.Map3D
             // R moves the selected weapon to its next round (⭐ CE-1212, §8j L-2 — F before; F is the use key now)
             if (_keys.Pressed(EmbodiedKeys.NextRound)) unchecked { _ammoSeq++; }
             if (_keys.Pressed(EmbodiedKeys.FireMode)) ToggleFireMode();   // ⭐ CE-4143 (§8r R-2)
+            // ⭐ CE-4670 (§7d D-6) — a crewman's head out / in, the vehicle's lights: requests to the vehicle's owner, the HUD follows the replicated state
+            if ((_keys.Pressed(EmbodiedKeys.HeadOut) || _keys.Pressed(EmbodiedKeys.Lights)) && _world() is { } cw)
+            {
+                var ctkb = cw.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? cw.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
+                if (_keys.Pressed(EmbodiedKeys.HeadOut)) CrewControls.ToggleHeadOut(cw, ctkb, Unit);
+                if (_keys.Pressed(EmbodiedKeys.Lights)) CrewControls.CycleLights(cw, ctkb, Unit);
+            }
             // ⭐ CE-1212 (§8j L-1) — a person leans while Q / E is held (both, or neither: upright); the sim's own rule ignores it prone
             bool leftHeld = _keys.Held(EmbodiedKeys.LeanLeft), rightHeld = _keys.Held(EmbodiedKeys.LeanRight);
             Leaning = Scheme != ControlScheme.Person || leftHeld == rightHeld ? Fdp.Toolkit.Combat.LeanSide.LeanNone

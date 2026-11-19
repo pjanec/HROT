@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-4670 drawing (HANDOFF_Coordinator_To_Ui_Waiting_Work row 2). CE-5034 done.
+IN PROGRESS: CE-1980 / CE-3451 ②③④ (HANDOFF_Coordinator_To_Ui_Waiting_Work row 3). CE-5034 done (terrain's layer + ui's sound), CE-4670 drawing done.
 
 ## 2. The queue (in order)
 
@@ -60,5 +60,5 @@ IN PROGRESS: CE-4670 drawing (HANDOFF_Coordinator_To_Ui_Waiting_Work row 2). CE-
 | row | state | finding | gates | design |
 |---|---|---|---|---|
 | CE-5034 GW-3 the look of glass | DONE BY TERRAIN (the coordinator reassigned it; the ui handoff withdrawn) — ui's parallel build (5f845eeb4) REMOVED at the merge of terrain; ui's one addition kept: the breaking-glass SOUND (EffectSpawnSystem.TrackWindows → SoundEvents.Glass, built-in 7356) | GlassFrameRail + AudioTests (see the merge commit) | AudioTests.CE5034_AShatteredPane_IsHeardAsBreakingGlass_Once | DESIGN_Glass_Windows §5a (+ HISTORY) |
-| CE-4670 drawing — openings, lights, head out, light switches | IN PROGRESS | | | |
-| CE-1980 / CE-3451 ②④ (DECIDED: ② build, ③ the rule moves into code — R-4297, ④ once in the egress shape) | TODO | | | |
+| CE-4670 drawing — openings, lights, head out, light switches | DONE — the socket rule in Hrot.Look (VehicleSockets), the body layer's fittings, the commander's periscope eye, the station's H / U + HUD lines | Look 23/0 (+VehicleSockets); Presentation CrewControls/Fittings/PossessionStation/Keymap/MineClearer/Map3D 318/0 under xvfb; frames vs the mockup (scratchpad) | VehicleSocketsTests, CrewControlsTests (red-proved), VehicleFittingsFrameRail | DESIGN_Vehicle_Appearance_State §7d (+ as built); mockup UX/vehicle-openings-lights.svg | | | |
+| CE-1980 / CE-3451 ②④ (DECIDED: ② build, ③ the rule moves into code — R-4297, ④ once in the egress shape) | IN PROGRESS | | | |

@@ -35,6 +35,10 @@ namespace Hrot.UI.Common.Map3D
         public static readonly ActionRef NextRound = Id("fps.round.next");
         /// <summary>Switch the weapon between SIGHT and LOCK.</summary>
         public static readonly ActionRef FireMode = Id("fps.fire.mode");
+        /// <summary>⭐ CE-4670 (§7d D-6) — a crewman's head out of his hatch / back in; the vehicle's light discipline (Normal → Convoy → Blackout → Off).</summary>
+        public static readonly ActionRef HeadOut = Id("fps.vehicle.head-out");
+        /// <inheritdoc cref="HeadOut"/>
+        public static readonly ActionRef Lights = Id("fps.vehicle.lights");
         /// <summary>Toggle crouched.</summary>
         public static readonly ActionRef Crouch = Id("fps.stance.crouch");
         /// <summary>Toggle prone.</summary>
@@ -109,6 +113,8 @@ namespace Hrot.UI.Common.Map3D
             Press(EditorKey.V, LookLock, "Lock the view to the hull / free the look");
             Press(EditorKey.R, NextRound, "Next round");
             Press(EditorKey.L, FireMode, "Sight / lock fire mode");
+            Press(EditorKey.H, HeadOut, "Head out of the hatch / back in");   // ⭐ CE-4670
+            Press(EditorKey.U, Lights, "Vehicle lights: normal / convoy / blackout / off");   // ⭐ CE-4670
             Press(EditorKey.C, Crouch, "Crouch (toggle)");
             Press(EditorKey.Z, Prone, "Prone (toggle)");
             Press(EditorKey.N, MessageLog, "Message log");

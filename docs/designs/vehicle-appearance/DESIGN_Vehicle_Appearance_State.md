@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-18
+updated: 2026-11-19
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved, fold both into the design", R-4296): VA-1…VA-12, LK-1…LK-7, with §3a (partial damage, how expressed) and LK-7 (effect categories + the DIS munition type); ids fixed at dispatch — `2026-11-18`: components 290 `VehicleOpenings` · 291 `VehicleLights`; descriptors 243 · 244 (`HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md`)
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules)
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules) · §7d CE-4670 our 3-D map draws openings + lights, the station's H / U (ui, as built)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -537,3 +537,118 @@ reads move too, or a gateway would dress a man differently; the map's `Resolve` 
 | one owner each | `PersonLook.SeedOf` / `SideOf` / `ColourOf` / `HasEntityColour` / `OwnColourOf`, `Rgba.FromHex` (the map's span parser, alpha ignored as before), `PersonLook.DefaultSize` / `ChildHeight` / `DefaultColour`, `PersonParts.TorsoIndex` / `HeadIndex` | the map's `EntityBodyLayer3D`, `ShapeKits.DefaultSize(Person)` and `BlockFigure` forward to them; `Resolve` takes its person half from the cached `PersonLook.FactsOf` |
 | ⛔ NOT moved: `KitFromTkb` | stays in the presentation | its kit types (`ShapeKit.cs`'s head) import `Hrot.MuscleCharacter.Animation` and call `BlockFigure` / `ShapeKits` helpers — moving them drags the animation assembly into `Hrot.Look`; it is a VEHICLE's turret geometry ⇒ it moves with LK-S3 / VA-S1 (`VehicleLook`), where its owner decides the split |
 | the rails | the outfit / wardrobe / kit rails' ASSERTIONS unchanged — 12 lines of `Map3DTests` changed TYPE only (helpers `ColourText` / `Light` / `Gap` take `Rgba`; four colour locals built as `Rgba`; four compares convert); the outfit fingerprint rail (every outfit field over many seeds) is unchanged and green ⇒ the outfits are byte-identical | ⭐ the proof that a gateway dresses a man as the map does: `PersonOutfitsRail.CE4671_LKS2_ThePersonLook_IsWhatTheMapDresses_ForEveryPersonType` (every person type × 4 men); `Hrot.Look.Tests.PersonLookTests` (no presentation) |
+
+### 7d. CE-4670 — our 3-D map DRAWS the openings and the lights; the station's head-out and light keys *(ui, `2026-11-19`; drawn before the build; mockup [`docs/UX/vehicle-openings-lights.svg`](../../UX/vehicle-openings-lights.svg))*
+
+**INVENTORY** *(`2026-11-19`)*: `search_graph name_pattern=.*(Socket|Hatch|Headlight|VehicleLight|Opening).* label=Class` → **1** (`TerrainOpening`, unrelated);
+grep over `Hrot/Engine/Hrot.Presentation`, `Hrot/Engine/Hrot.Look`, `FDP/Engine/Fdp.Presentation` for `Socket|Headlight|Hatch` → no socket placement anywhere;
+the socket NAMES exist only in `bodies.json` (`hatch_commander` · `hatch_gunner` · `hatch_driver` · `ramp_rear` · `door_front_left/right` · `door_rear` ·
+`door_cabin` · `door_cockpit` · `door_crew` · `canopy` · `light_head` · `light_tail` · `light_brake` · `light_convoy` · `light_nav` · `light_beacon` ·
+`light_landing` · `light_search` · `light_interior`) — ⛔ no kit or model carries them. The one precedent for "where on the box": `EntityBodyLayer3D.CrewEye`
+(a commander's eye above the TURRET's roof, a quarter of its width left — CE-1200). The readers exist (`VehicleLook.OpeningProgress` / `Lights`, §6a / §6b);
+the requests exist (`VehicleRequests.HeadOut` / `SwitchLights`); the station's HUD block is `PossessionStation.Hud.Lines` (`SeatLine`, `FireModeLine`).
+
+```mermaid
+classDiagram
+  class VehicleSockets {
+    <<static, Hrot.Look.Vehicles, NEW>>
+    +Opening(socket, kind, boxes, out HingedPanel) bool
+    +Lights(socket, kind, boxes, Span~LightPoint~) int
+    +ColourOf(kind, left) Rgba
+    +ExposedCrew(HingedPanel) HeadAndShoulders
+  }
+  class VehicleBoxes { <<struct>> BodyBox Hull ; BodyBox? Turret ; BodyBox? Cab }
+  class BodyBox { <<struct>> Vector3 Centre ; Vector3 Half }
+  class HingedPanel { <<struct>> Vector3 Hinge ; Vector3 Along ; Vector3 Across ; Vector3 Axis ; float OpenRadians ; bool OnTurret ; +Corners(progress) }
+  class LightPoint { <<struct>> Vector3 At ; Rgba Colour ; float Radius }
+  class VehicleLook { <<existing, Hrot.Look>> OpeningProgress ; Lights ; + CrewExposed(world, v, id) }
+  class VehicleOpeningsCatalog { <<existing, Fdp.Toolkits>> Of(template) id kind socket }
+  class VehicleLightsCatalog { <<existing>> Of(template) id kind socket }
+  class EntityBodyLayer3D { <<Hrot.Presentation>> + DrawOpenings ; + DrawLights ; one BrakeLights ; CrewEye follows CrewExposed }
+  class PossessionStation { <<Hrot.Presentation>> + H head out / in ; + U lights discipline ; + HUD lines }
+  class VehicleRequests { <<existing, Fdp.Toolkits>> HeadOut ; SwitchLights }
+  VehicleSockets --> VehicleBoxes
+  VehicleSockets --> HingedPanel
+  VehicleSockets --> LightPoint
+  EntityBodyLayer3D --> VehicleSockets
+  EntityBodyLayer3D --> VehicleLook
+  EntityBodyLayer3D --> VehicleOpeningsCatalog
+  EntityBodyLayer3D --> VehicleLightsCatalog
+  PossessionStation --> VehicleRequests
+  PossessionStation --> VehicleLook
+```
+*What the picture shows that prose hid:* WHERE a socket sits is a pure rule over three boxes (hull, turret, cab) in the shared library, so a gateway's renderer
+places a hatch where our map does; the map only measures its kit's boxes and draws. A turret socket carries `OnTurret`, so it turns with the turret.
+
+```mermaid
+sequenceDiagram
+  participant B as EntityBodyLayer3D (a vehicle, each frame)
+  participant C as the catalogues (cached per type)
+  participant L as VehicleLook
+  participant S as VehicleSockets
+  B->>B: the kit's boxes (hull, turret, cab) - cached per kind and size
+  loop each opening of the type
+    B->>L: OpeningProgress(id, now) and CrewExposed(id)
+    B->>S: Opening(socket, kind, boxes) - a hinged panel
+    B->>B: draw the lid rotated by progress x OpenRadians, a turret lid with the turret, an exposed hatch with head and shoulders
+  end
+  B->>L: Lights(v, now, the layer's one BrakeLights)
+  loop each lit group
+    B->>S: Lights(socket, kind, boxes) - 1 or 2 points
+    B->>B: draw a small unlit glowing sphere per point
+  end
+```
+*What the picture shows that prose hid:* nothing is stored by the map — the progress, the exposed mark and the light mask are the replicated state read
+
+```mermaid
+graph TD
+  MIP[MapInteractionPack.AttachMapLayers - every map host] --> EBL[EntityBodyLayer3D.Draw3D - every frame]
+  EBL --> OP[DrawOpenings + DrawLights - new]
+  OP --> VS[VehicleSockets - Hrot.Look]
+  MIP --> PS[PossessionStation - the held unit's driver, every frame]
+  PS -->|H| HO[VehicleRequests.HeadOut - event 5018]
+  PS -->|U| SL[VehicleRequests.SwitchLights - event 5019]
+  HO -->|interaction kind 15| VOS[VehicleOpeningsSystem - the boarding arbiter's node]
+  SL -->|interaction kind 16| LRS[LightRuleSystem - the lights owner's node]
+  VOS -->|dtVehicleOpenings 243| EBL
+  LRS -->|dtVehicleLights 244| EBL
+```
+*What the picture shows that prose hid:* the station never writes the vehicle — a key is a REQUEST carried to the owner's node, and the picture changes only
+when the replicated state comes back; so a key on a node that does not own the vehicle works the same, one round trip later.
+each frame (a late joiner and a replay draw the same), and the only memory is the one `BrakeLights` the reader requires.
+
+| ⭐ decision | lean (taken — ui's own topic) | rejected |
+|---|---|---|
+| **D-1 where sockets sit** | a fixed rule per socket name over the hull / turret / cab boxes (table below), in `Hrot.Look` | sockets in every kit — 40+ kits to edit, and a gateway would not have them · leave undrawn until models carry sockets — the state would stay invisible |
+| **D-2 the lid** | a thin box hinged on one edge, rotated by `progress × OpenRadians`: a hatch 0.6 m square, up 100° about its rear edge; a ramp the hull's width × 0.7, down 95° about its bottom; a side door 0.9 × 1.0 m, out 70° about its front edge; a rear door out 100°; a canopy up 50° about its rear | a slide / fade — reads as nothing at map distance |
+| **D-3 the exposed crewman** | head and shoulders (the crew's dark green, skin face) out of a `CrewExposed` hatch while it is open ≥ 0.9 | a full figure — it is inside the hull |
+| **D-4 lights** | an unlit sphere per point (0.07 m, a halo sphere 0.18 m at 35 % alpha), the colour by kind: head warm white · tail red · brake bright red · convoy dim blue · nav red left / green right · beacon red · landing / search white · interior amber | projected light cones — no lighting model for them; a later slice |
+| **D-5 the commander's eye (CE-1200)** | above the turret's roof by `HatchEyeAboveRoof` (0.55) only while the `hatch_commander` is crew-exposed; else at the periscope, 0.12 above the roof | inside the turret — the box culls itself from inside but the view would show its own hull |
+| **D-6 the station's keys** | **H** head out / in (a crewman whose seat role a hatch serves — the driver's man when the held unit is the vehicle), **U** lights: Normal → Convoy → Blackout → Off → Normal; both rebindable rows in `EmbodiedKeys`; two HUD lines: `HATCH CLOSED  (H: head out)` / `HEAD OUT  (H: head in)` and `LIGHTS NORMAL  (U: switch)` — shown only in a vehicle whose type has a hatch for him / light groups | a panel — the station has no panels in first person; L was asked but is the fire mode's (CE-4143) |
+
+| socket | on | where (body frame: x forward, y left, z up) |
+|---|---|---|
+| `hatch_commander` · `hatch_gunner` | turret roof (else the hull roof) | its centre; y ± half its half-width (commander left, as CE-1200) |
+| `hatch_driver` | hull roof | x 70 % forward of centre, y 40 % left |
+| `ramp_rear` | hull rear face | hinge at the bottom, the hull's width × 0.7, up to 80 % of its height |
+| `door_front_left` / `_right` · `door_cockpit` · `door_cabin` · `door_crew` | hull side (left unless `_right`) | x +25 % (front) · +60 % (cockpit) · 0 (cabin, crew) of the half-length |
+| `door_rear` · `canopy` | rear face · the cab's top (else the hull's front top) | — |
+| `light_head` / `_tail` / `_brake` | front / rear face, a pair at ± 70–75 % of the half-width | mid height (brake a little higher) |
+| `light_convoy` · `light_beacon` · `light_landing` · `light_search` · `light_interior` | rear low centre · the top centre · under the front · front top right · the cab's centre | single |
+| `light_nav` | the hull's sides at the widest | a pair, red left, green right |
+
+**Acceptance:** rails — `Hrot.Look.Tests` (every socket of `bodies.json` places on an MBT / an APC / a car / a helicopter box; a turret socket is `OnTurret`;
+the pair rule; 0 B); a frame rail under `xvfb-run -a` (an APC with its ramp half open and a head out of a hatch; a T-72 with head + tail lit at night;
+compared with the mockup, R-4146); the station's keys (`HeadOut` / `SwitchLights` published with the right man / discipline; the HUD lines). Scenarios:
+`uc-convoy-hit` (the ramp) and `va-lights-night` / `va-crew-switches` (the lights) run once — their verdicts are sim state, unchanged by drawing.
+
+**As built (`2026-11-19`)** — as drawn above, with these specifics:
+
+| | as built |
+|---|---|
+| the shared rule | `Hrot.Look.Vehicles.VehicleSockets` (`Opening` → `HingedPanel` with `BoxAt(progress)`, `Lights` → `LightPoint`s, `ExposedCrew`, `ColourOf`) + `VehicleLook.CrewExposed(world, v, id)`; rails `Hrot.Look.Tests/VehicleSocketsTests` (every socket of `bodies.json`, the directions, the pairs, 0 B) |
+| the boxes | `EntityBodyLayer3D.BoxesOf`, cached per kit array and size: the hull = the PAINTED hull parts (`ColourRole.Body`) — ⚠ measured: with the tracks in it the lights sat on the track ends — the turret = the turret parts, the cab = the first glass part |
+| the drawing | `EntityBodyLayer3D.Fittings.cs` (`DrawFittings`, after the parts, not for a wreck or a weapon system): the lid a box in the vehicle's colour, a turret lid by the turret part's pose against its neutral one; the lit points collected and drawn unlit after the batch (`DrawLightPoints`, a halo with no depth write); counters `OpeningsDrawn` / `CrewOutDrawn` / `LightsDrawn` |
+| D-5 the eye | `EntityBodyLayer3D.CommanderEye` — only for a kind whose eye is above the turret (no glass) and a vehicle carrying `VehicleOpenings` whose type has `hatch_commander`; otherwise CE-1200's eye unchanged |
+| D-6 the station | `CrewControls` (`ManOf` · `HatchOf` · `ToggleHeadOut` · `CycleLights` · `HatchLine` · `LightsLine`); `EmbodiedKeys.HeadOut` (H, `fps.vehicle.head-out`) and `.Lights` (U, `fps.vehicle.lights`); `PossessionStation` asks on the key and adds the two HUD lines (pale blue / amber); rails `CrewControlsTests` (3, red-proved) |
+| the frame rail | `VehicleFittingsFrameRail` (`xvfb-run -a`): an IFV shut → its ramp half down and the commander out (pixels change), a T-72's head lights lit — frames checked against the mockup A / B |

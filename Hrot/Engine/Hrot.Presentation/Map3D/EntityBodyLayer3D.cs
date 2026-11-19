@@ -22,7 +22,7 @@ namespace Hrot.UI.Common.Map3D;
 /// (<see cref="LogicalStance"/>), sized from the TKB and coloured by its <see cref="VisualData.ColorHex"/>. Units draw nothing —
 /// their members draw themselves. Nothing in 2-D.
 /// </summary>
-public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
+public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
 {
     private static readonly Color Dark = new(46, 46, 42, 255);
     private static readonly Color Glass = new(70, 92, 112, 255);
@@ -262,6 +262,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         MortarsDrawn = 0;
         ChargeLightsDrawn = 0;
         EjectionSeatsDrawn = 0;
+        OpeningsDrawn = CrewOutDrawn = 0; _lightsNow.Clear();   // ⭐ CE-4670
         _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
@@ -345,6 +346,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             {
                 crewEye = CrewEye(look.Family, size);
                 if (crewEye == null) { _drawn.Add(e); continue; }
+                crewEye = CommanderEye(world, e, look.Family, crewEye.Value, tkb, type);   // ⭐ CE-4670 (§7d D-5) — head out only when he is
             }
             var colour = ColourOf(world, e, look.Colour);
             bool animal = VisualFamilies.IsAnimal(look.Family);   // ⭐ CE-4623
@@ -552,6 +554,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
                       geometry, carriage, shader, rounds);
             _damageMask = 0; _turretThrown = false;
+            // ⭐ CE-4670 (§7d) — its hatches, doors and ramps as the replicated state has them, a head out of a hatch, its lit lights (a wreck: none)
+            if (vehicleBody && !wreck && look.Family != VisualFamily.WeaponSystem)
+                DrawFittings(world, e, tkb != null && tkb.TryGetByType(type, out var fittingType) ? fittingType : null, parts, size, pivots, pose, motion,
+                             kitToBody, body, colour, shader, simTime);
             _expression = Vector3.Zero;
             if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
             if (mortarFired) DrawMortar(e, body, colour, shader);   // ⭐ CE-1236 — after the figure: its muzzle is the shot's
@@ -582,6 +588,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         DrawCarried(world, shader);   // ⭐ CE-1085 — pass 2 (⭐ CE-4555 — no per-frame closure: a wreck is read inside)
         DrawRopes(world, shader, simTime);   // ⭐ CE-1119 (§6w AB-V5) — pass 3: the fast ropes, and the cut ones lying where they fell
         _batch.Flush(shader, _applySurface ??= d => _surface.Apply(LitShader.Shared, d));   // ⭐ CE-4555 (§6ak.2) — everything above, one instanced call per mesh
+        DrawLightPoints();   // ⭐ CE-4670 (§7d D-4) — the lit lights, unlit, after the lit batch
         BodyDrawStats.Record(_batch.DrawCalls, _batch.Instances, BodiesDrawn, DoorsDrawn);
         BodyDrawStats.RecordBands(BodiesFull, BodiesFar, BodiesHidden, DoorsHidden);
         if (_recordPick) _pick.End();
