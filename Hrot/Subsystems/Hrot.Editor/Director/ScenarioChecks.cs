@@ -45,6 +45,9 @@ namespace Hrot.Editor.Director
         public string? Building { get; init; }
         /// <summary>⭐ <c>CE-4672</c> <c>field</c>: judge only the DEAD units the name matches (<c>Health.Current</c> ≤ 0) — "no behaviour on a dead man".</summary>
         public bool Dead { get; init; }
+        /// <summary>⭐ <c>CE-2443</c> (mf-clear-lane-and-cross) <c>field</c>: more conditions the SAME unit must meet too (<c>"also": [{"path", "op", "value"}, …]</c>) —
+        /// e.g. "a man in the field's x-span AND outside the lane's band". All must hold, on the unit's own components.</summary>
+        public IReadOnlyList<(string Path, string Op, JsonNode? Value)> Also { get; init; } = Array.Empty<(string, string, JsonNode?)>();
 
         public string On => Spec.On;
 
@@ -243,6 +246,7 @@ namespace Hrot.Editor.Director
             var where_ = new List<(string, string, JsonNode?)>();
             string? hit = null, path = null, op = "==", quantifier = "any", side = null, from = null, to = null, building = null;
             bool dead = false;
+            var also = new List<(string, string, JsonNode?)>();
             int elements = 1;
             float m = 0f, margin = 3f;
             bool opGiven = false;
@@ -263,6 +267,13 @@ namespace Hrot.Editor.Director
                     case "to": to = v?.ToString(); break;
                     case "building": building = v?.ToString(); break;
                     case "dead": dead = v is JsonValue dv && dv.TryGetValue<bool>(out var db) && db; break;
+                    case "also":
+                        if (v is not JsonArray conds) { problems.Add($"{where}: also is a list of {{path, op, value}}"); break; }
+                        foreach (var c in conds)
+                            if (c is JsonObject co && co["path"]?.ToString() is { Length: > 0 } ap && (co["op"]?.ToString() ?? "==") is var aop && CheckCue.Ops.Contains(aop))
+                                also.Add((ap, aop, co["value"]?.DeepClone()));
+                            else problems.Add($"{where}: an also condition is {{path, op (one of {string.Join(" ", CheckCue.Ops)}), value}}");
+                        break;
                     case "margin": margin = v is JsonValue gv && gv.TryGetValue<double>(out var gd) ? (float)gd : -1f; break;
                     case "m": m = v is JsonValue mv && mv.TryGetValue<double>(out var md) ? (float)md : 0f; break;
                     case "value": value = v?.DeepClone(); break;
@@ -305,6 +316,7 @@ namespace Hrot.Editor.Director
                 if (m <= 0f) problems.Add($"{where}: a bunched cue needs m (metres from the group's centre, > 0)");
             }
             if (dead && on != "field") problems.Add($"{where}: dead belongs to a field cue");
+            if (also.Count > 0 && on != "field") problems.Add($"{where}: also belongs to a field cue");
             parsed = parsed with { On = on };
             if (on == "field")
             {
@@ -348,7 +360,7 @@ namespace Hrot.Editor.Director
             if (where_.Count > 0 && on is not ("shot" or "blast" or "field")) problems.Add($"{where}: where filters a shot or a blast row (or, on a field cue, the elements of a * path)");
             if (where_.Count > 0 && on == "field" && !(path ?? "").Contains(".*.", StringComparison.Ordinal)) problems.Add($"{where}: where on a field cue filters the elements of a path with a * part");
             if (hit != null && on != "shot") problems.Add($"{where}: hit belongs to a shot cue");
-            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building, Dead = dead };
+            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building, Dead = dead, Also = also };
         }
     }
 }

@@ -443,6 +443,33 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2443</c> — <c>also</c> on a field cue: every extra condition holds on the SAME unit ("a man inside the field's x-span AND above the lane's band");
+    /// a man who meets one condition and another man the other does not make it hold. 🔴 Red-proof: judge <c>also</c> on ANY unit ⇒ the split pair holds ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE2443_Also_AllConditionsOnTheSameUnit()
+    {
+        var checks = Parse("""
+            { "runFor": 5, "expect": [
+                {"name": "a man in the field above the lane", "on": "field", "who": "*Man", "path": "SimTransform.Position.1", "op": ">", "value": 83,
+                 "also": [{"path": "SimTransform.Position.0", "op": ">", "value": 120}, {"path": "SimTransform.Position.0", "op": "<", "value": 140}]}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        JsonObject At(double x, double y) => new() { ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, y, 0) } };
+        var split = new FakeWorld();
+        split.U.Ids["Man A"] = 1; split.Comps[1] = At(100, 90);   // above the band, but outside the field
+        split.U.Ids["Man B"] = 2; split.Comps[2] = At(130, 80);   // in the field, but inside the lane
+        var b1 = new ConditionBook(checks, split, 0); b1.Observe(1); b1.Finish(5);
+        Assert.False(b1.Verdicts().Single().Ok);
+        var one = new FakeWorld();
+        one.U.Ids["Man C"] = 3; one.Comps[3] = At(130, 90);       // in the field AND above the band
+        var b2 = new ConditionBook(checks, one, 0); b2.Observe(1); b2.Finish(5);
+        Assert.True(b2.Verdicts().Single().Ok);
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "near", "who": "A", "point": [0,0], "also": [{"path": "a", "op": "==", "value": 1}]}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("also belongs to a field cue", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// ⭐ A <c>hit</c> cue sees a burst that STRUCK the unit (a drone diving onto a tank), as the take's <c>AnchorBook.Hit</c> does — 📌
     /// measured on <c>ua-drone-shelter</c>: without it, "the deck tank is never hit" was vacuous. 🔴 Red-proof: drop the <c>struck</c> term.
     /// </summary>

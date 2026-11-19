@@ -178,7 +178,8 @@ namespace Hrot.Editor.Director
                     var units = UnitsNamed(a.Who!).ToList();
                     if (c.Dead) units = units.Where(id => HealthOf(id) is <= 0f).ToList();   // ⭐ CE-4672 — only the dead the name matches
                     var want = c.Value is JsonValue v && v.ToString() == "$now" ? JsonValue.Create(_rel + _t0) : c.Value;
-                    int held = units.Count(id => FieldHolds(Components(id), c.Path!, c.Op, want, c.Elements, c.Where));
+                    int held = units.Count(id => FieldHolds(Components(id), c.Path!, c.Op, want, c.Elements, c.Where)
+                                                 && c.Also.All(x => FieldHolds(Components(id), x.Path, x.Op, x.Value, 1)));   // ⭐ CE-2443 — the same unit meets every "also" too
                     bool ok = c.Quantifier switch
                     {
                         "any" => held > 0,
