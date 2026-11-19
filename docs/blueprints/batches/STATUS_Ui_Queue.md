@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-IN PROGRESS: CE-5039 the run waits for the scenario's terrain overlay (HANDOFF_Coordinator_To_Ui_Run_Gate, merged coordinator `2068f9f32`).
+idle — waiting for a handoff (last: CE-5039 DONE `2026-11-19`).
 
 ## 2. The queue (in order)
 
@@ -68,4 +68,4 @@ IN PROGRESS: CE-5039 the run waits for the scenario's terrain overlay (HANDOFF_C
 
 | row | state | finding | gates | design |
 |---|---|---|---|---|
-| CE-5039 the run gate waits for the first live-overlay commit | IN PROGRESS | | | |
+| CE-5039 the run gate waits for the first live-overlay commit | DONE — ScenarioLoadStep ⑤ via StaticObstacleBakery.AwaitsLiveOverlay; te-make-enterable's atEnd row re-judged (cross-lane, terrain's scenario: it measured Idle's fidget) | te-make-enterable PASS 3/3; LiveOverlayBakeTests + ScenarioLoadStepTests + LoadPhaseChainTests 88 pass + the new rail (its first run red on its own no-op leg, removed; then 1/1) | LiveOverlayBakeTests.CE5039_* (red-proved: ⑤ off) | DESIGN_Cluster_Load_Phase §11.10d |
