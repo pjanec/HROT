@@ -375,6 +375,12 @@ Brain BTree observes NavigationStatus.Result:
 
 In the **scale-out** topology where the `NavigationSolverModule` is on its own node, the `PathfindingRequestEvent` is bridged across DDS via `PathRequestEgressTranslator` (Muscle side) and `PathResponseIngressTranslator` (Muscle side, ingress). The Brain-facing flow above is unchanged — only the Muscle↔Solver hop changes transport.
 
+> ⭐ **AS-BUILT `2026-11-19` (CE-167 re-check, backend — a move to where the body already stands):** a `PathToPoint` / `DirectPoint` move issued
+> from INSIDE its arrival radius never started a drive, so the kinematics never latched `HasArrived` and the speed watchdog (0.2 m/s for 10 ticks)
+> ended it `FailedBlocked` — 📌 a `hill-attack` tank 3.9 m from its baseline slot, the platoon then waiting on it for good. Now `NavigationExecutionSystem`
+> also writes `Arrived` for a body STANDING (the watchdog's own speed test) within `ArrivalRadius` of the RESOLVED point (`NavigationDestination.Of`). A
+> body moving through the radius is still left to the kinematics' latch (CE-167's braking envelope). Rails `NavigationExecutionSystemTests.CE167_*`.
+
 ### 3.2 `PlanRoute` flow (Brain wants the verdict and the handle, doesn't move yet)
 
 ```

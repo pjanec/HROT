@@ -400,6 +400,52 @@ namespace CarKinem.Tests.Systems
         /// ⭐ Buildings 5d-3 — a DELIBERATE hold (<see cref="NavState.IsBlocked"/>, the agent waiting at a door it is opening) is not being
         /// stuck: however long it lasts it neither fails the move nor counts toward a replan; the count starts from zero when it ends.
         /// </summary>
+        [Theory]
+        [InlineData(NavMode.PathToPoint)]
+        [InlineData(NavMode.DirectPoint)]
+        public void CE167_APointMoveToWhereTheBodyAlreadyStands_Arrives_NeverFailsBlocked(NavMode mode)
+        {
+            // 📌 hill-attack (2026-11-19): a tank 3.9 m from its baseline slot (radius 5) got a move there; the drive never started, the kinematics
+            //   never latched HasArrived, and the speed watchdog failed it as blocked ⇒ the platoon waited on it for good.
+            using var repo = CreateWorldWithNavState();
+            repo.RegisterEvent<MoveStartedEvent>();
+            repo.RegisterEvent<MoveCompletedEvent>();
+            repo.RegisterEvent<MoveBlockedEvent>();
+            var system = new NavigationExecutionSystem();
+            var entity = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f);
+            repo.SetComponent(entity, new SimVelocity { Linear = Vector3.Zero });
+            var intent = repo.GetComponent<NavigationIntent>(entity);
+            intent.Mode = mode; intent.FinalDestination = new Vector3(3f, 2f, 0f);   // 3.6 m away, radius 5
+            repo.SetComponent(entity, intent);
+
+            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 2; i++) system.Execute(repo, 0.016f);
+
+            Assert.Equal(NavResult.Arrived, repo.GetComponent<NavigationStatus>(entity).Result);
+        }
+
+        /// <summary>⭐ CE-167 — the counterpart: a body standing OUTSIDE the radius has not arrived (the watchdog still fails it), and a body
+        /// MOVING through the radius is left to the kinematics' own latch (no early Arrived mid-drive).</summary>
+        [Fact]
+        public void CE167_StandingOutsideTheRadius_OrMovingInside_IsNotAnArrival()
+        {
+            using var repo = CreateWorldWithNavState();
+            repo.RegisterEvent<MoveStartedEvent>();
+            repo.RegisterEvent<MoveCompletedEvent>();
+            repo.RegisterEvent<MoveBlockedEvent>();
+            var system = new NavigationExecutionSystem();
+
+            var outside = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f);
+            repo.SetComponent(outside, new SimVelocity { Linear = Vector3.Zero });
+            var a = repo.GetComponent<NavigationIntent>(outside); a.Mode = NavMode.PathToPoint; a.FinalDestination = new Vector3(6f, 0f, 0f); repo.SetComponent(outside, a);
+
+            var moving = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f, intentId: 2);
+            var b = repo.GetComponent<NavigationIntent>(moving); b.Mode = NavMode.PathToPoint; b.FinalDestination = new Vector3(3f, 0f, 0f); repo.SetComponent(moving, b);
+
+            system.Execute(repo, 0.016f);
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(outside).Result);
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(moving).Result);
+        }
+
         [Fact]
         public void Stage5d_AHoldAtADoor_IsNotFrustration()
         {

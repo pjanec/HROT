@@ -579,7 +579,7 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | what you can do | Edit | Live | Review | status |
 |---|:-:|:-:|:-:|---|
 | Triggers: *when* (with hold, delay, cooldown, repeat) → *do* (orders, missions, messages, objectives, end exercise, insert a composition, AI skill, reporting) | ● | 🟡 | ○ | ✅ Rules window |
-| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ · ⚠ a weighted-mean root objective never aggregates its children (`sr-objectives-march`, CE-3460) |
+| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ (`sr-objectives-march` 10/10, CE-3460 closed) |
 | Injects: fire a trigger now, disarm, re-arm, run any action by hand (Game master) | – | ● | – | ✅ |
 | Rule actions on the world (weather, time of day, traffic, sound) | – | – | – | ⏳ |
 | Run modes: Preview, Live, review during the run, after-action review — chosen in one indicator | ● | ● | ● | ✅ |

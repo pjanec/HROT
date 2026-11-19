@@ -46,14 +46,14 @@ NEXT: CE-4670 VA-S1 waits for ui's `Hrot.Look` (LK-S1) ⇒ the T2 rows: **CE-244
 | CE-3424 T2 scale-1: 1 of 12 movers moved | ➡ MOVED to terrain (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-3425 T2 scale-1 frame cost | TODO | | | |
 | CE-4395 T2 the brain's cost at 1 000 men | TODO | | | |
-| CE-3460 T2 the root objective never aggregates | TODO | | | |
+| CE-3460 T2 the root objective never aggregates | ✅ closed — fixed by CE-3468 (ui); 10/10, golden captured | | | |
 | CE-3471 T2 a pig walked through its pen wall | ➡ MOVED to terrain (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-1038 T2 SimHost run counts differ | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-1046 T2 AfterBranch_SimGroupsReEnabled under load | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-1473 T2 ClusterRunner.Tests does not build | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-3451 T2 six ClusterRunner.Tests rails drifted | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
 | CE-1475 T2 SumoNetPlacementTests on a Czech Windows | ➡ MOVED to ui (STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios) | | | |
-| CE-167 T2 re-check, close if stale | TODO | | | |
+| CE-167 T2 re-check, close if stale | ✅ closed — the overshoot stays fixed; the re-check fixed CE-3483 (order JSON) and the in-radius move (`d3240ca9d`), filed CE-3484 (two tanks jam) | | | |
 
 ## 3. Taken from new handoffs
 - ✅ `STEER_Coordinator_To_Backend_Rows_Moved_And_Scenarios.md` (`2026-11-18`) — ten rows moved (terrain: CE-3424, CE-3471, CE-4664; ui: CE-3468, CE-2438, CE-1473, CE-3451, CE-1475, CE-1038, CE-1046); from now §6a: per row its own scenarios + the touched feature's set, the wide family once per several rows. The 41-scenario run going for CE-3452 + CE-3473 counts as this batch's wide run.

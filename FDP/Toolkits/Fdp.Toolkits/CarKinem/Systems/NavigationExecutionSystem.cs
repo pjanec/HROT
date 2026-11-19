@@ -235,6 +235,16 @@ namespace CarKinem.Systems
                 {
                     var nav = repo.GetComponent<NavState>(entity);
                     arrived = nav.HasArrived != 0;
+                    // ⭐ CE-167 (re-check, `2026-11-19`) — a POINT move issued to where the body already STANDS has arrived. 📌 hill-attack: a tank
+                    //   3.9 m from its baseline slot (radius 5) got a move there; the drive never started, so the kinematics never latched
+                    //   HasArrived, and the speed watchdog failed it as blocked 10 ticks later ⇒ the platoon waited on it for good. Only a body
+                    //   standing still (the watchdog's own speed test) and only to the resolved point (the door's near side, the surface Z).
+                    if (!arrived && (intent.Mode == NavMode.PathToPoint || intent.Mode == NavMode.DirectPoint)
+                        && vel.Linear.Length() < FrustrationSpeedThreshold)
+                    {
+                        var to = NavigationDestination.Of(repo, entity, intent);
+                        arrived = Vector2.Distance(new Vector2(tf.Position.X, tf.Position.Y), new Vector2(to.X, to.Y)) <= intent.ArrivalRadius;
+                    }
                 }
                 else
                 {
