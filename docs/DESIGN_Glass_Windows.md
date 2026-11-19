@@ -227,7 +227,7 @@ Frames: `HROT_RAIL_SHOTS=<dir> xvfb-run -a dotnet test Hrot/Engine/Hrot.Presenta
 |---|---|
 | ✅ `gw-shoot-the-window` (`scenarios/tests/`, PASS `2026-11-18`) | three riflemen fire at a man (hold fire) 1.6 m behind House A's ground-floor east window: one crack (2.5 s), two cracks, the pane still whole (2.55 s), broken (2.7 s); he never fires; they keep firing at him (the glass hides nothing). 📐 Cast notes: a ground-floor window (a street-level shot at a man upstairs meets the wall BELOW the sill — the aim is at his visible hips); three riflemen, because one man behind glass steps aside after the second crack; sampled every 0.05 s |
 | ✅ `gw-fire-out` (`scenarios/tests/`, PASS `2026-11-18`) | the bt-window-duel cast: the pane is whole before anyone fires; the Window Rifleman's first shot out (12.27 s) breaks the pane he fires through (12.5 s) |
-| existing `bd-destruction` | unchanged breaches and collapse (`BuildingDamage` is untouched) |
+| ✅ existing `bd-destruction` (PASS `2026-11-19`, re-run on terrain `a5bd04604` with both glass scenarios: 3 / 3) | unchanged breaches and collapse (`BuildingDamage` is untouched) — all 10 rows green |
 
 ## ⛔ HISTORY
 
