@@ -83,8 +83,11 @@ namespace Fdp.Toolkit.Squad.DangerArea
 
         /// <summary>
         /// ⭐ <c>CE-4624</c> MS-T3 (DESIGN_Minefields.md MR-9, KG-7) — one <see cref="DangerAreaKind.Minefield"/> area per field where <paramref name="route"/> first enters a cell
-        /// side <paramref name="sidePlus1"/> − 1 knows as suspected or mined: its centre the entry point, its near handle the last safe sample before it (where to halt and call
-        /// engineers). The planner prices such cells very high (KR-10), so a route here is one with no way round. Returns how many it wrote. Cold per solve (2 s).
+        /// side <paramref name="sidePlus1"/> − 1 knows of and does NOT know clear: its centre the entry point, its near handle the last safe sample before it (where to halt
+        /// and call engineers). The planner prices such cells very high (KR-10), so a route here is one with no way round. Returns how many it wrote. Cold per solve (2 s).
+        /// ⭐ CE-2443 (KG-7: "when it cannot (no way round, or the order goes through), the route's danger sensor reports a Minefield area") — measured on
+        /// mf-clear-lane-and-cross: after a strike the side SUSPECTS only the cells round the blast; a route back in sidestepped them through cells it knew nothing of,
+        /// so no area, no halt, no engineers — and a second mine. ⛔ SUPERSEDED: "a cell it knows as suspected or mined". A lane's cells are known CLEAR: walking a lane reports none.
         /// </summary>
         public static int MinefieldAreas(EntityRepository repo, ReadOnlySpan<Vector3> route, byte sidePlus1, Fdp.Toolkit.Terrain.PlaceKnowledgeTable knowledge, Span<DangerAreaDescriptor> into)
         {
@@ -109,7 +112,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
                         var p = Vector3.Lerp(a, b, k / (float)steps);
                         var p2 = new Vector2(p.X, p.Y);
                         if (Fdp.Toolkit.Terrain.MinePattern.Inside(outline, p2) && Fdp.Toolkit.Terrain.MinefieldKnowledgeOps.CellOf(grid, p2, out int c, out int r)
-                            && knowledge.Knows(side, field, c, r) is Fdp.Toolkit.Terrain.MineCellKnowledge.Suspected or Fdp.Toolkit.Terrain.MineCellKnowledge.KnownMined)
+                            && knowledge.Knows(side, field, c, r) != Fdp.Toolkit.Terrain.MineCellKnowledge.KnownClear)   // ⭐ CE-2443 (KG-7) — any cell of a field the side KNOWS OF that it does not know CLEAR
                         {
                             into[n++] = new DangerAreaDescriptor
                             {
