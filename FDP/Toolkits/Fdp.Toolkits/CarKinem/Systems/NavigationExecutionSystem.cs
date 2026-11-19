@@ -91,6 +91,9 @@ namespace CarKinem.Systems
         /// <summary>How far apart (as a share of the tile edge) a path is sampled for the tiles it crosses: a quarter tile, so no tile it passes through is skipped.</summary>
         public const float TileSampleShare = 0.25f;
 
+        /// <summary>⭐ CE-4674 — failed (unreachable) moves this system re-planned because the navmesh changed after they failed (rails, diagnostics).</summary>
+        public long MeshReplans { get; private set; }
+
         /// <summary>
         /// ⭐ True when a tile of <paramref name="traj"/>'s REMAINING path (from <paramref name="progress"/>) has a version newer than <paramref name="sinceSequence"/>, i.e. a rebake changed
         /// it after the path was planned. Samples the polyline every <see cref="TileSampleShare"/> of a tile. Zero allocation.
@@ -209,7 +212,20 @@ namespace CarKinem.Systems
                 // Once Arrived or a hard failure is written, do not mutate status further
                 // until the Brain issues a new intent (increments IntentId).
                 if (status.Result != NavResult.InProgress)
+                {
+                    // ⭐ CE-4674 (HANDOFF_Coordinator_To_Backend_Path_Retry; CE-5039's second half) — a move that FAILED because its target was unreachable
+                    //   re-plans ONCE when the navmesh changes after it failed (a breach, a building made enterable, an overlay bake): the tile change
+                    //   sequence it failed at (NavmeshVersionObserved, set by the failure) is older than the mesh's. Not on a timer; a still-unreachable
+                    //   target fails again at the new sequence and says so (P1) — one re-plan per mesh version, never a storm.
+                    if (status.Result == NavResult.FailedUnreachable && intent.Mode == NavMode.PathToPoint && tileSequence != 0
+                        && status.NavmeshVersionObserved < tileSequence)
+                    {
+                        status.NavmeshVersionObserved = tileSequence;
+                        RequestReplan(repo, entity, in intent, ref status, tf.Position);
+                        MeshReplans++;
+                    }
                     continue;
+                }
 
                 // ── Arrival check ─────────────────────────────────────────────────────────────────
                 // Trust NavState.HasArrived whenever NavState is present (set by CarKinematicsSystem).
@@ -219,6 +235,16 @@ namespace CarKinem.Systems
                 {
                     var nav = repo.GetComponent<NavState>(entity);
                     arrived = nav.HasArrived != 0;
+                    // ⭐ CE-167 (re-check, `2026-11-19`) — a POINT move issued to where the body already STANDS has arrived. 📌 hill-attack: a tank
+                    //   3.9 m from its baseline slot (radius 5) got a move there; the drive never started, so the kinematics never latched
+                    //   HasArrived, and the speed watchdog failed it as blocked 10 ticks later ⇒ the platoon waited on it for good. Only a body
+                    //   standing still (the watchdog's own speed test) and only to the resolved point (the door's near side, the surface Z).
+                    if (!arrived && (intent.Mode == NavMode.PathToPoint || intent.Mode == NavMode.DirectPoint)
+                        && vel.Linear.Length() < FrustrationSpeedThreshold)
+                    {
+                        var to = NavigationDestination.Of(repo, entity, intent);
+                        arrived = Vector2.Distance(new Vector2(tf.Position.X, tf.Position.Y), new Vector2(to.X, to.Y)) <= intent.ArrivalRadius;
+                    }
                 }
                 else
                 {

@@ -194,6 +194,10 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   state (moving, under fire, logical stance), k its shot count. σ = 0 (no DispersionMils) ⇒ exact aim, as before.
                 //   The muzzle offset below stays on the aim line; only the flight direction turns.
                 var firedMount = CombatTkb.MountOf(repo, shooter, evt.WeaponIndex);
+                // ⭐ CE-4670 (VA-S5) — smoke dischargers are fired TOWARDS a point (a threat), not AT it: the salvo's centre is the mount's range out on
+                //   that bearing (DischargerPoint), so the arc solve below aims there and never refuses a far threat as out of reach
+                if (firedMount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmokeDischarger)
+                    targetPos = DischargerPoint(repo.GetComponent<SimTransform>(shooter).Position, targetPos, firedMount, 1, 0);
                 float sigma = HitModel.Sigma(repo, shooter, firedMount, HitModel.Now(repo));
                 // ⭐⭐ CE-2436 AU-7 (A-10, R-2110) — at a target in the AIR the aim error is 2-D (the elevation too, on the second stream) and
                 //   widens with the target's speed (HitModel.AirFactor): a small fast drone is hard to track. A ground target is unchanged.
@@ -333,7 +337,13 @@ namespace Fdp.Toolkit.Combat.Systems
                 //   PelletSpreadMils, both axes) around the aim just made; this bullet is pellet 0, the others are spawned below.
                 float pattern = pellets > 1 ? firedMount!.PelletSpreadMils / 1000f : 0f;
                 var aimedVelocity = velocity;
-                if (pellets > 1) velocity = PelletVelocity(aimedVelocity, pattern, ordinal, pellets, 0);
+                // ⭐ CE-4670 (VA-S5, VA-9) — SMOKE DISCHARGERS: the salvo is a FAN, not a shotgun's random pattern — round i bursts at its own point
+                //   (DischargerPoint: the mount's Range out, the bearing to the asked point ± its share of the fan), each on its own low arc. Same
+                //   on every node: no dispersion draw.
+                bool discharger = firedMount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmokeDischarger;
+                var ground = repo.GetComponent<SimTransform>(shooter).Position;
+                if (discharger) velocity = ArcLaunch(origin, DischargerPoint(ground, targetPos, firedMount!, pellets, 0), muzzle, high: false);
+                else if (pellets > 1) velocity = PelletVelocity(aimedVelocity, pattern, ordinal, pellets, 0);
 
                 // 1. Spawn the bullet entity.
                 var bullet = repo.CreateEntity();
@@ -384,7 +394,8 @@ namespace Fdp.Toolkit.Combat.Systems
                     ArcLifetimeTicks = arcLifetime,   // ⭐ IF-1 (I5) — 0 = the flat arc lifetime
                     BurnSeconds      = burn,          // ⭐ CE-3236 (B-14) — 0 = not a canister
                     OriginalShooter  = evt.OriginalShooter,   // ⭐ CE-4155 (SR-82) — a thrown-back round keeps its first thrower
-                    RangeLimitM      = pellets > 1 && firedMount != null ? firedMount.Range : 0f,   // ⭐ CE-2436 AU-7 — a pellet is spent past its range
+                    RangeLimitM      = pellets > 1 && firedMount != null && firedMount.Category != Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmokeDischarger
+                                       ? firedMount.Range : 0f,   // ⭐ CE-2436 AU-7 — a pellet is spent past its range; ⭐ CE-4670 — a discharger's Range is where it BURSTS (its fuze), never a limit
                 };
                 repo.AddComponent(bullet, projectile);
 
@@ -470,7 +481,9 @@ namespace Fdp.Toolkit.Combat.Systems
                 {
                     var pelletRound = repo.CreateEntity();
                     repo.AddComponent(pelletRound, new SimTransform { Position = muzzlePos, Rotation = Quaternion.Identity });
-                    repo.AddComponent(pelletRound, new SimVelocity { Linear = PelletVelocity(aimedVelocity, pattern, ordinal, pellets, pellet), Angular = Vector3.Zero });
+                    repo.AddComponent(pelletRound, new SimVelocity { Linear = discharger
+                        ? ArcLaunch(origin, DischargerPoint(ground, targetPos, firedMount!, pellets, pellet), muzzle, high: false)
+                        : PelletVelocity(aimedVelocity, pattern, ordinal, pellets, pellet), Angular = Vector3.Zero });
                     repo.AddComponent(pelletRound, projectile);
                     repo.AddComponent(pelletRound, new PhysicsCollider { Radius = CombatConstants.BulletColliderRadius, CollisionLayer = CombatConstants.BulletCollisionLayer });
                 }
@@ -599,6 +612,21 @@ namespace Fdp.Toolkit.Combat.Systems
         {
             var (az, el) = HitModel.PelletOffset(ordinal, pellets, i);
             return HitModel.Pitch(HitModel.Rotate(aimed, patternRad * az), patternRad * el);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4670</c> (VA-S5) — where smoke-discharger round <paramref name="i"/> of <paramref name="rounds"/> bursts: on the ground the vehicle stands on
+        /// (<paramref name="vehicleAt"/>'s height), <c>Range</c> metres out (10 m when the mount states none), on the bearing from the vehicle to
+        /// <paramref name="towards"/> turned by its share of the fan (<c>PelletSpreadMils</c> wide, evenly from one edge to the other; one round: the bearing).
+        /// </summary>
+        public static Vector3 DischargerPoint(Vector3 vehicleAt, Vector3 towards, Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount, int rounds, int i)
+        {
+            var flat = new Vector2(towards.X - vehicleAt.X, towards.Y - vehicleAt.Y);
+            float bearing = flat.LengthSquared() > 1e-6f ? MathF.Atan2(flat.Y, flat.X) : 0f;
+            float fan = mount.PelletSpreadMils / 1000f;
+            float a = bearing + (rounds > 1 ? ((float)i / (rounds - 1) - 0.5f) * fan : 0f);
+            float range = mount.Range > 0f ? mount.Range : 10f;
+            return new Vector3(vehicleAt.X + MathF.Cos(a) * range, vehicleAt.Y + MathF.Sin(a) * range, vehicleAt.Z);
         }
 
         public static uint ArcLifetimeTicks(Vector3 from, Vector3 to, Vector3 velocity)

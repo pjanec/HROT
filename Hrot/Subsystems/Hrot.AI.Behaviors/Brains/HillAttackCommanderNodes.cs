@@ -148,17 +148,9 @@ namespace Hrot.AI.Behaviors.Brains
                 float bx = p.BaselineStartX + (p.BaselineEndX - p.BaselineStartX) * t;
                 float by = p.BaselineStartY + (p.BaselineEndY - p.BaselineStartY) * t;
 
-                var dto = new CgfNodes.MoveToLocationParams
-                {
-                    X = bx,
-                    Y = by,
-                    Speed = 15.0f,
-                    ArrivalRadius = 5.0f
-                };
-
-                string json = JsonSerializer.Serialize(
-                    dto,
-                    Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+                // ⭐ CE-3483 — the AUTHORED contract (`target`), never the blackboard struct: its X / Y keys are retired and the
+                //   resolver ignored them, so every tank drove to (0, 0) instead of its baseline slot.
+                string json = Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto.Json(bx, by, 15.0f, 5.0f);
 
                 world.Bus.PublishManaged(new AssignTacticalIntentEvent
                 {

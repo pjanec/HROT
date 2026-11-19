@@ -175,6 +175,9 @@ namespace Hrot.Core.Tkb
         /// <c>Kinetic</c> round on the arc (the hatchet's <c>Indirect</c> path, launched on the LOW solution), SILENT (<c>WarheadDto.Silent</c>, R-3100), STICKING where it
         /// stops (<c>MunitionVisualDto.Sticks</c>) and lying as a hand item for <see cref="ArrowLiesSeconds"/>. ⛔ Permanent wire values.</summary>
         public const int TkbArrow = 6066, TkbCrossbowBolt = 6067;
+        /// <summary>⭐ <c>CE-4670</c> (VA-S5) — a vehicle's smoke DISCHARGER grenade (6068 free on every lane, <c>2026-11-19</c>).</summary>
+        public const int TkbVehicleSmokeGrenade = 6068;
+        public const string VehicleSmokeGrenadeName = "vehicle smoke grenade";
         public const string ArrowName = "arrow", CrossbowBoltName = "crossbow bolt";
         /// <summary>⭐ CE-4649 (BW-6, §5) — a bow arrow's penetration (mm RHA: a soft vest and a helmet stop it) and damage (0.45 of a soldier's 100 health), a bolt's 6 mm / 0.55;
         /// how long a stuck round lies (BW-4).</summary>
@@ -401,6 +404,11 @@ namespace Hrot.Core.Tkb
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f });
             Register(tkb, TearGasCanisterName, TkbTearGasCanister, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Irritant, EffectSeconds = 2f, CloudRadiusM = 8f, CloudHeightM = 3f, CloudSeconds = 90f });
+            // ⭐ CE-4670 (VA-S5, VA-9) — the discharger's grenade: a SCREENING round (red phosphorus class) — it blocks the thermal sight too (CE-4662,
+            //   TD-12), a larger, taller cloud than the hand signal smoke, burst a moment after it leaves the tube (starter values)
+            Register(tkb, VehicleSmokeGrenadeName, TkbVehicleSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 10f, CloudHeightM = 6f, CloudSeconds = 60f,
+                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true, SmokeBlocksInfrared = true });
             Register(tkb, SmokeGrenadeName, TkbSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 8f, CloudHeightM = 4f, CloudSeconds = 75f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-2278 — thrown on the arc (as the stun grenade, CE-3230)
@@ -524,6 +532,7 @@ namespace Hrot.Core.Tkb
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds
+                [TkbVehicleSmokeGrenade] = 6,                                                    // ⭐ CE-4670 — the discharger's
                 [Tkb60mmMortarSmoke] = 25, [Tkb81mmMortarSmoke] = 40, [Tkb120mmMortarSmoke] = 60, // ⭐ CE-7025 — the smoke bombs
                 [TkbThrowingHatchet] = 1, [TkbThrowingSpear] = 1, [TkbThrowingStar] = 0.5f,      // ⭐ CE-3247 — the thrown blades
                 [TkbArrow] = 1, [TkbCrossbowBolt] = 1.5f,                                         // ⭐ CE-4649 — the bow's and the crossbow's rounds
@@ -604,6 +613,7 @@ namespace Hrot.Core.Tkb
                 [TkbTearGasGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.15f, Diameter = 0.065f, ColorHex = "#5A6B3A" },
                 [TkbTearGasCanister] = new() { Shape = MunitionShape.Grenade, Length = 0.12f, Diameter = 0.04f, ColorHex = "#5A6B3A" },
                 [TkbSmokeGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.15f, Diameter = 0.065f, ColorHex = "#7A7A7A" },
+                [TkbVehicleSmokeGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.24f, Diameter = 0.076f, ColorHex = "#6B6F4E" },   // ⭐ CE-4670 — a 76 mm round
                 // ⭐ CE-3247 (TC-3) — the thrown blades are drawn as blades (three appended shapes), in flight and lying
                 [TkbThrowingHatchet] = new() { Shape = MunitionShape.Axe, Length = 0.4f, Diameter = 0.1f, ColorHex = "#6B5A45" },
                 [TkbThrowingSpear] = new() { Shape = MunitionShape.Spear, Length = 1.6f, Diameter = 0.03f, ColorHex = "#7A6A50" },

@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-19
 build-state: READY-TO-BUILD — ✅ APPROVED by the user `2026-11-18` ("approved, fold both into the design", R-4296): VA-1…VA-12, LK-1…LK-7, with §3a (partial damage, how expressed) and LK-7 (effect categories + the DIS munition type); ids fixed at dispatch — `2026-11-18`: components 290 `VehicleOpenings` · 291 `VehicleLights`; descriptors 243 · 244 (`HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md`)
-current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §6d rotors and engines as built (VA-S4) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules) · §7d CE-4670 our 3-D map draws openings + lights, the station's H / U (ui, as built)
+current-answer: §1 inventory · §2 the proven solution · §3 decisions · §3a partial damage, how expressed · §4 components and TKB · §5 UML · §6 slices · §6a hatches, doors, ramps as built (VA-S2) · §6b lights as built (VA-S3) · §6c partial damage and the kill kind as built (VA-S1) · §6d rotors and engines as built (VA-S4) · §6e smoke dischargers as built (VA-S5) · §7 the shared look library (CE-4671) · §7a effect categories · §7b LK-S1 as built (Hrot.Look, EffectRules) · §7d CE-4670 our 3-D map draws openings + lights, the station's H / U (ui, as built)
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -370,6 +370,38 @@ stateDiagram-v2
 | ⛔ deviation | the design read `FlightState` for "ground idle vs flight": `FlightState` is NOT replicated, so a replica could not match the owner — the engine state (Idle = stopped, Running = moving) carries it instead. ⚠ An uncrewed hull driven off from Off reads as from idle |
 | rails | `VehicleLookTests.CE4670_ARotorsSpeed_RunsUpAndDown_FromTheEngineStateAndItsTime` (red-proved twice: no time ⇒ red; no stop/crew distinction ⇒ red) · `_IsTheSameOnAReplica_AtEverySample` · `CE4670_TheRotorReader_AllocatesNothing` |
 | scenario | `ua-air-assault` + 2 rows: the UH-60's engine Running while it flies, Idle once landed and stopped |
+
+## 6e. As built — smoke dischargers *(VA-S5, CE-4670, backend, `2026-11-19`)*
+
+```mermaid
+sequenceDiagram
+  participant B as a behaviour / a station - FireAtPoint at the threat
+  participant X as FireAtPointExecutor.ShootAtPoint
+  participant F as FireProcessingSystem - the one spawn
+  participant A as AreaEffectSystem
+  participant C as AreaEffectCloud - every node
+  B->>X: mount = Countermeasures.MountOfKind(SmokeDischarger), point = the threat
+  Note over X: self-protection: no ROE / force-level hold
+  X->>F: WeaponFireIntent (one)
+  Note over F: aim pulled in to the fan's centre (Range out, the bearing to the threat)
+  F->>F: Pellets rounds, round i on its own low arc to DischargerPoint(i)
+  F-->>A: each grenade's time fuze bursts - DetonationNotification
+  A->>C: AreaEffectClouds.Request - a Smoke cloud, BlocksInfrared
+```
+*What the picture shows that prose hid:* nothing new between the intent and the cloud — the discharger is the shotgun's "N rounds from one intent" with a
+FAN instead of a random pattern, and the round's burst is the smoke grenade's existing path to the cloud.
+
+| piece | as built |
+|---|---|
+| **`WeaponCategory.SmokeDischarger`** (15, appended) | a mount, not a component: `Pellets` = grenades per salvo · `PelletSpreadMils` = the FAN's width · `Range` = how far out they burst · `InitialAmmunition` = salvos. ⛔ deviation from "a salvo pattern in the TKB" as new fields: the pellet fields ARE that pattern (ruling 9) |
+| **`WeaponCategories.IsSelfProtection`** | ⭐ the ONE "is this mount a weapon?" test (dispenser or dischargers) — the eight hand-written `== Countermeasure` checks (armed, lethal, ammo choice, air defence, air combat, barrel heat, the role line, the held-weapon marking) now call it; a discharger is never chosen to fire at anything |
+| **the salvo** (`FireProcessingSystem`) | the aim pulled in to the fan's centre (a far threat is never refused as out of reach); round i to `DischargerPoint(i)` — the bearing to the asked point ± its share of the fan, `Range` out, on the ground the vehicle stands on — by `ArcLaunch` (low); no dispersion draw (the same fan on every node); never spent by `Range` (it is where they burst) |
+| **holds** (`ShootAtPoint`) | a self-protection mount is not held by hold-fire or the force level (popping smoke is no engagement); a stunned or restrained crew still cannot |
+| **the round** | `TkbVehicleSmokeGrenade` 6068: a screening smoke (radius 10 m, 6 m high, 60 s), **blocks infrared** (CE-4662), indirect, a 1.5 s time fuze |
+| the types | M1 Abrams 12 tubes × 2 salvos · M2 Bradley 8 × 2 · T-72 8 × 1 — each its LAST mount (no existing mount index moved) |
+| finding it | `Countermeasures.MountOfKind(world, unit, WeaponCategory.SmokeDischarger, …)` — the dispenser's walk, generalised (one copy) |
+| rails | `FireProcessingSystemTests.CE4670_SmokeDischargers_FireAFanOfGrenades_TowardsTheThreat_ThirtyMetresOut` (red-proved: no fan ⇒ red; the range limit kept ⇒ red); the touched suites 144 / 0 |
+| ⏳ not built | WHO fires it — "pop smoke when threatened" is behaviors' (`HANDOFF_Coordinator_To_Behaviors_Pop_Smoke.md`; NOTE sent) · the turret's own discharger bank turning with the turret (the fan is centred on the bearing asked, whatever the turret) · our 3D map drawing the tubes firing (ui) |
 
 ## 7. The shared LOOK library — every renderer derives the same picture *(CE-4671, `2026-11-18`)*
 
