@@ -160,7 +160,14 @@ namespace Hrot.AI.Behaviors.Brains
         {
             var uv = MinePattern.ToField(new Vector2(p.At.X, p.At.Y), s.Anchor, s.Field.OrientationDeg) - s.OriginUv;
             float tc = uv.X / s.Cell - 0.5f - s.Col, tr = uv.Y / s.Cell - 0.5f - s.Row;
-            if (MathF.Abs(tc) < 0.5f && MathF.Abs(tr) < 0.5f) return s.Dir;
+            if (MathF.Abs(tc) < 0.5f && MathF.Abs(tr) < 0.5f)
+            {
+                // ⭐ CE-5040 (terrain) — at the point: on INTO the field, toward its centre. ⛔ Before: "keep the heading" — but the point an Engineers request
+                //   names is the field's NEAR side, OUTSIDE it (MinefieldAheadBehavior), so the man kept walking along the edge, turned back to the point, and
+                //   oscillated round it for good, never meeting the first mine (📌 mf-clear-lane-and-cross: (115, 70) ↔ (115, 90) beside a field at x ≥ 120).
+                tc = s.Cols * 0.5f - 0.5f - s.Col; tr = s.Rows * 0.5f - 0.5f - s.Row;
+                if (MathF.Abs(tc) < 0.5f && MathF.Abs(tr) < 0.5f) return s.Dir;   // standing in the centre cell itself: straight on
+            }
             return MathF.Abs(tc) >= MathF.Abs(tr) ? (tc > 0 ? 0 : 2) : (tr > 0 ? 1 : 3);
         }
 
