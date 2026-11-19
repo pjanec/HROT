@@ -585,6 +585,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.Break, b.TaskOf(alone));
         }
 
+        /// <summary>⭐⭐ <c>CE-3462</c> (D-6, user-approved; TS-6 row) — a low-resolve man with an enemy rifle on him at CLOSE range (within
+        /// <see cref="StressModel.CorneredMetres"/>) GIVES UP at once, calm or not (a room entry is too fast for his stress to break him); the same
+        /// rifle 20 m off does not corner him, and a man with resolve is never cornered into it. 📐 ts-house-defenders: the Waverer peaked at stress
+        /// 0.11 and was shot. ✅ Red-proof: the cornered rule removed ⇒ the calm waverer keeps his task ⇒ red.</summary>
+        [Fact]
+        public void CE3462_ACorneredLowResolveMan_GivesUpAtOnce_NotAtRange_NotWithResolve()
+        {
+            var b = new Brains(_w);
+            var cornered = Ordered(b, 0f, obedience: 0f, resolve: 0.1f);
+            var atRange = Ordered(b, 40f, obedience: 0f, resolve: 0.1f);
+            var fighter = Ordered(b, 80f, obedience: 0f, resolve: 0.9f);
+            foreach (var man in new[] { cornered, atRange, fighter }) _w.GetComponentRW<EntityInfo>(man).ForceId = ForceId.Hostile;
+            Rifle(new Vector3(0f, 4f, 0f), cornered);     // 4 m: cornered
+            Rifle(new Vector3(40f, 20f, 0f), atRange);    // 20 m: covered, not cornered
+            Rifle(new Vector3(80f, 4f, 0f), fighter);     // 4 m, but he has resolve
+            b.Run(0.1); b.Run(0.6); b.Run(1.1);
+            Assert.Equal(BehaviorNames.Surrender, b.TaskOf(cornered));
+            Assert.NotEqual(BehaviorNames.Surrender, b.TaskOf(atRange));
+            Assert.NotEqual(BehaviorNames.Surrender, b.TaskOf(fighter));
+            Assert.True(_w.GetComponentRO<Stress>(cornered).Level < 0.5f, "he gave up calm — not as the outcome of a break");
+        }
+
         /// <summary>TS-6 — with a threat known and a cover point farther from it within 30 m, he RUNS there (upright, flat out), not down where
         /// he is; a cover point nearer the threat is no retreat.</summary>
         [Fact]
