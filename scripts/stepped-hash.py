@@ -59,11 +59,19 @@ def one_run(a, threads, k):
             raise RuntimeError(f"the paused preview entry took steps: simTime {entry} before the first /sim/step (CE-4570)")
         probes = []
 
+        def _settle():
+            # ⭐ CE-3445 (2026-11-19) — let at least one PAUSED frame run before a hash is read. An EveryFrame system (UnitCentroidSystem — a
+            #   unit stands at its members' centroid, refreshed on paused frames too, R-3036 §1b) leaves a unit where the LAST frame put it:
+            #   a hash read right after /sim/step returns caught the units' centres from BEFORE that step's movement, or after it, by the wall
+            #   clock — measured: a 4-thread run parted from the 1-thread one in the units' SimTransform (+ CullingState) only, every man equal.
+            _t.sleep(0.25)
+
         def step(n):   # --probe K: the same steps in pieces of K, the world hashed by type after each (where a run first parts)
             if not a.probe:
                 s.post("/sim/step", {"count": n}, timeout=600); return
             for _ in range(n // a.probe):
                 s.post("/sim/step", {"count": a.probe}, timeout=600)
+                _settle()
                 d = data(s.get("/world/hash?byType=1&rows=" + a.rows + ("&bytes=1" if a.bytes else ""), timeout=600))
                 probes.append({"types": d.get("types") or {}, "rows": d.get("rows") or {}})
 
@@ -73,6 +81,7 @@ def one_run(a, threads, k):
         s.post(f"/entities/{men[5]}/order", {"kind": "hold"})
         step(a.chunk * 3)
         q = "/world/hash?byType=1&rows=" + a.rows + ("&bytes=1" if a.bytes else "")
+        _settle()
         r = data(s.get(q, timeout=600))
         if a.probe: r["probes"] = probes
         return r
