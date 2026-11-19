@@ -22,7 +22,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
     /// <summary>
     /// ⭐ <c>CE-1176</c> / <c>CE-1177</c> (People Display §5 U15, U16; R-1005) — THE priority rule, so marks never stack: speech first (the
     /// replicated <see cref="Utterance"/>, G1; the police warning <c>Gesture.Warning</c> counts as a warning), then his state — pain, anger,
-    /// fear, alarm (<see cref="Injury"/>, the replicated <see cref="Mood"/>, G2). Calm and silent: none. Pure; every node gives the
+    /// fear, alarm (<see cref="Injury"/>, the replicated <see cref="Demeanour"/>, G2). Calm and silent: none. Pure; every node gives the
     /// same answer.
     /// </summary>
     public static class Marks
@@ -53,7 +53,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         {
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() && Injury.StateOf(repo, man) == InjuryState.Wounded)
                 return MarkKind.Pain;
-            if (Moods.Of(repo, man, out var d))
+            if (Demeanours.Of(repo, man, out var d))
             {
                 if (d.Anger >= MoodQuarter) return MarkKind.Anger;
                 if (d.Fear >= MoodQuarter) return MarkKind.Fear;

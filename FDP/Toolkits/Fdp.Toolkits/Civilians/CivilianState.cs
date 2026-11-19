@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Civilians
     /// hostile-act slices) and the <see cref="Mode"/> his HSM is in. ⭐ <c>CE-4628</c>: his FEAR (<see cref="Fear"/>), his home (<see cref="Home"/>) and
     /// the crowd he stands in (<see cref="GroupMember"/>) are the components he shares with an animal — added WITH this one
     /// (<see cref="CivilianMind.Ensure"/>). ⛔ BRAIN-LOCAL: it lives on the node that runs his <c>CivilianHsm</c>, is never replicated (others see what
-    /// he DOES — his side, his gesture, his cowering — and his <see cref="Mood"/>) and never saved. Added by the HSM on its first tick.
+    /// he DOES — his side, his gesture, his cowering — and his <see cref="Demeanour"/>) and never saved. Added by the HSM on its first tick.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.CivilianState)]

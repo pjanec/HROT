@@ -11,38 +11,38 @@
     "simhost": {
       "modules": 11,
       "systems": 145,
-      "translators": 153,
+      "translators": 151,
       "capabilities": 10,
       "providers": 1,
       "singletons": 14,
-      "componentTypes": 195
+      "componentTypes": 194
     },
     "player": {
       "modules": 10,
       "systems": 96,
-      "translators": 140,
+      "translators": 138,
       "capabilities": 7,
       "providers": 0,
       "singletons": 6,
-      "componentTypes": 149
+      "componentTypes": 148
     },
     "cgf": {
       "modules": 9,
       "systems": 152,
-      "translators": 160,
+      "translators": 158,
       "capabilities": 7,
       "providers": 0,
       "singletons": 9,
-      "componentTypes": 228
+      "componentTypes": 227
     },
     "traffic": {
       "modules": 6,
       "systems": 52,
-      "translators": 132,
+      "translators": 130,
       "capabilities": 2,
       "providers": 0,
       "singletons": 5,
-      "componentTypes": 126
+      "componentTypes": 125
     }
   }
 }

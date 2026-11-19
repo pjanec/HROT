@@ -555,7 +555,7 @@ namespace Fdp.Toolkit.Tests.Combat
         {
             for (int i = 0; i < 100; i++) _world.Repo.Tick();
             _world.Repo.SetSimulationTime(20f);
-            if (!_world.Repo.IsComponentTypeRegistered<Gesture>()) _world.Repo.RegisterComponent<Gesture>();
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             var cop = Police(Vector3.Zero);
             var near = Man(PistolCivType, new Vector3(20f, 0f, 0f), ForceId.Neutral, civilian: true);
             var far = Man(PistolCivType, new Vector3(55f, 0f, 0f), ForceId.Neutral, civilian: true);

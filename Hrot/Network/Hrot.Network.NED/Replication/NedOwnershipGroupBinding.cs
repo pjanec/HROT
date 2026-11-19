@@ -149,7 +149,6 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtPossessedBy, GlobalComponentIds.PossessedBy);
         map.RegisterMapping((long)EDescriptorType.dtWeaponAmmo, GlobalComponentIds.WeaponAmmo);   // ⭐ CE-3174 — the HUD's ammunition
         map.RegisterMapping((long)EDescriptorType.dtOperatorUseStatus, GlobalComponentIds.OperatorUseStatus);   // ⭐ CE-1153 — the use verdict
-        map.RegisterMapping((long)EDescriptorType.dtGesture, GlobalComponentIds.Gesture);                       // ⭐ CE-3224 — a person's gesture
         map.RegisterMapping((long)EDescriptorType.dtRadarEmission, GlobalComponentIds.RadarEmission);           // ⭐ CE-4617 — a radar's emission
         map.RegisterMapping((long)EDescriptorType.dtHeatSource, GlobalComponentIds.HeatSource);                 // ⭐ CE-4657 (TD-3) — the heat source (Muscle)
         map.RegisterMapping((long)EDescriptorType.dtFireState, GlobalComponentIds.FireState);                   // ⭐ CE-4657 (TD-6) — the fire spots (Brain: the Health owner)
@@ -161,7 +160,7 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtCombatProficiency, GlobalComponentIds.CombatProficiency);   // ⭐ CE-3259 — what he CAN do
         map.RegisterMapping((long)EDescriptorType.dtEngagementArea, GlobalComponentIds.EngagementArea);         // ⭐ CE-3261 — a sector
         map.RegisterMapping((long)EDescriptorType.dtUtterance, GlobalComponentIds.Utterance);                   // ⭐ CE-3264 — speech
-        map.RegisterMapping((long)EDescriptorType.dtDemeanour, GlobalComponentIds.Mood);                   // ⭐ CE-3265 — mood
+        map.RegisterMapping((long)EDescriptorType.dtDemeanour, GlobalComponentIds.Demeanour);                   // ⭐ CE-3265 — mood
         map.RegisterMapping((long)EDescriptorType.dtSpawnLevel, GlobalComponentIds.SpawnLevelRequest);          // ⭐ CE-3271 — birth level
         map.RegisterMapping((long)EDescriptorType.dtAnimalState, GlobalComponentIds.AnimalState);               // ⭐ CE-4623 AB-3 — an animal's state (Brain group)
         map.RegisterMapping((long)EDescriptorType.dtFlockState, GlobalComponentIds.FlockState);                 // ⭐ CE-4623 AB-3 — a bird flock's state (Brain group)

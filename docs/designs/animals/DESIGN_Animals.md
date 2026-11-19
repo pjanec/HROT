@@ -542,6 +542,8 @@ serial crowd pass writes the mood; both on the brain node. Each ADDS the record 
 | kept | id 435, the wire `dtDemeanour` (153) + its translators, gaining `Kind`; the `Gestures` helper (the gesture half's API — its ~45 callers unchanged) |
 | readers | `Gesture.Kind` readers read `Demeanour.Kind`; the face, the mood dot, the mind gizmo read the mood half; the scenario `gesture` cue reads `Demeanour.Kind` |
 
+**As built (ui worker, `2026-11-19`):** ✅ `Demeanour` (id 435, layout `GestureKind Kind; CivilianMode Mode; byte Fear; byte Anger`), `Demeanours.SetMood` (mood half; compares read-only, writes Mode/Fear/Anger only, adds with Kind None), `Gestures.Set` (Kind only; compares read-only; adds with a zero mood; None on a unit with no record adds nothing) — Roslyn renames for `Mood`→`Demeanour`, `Moods`→`Demeanours`, the constant, `Set`→`SetMood`. The `Gesture` component is gone: its component id is **398** (143 is the retired wire `dtGesture`) — both now BURNED comments (`GlobalComponentIds`, `AllDescriptors`); `EntityGesture` and its translators removed; `EntityDemeanour` gained `Kind` (first byte). `BrainReads` / `StressSystem` declare `Demeanour`; the timeline lane `state.gesture` projects `Demeanour.Kind`; `ScenarioVerification`'s `gesture` cue and the `checks.json` paths read `Demeanour.Kind`. ⚠ `GestureGizmo` (`[GizmoProjector(typeof(Demeanour))]`) now runs for every unit that has a record, not only gesturing ones (it draws nothing without effect text).
+
 ## ⛔ HISTORY — the first slices (before the review), replaced by §6 — ⛔ do not quote
 
 ## 6. Slices *(each gated by the review §8 before it is built)*

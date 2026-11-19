@@ -993,10 +993,7 @@ namespace Fdp.Core
         /// non-lethal effects (stunned / irritated / knocked down until), Brain group beside Health, replicated as <c>dtEffectState</c> (142).</summary>
         public const int EffectState = 397;
 
-        /// <summary><c>Gesture</c> — ⭐ CE-3224 (civilians B-6, CV-13; docs/DESIGN_Civilians_And_Crowd_Control.md §7.7): what a person
-        /// is doing with his arms (hands up, fist raised, a sign…), written by his behaviour on the brain owner, replicated as
-        /// <c>dtGesture</c> (143).</summary>
-        public const int Gesture = 398;
+        // ⛔ 398 BURNED (CE-4628 §10c): the <c>Gesture</c> component (CE-3224) was folded into <c>Demeanour</c> (435) — its <c>Kind</c>; a stale recording skips it. Never reuse.
 
         /// <summary><c>CivilianState</c> — ⭐ CE-2235 (civilians CIV-1, CV-3; docs/DESIGN_Civilians_And_Crowd_Control.md §5d): a civilian's
         /// fear, anger, hidden attitude and current mode, BRAIN-LOCAL on the node that runs his <c>CivilianHsm</c> (never replicated, never
@@ -1154,7 +1151,7 @@ namespace Fdp.Core
 
         /// <summary>⭐ <c>CE-3265</c> (backend, G2) — <c>Mood</c> (was <c>Demeanour</c>, CE-4628): a creature's mode, fear and anger in quarters, Brain group, replicated as
         /// <c>dtDemeanour</c> (153). §7.18. Backend's proposed block; measured free on every lane 2026-10-19.</summary>
-        public const int Mood = 435;
+        public const int Demeanour = 435;
 
         /// <summary>⭐ <c>CE-3271</c> (backend, Q94 D, R-3018) — <c>SpawnLevelRequest</c>: a spawn's birth level, resolved by the node that owns
         /// the position (Muscle group), replicated as <c>dtSpawnLevel</c> (155). 📄 docs/blueprints/Architect_Question_94_Brain_Geometry_Sites.md

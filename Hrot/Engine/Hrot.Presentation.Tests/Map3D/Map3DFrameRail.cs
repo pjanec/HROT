@@ -3757,10 +3757,10 @@ public sealed class Map3DFrameRail
         Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, 2.5f);
         Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher, 4.5f, posture: Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
         // ⭐ CE-1179 (U18) — a surrendered soldier, his rifle laid at his feet, hands up; a placed charge beside the toy, its light on
-        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+        world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
         var surrendered = Person(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier, 8.5f, posture: Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
         Fdp.Toolkit.Combat.WeaponLaying.LayDown(world, surrendered, 0);
-        world.AddComponent(surrendered, new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.HandsUp });
+        world.AddComponent(surrendered, new Fdp.Toolkit.Creatures.Demeanour { Kind = Fdp.Toolkit.Combat.GestureKind.HandsUp });
         var placed = world.CreateEntity();
         world.AddComponent(placed, new SimTransform { Position = new Vector3(spot.X + 7.4f, spot.Y - 0.9f, G(spot.X + 7.4f, spot.Y - 0.9f)), Rotation = Quaternion.Identity });
         world.AddComponent(placed, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_ExplosiveCharge) });
@@ -3793,7 +3793,7 @@ public sealed class Map3DFrameRail
         Assert.Equal(1, bodies.ChargeLightsDrawn);   // the placed charge's light, on at t = 0
 
         // ⭐ CE-1177 (U16) — four faces close up: calm, afraid, angry, in pain
-        world.RegisterComponent<Fdp.Toolkit.Creatures.Mood>();
+        world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
         float fy = spot.Y + 6f;
@@ -3808,8 +3808,8 @@ public sealed class Map3DFrameRail
             return e;
         }
         Face(-1.2f);                                                                                                  // calm
-        Fdp.Toolkit.Creatures.Moods.Set(world, Face(-0.4f), Fdp.Toolkit.Civilians.CivilianMode.Panic, fear: 1f, anger: 0f);
-        Fdp.Toolkit.Creatures.Moods.Set(world, Face(0.4f), Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0f, anger: 1f);
+        Fdp.Toolkit.Creatures.Demeanours.SetMood(world, Face(-0.4f), Fdp.Toolkit.Civilians.CivilianMode.Panic, fear: 1f, anger: 0f);
+        Fdp.Toolkit.Creatures.Demeanours.SetMood(world, Face(0.4f), Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0f, anger: 1f);
         var hurt = Face(1.2f);
         world.AddComponent(hurt, new Fdp.Toolkit.Combat.Components.Health { Current = 40f, Max = 100f });
         world.AddComponent(hurt, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f, WoundedSpeedFactor = 0.6f });
@@ -3988,7 +3988,7 @@ public sealed class Map3DFrameRail
         world.RegisterComponent<TkbIdentity>();
         world.RegisterComponent<NetworkIdentity>();
         world.RegisterComponent<EntityInfo>();
-        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+        world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
         world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);

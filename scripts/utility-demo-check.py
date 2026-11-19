@@ -3399,7 +3399,7 @@ _GESTURES = {0: "None", 1: "HandsUp", 2: "FistRaised", 3: "HoldSign", 4: "Waving
 
 
 def gesture_on(perspective, nid):
-    g = ((comps_on(perspective, nid) or {}).get("Gesture") or {}).get("Kind")
+    g = ((comps_on(perspective, nid) or {}).get("Demeanour") or {}).get("Kind")
     return _GESTURES.get(g, g) if isinstance(g, int) else (g or "None")
 
 
@@ -5306,7 +5306,7 @@ _IDLE_GESTURES = {"IdleSmoking": 7, "IdleShiftWeight": 8, "IdleStretch": 9, "Idl
 
 
 def _gesture_of(nid):
-    g = ((comps_on("CGF", nid) or {}).get("Gesture") or {}).get("Kind")
+    g = ((comps_on("CGF", nid) or {}).get("Demeanour") or {}).get("Kind")
     if isinstance(g, int):
         return next((k for k, v in _IDLE_GESTURES.items() if v == g), str(g))
     return g

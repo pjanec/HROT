@@ -1,6 +1,6 @@
-using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Creatures;
 
 namespace Fdp.Toolkit.Combat
 {
@@ -32,33 +32,24 @@ namespace Fdp.Toolkit.Combat
         IdleLookAbout = 10,
     }
 
-    /// <summary>
-    /// ⭐ <c>CE-3224</c> — a person's current gesture, written by his behaviour on the brain owner, replicated as <c>dtGesture</c> (143) and
-    /// recorded like any component. Absent ⇒ <see cref="GestureKind.None"/>.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.Gesture)]
-    [DataPolicy(DataPolicy.NoScenario)]
-    public struct Gesture
-    {
-        public GestureKind Kind;
-    }
-
-    /// <summary>⭐ <c>CE-3224</c> — the one writer and the one reader of <see cref="Gesture"/>.</summary>
+    /// <summary>⭐ <c>CE-3224</c> — the one writer and the one reader of the GESTURE half of <see cref="Demeanour"/> (<see cref="Demeanour.Kind"/>; ⭐ CE-4628 §10c: the
+    /// <c>Gesture</c> component is folded into it). Never touches the mood fields.</summary>
     public static class Gestures
     {
-        /// <summary>Sets <paramref name="unit"/>'s gesture; call it on the node that owns his brain (and so <c>dtGesture</c>). Setting None on
-        /// a unit that never gestured adds nothing. False when the type is not registered or the unit is gone.</summary>
+        /// <summary>Sets <paramref name="unit"/>'s gesture; call it on the node that owns his brain (and so <c>dtDemeanour</c>). Compared read-only first, written
+        /// only on a change. Setting None on a unit with no <see cref="Demeanour"/> adds nothing; any other kind on one adds it WITH that kind and a zero mood.
+        /// False when the type is not registered or the unit is gone.</summary>
         public static bool Set(EntityRepository repo, Entity unit, GestureKind kind)
         {
-            if (!repo.IsAlive(unit) || !repo.IsComponentTypeRegistered<Gesture>()) return false;
-            if (!repo.HasComponent<Gesture>(unit))
+            if (!repo.IsAlive(unit) || !repo.IsComponentTypeRegistered<Demeanour>()) return false;
+            if (!repo.HasComponent<Demeanour>(unit))
             {
                 if (kind == GestureKind.None) return true;
-                repo.AddComponent(unit, new Gesture { Kind = kind });
+                repo.AddComponent(unit, new Demeanour { Kind = kind });
                 return true;
             }
-            repo.GetComponentRW<Gesture>(unit).Kind = kind;
+            if (repo.GetComponentRO<Demeanour>(unit).Kind == kind) return true;
+            repo.GetComponentRW<Demeanour>(unit).Kind = kind;
             return true;
         }
 
@@ -68,8 +59,8 @@ namespace Fdp.Toolkit.Combat
         /// <summary>The unit's gesture on this node (the owner's or the replicated one); None when it has none.</summary>
         public static GestureKind Of(ISimulationView view, Entity unit)
         {
-            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Gesture>()) return GestureKind.None;
-            return view.IsAlive(unit) && view.HasComponent<Gesture>(unit) ? view.GetComponentRO<Gesture>(unit).Kind : GestureKind.None;
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Demeanour>()) return GestureKind.None;
+            return view.IsAlive(unit) && view.HasComponent<Demeanour>(unit) ? view.GetComponentRO<Demeanour>(unit).Kind : GestureKind.None;
         }
     }
 }

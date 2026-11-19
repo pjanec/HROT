@@ -446,7 +446,7 @@ namespace Hrot.Editor.Director
                 case "embark":
                     return AnchorBook.EmbarkHolds(a, comps["IsEmbarkedTag"] is JsonObject);
                 case "gesture":
-                    return AnchorBook.GestureHolds(a, Enum.TryParse<Fdp.Toolkit.Combat.GestureKind>(At(comps, "Gesture.Kind")?.ToString(), true, out var g) ? g : Fdp.Toolkit.Combat.GestureKind.None);
+                    return AnchorBook.GestureHolds(a, Enum.TryParse<Fdp.Toolkit.Combat.GestureKind>(At(comps, "Demeanour.Kind")?.ToString(), true, out var g) ? g : Fdp.Toolkit.Combat.GestureKind.None);
                 default:
                     return false;
             }
@@ -1136,7 +1136,7 @@ namespace Hrot.Editor.Director
     {
         public static readonly IReadOnlyList<string> Paths = new[]
         {
-            "EntityInfo.ForceId", "IsEmbarkedTag", "NavigationStatus.Phase", "WeaponPosture", "CivilianState.Mode", "Mood", "Custody",
+            "EntityInfo.ForceId", "IsEmbarkedTag", "NavigationStatus.Phase", "WeaponPosture", "CivilianState.Mode", "Demeanour", "Custody",
             "AnimalState", "FlockState",
         };
     }
