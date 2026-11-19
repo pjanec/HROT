@@ -8,8 +8,10 @@ are `count`, stands them on the ground around `centre` (a line trace onto our la
 the crowd hidden and shown at each view, and takes a shot of each. ⚠ The editor's frame time is a proxy (it includes the editor), but
 the hidden / shown difference at the same view is the crowd's cost.
 """
-import json, math, os, random, time, traceback
+import json, math, os, random, sys, time, traceback
 import unreal
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import hrot_person
 
 JOB = json.load(open(os.environ["HROT_CROWD_JOB"], encoding="utf-8"))
 T0 = time.time()
@@ -35,11 +37,25 @@ WORLD = lambda: unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_ed
 
 def step_settings():
     # the editor idles when not focused (EditorPerformanceSettings is not exposed to Python): its console switches instead
-    for c in ("t.IdleWhenNotForeground 0", "t.MaxFPS 0", "r.VSync 0"):
+    # ⚠ measured: the empty scene read exactly 16.67 ms — capped at 60 fps; the editor's smoothed frame rate is turned off too
+    # ⭐ the editor throttles to 60 Hz ON BATTERY (UEditorEngine::GetMaxTickRate) — r.DontLimitOnBattery; above 62 fps the engine's
+    # SmoothedFrameRateRange caps it (project DefaultEngine.ini lifts that)
+    for c in ("t.IdleWhenNotForeground 0", "t.MaxFPS 0", "r.VSync 0", "r.VSyncEditor 0", "r.DontLimitOnBattery 1"):
         unreal.SystemLibrary.execute_console_command(None, c)
 
 
+# ⭐ "soldiers": state-driven US soldiers (hrot_person — the same setup as the anim lab), armed, in a mix of states
+SOLDIER_STATES = [
+    {"base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle"},
+    {"base": "MM_Rifle_Idle_Hipfire", "weapon": "rifle"},
+    {"base": "MM_Rifle_Crouch_Idle", "weapon": "rifle"},
+    {"base": "MF_Rifle_Jog_Fwd", "weapon": "rifle"},
+]
+
+
 def step_copy_demo():
+    if JOB.get("people") == "soldiers":
+        log("people: state-driven US soldiers"); return
     """Each dressed demo person becomes a Blueprint (/Game/Hrot/People/BP_Person_NN — body + outfit parts on a leader pose), made once."""
     if not LES().load_level(JOB["crowdLevel"]): raise RuntimeError("cannot load " + JOB["crowdLevel"])
     people = [a for a in EAS().get_all_level_actors() if "Crowd" in a.get_class().get_name()]
@@ -59,6 +75,7 @@ def step_copy_demo():
 def step_open_look():
     if not LES().load_level(JOB["lookLevel"]): raise RuntimeError("cannot load " + JOB["lookLevel"])
     log("opened the look level")
+    if JOB.get("people") == "soldiers": S["kit"] = hrot_person.PersonKit(log)
 
 
 def ground(x, y):
@@ -87,12 +104,31 @@ def spawn_up_to(target):
         x, y = cx + r * math.cos(ang), cy + r * math.sin(ang)
         z = ground(x, y)
         if z is None: continue
-        cls = S["classes"][len(crowd) % len(S["classes"])]
-        a = EAS().spawn_actor_from_class(cls, unreal.Vector(x, y, z), unreal.Rotator(0, 0, rng.uniform(0, 360)))
+        if JOB.get("people") == "soldiers":
+            made = S["kit"].make("US_Soldier", (x, y, z), rng.uniform(0, 360), f"Person_{len(crowd):04d}",
+                                 SOLDIER_STATES[len(crowd) % len(SOLDIER_STATES)], folder="Crowd")
+            a = made[0] if made else None
+            if made and JOB.get("merge"):   # the body's 15 parts merged into one mesh (UHrotPersonState.MergeBodyParts)
+                n = made[1].merge_body_parts()
+                if not crowd: log(f"merged {n} parts into the body")
+        else:
+            cls = S["classes"][len(crowd) % len(S["classes"])]
+            a = EAS().spawn_actor_from_class(cls, unreal.Vector(x, y, z), unreal.Rotator(0, 0, rng.uniform(0, 360)))
         if not a: continue
-        a.set_folder_path("Crowd"); a.set_actor_label(f"Person_{len(crowd):04d}")
+        if JOB.get("people") != "soldiers":   # the demo people only (a soldier is named at spawn: a later rename rebuilds it)
+            a.set_folder_path("Crowd"); a.set_actor_label(f"Person_{len(crowd):04d}")
         crowd.append(a)
     R["people"] = len(crowd)
+    if JOB.get("people") == "soldiers":   # ⭐ check, never assume: who runs our animation and holds a visible weapon
+        tally = {}
+        for a in crowd:
+            st = a.get_component_by_class(unreal.HrotPersonState)
+            lead = st.find_leader() if st else None
+            ai = lead.get_anim_instance() if lead else None
+            w = st.get_weapon_component() if st else None
+            key = (ai.get_class().get_name() if ai else None, bool(w and w.is_visible()), str(w.get_attach_socket_name()) if w else None)
+            tally[str(key)] = tally.get(str(key), 0) + 1
+        R.setdefault("tally", []).append(tally); log(f"people by (anim, weapon visible, weapon socket): {tally}")
     log(f"{len(crowd)} people placed within {JOB['radius']} m in {time.time() - t:.0f} s; editor memory {proc_gb():.1f} GB")
 
 

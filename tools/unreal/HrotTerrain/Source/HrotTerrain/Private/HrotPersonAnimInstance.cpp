@@ -11,6 +11,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
+#include "SkeletalMergingLibrary.h"
 
 namespace
 {
@@ -213,6 +214,42 @@ bool UHrotPersonState::ApplyAnimation()
 	M->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 	M->SetAnimInstanceClass(UHrotPersonAnimInstance::StaticClass());
 	return true;
+}
+
+int32 UHrotPersonState::MergeBodyParts()
+{
+	USkeletalMeshComponent* Leader = FindLeader();
+	AActor* Owner = GetOwner();
+	if (!Leader || !Owner) return 0;
+	USkeletalMesh* LeaderMesh = Cast<USkeletalMesh>(Leader->GetSkinnedAsset());
+	if (!LeaderMesh) return 0;
+	TArray<USkeletalMeshComponent*> Meshes, Parts;
+	Owner->GetComponents<USkeletalMeshComponent>(Meshes);
+	FSkeletalMeshMergeParams Params;
+	Params.Skeleton = LeaderMesh->GetSkeleton();
+	Params.MeshesToMerge.Add(LeaderMesh);
+	FString Key = LeaderMesh->GetPathName();
+	for (USkeletalMeshComponent* M : Meshes)
+	{
+		USkeletalMesh* PM = Cast<USkeletalMesh>(M->GetSkinnedAsset());
+		if (M == Leader || !PM || M->LeaderPoseComponent.Get() != Leader || !M->IsVisible()) continue;
+		if (PM->GetSkeleton() != Params.Skeleton) continue;   // another skeleton (a face with its own rig): left as it is
+		Params.MeshesToMerge.Add(PM); Parts.Add(M);
+		Key += TEXT("|") + PM->GetPathName();
+	}
+	if (Parts.Num() == 0) return 0;
+	static TMap<FString, TWeakObjectPtr<USkeletalMesh>> Cache;   // one merged mesh per combination of parts, shared
+	USkeletalMesh* Merged = Cache.FindRef(Key).Get();
+	if (!Merged)
+	{
+		Merged = USkeletalMergingLibrary::MergeMeshes(Params);
+		if (!Merged) return 0;
+		Cache.Add(Key, Merged);
+	}
+	Leader->SetSkeletalMeshAsset(Merged);
+	ApplyAnimation();   // a new mesh re-initialises the anim instance
+	for (USkeletalMeshComponent* P : Parts) { P->SetVisibility(false); P->SetComponentTickEnabled(false); }
+	return Parts.Num();
 }
 
 UMeshComponent* UHrotPersonState::GetWeaponComponent() const

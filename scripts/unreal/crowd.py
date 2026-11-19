@@ -19,6 +19,9 @@ def main():
     ap.add_argument("--engine", default=r"C:\UE_5.8\UE_5.8"); ap.add_argument("--count", type=int, default=1000)
     ap.add_argument("--radius", type=float, default=180.0); ap.add_argument("--min-free-gb", type=float, default=6.0)
     ap.add_argument("--steps", default="100,250,500")
+    ap.add_argument("--people", choices=("demo", "soldiers"), default="demo",
+                    help="demo: the City Sample crowd demo's people; soldiers: state-driven armed US soldiers (hrot_person)")
+    ap.add_argument("--merge", action="store_true", help="soldiers: merge each body's parts into one mesh")
     a = ap.parse_args()
     folder = os.path.abspath(a.export); name = os.path.basename(folder)
     views = {v["name"]: v for v in json.load(open(os.path.join(folder, f"{name}.views.json"), encoding="utf-8"))["views"]}
@@ -28,7 +31,8 @@ def main():
     job = {"lookLevel": "/Game/Maps/" + name.replace("-", "_") + "_look", "crowdLevel": "/Game/CitySampleCrowd/Maps/CitySampleCrowd_LVL",
            "count": a.count, "steps": [int(x) for x in a.steps.split(",")], "centre": street["target"][:2], "radius": a.radius,
            "views": [views[k] for k in ("street", "village-aerial") if k in views], "shots": fwd(a.shots),
-           "out": fwd(os.path.join(folder, "crowd-result.json")), "measureSeconds": 10, "settleSeconds": 15, "minFreeGb": a.min_free_gb}
+           "out": fwd(os.path.join(folder, "crowd-result.json")), "measureSeconds": 10, "settleSeconds": 15, "minFreeGb": a.min_free_gb,
+           "people": a.people, "merge": a.merge}
     jp = os.path.join(folder, "crowd-job.json"); json.dump(job, open(jp, "w"), indent=1)
     if os.path.exists(job["out"]): os.remove(job["out"])
     exe = os.path.join(a.engine, "Engine", "Binaries", "Win64", "UnrealEditor.exe")

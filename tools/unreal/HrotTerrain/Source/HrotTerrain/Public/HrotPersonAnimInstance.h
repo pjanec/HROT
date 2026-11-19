@@ -58,6 +58,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Person")
 	UMeshComponent* ApplyWeapon();
 
+	/** ⭐ The body's parts (the skinned meshes that follow the leader's pose, same skeleton) MERGED into one mesh on the leader; the
+	 *  separate parts hidden. One merged mesh per combination of parts, shared by every person wearing it (cached). Returns how many
+	 *  parts were merged (0 = nothing to do). Why: a Fab body like US_Soldier is 15 skinned components — 15 skinning passes and
+	 *  scene proxies per person; merged, one. ⚠ Sections (materials) are kept: draw calls per person do not drop. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Person")
+	int32 MergeBodyParts();
+
 	/** The weapon component in the hand, or null. */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Person")
 	UMeshComponent* GetWeaponComponent() const;

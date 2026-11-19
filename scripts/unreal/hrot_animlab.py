@@ -6,8 +6,11 @@ A small level (/Game/Maps/AnimLab): a floor, sun, sky; per group a row of manneq
 found by NAME (the first asset under /Game/Characters whose name matches the regex), the rifle or pistol in its right hand when the
 animation is a rifle / pistol one, a label above; one shot per group. What is missing is reported, never faked.
 """
-import json, os, re, time, traceback
+import json, os, re, sys, time, traceback
 import unreal
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import hrot_person
+from hrot_person import body_component, body_of
 
 JOB = json.load(open(os.environ["HROT_ANIMLAB_JOB"], encoding="utf-8"))
 T0 = time.time()
@@ -51,191 +54,39 @@ def step_level():
 
 
 def step_index():
-    paths = list(unreal.EditorAssetLibrary.list_assets("/Game/Characters", recursive=True, include_folder=False))
-    paths += list(unreal.EditorAssetLibrary.list_assets("/Game/Weapons", recursive=True, include_folder=False))
-    if unreal.EditorAssetLibrary.does_directory_exist("/Game/Mixamo/Retargeted"):   # Mixamo, retargeted onto the mannequin (hrot_mixamo.py)
-        paths += list(unreal.EditorAssetLibrary.list_assets("/Game/Mixamo/Retargeted", recursive=True, include_folder=False))
-    S["names"] = {p.rsplit(".", 1)[-1]: p for p in paths}
-    S["clip_index"] = {}   # clip folder → {name: path}: the same clips per skeleton (retarget.py), same names, own folder
-    S["manny"] = unreal.load_asset(next(p for n, p in S["names"].items() if n == "SKM_Manny"))
-    S["rifle"] = unreal.load_asset(next(p for n, p in S["names"].items() if n == "SM_Rifle"))
-    pistols = [p for n, p in S["names"].items() if n.startswith("SM_") and "Pistol" in n]
+    S["kit"] = kit = hrot_person.PersonKit(log)   # ⭐ the ONE person setup (shared with the crowd test)
+    S["names"] = kit.names
+    S["manny"] = kit.manny
+    paths = list(unreal.EditorAssetLibrary.list_assets("/Game/Weapons", recursive=True, include_folder=False))
+    names = {p.rsplit(".", 1)[-1]: p for p in paths}
+    S["rifle"] = unreal.load_asset(names["SM_Rifle"])   # the plain (non-state) rows still hang the static weapon on weapon_r
+    pistols = [p for n, p in names.items() if n.startswith("SM_") and "Pistol" in n]
     S["pistol"] = unreal.load_asset(pistols[0]) if pistols else None
-    # ⭐ the person HOLDS Lyra's skinned weapons: they carry the Muzzle / ShellEject sockets, and Lyra's attach transform is theirs
-    # (measured: SM_Rifle is SK_Rifle turned 180° — sockets derived for it landed on the stock)
-    S["held"] = {"rifle": unreal.load_asset("/Game/Weapons/Rifle/Mesh/SK_Rifle"), "pistol": unreal.load_asset("/Game/Weapons/Pistol/Mesh/SK_Pistol")}
-    S["weapon_rel"] = None   # weapon_r relative to hand_r on the mannequin: a body without weapon_r holds the weapon there
-    tmp = spawn(unreal.SkeletalMeshActor, (0, 0, -5000), label="tmp_manny")
-    tmp.skeletal_mesh_component.set_skeletal_mesh_asset(S["manny"])
-    S["weapon_rel"] = tmp.skeletal_mesh_component.get_socket_transform("weapon_r", unreal.RelativeTransformSpace.RTS_PARENT_BONE_SPACE)
-    S["weapon_comp"] = tmp.skeletal_mesh_component.get_socket_transform("weapon_r", unreal.RelativeTransformSpace.RTS_COMPONENT)
-    tmp.destroy_actor()
-    log(f"indexed {len(paths)} assets; pistol mesh {'found' if S['pistol'] else 'MISSING'}")
-
-
-# a dressed body: its Blueprint and the folder holding the clips on its skeleton (scripts/unreal/retarget.py)
-BODIES = {"US_Soldier": ("/Game/US_Soldier/Blueprint/US_Soldier", "/Game/Hrot/People/Anims_USSoldier")}
-# a body's OWN weapon meshes, hidden: the weapon is the person state's (measured: the US_Soldier Blueprint shows its "Gun" in play)
-BODY_HIDE = {"US_Soldier": ["Gun"]}
-
-
-def body_of(name):
-    """BP_Person_NN (City Sample crowd) or a BODIES entry → (Blueprint path, clip folder)."""
-    return BODIES.get(name) or ("/Game/Hrot/People/" + name, "/Game/Hrot/People/Anims")
-
-
-def clip_names(folder):
-    if folder not in S["clip_index"]:
-        EAL = unreal.EditorAssetLibrary
-        S["clip_index"][folder] = ({p.rsplit(".", 1)[-1]: p for p in EAL.list_assets(folder, recursive=True, include_folder=False)}
-                                   if EAL.does_directory_exist(folder) else {})
-    return S["clip_index"][folder]
+    log(f"indexed {len(kit.names)} mannequin assets; pistol mesh {'found' if S['pistol'] else 'MISSING'}")
 
 
 def resolve(rx, body=None):
-    """The clip named by `rx` — on the mannequin, or (body = a body name) on that body's skeleton."""
-    rxc = re.compile(rx, re.I)
-    names = clip_names(body_of(body)[1]) if body else S["names"]
-    for n in sorted(names):
-        if rxc.fullmatch(n):
-            a = unreal.load_asset(names[n])
-            if isinstance(a, unreal.AnimSequenceBase): return n, a
-    return None, None
-
-
-def body_component(actor):
-    """The dressed person's LEADER — the component the body and outfit parts follow (leader pose). Measured on the crowd Blueprints:
-    a hidden root `SkeletalMeshComponent0` (the *_base mesh, playing the crowd's own clip) leads Body, Top, Bottom, Shoes; the Face
-    runs its own head Anim BP. ⚠ Driving `Body` does nothing: a follower copies its leader's pose."""
-    comps = list(actor.get_components_by_class(unreal.SkeletalMeshComponent))
-    leaders = {c.get_editor_property("leader_pose_component") for c in comps}
-    for c in comps:
-        if c in leaders: return c
-    return next((c for c in comps if c.get_skinned_asset()), None)   # a single mesh (the mannequin actor)
-
-
-def hold_still(actor):
-    """HROT moves the person; a Character Blueprint's own movement (gravity, an AI controller possessing it in play) must not.
-    Measured: the US_Soldier Character vanished in Simulate (it fell) while the crowd actors stayed."""
-    for c in actor.get_components_by_class(unreal.CharacterMovementComponent):
-        c.set_editor_property("gravity_scale", 0.0); c.set_component_tick_enabled(False); c.set_editor_property("auto_activate", False)
-    if isinstance(actor, unreal.Pawn):
-        actor.set_editor_property("auto_possess_ai", unreal.AutoPossessAI.DISABLED)
-
-
-def weapon_at_hand(comp, body):
-    """Where the mannequin holds its weapon (weapon_r), relative to THIS body's hand_r — compared in the SAME animated pose (the rifle
-    aim clip: the mannequin's original, the body's retargeted copy; retargeting keeps the hand's orientation in the body).
-    ⚠ Measured, both shortcuts wrong: the mannequin's hand-relative offset tilted the soldier's rifle ~25° (other bone axes); the
-    reference-pose comparison reversed it (the skeletons' reference poses hold the hand differently)."""
-    mesh = None
-    for getter in ("get_skinned_asset", "get_skeletal_mesh_asset"):
-        try: mesh = mesh or getattr(comp, getter)()
-        except Exception: pass
-    if mesh is None: mesh = comp.get_editor_property("skeletal_mesh_asset")
-    key = mesh.get_path_name()
-    if key not in S.setdefault("hand_rel", {}):
-        clip = "MM_Rifle_Idle_ADS"
-        manny = posed_sockets(S["manny"], resolve(clip)[1], ("weapon_r",))
-        mine = posed_sockets(mesh, resolve(clip, body)[1], ("hand_r",))
-        S["hand_rel"][key] = manny["weapon_r"] * mine["hand_r"].inverse()
-        log(f"weapon at hand_r for {mesh.get_name()}: from the {clip} pose")
-    return S["hand_rel"][key]
-
-
-def posed_sockets(mesh, clip, names):
-    """Component-space transforms of `names` with `mesh` posed by `clip` at time 0."""
-    t = spawn(unreal.SkeletalMeshActor, (0, 0, -30000))
-    c = t.skeletal_mesh_component; c.set_skeletal_mesh_asset(mesh)
-    c.set_animation_mode(unreal.AnimationMode.ANIMATION_SINGLE_NODE)
-    c.set_update_animation_in_editor(True)
-    c.play_animation(clip, False); c.set_position(0.0, False)
-    unreal.HrotTerrainLibrary.pose_now(c, 0.0, 1)
-    out = {n: c.get_socket_transform(n, unreal.RelativeTransformSpace.RTS_COMPONENT) for n in names}
-    t.destroy_actor()
-    return out
-
-
-def body_offsets(cls):
-    """A body Blueprint's leader mesh relative to its actor: (yaw offset, height of the mesh origin above the actor origin) — so the
-    real one is SPAWNED in place like the mannequin (+Y toward `facing`, feet at z = 0). Measured on a throwaway copy, once per class:
-    ⚠ moving a crowd person after spawning re-runs its construction script (a new outfit, the head and hair groom left behind).
-    The crowd body sits at the actor origin facing +Y; a Character Blueprint (US_Soldier) turns its mesh −90 and lowers it."""
-    key = cls.get_path_name()
-    if key not in S.setdefault("offsets", {}):
-        t = spawn(cls, (0, 0, -20000))
-        sk = body_component(t)
-        S["offsets"][key] = (sk.get_world_rotation().yaw - t.get_actor_rotation().yaw, sk.get_world_location().z - t.get_actor_location().z)
-        t.destroy_actor()
-        log(f"body offsets {key.rsplit('.', 1)[-1]}: yaw {S['offsets'][key][0]:.0f}, z {S['offsets'][key][1]:.1f}")
-    return S["offsets"][key]
+    return S["kit"].resolve(rx, body)
 
 
 def attach_weapon(w, sk):
-    """At weapon_r (Lyra's AttachTransform: yaw −90); a body without weapon_r: at hand_r, where weapon_r sits on the mannequin."""
+    """A plain row's static weapon: at weapon_r (Lyra's AttachTransform: yaw −90)."""
     keep = unreal.AttachmentRule.KEEP_WORLD; snap = unreal.AttachmentRule.SNAP_TO_TARGET
-    turn = unreal.Transform(rotation=unreal.Rotator(roll=0, pitch=0, yaw=-90))
-    if sk.does_socket_exist("weapon_r"):
-        w.attach_to_component(sk, "weapon_r", snap, snap, keep, False)
-        w.set_actor_relative_rotation(unreal.Rotator(roll=0, pitch=0, yaw=-90), False, True)
-    else:
-        w.attach_to_component(sk, "hand_r", snap, snap, keep, False)
-        rel = turn * S["weapon_rel"]   # child first: the yaw in weapon_r's frame, then weapon_r in hand_r's
-        w.set_actor_relative_transform(rel, False, True)
+    w.attach_to_component(sk, "weapon_r", snap, snap, keep, False)
+    w.set_actor_relative_rotation(unreal.Rotator(roll=0, pitch=0, yaw=-90), False, True)
 
 
 def person(g, spec, x, y, row):
-    # ⚠ the STATE is written by plain attribute (setattr), never set_editor_property: that one sends the editor's "property edited"
-    # notification, which REBUILDS a Blueprint person's components (measured: the body lost its anim class, the weapon doubled)
-    """One state-driven person: base (stance + gait), upper (weapon + state), action (additive), aim yaw / pitch."""
-    clips = {}
-    for k in ("base", "upper", "action"):
-        if spec.get(k):
-            n, a = resolve(spec[k], spec.get("body")); clips[k] = a
-            if not a: row.append({"want": spec[k], "found": None}); return
+    """One state-driven person (hrot_person.PersonKit.make): base (stance + gait), upper (weapon + state), action, aim, weapon."""
+    made = S["kit"].make(spec.get("body"), (x, y, 0), float(spec.get("facing", 140)), f"{g['name']}_{spec['label']}", spec)
+    if made is None:
+        row.append({"want": spec["label"], "found": None}); return
     row.append({"want": spec["label"], "found": spec["label"]})
-    if spec.get("body"):   # a DRESSED person: a City Sample crowd Blueprint (body + outfit parts on a leader pose)
-        cls = unreal.EditorAssetLibrary.load_blueprint_class(body_of(spec["body"])[0])
-        yaw_off, dz = body_offsets(cls)
-        facing = float(spec.get("facing", 140))
-        p = spawn(cls, (x, y, -dz), (0, facing - yaw_off, 0), f"{g['name']}_{spec['label']}")   # placed once: never moved after
-        sk = body_component(p)
-        if sk is None: raise RuntimeError("no leader body component on " + spec["body"])
-        hold_still(p)
-        for c in p.get_components_by_class(unreal.SceneComponent):
-            if c.get_name() in BODY_HIDE.get(spec["body"], []): c.set_visibility(False, True); c.set_hidden_in_game(True, True)
-    else:
-        p = spawn(unreal.SkeletalMeshActor, (x, y, 0), (0, float(spec.get("facing", 140)), 0), f"{g['name']}_{spec['label']}")
-        sk = p.skeletal_mesh_component
-        sk.set_skeletal_mesh_asset(S["manny"])
-    sk.set_animation_mode(unreal.AnimationMode.ANIMATION_BLUEPRINT)
-    sk.set_anim_instance_class(unreal.HrotPersonAnimInstance.static_class())
-    sk.set_update_animation_in_editor(True)
-    sk.set_editor_property("visibility_based_anim_tick_option", unreal.VisibilityBasedAnimTickOption.ALWAYS_TICK_POSE_AND_REFRESH_BONES)
-    ai = unreal.HrotTerrainLibrary.add_person_state(p)   # the STATE on the actor (persists)
-    if ai is None: raise RuntimeError("cannot add HrotPersonState to " + spec["label"])
-    setattr(ai, "base_anim", clips.get("base"))
-    if clips.get("upper"): setattr(ai, "upper_anim", clips["upper"])
-    if clips.get("action"):
-        setattr(ai, "action_anim", clips["action"])
-        setattr(ai, "action_time", float(spec.get("actionTime", 0.35 * clips["action"].get_play_length())))
-    setattr(ai, "aim_yaw", float(spec.get("yaw", 0))); setattr(ai, "aim_pitch", float(spec.get("pitch", 0)))
-    setattr(ai, "time_offset", 0.3)
+    p, ai, sk = made
     S.setdefault("rows", {}).setdefault(g["name"], []).append(p)
     if spec.get("seq"): S.setdefault("live", []).append({"label": p.get_actor_label(), "spec": spec, "crowd": spec.get("body")})
     if spec.get("then"):   # a TRANSITION: posed in this state, then switched to "then" and shot `after` seconds later (in shoot())
         S.setdefault("transitions", {})[p.get_actor_label()] = (ai, spec)
-    weapon = S["held"].get(spec.get("weapon"))
-    if weapon:   # ⭐ the weapon is PART OF THE PERSON STATE (a component of the person — it survives into play)
-        # Lyra's AttachTransform for its SK_ weapons: yaw −90 at weapon_r. ⚠ Measured, not judged by eye: with +90 the muzzle socket
-        # pointed INTO the person on every row (facing (−0.64, −0.77), muzzle (+0.48, +0.88)) — a small render misled that guess
-        turn = unreal.Transform(rotation=unreal.Rotator(roll=0, pitch=0, yaw=-90))
-        # Lyra's weapon_r transform holds only on the MANNEQUIN skeleton. ⚠ Measured: the crowd skeleton has its own weapon_r, oriented
-        # differently — the civilians' rifles came out reversed; every other body: the grip transferred through the shared aim pose
-        if not spec.get("body") and sk.does_socket_exist("weapon_r"): sock, off = "weapon_r", turn
-        else: sock, off = "hand_r", turn * weapon_at_hand(sk, spec.get("body"))   # no weapon_r: where the mannequin holds it
-        setattr(ai, "weapon", weapon); setattr(ai, "weapon_socket", sock); setattr(ai, "weapon_offset", off)
-        ai.apply_weapon()
     t = spawn(unreal.TextRenderActor, (x, y, 205), (0, -90, 0), f"L_{spec['label']}")
     tc = t.text_render
     tc.set_editor_property("text", spec["label"]); tc.set_editor_property("world_size", 11.0)
