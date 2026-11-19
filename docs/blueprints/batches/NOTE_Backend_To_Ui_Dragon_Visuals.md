@@ -7,7 +7,7 @@ related-designs:
   - ../../designs/weapons/DESIGN_Flame_Weapons.md — §8 the flame look ui already built: the breath is that jet, unchanged
   - ../../designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md — §7 the look library (VehicleLook) a rotor / engine level is read from
 -->
-# NOTE backend → ui — the DRAGON's look *(CE-4634, [DESIGN_Dragon.md](../../designs/fun/DESIGN_Dragon.md) DR-11; approved R-3112, `2026-11-19`)*
+# NOTE backend → ui — the DRAGON's look and sound *(CE-4634, [DESIGN_Dragon.md](../../designs/fun/DESIGN_Dragon.md) DR-11; approved R-3112, `2026-11-19`)*
 
 🔒 User: *"Dragon approved. Please record a note for the UI lane for the visuals."* · the wish: *"similar size [to the Game of Thrones dragons] …
 the player could be sitting on it … a passenger seat like on a motorcycle."*
@@ -30,6 +30,18 @@ look. ⭐ **Mockup first** (R-4143), then build, then check fidelity yourself (R
 | **dying / dead** | falls (the rotorcraft model drops a dead body), lies wings spread; burning wreck NOT — a dragon is fireproof | `Health`, the wreck as for any aircraft |
 | **possessed** | ⭐ the dragon stays drawn when its rider is the player (like a horse: it has no cab) | — |
 | **2-D map** | a dragon symbol in the fun pack's style (not the helicopter's) | — |
+
+## ⭐ Sound — the dragon ROARS *(user, `2026-11-19`: "leave a note for the UI session that the dragons needs to make a roaring sound")*
+
+⛔ Today a dragon would sound like a HELICOPTER: `SoundSources` falls back to `DefaultRotor` for any `LocomotionClass.Rotorcraft`
+(`Hrot/Engine/Hrot.Presentation/Audio/SoundSources.cs:383`). ⭐ What the two lanes do:
+
+| | ⭐ ask | lane |
+|---|---|---|
+| the type's sound | the dragon type declares its own `AcousticSignatureDto` (so the rotor fallback never applies): its MOVING sound is a wingbeat, its roar a new `SoundSourceClass` (lean: `Roar`), heard ~1.5 km | backend, D-1 — ⚠ the class id is agreed in D-1's commit; ui reads it |
+| the WINGBEAT | a slow, heavy whoosh per beat, following the wing pose above (beating ⇒ whooshes; gliding ⇒ wind only; landed ⇒ silent) | ui (`SoundSynthesizer` placeholder, or a file named by the type's `SoundDto`) |
+| the ROAR | a deep beast's roar: ⭐ when it starts to breathe fire (with the flame's own roar, `SoundSourceClass.Flame`), when it takes off, when hit, and now and then while flying (not a loop) | ui — the trigger from sim state the look already reads (the breath's burst record, `Airborne` 0 → 1, a `Health` drop); ⛔ never a sound driven by the wall clock alone in the sim |
+| dying | a long roar falling away | ui |
 
 ## Acceptance — rails, not a person looking
 

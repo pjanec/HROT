@@ -169,7 +169,7 @@ scheduled, so nothing can be unreachable on a host.
 | hover height (autonomous) | 25 m | 30 m |
 | health · armour | 1 500 · 10 / 6 mm | 800 · 8 / 6 mm |
 | weapon | the breath, 50 m, 9° half-angle, ~60 s pool | gun + 38 rockets |
-| heard | a beast's roar + wingbeat, 1.5 km (the flame roar exists) | rotor, 3 km |
+| heard | a beast's roar + wingbeat, 1.5 km (the flame roar exists) — its own `AcousticSignatureDto` (a wingbeat moving class, a `Roar` class), so the rotor fallback never applies; the sounds themselves are ui's (the NOTE) | rotor, 3 km |
 
 ## 5. Slices and scenarios *(each scenario = checks.json `expect` rows + a golden, R-4277)*
 
