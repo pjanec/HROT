@@ -633,6 +633,9 @@ namespace Hrot.ScenarioEditor.Map
             viewSwitch.Build = map3D;
             canvas.AddLayer(map3D);
             canvas.AddLayer(bodies);
+            // ⭐ CE-5034 (glass windows GW-3, DESIGN_Glass_Windows §5) — the window glass: a translucent pass AFTER the terrain and the bodies (a man behind a pane shows through),
+            //   panes and cracks from the replicated window state, a local shard burst when a pane turns broken. Every map host gets it here.
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.GlassLayer3D(worldProvider, () => viewSwitch.Camera3D.Eye));
             // ⭐ CE-1042 E3 — muzzle flashes, tracers, explosions and decals, from their TKB type, in both modes (VE-F).
             var effects = new Hrot.UI.Common.Effects.EffectLayer(worldProvider, tkb, bodies) { GroundHeight = viewSwitch.Camera3D.GroundHeight };
             canvas.AddLayer(effects);
