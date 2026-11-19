@@ -52,7 +52,7 @@ the platoon still decides what comes next. Cost: two rules + rails; touches ever
 
 ## D-6 · CE-3462 — `ts-house-defenders`' Waverer is killed before he can break: how should a low-resolve man surrender in a room clearance? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — a cornered low-resolve man gives up when a rifle is on him at close range (TS-6 row: resolve < 0.3 + `Covering.By` within ~5 m ⇒ Surrender), without waiting for his stress**
+**✅ BUILT `2026-11-19` (behaviors, `0946a2e37`): the TS-6 cornered row (resolve < 0.3 + an enemy rifle within 5 m ⇒ Surrender, calm or not), rail + mutant. ⚠ `ts-house-defenders` still red for ANOTHER reason, measured: the clearing squad stalls ~9.5 m short of closet E (at ease from ~40 s, the Waverer untouched at hp 100) — the clearance, not the surrender (CE-3462 row).** **DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — a cornered low-resolve man gives up when a rifle is on him at close range (TS-6 row: resolve < 0.3 + `Covering.By` within ~5 m ⇒ Surrender), without waiting for his stress**
 
 **Measured** (editor, after CE-3462's re-author — the Coward now breaks at 30.75 s): the Waverer (resolve 0.2, the type's nerve) in closet E peaks at
 stress **0.11** and is killed when the squad enters (Health 0 by ~120 s). TS-6 lets a man surrender only as the OUTCOME of a break (effective resolve
