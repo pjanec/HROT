@@ -16,7 +16,11 @@ import unreal
 BODIES = {"US_Soldier": ("/Game/US_Soldier/Blueprint/US_Soldier", "/Game/Hrot/People/Anims_USSoldier")}
 # a body that is a bare SKELETAL MESH (no Blueprint): name → (mesh, clip folder, yaw of the mesh's facing vs the mannequin's +Y)
 FIGHTER_DIR = "/Game/Fab/Middle_Eastern_Armed_Fighter_–_Realistic_Soldier___Game-Ready__Rigged___Animated"   # the pack's name has an en dash
-BODY_MESHES = {"Fighter": (FIGHTER_DIR + "/Afghan_Vest_Low", "/Game/Hrot/People/Anims_Fighter", 0.0)}
+BODY_MESHES = {"Fighter": (FIGHTER_DIR + "/Afghan_Vest_Low", "/Game/Hrot/People/Anims_Fighter", 0.0),
+               # Fab "Modern Insurgent 7": a UE4-mannequin skeleton, textured, three skins (P7, P7_Skin2, P7_Skin3 share it)
+               "Insurgent": ("/Game/Modern_Insurgent_7/Mesh/SK_Insurgent_P7", "/Game/Hrot/People/Anims_Insurgent", 0.0),
+               # Fab "Modular Insurgent 2" (same maker; its own skeleton asset ⇒ its own clip copies): the merged preset
+               "Insurgent2": ("/Game/Insurgent_2/Mesh/SK_Preset3", "/Game/Hrot/People/Anims_Insurgent2", 0.0)}
 # the right-hand bone, where it is not the mannequin family's hand_r (Rigify: DEF-hand_R)
 HAND = {"Fighter": "DEF-hand_R"}
 # a body's OWN weapon meshes, hidden: the weapon is the person state's (measured: the US_Soldier Blueprint shows its "Gun" in play)

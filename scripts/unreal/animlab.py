@@ -12,6 +12,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from look import free_gb
 
+# the Modern / Modular Insurgent bodies (Fab, one maker, UE4-mannequin skeletons, textured: hrot_person.BODY_MESHES)
+INSURGENT_STATES = [
+    {"label": "rifle lowered", "base": "MM_Rifle_Idle_Hipfire", "weapon": "rifle"},
+    {"label": "walk rifle aimed", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle"},
+    {"label": "jog rifle aimed", "base": "MF_Rifle_Jog_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle"},
+    {"label": "crouch-walk aimed", "base": "MM_Rifle_Crouch_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle"},
+    {"label": "aimed yaw -45", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "yaw": -45, "weapon": "rifle"},
+    {"label": "unarmed walk", "base": "MM_Unarmed_Walk_Fwd"},
+    {"label": "prone", "base": "RTG_Prone_Idle.*"},
+    {"label": "dead front", "base": "RTG_Death_From_The_Front.*", "loop": False, "pose": 8}]
+
 GROUPS = [
     {"name": "stand", "anims": ["MM_Unarmed_Idle_Ready", "MM_Unarmed_IdleBreak_Fidget", "MM_Rifle_Idle_Hipfire", "MM_Rifle_Idle_ADS",
                                 "MM_Rifle_IdleBreak_Scan", "MM_Pistol_Idle_Hipfire", "MM_Pistol_Idle_ADS"]},
@@ -94,6 +105,8 @@ GROUPS = [
         {"label": "unarmed walk", "base": "MM_Unarmed_Walk_Fwd", "body": "Fighter"},
         {"label": "prone", "base": "RTG_Prone_Idle.*", "body": "Fighter"},
         {"label": "dead front", "base": "RTG_Death_From_The_Front.*", "loop": False, "pose": 8, "body": "Fighter"}]},
+    # ⭐ the Modern Insurgent (Fab, a UE4-mannequin skeleton, textured: hrot_person.BODY_MESHES; clips → Anims_Insurgent)
+    *[{"name": name, "anims": [dict(a, body=body) for a in INSURGENT_STATES]} for name, body in (("insurgent", "Insurgent"), ("insurgent2", "Insurgent2"))],
     # ⭐ the fighting SIDES at first glance (UHrotPersonState.MaterialOverrides: a tint of the pack's camo per side)
     {"name": "sides", "anims": [
         {"label": "A walk aimed", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "US_Soldier", "side": "A"},
