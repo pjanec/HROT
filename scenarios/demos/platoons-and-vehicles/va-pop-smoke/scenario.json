@@ -7,14 +7,14 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "test-town",
-    "description": "What: Test-town. An M1 \"Tank\" (BasicVehicleSop, no order) stands in the open at (262,165), just north of the 15 m block's north leg (x 230-250, y 110-150); its hide (262,135) is east of the leg, out of the sight of \"Shooter\", an M2 Bradley 170 m west (100,225) told to attack it (LandPlatformAttack) with its TOW. Judge: (1) the Bradley launches a TOW at the tank (2) within 3 s of the launch the tank fires ONE salvo of its smoke dischargers (mount 2) at the Bradley \u2014 the fan of grenades bursts 30 m out between them (3) the tank leaves the open: it backs into its hide behind the block (4) a second salvo never follows the first within 30 s. Fail: no salvo, a salvo without a launch, or the tank stays in the open. CE-4670 VA-S5, DESIGN_Vehicle_Appearance_State \u00a76f."
+    "description": "What: Test-town. An M1 \"Tank\" (BasicVehicleSop, no order) stands in the open at (262,195), 45 m north of the 15 m block's north leg (x 230-250, y 110-150) \u2014 \u26d4 not (262,165): the L-Block hides it from the Bradley there (measured /perception/los); its hide (262,135) is east of the leg, out of the sight of \"Shooter\", an M2 Bradley 170 m west (100,225) told to attack it (LandPlatformAttack) with its TOW. Judge: (1) the Bradley launches a TOW at the tank (2) within 3 s of the launch the tank fires ONE salvo of its smoke dischargers (mount 2) at the Bradley \u2014 the fan of grenades bursts 30 m out between them (3) the tank leaves the open: it backs into its hide behind the block (4) a second salvo never follows the first within 30 s. Fail: no salvo, a salvo without a launch, or the tank stays in the open. CE-4670 VA-S5, DESIGN_Vehicle_Appearance_State \u00a76f."
   },
   "entities": {
     "c4670d00-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
           262,
-          165,
+          195,
           0
         ],
         "Rotation": [
@@ -74,7 +74,7 @@
           {
             "Entity": "c4670d00-0000-4000-8000-000000000001",
             "PosX": 262,
-            "PosY": 165,
+            "PosY": 195,
             "PosZ": 0,
             "Score": 500,
             "Tick": 0,
