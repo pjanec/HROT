@@ -1493,7 +1493,8 @@ namespace Hrot.Map.Definitions.Tkb
                    .WithSignatures(TkbEntityTypes.Jet_F16, Heard(JetRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Jet_MiG29, Heard(JetRange, SoundSourceClass.Rotor))   // ⭐ CE-10000 (AC-7)
                    .WithSignatures(TkbEntityTypes.Cargo_C130, Heard(JetRange, SoundSourceClass.Rotor))
-                   .WithSignatures(TkbEntityTypes.Jet_AttackA10, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }));
+                   .WithSignatures(TkbEntityTypes.Jet_AttackA10, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }))
+                   .WithSignatures(TkbEntityTypes.Jet_AttackA10Napalm, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }));   // ⭐ CE-3487 — the same airframe
             // ⭐ CE-4617 (RS-2; DESIGN_Radar_SAM, a lane decision) — what a radar sees of each aircraft (m²; a radar's range is stated against
             //   10 m² and scales as RCS^¼): open-source orders of magnitude, frontal. ⇒ an 8 km radar sees a UH-60 at ~6.4 km, an FPV at ~1.4 km.
             builder.WithRadarCrossSection(TkbEntityTypes.Heli_UH60, 4f)
@@ -1502,6 +1503,7 @@ namespace Hrot.Map.Definitions.Tkb
                    .WithRadarCrossSection(TkbEntityTypes.Jet_F16, 3f)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_MiG29, 4f)   // ⭐ CE-10000 (AC-7, §5a)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_AttackA10, 10f)
+                   .WithRadarCrossSection(TkbEntityTypes.Jet_AttackA10Napalm, 10f)   // ⭐ CE-3487
                    .WithRadarCrossSection(TkbEntityTypes.Cargo_C130, 40f)
                    .WithRadarCrossSection(TkbEntityTypes.Drone_Fpv, 0.01f)
                    .WithRadarCrossSection(TkbEntityTypes.Drone_Recon, 0.05f)
@@ -1796,9 +1798,16 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         private static void DefineAttackPlane(NedTkbBuilder builder)
         {
-            const long type = TkbEntityTypes.Jet_AttackA10;
-            DefineAircraft(builder, type, "A-10C Thunderbolt II", "SFAPMFA-------", "#7A8076",
-                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 2 },
+            DefineAttackPlane(builder, TkbEntityTypes.Jet_AttackA10, "A-10C Thunderbolt II", "Mk-82 rack", Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb, 1200f, 0);
+            // ⭐ CE-3487 (flame FL-3, N-8) — the same aircraft with a Mk 77 FIREBOMB rack (napalm): one definition, the rack its only difference
+            DefineAttackPlane(builder, TkbEntityTypes.Jet_AttackA10Napalm, "A-10C (napalm)", "Mk-77 rack", Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk77Firebomb, 0f, 1);
+        }
+
+        /// <summary>The A-10 with its bomb rack of <paramref name="bomb"/> (<paramref name="disSpecific"/> tells the variants apart).</summary>
+        private static void DefineAttackPlane(NedTkbBuilder builder, long type, string name, string rack, int bomb, float bombDamage, byte disSpecific)
+        {
+            DefineAircraft(builder, type, name, "SFAPMFA-------", "#7A8076",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 2, Specific = disSpecific },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
                 {
                     ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
@@ -1825,8 +1834,8 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 25; c.ArmorSide = 25; c.ArmorRear = 10; c.ArmorTop = 10;
                     c.EyeHeight = 1f;
                     c.SensorRange = 5000;
-                    c.Weapons.Add(new WeaponMount { WeaponType = "Mk-82 rack", Ammunition = 4, Range = 3000f, DamagePerHit = 1200,
-                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb), Category = WeaponCategory.Bomb });
+                    c.Weapons.Add(new WeaponMount { WeaponType = rack, Ammunition = 4, Range = 3000f, DamagePerHit = bombDamage,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)bomb, Category = WeaponCategory.Bomb });
                     // ⭐ Air Ops slice 6a (AW-1, AW-2; §7a) — the GAU-8: FIXED forward in the nose (its arc is a 5° cone round the body's
                     //   forward, so the gun run points the plane), 1150 rounds, ~3900 rounds/min; HEI loaded, the penetrator for armour
                     //   (AmmoChoice, M8). Every round's numbers are the library's (MunitionTkbCatalog); dispersion 5 mils (80 % in ~5 mil).

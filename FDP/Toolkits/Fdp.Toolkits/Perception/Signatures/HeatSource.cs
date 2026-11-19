@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Perception.Signatures
     }
 
     /// <summary>One fire spot (TD-6, §3c): in the HOLDER's coordinates, going out by itself at <see cref="Since"/> + <see cref="Seconds"/>.</summary>
-    public readonly struct FireSpot
+    public readonly struct FireSpot : IEquatable<FireSpot>
     {
         public readonly float X, Y, Z, Radius;
         public readonly SimInstant Since;
@@ -71,6 +71,14 @@ namespace Fdp.Toolkit.Perception.Signatures
 
         /// <summary>Gone out by <paramref name="now"/> (or never burned) — its slot may take a new spot.</summary>
         public bool IsOut(double now) => Seconds <= 0f || now >= Since.Seconds + Seconds;
+
+        /// <summary>⭐ CE-3487 — the same spot (the cell-record writer's "already here").</summary>
+        public bool Equals(FireSpot o) => X == o.X && Y == o.Y && Z == o.Z && Radius == o.Radius && Since.Seconds == o.Since.Seconds && Seconds == o.Seconds && Intensity == o.Intensity;
+        public override bool Equals(object? obj) => obj is FireSpot o && Equals(o);
+        public override int GetHashCode() => HashCode.Combine(X, Y, Z, Radius, Since.Seconds, Seconds, Intensity);
+
+        /// <summary>The same spot moved by <paramref name="d"/> (a holder's frame to the world and back).</summary>
+        public FireSpot Offset(System.Numerics.Vector3 d) => new(X + d.X, Y + d.Y, Z + d.Z, Radius, Since, Seconds, Intensity);
     }
 
     /// <summary>
@@ -82,8 +90,24 @@ namespace Fdp.Toolkit.Perception.Signatures
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.FireState)]
     [DataPolicy(DataPolicy.NoScenario)]
-    public unsafe struct FireState
+    public unsafe struct FireState : Fdp.Toolkit.Terrain.ICellRecord<FireSpot>
     {
+        // ⭐⭐ CE-3487 (flame FL-3 N-1; DESIGN_Flame_Weapons §7b) — a TERRAIN CELL's ground fire is a FireState held on the cell's record entity, written by THE
+        //   cell-record writer (GroundFireSystem : CellRecordSystem). Items cross in WORLD metres; the record holds them in its anchor's frame (GroundDamages.Anchor,
+        //   where the writer places the entity). ⚠ The cell (RecordCellX/Y) is OWNER-LOCAL: not on dtFireState — only the owner writes a record.
+        int Fdp.Toolkit.Terrain.ICellRecord<FireSpot>.CellX { get => RecordCellX; set => RecordCellX = value; }
+        int Fdp.Toolkit.Terrain.ICellRecord<FireSpot>.CellY { get => RecordCellY; set => RecordCellY = value; }
+        readonly int Fdp.Toolkit.Terrain.ICellRecord<FireSpot>.ItemCount => Count;
+        readonly bool Fdp.Toolkit.Terrain.ICellRecord<FireSpot>.IsFull => Count >= Capacity;
+        readonly FireSpot Fdp.Toolkit.Terrain.ICellRecord<FireSpot>.Item(int i) => Get(i).Offset(Fdp.Toolkit.Terrain.GroundDamages.Anchor(RecordCellX, RecordCellY, 0f));
+        bool Fdp.Toolkit.Terrain.ICellRecord<FireSpot>.TryAdd(in FireSpot item, out bool full)
+        {
+            var local = item.Offset(-Fdp.Toolkit.Terrain.GroundDamages.Anchor(RecordCellX, RecordCellY, 0f));
+            bool added = TryAdd(in local, item.Since.Seconds);   // a slot whose spot has gone out by this one's ignition is reused
+            full = !added;
+            return added;
+        }
+
         /// <summary>Spots per holder (8 × 32 B + the count ≈ 260 B).</summary>
         public const int Capacity = 8;
 
@@ -98,6 +122,9 @@ namespace Fdp.Toolkit.Perception.Signatures
         public fixed double Since[Capacity];
         public fixed float Seconds[Capacity];
         public fixed float Intensity[Capacity];
+
+        /// <summary>⭐ CE-3487 — the terrain cell this record holds (a ground fire's record only; 0 on a vehicle). Owner-local, appended.</summary>
+        public int RecordCellX, RecordCellY;
 
         /// <summary>Spot <paramref name="i"/> (0 ≤ i &lt; <see cref="Capacity"/>).</summary>
         public readonly FireSpot Get(int i)

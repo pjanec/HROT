@@ -157,7 +157,9 @@ namespace Fdp.Toolkit.Terrain
 
         /// <summary>True when <paramref name="mark"/> is worth a mark: a long enough stand with the engine on.</summary>
         public static bool Leaves(in HeatMark mark)
-            => mark.Kind != HeatMarkKind.NoMark && mark.EngineOnSeconds > 0f && mark.StandSeconds >= MinStandSeconds && mark.Length > 0f && mark.Width > 0f;
+            => mark.Kind == HeatMarkKind.BurnedArea
+                ? mark.Length > 0f && mark.Width > 0f   // ⭐ CE-3487 — a FIRE scorches the ground however briefly it burned: the stand rule (≥ MinStandSeconds, engine on) is a vehicle's
+                : mark.Kind != HeatMarkKind.NoMark && mark.EngineOnSeconds > 0f && mark.StandSeconds >= MinStandSeconds && mark.Length > 0f && mark.Width > 0f;
 
         /// <summary>The cell of a mark (the crater record's cells).</summary>
         public static (int X, int Y) CellOf(in HeatMark m) => GroundDamages.CellOf(m.At);

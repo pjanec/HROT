@@ -549,3 +549,6 @@ ground heat mark still warm (§4b), so a place a vehicle left before it joined i
 | TD-S6 | material thermal classes (TD-9) + the terrain export; IR-blocking smoke (TD-12); weather `Since` (TD-8) | the exported terrain carries a class per surface |
 | TD-S7 | the DIS mapping (TD-11) written into the protocol reference for the gateway | the table, with the damage thresholds |
 | TD-S8 | ground heat marks (TD-14): the record, the writer at a stand's end, `MarkWarmth`, the instructor's layer | `th-vehicle-left-warm-spot`: a tank idles 15 min and drives off — a mark of its footprint, hot end at the rear, is on every node (a late joiner included) and our sensor sees it warm for its cooling time; a parked cold truck leaves none |
+
+⭐ *`2026-11-19`, CE-3487 (flame FL-3, napalm; [DESIGN_Flame_Weapons §7b](../weapons/DESIGN_Flame_Weapons.md)):* the `BurnedArea` kind is now WRITTEN — `GroundFireSystem` leaves one when a ground-fire spot goes out — and `GroundHeatMarkRules.Leaves` takes a `BurnedArea` mark on its size alone: the ≥ 60 s engine-on rule is a vehicle STAND's (a fire scorches however briefly it burned). The terrain cell's record entity is the third `FireState` holder, as TD-6 says: a `FireState` IS the record (`ICellRecord<FireSpot>`, TKB 7210).
+
