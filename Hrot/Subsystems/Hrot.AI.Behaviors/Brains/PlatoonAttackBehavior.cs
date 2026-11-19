@@ -585,7 +585,10 @@ namespace Hrot.AI.Behaviors.Brains
                 // ⭐⭐ CE-4669 — the RESERVE that has reached its point (its bound Set) waits there DEFENDING, never on a finished order: its order
                 //   "stood" (Stands names the run, not the task) ⇒ 📐 live pc-defend-house: Blue Squad 3's BoundingOverwatch ended Success at
                 //   160 s and the squad sat with no task to the end (`doing = nothing`). Re-sending an unchanged SquadDefend is a no-op below.
-                bool reserveArrived = p.Role[slot] == PlatoonAttackPlan.Reserve && p.Spent[slot] == 0
+                // ⭐ D-12 — a slot a phase change just dirtied has not been ordered its bound yet: a Set it reports is its PREVIOUS order's (the
+                //   wait's SquadDefend, AT-14) — 📌 live (pc-corridor-fight): read as "the bound arrived", the reserve was sent to defend its far
+                //   point and WALKED there in a knot across the open instead of bounding
+                bool reserveArrived = p.Role[slot] == PlatoonAttackPlan.Reserve && p.Spent[slot] == 0 && p.Dirty[slot] == 0
                     && (p.Phase == PlatoonAttackPlan.PhaseApproach || p.Phase == PlatoonAttackPlan.PhaseAssault)
                     && CommandPictureOps.ProgressOf(world, self, slot) == ProgressKind.Set;
                 if (reserveArrived) p.Dirty[slot] = 1;

@@ -4014,9 +4014,15 @@ namespace Hrot.SimHost.Tests
                 bearing = (bearing + 360f) % 360f;
                 Assert.True(Hrot.AI.Behaviors.Brains.SectorSplit.Norm(bearing - ea.LeftBearing) <= 2f * PlatoonAttackBehavior.SupportArcHalfDegrees + 0.1f, "it faces the objective");
             }
-            p.ReportSet(p.Bravo);
+            p.ReportSet(p.Charlie);   // the reserve's WAIT is posted (its SquadDefend's Set) …
+            p.Ticks(2);
+            int defends = p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend);
+            p.ReportSet(p.Bravo);     // … then the base of fire is up ⇒ the approach
             p.Ticks(4);
             Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement) > 0, "the approach replaces the wait");
+            // ⭐ the wait's Set is not "the reserve's bound arrived": it BOUNDS to its point, it is not sent to walk there and defend it
+            Assert.Equal(defends, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
+            Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(x => x.Entity.Equals(p.Charlie)).IntentId);
         }
 
         [Fact]
