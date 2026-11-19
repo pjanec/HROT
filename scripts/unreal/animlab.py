@@ -83,6 +83,31 @@ GROUPS = [
          "body": "US_Soldier"},
         {"label": "pistol aimed", "base": "MM_Pistol_Idle_Hipfire", "upper": "MM_Pistol_Idle_ADS", "weapon": "pistol", "body": "US_Soldier"},
         {"label": "prone", "base": "RTG_Prone_Idle.*", "body": "US_Soldier"}]},
+    # ⭐ the fighting SIDES at first glance (UHrotPersonState.MaterialOverrides: a tint of the pack's camo per side)
+    {"name": "sides", "anims": [
+        {"label": "A walk aimed", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "US_Soldier", "side": "A"},
+        {"label": "A rifle lowered", "base": "MM_Rifle_Idle_Hipfire", "weapon": "rifle", "body": "US_Soldier", "side": "A"},
+        {"label": "A crouch aimed", "base": "MM_Rifle_Crouch_Idle", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "US_Soldier", "side": "A"},
+        {"label": "B walk aimed", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "US_Soldier", "side": "B"},
+        {"label": "B rifle lowered", "base": "MM_Rifle_Idle_Hipfire", "weapon": "rifle", "body": "US_Soldier", "side": "B"},
+        {"label": "B crouch aimed", "base": "MM_Rifle_Crouch_Idle", "upper": "MM_Rifle_Idle_ADS", "weapon": "rifle", "body": "US_Soldier", "side": "B"}]},
+    # ⭐ DYING → DEAD: a death clip played ONCE (loop False) and held — `pose` seconds into it (past its end = dead)
+    {"name": "dying", "anims": [
+        {"label": "falling front", "base": "MM_Death_Front_01", "loop": False, "pose": 0.45, "weapon": "rifle", "body": "US_Soldier", "side": "B"},
+        {"label": "dead front 1", "base": "MM_Death_Front_01", "loop": False, "pose": 6, "weapon": "rifle", "body": "US_Soldier", "side": "B"},
+        {"label": "dead front 2", "base": "MM_Death_Front_02", "loop": False, "pose": 6, "weapon": "rifle", "body": "US_Soldier", "side": "B"},
+        {"label": "dead back", "base": "MM_Death_Back_01", "loop": False, "pose": 6, "weapon": "rifle", "body": "US_Soldier", "side": "B"},
+        {"label": "dead left", "base": "MM_Death_Left_01", "loop": False, "pose": 6, "weapon": "rifle", "body": "US_Soldier", "side": "B"},
+        {"label": "dead right", "base": "MM_Death_Right_01", "loop": False, "pose": 6, "weapon": "rifle", "body": "US_Soldier", "side": "B"},
+        {"label": "dying (mixamo)", "base": "RTG_Dying_mixamo.*", "loop": False, "pose": 8, "body": "US_Soldier", "side": "B"}]},
+    # ⭐ the GRENADE throw: Lyra's full-body toss played once, at three moments; the additive toss on a walk
+    {"name": "throw", "anims": [
+        {"label": "toss 0.3 s", "base": "MM_Rifle_GrenadeToss", "loop": False, "pose": 0.3, "weapon": "rifle", "body": "US_Soldier", "side": "A"},
+        {"label": "toss 0.6 s", "base": "MM_Rifle_GrenadeToss", "loop": False, "pose": 0.6, "weapon": "rifle", "body": "US_Soldier", "side": "A"},
+        {"label": "toss 0.9 s", "base": "MM_Rifle_GrenadeToss", "loop": False, "pose": 0.9, "weapon": "rifle", "body": "US_Soldier", "side": "A"},
+        {"label": "walk + toss", "base": "MF_Rifle_Walk_Fwd", "upper": "MM_Rifle_Idle_Hipfire", "action": "MM_Rifle_GrenadeToss_Additive",
+         "weapon": "rifle", "body": "US_Soldier", "side": "A"},
+        {"label": "hit heavy", "base": "MM_HitReact_Front_Hvy_01", "loop": False, "pose": 0.35, "weapon": "rifle", "body": "US_Soldier", "side": "A"}]},
     # the aim pitch seen from the SIDE (facing 90: the barrel crosses the picture) — to judge the angle, not foreshortened
     {"name": "pitch-side", "anims": [
         {"label": "pitch 0", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 0, "facing": 90, "weapon": "rifle"},

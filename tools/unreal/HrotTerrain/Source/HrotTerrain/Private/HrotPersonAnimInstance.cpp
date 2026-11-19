@@ -11,6 +11,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "SkeletalMergingLibrary.h"
 
 namespace
@@ -252,9 +253,21 @@ int32 UHrotPersonState::MergeBodyParts()
 	}
 	Leader->SetSkeletalMeshAsset(Merged);
 	ApplyAnimation();   // a new mesh re-initialises the anim instance
+	ApplyMaterials();   // … and its own materials: the uniform again
 	for (USkeletalMeshComponent* P : Parts) P->SetVisibility(false);
 	QuietOwner();
 	return Parts.Num();
+}
+
+int32 UHrotPersonState::ApplyMaterials()
+{
+	USkeletalMeshComponent* Body = FindLeader();
+	if (!Body) return 0;
+	int32 N = 0;
+	const TArray<FName> Slots = Body->GetMaterialSlotNames();
+	for (const TPair<FName, TObjectPtr<UMaterialInterface>>& O : MaterialOverrides)
+		if (O.Value && Slots.Contains(O.Key)) { Body->SetMaterialByName(O.Key, O.Value); ++N; }
+	return N;
 }
 
 int32 UHrotPersonState::QuietOwner()
@@ -342,6 +355,7 @@ void UHrotPersonState::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	ApplyAnimation();
 	ApplyWeapon();   // a body Blueprint rebuilt in play keeps the weapon in the hand
+	ApplyMaterials();
 	QuietOwner();    // play copies the components with their ticks on: the hidden parts and the actor stop here
 	bAppliedInPlay = true;
 	SetComponentTickEnabled(false);   // once: nothing per frame
@@ -354,7 +368,7 @@ void UHrotPersonAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	if (const AActor* Owner = GetOwningActor())
 		if (const UHrotPersonState* St = Owner->FindComponentByClass<UHrotPersonState>())
 		{
-			NewBase = St->BaseAnim; NewUpper = St->UpperAnim; ActionAnim = St->ActionAnim; UpperRootBone = St->UpperRootBone;
+			NewBase = St->BaseAnim; NewUpper = St->UpperAnim; bBaseLoops = St->bBaseLoops; ActionAnim = St->ActionAnim; UpperRootBone = St->UpperRootBone;
 			ActionTime = St->ActionTime; ActionWeight = St->ActionWeight; AimYaw = St->AimYaw; AimPitch = St->AimPitch;
 			PlayRate = St->PlayRate; TimeOffset = St->TimeOffset; BlendTime = St->BlendTime; AimTurnRate = St->AimTurnRate;
 		}
@@ -365,7 +379,8 @@ void UHrotPersonAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	// a state change starts a crossfade (the first state is taken at once — nothing to blend from)
 	if (NewBase != BaseAnim)
 	{
-		if (!bFirst && BaseAnim) { PrevBaseAnim = BaseAnim; PrevBaseTime = BaseTime; BaseBlendAlpha = 0.f; BaseTime = SamePhase(BaseTime, BaseAnim, NewBase); }
+		if (!bFirst && BaseAnim) { PrevBaseAnim = BaseAnim; PrevBaseTime = BaseTime; BaseBlendAlpha = 0.f; BaseTime = bBaseLoops ? SamePhase(BaseTime, BaseAnim, NewBase) : 0.f; }
+		else if (!bBaseLoops) BaseTime = 0.f;   // a one-shot always plays from its start
 		BaseAnim = NewBase;
 	}
 	if (NewUpper != UpperAnim)
@@ -379,8 +394,9 @@ void UHrotPersonAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	if (BaseBlendAlpha >= 1.f) PrevBaseAnim = nullptr;
 	if (UpperBlendAlpha >= 1.f) PrevUpperAnim = nullptr;
 
-	if (bFirst) { BaseTime = TimeOffset; UpperTime = TimeOffset; AimYawNow = AimYaw; AimPitchNow = AimPitch; }
-	BaseTime = Wrap(BaseTime + Dt, BaseAnim);
+	if (bFirst) { BaseTime = bBaseLoops ? TimeOffset : 0.f; UpperTime = TimeOffset; AimYawNow = AimYaw; AimPitchNow = AimPitch; }
+	BaseTime = bBaseLoops ? Wrap(BaseTime + Dt, BaseAnim)
+	                      : FMath::Min(BaseTime + Dt, BaseAnim ? (float)BaseAnim->GetPlayLength() - 1.e-3f : 0.f);   // held at its end
 	UpperTime = Wrap(UpperTime + Dt, UpperAnim);
 	PrevBaseTime = Wrap(PrevBaseTime + Dt, PrevBaseAnim);
 	PrevUpperTime = Wrap(PrevUpperTime + Dt, PrevUpperAnim);

@@ -85,6 +85,7 @@ def person(g, spec, x, y, row):
     p, ai, sk = made
     S.setdefault("rows", {}).setdefault(g["name"], []).append(p)
     if spec.get("seq"): S.setdefault("live", []).append({"label": p.get_actor_label(), "spec": spec, "crowd": spec.get("body")})
+    if spec.get("pose") is not None: S.setdefault("pose_secs", {})[p.get_actor_label()] = float(spec["pose"])
     if spec.get("then"):   # a TRANSITION: posed in this state, then switched to "then" and shot `after` seconds later (in shoot())
         S.setdefault("transitions", {})[p.get_actor_label()] = (ai, spec)
     t = spawn(unreal.TextRenderActor, (x, y, 205), (0, -90, 0), f"L_{spec['label']}")
@@ -139,7 +140,7 @@ def step_build():
         R["groups"].append({"name": g["name"], "anims": row})
         n = max(1, len(g["anims"]))
         cx = (n - 1) * 80.0
-        dist = max(520.0, n * 125.0)
+        dist = max(520.0, n * 160.0 * 1.15 / (2 * 0.4663))   # the whole row in a 50° field of view (tan 25° = 0.4663); was cut at 5 of 7
         if g.get("live"):   # the live row is spaced twice as wide
             S["live_cam"] = {"x": 2 * cx, "y": y, "dist": dist + 250}
             # the firing target: a wall on the empty −X side, where the gunner ends (he walks ~10 m toward −Y first)
@@ -170,7 +171,8 @@ def shoot():
         for a in S["rows"].get(sh["name"], []):   # pose every person of this row now (deterministic; the editor's own tick is not)
             sk = body_component(a) if a.get_component_by_class(unreal.HrotPersonState) else None
             if sk is not None:
-                unreal.HrotTerrainLibrary.pose_now(sk, 0.6, 12)
+                secs = S.get("pose_secs", {}).get(a.get_actor_label(), 0.6)   # a one-shot clip shown `pose` seconds in
+                unreal.HrotTerrainLibrary.pose_now(sk, secs, max(12, int(secs / 0.05)))
                 for o in a.get_components_by_class(unreal.SkeletalMeshComponent):   # meshes with their OWN anim (the crowd face
                     if o != sk and o.get_anim_instance():                            # copies the body: posed after it, or its
                         unreal.HrotTerrainLibrary.pose_now(o, 0.1, 2)                 # head stays at standing height)

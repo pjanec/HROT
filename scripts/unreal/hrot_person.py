@@ -16,6 +16,14 @@ import unreal
 BODIES = {"US_Soldier": ("/Game/US_Soldier/Blueprint/US_Soldier", "/Game/Hrot/People/Anims_USSoldier")}
 # a body's OWN weapon meshes, hidden: the weapon is the person state's (measured: the US_Soldier Blueprint shows its "Gun" in play)
 BODY_HIDE = {"US_Soldier": ["Gun"]}
+# ⭐ the fighting SIDES at first glance: each a tint of the soldier pack's camo material (M_Master: "Color" × the camo tile), put on the
+# body's cloth and gear slots (UHrotPersonState.MaterialOverrides) — skin, eyes, gloves, boots, metal and glass keep their own
+# ⚠ measured (anim lab): the camo texture carries its own greens and browns — a tint alone left A and B alike. So: A = the camo
+# tinted green, B = FLAT tan (a plain grey tile instead of the camo) — told apart at a glance
+SIDES = {"A": ((0.10, 0.17, 0.07), "/Game/US_Soldier/Texture/T_Camo"),    # woodland camo
+         "B": ((0.55, 0.45, 0.28), "/Game/US_Soldier/Texture/T_Gray")}    # flat desert tan
+SIDE_SLOTS = {"US_Soldier": ["M_Top_Fabric", "M_Fabric_Bottom", "M_Body_Armor", "M_Helmet", "M_Backpack", "M_Pouch", "M_Belt",
+                             "M_Leg_Guard_Fabric", "M_Elbow_Pad_Fabric", "M_Hip_Guard", "M_Leg_Holster", "M_Helmet_Headphone"]}
 # the person HOLDS Lyra's skinned weapons: they carry the Muzzle / ShellEject sockets, and Lyra's attach transform is theirs
 # (measured: SM_Rifle is SK_Rifle turned 180° — sockets derived for it landed on the stock)
 HELD = {"rifle": "/Game/Weapons/Rifle/Mesh/SK_Rifle", "pistol": "/Game/Weapons/Pistol/Mesh/SK_Pistol"}
@@ -75,6 +83,7 @@ class PersonKit:
             if EAL.does_directory_exist(root): paths += list(EAL.list_assets(root, recursive=True, include_folder=False))
         self.names = {p.rsplit(".", 1)[-1]: p for p in paths}   # the mannequin's clips (Lyra + Mixamo retargeted onto it)
         self.clip_index, self.hand_rel, self.offsets = {}, {}, {}
+        self.sides_made = set()
         self.manny = unreal.load_asset(MANNY)
         self.held = {k: unreal.load_asset(p) for k, p in HELD.items()}
         t = spawn(unreal.SkeletalMeshActor, (0, 0, -5000))
@@ -158,10 +167,36 @@ class PersonKit:
             setattr(state, "weapon_socket", sock); setattr(state, "weapon_offset", off)
         state.apply_weapon()
 
+    # ---- the uniform ------------------------------------------------------------------------------------------------------------
+    def side_material(self, side):
+        """The camo of `side` — a material instance of the pack's M_Master, made once (/Game/Hrot/People/Sides/MI_Side_<side>)."""
+        EAL = unreal.EditorAssetLibrary
+        path = f"/Game/Hrot/People/Sides/MI_Side_{side}"
+        if EAL.does_asset_exist(path):
+            if side in self.sides_made: return unreal.load_asset(path)
+            EAL.delete_asset(path)   # rebuilt once per run: the side's look is defined HERE, not by a stale asset
+        mi = unreal.AssetToolsHelpers.get_asset_tools().create_asset(f"MI_Side_{side}", "/Game/Hrot/People/Sides", unreal.MaterialInstanceConstant,
+                                                                      unreal.MaterialInstanceConstantFactoryNew())
+        MEL = unreal.MaterialEditingLibrary
+        MEL.set_material_instance_parent(mi, unreal.load_asset("/Game/US_Soldier/Material/Master/M_Master"))
+        rgb, tile = SIDES[side]
+        MEL.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(*rgb, 1.0))
+        MEL.set_material_instance_texture_parameter_value(mi, "Camo Tile", unreal.load_asset(tile))
+        EAL.save_loaded_asset(mi, False)
+        self.sides_made.add(side)
+        self.log(f"side {side}: {path}")
+        return mi
+
+    def set_side(self, state, body, side):
+        mat = self.side_material(side)
+        setattr(state, "material_overrides", {unreal.Name(sl): mat for sl in SIDE_SLOTS.get(body, [])})
+        return state.apply_materials()
+
     # ---- one person ------------------------------------------------------------------------------------------------------------
     def make(self, body, loc, facing=0.0, label=None, state=None, folder=None, always_tick=False):
         """Spawns a state-driven person at `loc` (feet), its mesh facing `facing` (yaw of +Y), with `state`:
-        {"base", "upper", "action", "actionTime", "yaw", "pitch", "weapon", "timeOffset"} (clip NAMES, regex). → (actor, state, leader),
+        {"base", "upper", "action", "actionTime", "yaw", "pitch", "weapon", "timeOffset", "loop", "side"} (clip NAMES, regex;
+        loop False = the base plays once and holds; side "A" / "B" = the uniform). → (actor, state, leader),
         or None when a clip is missing (the caller reports what).
         ⚠ the STATE is written by plain attribute (setattr), never set_editor_property: that one sends the editor's "property edited"
         notification, which REBUILDS a Blueprint person's components (measured: the body lost its anim class, the weapon doubled)."""
@@ -195,6 +230,7 @@ class PersonKit:
         ps = unreal.HrotTerrainLibrary.add_person_state(p)   # the STATE on the actor (persists)
         if ps is None: raise RuntimeError("cannot add HrotPersonState to " + str(label))
         setattr(ps, "base_anim", clips.get("base"))
+        setattr(ps, "base_loops", bool(st.get("loop", True)))   # False: dying (plays once, holds the last frame = dead)
         if clips.get("upper"): setattr(ps, "upper_anim", clips["upper"])
         if clips.get("action"):
             setattr(ps, "action_anim", clips["action"])
@@ -202,4 +238,5 @@ class PersonKit:
         setattr(ps, "aim_yaw", float(st.get("yaw", 0))); setattr(ps, "aim_pitch", float(st.get("pitch", 0)))
         setattr(ps, "time_offset", float(st.get("timeOffset", 0.3)))
         if st.get("weapon"): self.set_weapon(ps, leader, body, st["weapon"])
+        if st.get("side"): self.set_side(ps, body, st["side"])
         return p, ps, leader

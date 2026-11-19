@@ -9,6 +9,7 @@ class UAnimSequence;
 class USkeletalMeshComponent;
 class UStreamableRenderAsset;
 class UMeshComponent;
+class UMaterialInterface;
 
 /**
  * A person's pose from four inputs, layered the standard way:
@@ -27,6 +28,8 @@ public:
 	/** ⭐ the person's STATE lives on the actor (it persists; HROT's replicated state lands here later) — the anim instance reads it each
 	 *  frame (an editor world rebuilds anim instances on every construction, so values set on the instance itself are lost). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") TObjectPtr<UAnimSequence> BaseAnim;
+	/** false = the base clip plays ONCE from its start and holds its last frame (dying → dead, a stand-up, a throw); true = it loops */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") bool bBaseLoops = true;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") TObjectPtr<UAnimSequence> UpperAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") TObjectPtr<UAnimSequence> ActionAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") FName UpperRootBone = TEXT("spine_01");
@@ -48,6 +51,10 @@ public:
 	/** where it is held: the socket / bone, and the weapon's transform relative to it */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") FName WeaponSocket = TEXT("weapon_r");
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") FTransform WeaponOffset;
+
+	/** ⭐ the uniform: material SLOT → material on the body (the fighting side's camo — both sides on one body asset). Applied with
+	 *  ApplyMaterials, and again in play. Slots the body does not have are ignored. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") TMap<FName, TObjectPtr<UMaterialInterface>> MaterialOverrides;
 
 	/** set by the first tick in play (ApplyAnimation + ApplyWeapon ran) — a check the anim lab reads */
 	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Person") bool bAppliedInPlay = false;
@@ -71,6 +78,10 @@ public:
 	 *  all off, ~0.25 ms. Called once in play (the first tick) and by MergeBodyParts. Returns how many components were quieted. */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Person")
 	int32 QuietOwner();
+
+	/** Puts MaterialOverrides on the body (the leader). Returns how many slots it set. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Person")
+	int32 ApplyMaterials();
 
 	/** The weapon component in the hand, or null. */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Person")
@@ -100,6 +111,8 @@ class HROTTERRAIN_API UHrotPersonAnimInstance : public UAnimInstance
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") TObjectPtr<UAnimSequence> BaseAnim;
+	/** false = the base clip plays ONCE from its start and holds its last frame (dying → dead, a stand-up, a throw); true = it loops */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") bool bBaseLoops = true;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") TObjectPtr<UAnimSequence> UpperAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") TObjectPtr<UAnimSequence> ActionAnim;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") FName UpperRootBone = TEXT("spine_01");
