@@ -181,12 +181,19 @@ namespace Fdp.Toolkit.Combat
             return Fraction(state.Deploy, state.Until, Now(repo), seconds);
         }
 
-        private static bool Begin(EntityRepository repo, Entity weapon, bool deploy)
+        /// <summary>⭐ <c>CE-3470</c> — would <see cref="Deploy"/> (<paramref name="deploy"/>) or <see cref="Pack"/> start now? READS only, so a brain in
+        /// the parallel phase can decide here and leave the write to a follow-up after the phase (the weapon is another entity).</summary>
+        public static bool CanBegin(EntityRepository repo, Entity weapon, bool deploy)
         {
             if (!repo.IsAlive(weapon) || !repo.IsComponentTypeRegistered<WeaponSystemState>() || !repo.HasComponent<WeaponSystemState>(weapon)
                 || !repo.HasComponent<WeaponSystemParams>(weapon) || !Owns(repo, weapon)) return false;
             var now = repo.GetComponentRO<WeaponSystemState>(weapon).Deploy;
-            if (deploy ? now is WeaponDeploy.Deploying or WeaponDeploy.Deployed : now is WeaponDeploy.Packing or WeaponDeploy.Stowed) return false;
+            return !(deploy ? now is WeaponDeploy.Deploying or WeaponDeploy.Deployed : now is WeaponDeploy.Packing or WeaponDeploy.Stowed);
+        }
+
+        private static bool Begin(EntityRepository repo, Entity weapon, bool deploy)
+        {
+            if (!CanBegin(repo, weapon, deploy)) return false;
             var p = repo.GetComponentRO<WeaponSystemParams>(weapon);
             repo.GetComponentRW<WeaponSystemState>(weapon) = new WeaponSystemState
             {

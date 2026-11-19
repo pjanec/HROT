@@ -111,6 +111,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                     SourceClass = (byte)((r.Flags & AcousticPerception.ClassMask) >> AcousticPerception.ClassShift),
                     Family      = (byte)((r.Flags >> AcousticPerception.FamilyShift) & 0x7),   // ⭐ CE-3283 — the top 3 bits (the mask keeps the sign out)
                     Signature   = ring?.TypeOf(r.SignatureToken) ?? 0L,
+                    Via         = (r.Flags & AcousticPerception.ViaMask) != 0 ? (byte)1 : (byte)0,   // ⭐ CE-4666 (D-8)
                 });
             }
         }

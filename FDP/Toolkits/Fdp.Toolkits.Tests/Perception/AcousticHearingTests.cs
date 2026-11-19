@@ -123,6 +123,32 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.True(Heard(true, inside, outside, 30f, SoundSourceClass.Footsteps));
         }
 
+        /// <summary>⭐ <c>CE-4666</c> (D-8) — a sound heard STRAIGHT (open ground, nothing between) carries no via bit: its point is the source
+        /// estimate. ✅ Red-proof: the bit set on every answer ⇒ red.</summary>
+        [Fact]
+        public void CE4666_ASoundHeardStraight_HasNoViaBit()
+        {
+            using var w = World(false);
+            var at = new Vector3(5f, 5f, 0f);
+            var maker = Man(w, at, ForceId.Hostile);
+            SoundEmissionRing.Of(w).Append(new SoundEmission { Source = maker.PackedValue, Force = (byte)ForceId.Hostile,
+                Kind = (byte)SoundKind.Shot, Class = (byte)SoundSourceClass.SmallArms, At = at, Carry = 50f });
+            var unit = Man(w, new Vector3(-8f, 5f, 0f), ForceId.Friend);
+            var s = w.CreateEntity();
+            var entry = new SensorEntryDto { Acoustic = new AcousticSensorDto { Range = 100f } };
+            w.SetManagedComponent(s, new SensorCapability { Default = entry, Current = entry });
+            w.SetSingleton(new GlobalTime { TotalTime = 0.1 });
+            var grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
+            try
+            {
+                var sensor = new EqsSensor { ContextSlot0 = unit };
+                Span<EqsResult> c = stackalloc EqsResult[8];
+                Assert.Equal(1, new AcousticSensorGenerator(grid).Generate(s, ref sensor, w, c));
+                Assert.Equal(0, c[0].Flags & AcousticPerception.ViaMask);
+            }
+            finally { grid.Dispose(); }
+        }
+
         /// <summary>⭐ AQ104 E ② — the slab: steps upstairs, 3 m over a man downstairs, carrying 5 m — halved to 2.5 m, not heard; 8 m —
         /// heard.</summary>
         [Fact]
@@ -174,6 +200,8 @@ namespace Fdp.Toolkit.Tests.Perception
                 var heardAt = new Vector2(c[0].PositionX, c[0].PositionY);
                 Assert.True(Vector2.Distance(heardAt, new Vector2(5f, 6.6f)) <= c[0].Score + 0.1f, $"answered at {heardAt}, radius {c[0].Score}");
                 Assert.True(Vector2.Distance(heardAt, new Vector2(source.X, source.Y)) > 1.5f, $"answered on the steps themselves: {heardAt}");
+                // ⭐ CE-4666 (D-8) — and the answer says so: heard FROM the doorway, not from the source
+                Assert.True((c[0].Flags & AcousticPerception.ViaMask) != 0, "heard through the doorway: the via bit");
             }
             finally { grid.Dispose(); }
         }

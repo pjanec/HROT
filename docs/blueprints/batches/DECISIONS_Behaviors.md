@@ -1,14 +1,59 @@
 <!--STATUS
 state: LIVE — decisions the behaviors lane needs (PROTOCOL_Autonomous_Lanes §3), newest at the top
-updated: 2026-11-18
+updated: 2026-11-19
 current-answer: the whole file
 -->
 
 # DECISIONS — behaviors
 
+## D-10 · CE-4670 — who decides a crewman's head-out and a vehicle's light discipline? (backend built the asks; the deciding is ours) *(2026-11-19)*
+
+**Built (backend, `NOTE_Backend_To_Behaviors_Vehicle_HeadOut_And_Light_Discipline.md`):** `VehicleRequests.HeadOut(world, vehicle, man, out)` (the boarding arbiter opens his seat's hatches, `CrewExposed`) and `VehicleRequests.SwitchLights(world, vehicle, discipline)` (`LightRuleSystem` lights by discipline × darkness × engine). Both are EVENTS — safe from the parallel brain phase. A scenario trigger can already ask (`va-crew-switches`). ⏳ Nothing in a brain asks today: hatches open only on boarding; every vehicle's discipline is whatever the scenario authored (default Normal).
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the vehicle's reaction table already has the contact / hit / under-fire rows | ✅ `BasicVehicleSop.cs:85–98` (Hit, Contact → `VehicleFightFromCover`) | ✅ Vehicle Exposure Cycle §8 |
+| the deciding is the crew's | — | ✅ Vehicle Appearance VA-3 (*"written by the vehicle's BRAIN (the crew decides)"*), VA-4 (*"a crew member's head out (observing, an order, the SOP) is a request"*) |
+| no design names WHEN | ⛔ searched `docs/` + graph (`buttoned`, `head out`, `hatch`, `light discipline`, `blackout`): only this design and its notes | — |
+
+**A — head-out. My lean: ① the vehicle's SOP decides, from what it already knows:** the commander is HEAD OUT while the vehicle is calm (no threat in its memory, not under fire), and goes IN — buttoned up — on the same rows that start `VehicleFightFromCover` (contact / hit / under fire); out again after a quiet spell (e.g. 30 s, like the stress calm). One ask per change, as an event (no cross-entity write). Cost: every crewed vehicle in every scenario shows an open commander's hatch while calm ⇒ goldens move (the opening state); a hit model that reads `CrewExposed` would make the head-out commander vulnerable — that IS the point of the trade, and today no hit model reads it.
+- ② only an order / trigger asks (as now): nothing changes, but a convoy in a quiet zone looks buttoned up for ever.
+- ③ an observation behaviour of its own (an OP task): too much for the default; can come later on top of ①.
+
+**B — light discipline. My lean: ① a vehicle SOP parameter `LightDiscipline` (default Normal ⇒ no golden moves), set per side / unit by the scenario, and an ORDER that carries one overrides it** (a convoy order at night: Convoy; a covert move: Blackout). The order's executor calls `VehicleRequests.SwitchLights` when it starts and restores the SOP's on its end.
+- ② the ROE carries it (`Roe` gains a field): the ROE is a wire component every node reads — too wide for a lights switch.
+- ③ automatic Blackout at night for every military vehicle: realistic for a combat zone, wrong for a road march; moves every night golden.
+
+⛔ Not built. Each half is independent — approve one, both, or name another.
+
+## D-9 · CE-2451 — an insurgent fires his RPG at a MAN: one rocket into the stack ends `ts-house-defenders`' clearance. Should the weapon brain keep the RPG for vehicles? *(2026-11-19)*
+
+**Measured (`ts-house-defenders`, editor, live probe, `/combat/detonations` + `/combat/shots`):**
+1. The six-man squad stacks at the front door (~39, 105–109).
+2. At ~9.1 s the Coward (Insurgent, TKB 2003: RPG-7 + rifle), in room A ~13 m away, fires his **RPG-7** (ammo 6009, shaped charge 0.73 kg) at Rifleman 1.
+3. It bursts 0.23 m from Rifleman 1. Riflemen 1 and 2 die; Rifleman 3 and the Leader take 40–55 blast damage, Rifleman 4 is hurt too. Only ONE rifle round was fired before it.
+4. Riflemen 3, 4 and 5 die by 36–67 s. The Leader (hp 59) walks away north.
+5. ⇒ nobody reaches closet E: the Waverer's two rows (breaks, surrenders) can never pass. *(My earlier "stall 9.5 m short" note was this, mis-read.)* The same insurgent type defends `bc-house-defended` (CE-2451) — likely the same root, not yet measured.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the brain picks the mount by a utility product (effectiveness × rounds-left × range) | ✅ `WeaponChoice.Choose` → `WeaponSelectionDecision` (`StarterPack/WeaponSelectionDecision.cs`) | ✅ Utility AI Demo §360: *"the 25 mm wins on infantry, the TOW on a tank"* |
+| nothing rules an AT round out against a man; vs a 100-hp man the RPG's effectiveness is 1 (one hit kills), so only rounds-left (ln 4 / ln 301 ≈ 0.24 vs the rifle's ≈ 0.84) holds it back ⇒ a near tie that tips with stance or hit chance | ✅ `StandardInputs.WeaponEffectivenessVsTarget` / `RoundsLeft` (`StandardInputs.cs:421, 480`); ⚠ the exact scores not printed | — |
+| the RPG is meant for vehicles | — | ✅ `UrbanCombatTkbCatalog` M5: *"and a rifle, for men (the RPG for vehicles: the weapon brain picks)"*; ✅ Aggregate Squad **R-3**: *"`WeaponChoice` already scores it 0 against men"* — ⛔ that premise is FALSE live, and no rail pins it |
+| 2003's mounts did not change recently | ✅ CE-4648 (`032465362`, 2026-11-17) moved them into one template, unchanged | — |
+
+**My lean: ① — make R-3 true: an anti-armour mount (shaped charge / ATGM / RPG round) scores 0 against an UNARMOURED target (a person) while another mount with rounds can hurt him.**
+- If it is his only loaded mount, he may still fire it (he does not stand idle).
+- Built as one weapon-selection consideration (or a factor inside the effectiveness input), with a rail: an RPG + rifle man at a 13 m soldier picks the rifle, at a tank picks the RPG, and with an empty rifle picks the RPG.
+- Cost: goldens move wherever RPG men face infantry (urban battle, ambushes). `ts-house-defenders` and `bc-house-defended` re-measured after.
+- ② raise `RoundsLeft`'s weight: still a soft tie, and it moves every other weapon choice (the 25 mm vs the TOW).
+- ③ keep it ("insurgents do fire RPGs at troops"): then R-3 and M5 are wrong and the two clearance scenarios need a rifle-only cast (type 2010). Realistic for a group in the open; not for one man at 13 m indoors (arming distance, back-blast — not modelled).
+
+⛔ Not built. Meanwhile `ts-house-defenders` stays red (CE-3462 row).
+
 ## D-8 · CE-4666 — a shot heard through our own window becomes an ENEMY at our window: SPOT → flank → the line faces away. Where should it stop? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — the ear keeps AQ106 F; the memory slot and the squad pool carry "heard through an opening"; `ComposeSpot` leaves such contacts out of an element's position (where to LOOK, not where the enemy IS); the man's own reactions unchanged. ALSO: a squad turned by `Supplement` is turned back when its flank element goes stale**
+**✅ BUILT `2026-11-19` (behaviors): both halves — the via mark ear → event/wire → memory (`Anonymous` 2) → pool (`HeardThroughFlag`) → `ComposeSpot` skips it (Sensing §8.6c), and a turned squad turns back when its flank goes stale (DA-60 as built). `pc-defend-house`: Red's line opens fire at 32.9 s stepped (was 143 s).** **DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — the ear keeps AQ106 F; the memory slot and the squad pool carry "heard through an opening"; `ComposeSpot` leaves such contacts out of an element's position (where to LOOK, not where the enemy IS); the man's own reactions unchanged. ALSO: a squad turned by `Supplement` is turned back when its flank element goes stale**
 
 **Measured (`pc-defend-house`, editor, live probes):**
 1. Blue fires from ~125 m south.
@@ -34,7 +79,7 @@ Cost: one memory flag + one pool flag + one SPOT filter, with rails. `pc-defend-
 
 ## D-7 · CE-4667 — `SupportByFire` has no exit for an empty weapon or dead targets: what should the base of fire do then? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — two exits inside `SupportByFire`, the platoon's lift unchanged: (a) a man with no rounds left ⇒ the squad's hold-with-return-fire (`CombatPosture`, takes cover); (b) every reported post with no live contact within 25 m for 10 s ⇒ the play stops firing (Hold, PROGRESS `TargetsDown`) and keeps its position. Resupply stays a later capability**
+**✅ BUILT `2026-11-19` (behaviors): both exits in `SupportByFire.Run` — (a) an empty man holds where he is; (b) every post's KNOWN men down for 10 s ⇒ hold + PROGRESS `TargetsDown`, resumes if one gets up; ⚠ a post with nobody known near it keeps the blind fire (AU-1's premise). Assault Under Fire §9.1a.** **DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — two exits inside `SupportByFire`, the platoon's lift unchanged: (a) a man with no rounds left ⇒ the squad's hold-with-return-fire (`CombatPosture`, takes cover); (b) every reported post with no live contact within 25 m for 10 s ⇒ the play stops firing (Hold, PROGRESS `TargetsDown`) and keeps its position. Resupply stays a later capability**
 
 **Measured / read:** the design gives the base of fire ONE exit — the platoon LIFTS it when the assault holds a foothold (DA-11, `DESIGN_Assault_Under_Fire.md`
 §9.1); `Suppress` runs "until the order is taken away" (Squad Tactics §7.5) and already stops firing at a dead target (it holds). ⛔ No design names an exit for
@@ -52,7 +97,7 @@ the platoon still decides what comes next. Cost: two rules + rails; touches ever
 
 ## D-6 · CE-3462 — `ts-house-defenders`' Waverer is killed before he can break: how should a low-resolve man surrender in a room clearance? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — a cornered low-resolve man gives up when a rifle is on him at close range (TS-6 row: resolve < 0.3 + `Covering.By` within ~5 m ⇒ Surrender), without waiting for his stress**
+**✅ BUILT `2026-11-19` (behaviors, `0946a2e37`): the TS-6 cornered row (resolve < 0.3 + an enemy rifle within 5 m ⇒ Surrender, calm or not), rail + mutant. ⚠ `ts-house-defenders` still red for ANOTHER reason, measured: the clearing squad stalls ~9.5 m short of closet E (at ease from ~40 s, the Waverer untouched at hp 100) — the clearance, not the surrender (CE-3462 row).** **DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — a cornered low-resolve man gives up when a rifle is on him at close range (TS-6 row: resolve < 0.3 + `Covering.By` within ~5 m ⇒ Surrender), without waiting for his stress**
 
 **Measured** (editor, after CE-3462's re-author — the Coward now breaks at 30.75 s): the Waverer (resolve 0.2, the type's nerve) in closet E peaks at
 stress **0.11** and is killed when the squad enters (Health 0 by ~120 s). TS-6 lets a man surrender only as the OUTCOME of a break (effective resolve
@@ -68,7 +113,7 @@ room entry is the cornered path). Cost: a StressSystem rule + a rail; touches ev
 
 ## D-5 · CE-9023 — `uc-urban-battle` "the convoy moves on": the platoon holds while the ambush lasts — what should the row wait for? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — author the ambush's END (the fire team withdraws or is killed by a fixed time); runFor stays 200; DA-100 unchanged**
+**✅ BUILT `2026-11-19` (behaviors): a scenario Trigger at 100 s orders the fire team to withdraw north out of the street (`AdvanceTo` (720, 330)); `uc-urban-battle` 20/20 — the convoy moves on at 194.75 s (runFor 200). ⚠ close to the end: a later withdrawal or a longer remount would miss it.** **DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — author the ambush's END (the fire team withdraws or is killed by a fixed time); runFor stays 200; DA-100 unchanged**
 
 **Measured** (editor, after the boarding fix `b7a088964`): one defect found and FIXED — a KILLED man (body, Health 0) held a squad's boarding back:
 Squad A's leader boarded at 79 s, yet SquadEmbark failed on its 60 s timeout and the remount waited its 120 s (the move-on at 195 s). ⚠ What remains is
@@ -86,7 +131,7 @@ So *when* the convoy moves on is how long the ambush lives, not the convoy play.
 
 ## D-4 · `uf-squad-under-fire` row (4) "the bounds complete" — the squad now needs ~300 s: change the hostiles, or the clock? *(2026-11-18)*
 
-**DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — the two hostiles get a real soldier's SOP (they react to fire); runFor stays 120; the near-miss row must still pass**
+**✅ BUILT `2026-11-19` (behaviors): both hostiles run `BasicInfantrySop` with an authored temperament `nerve 0.97, resolve 0.9, obedience 0` (a break line of 0.97 — the effective nerve is `v + obedience × (0.75 − v)`, so with the default obedience 0.8 ANY authored nerve breaks at ≤ 0.8). `uf-squad-under-fire` 5/5: rounds near the squad 4.5 s · a mover drops 3.5 s · crouched under fire 4.5 s · covered 4.5 s · the bounds complete 78 s (runFor 120); golden re-captured. 📐 measured on the way: a soldier's SOP alone (default temperament) ⇒ both break by 3.5–5 s under the squad's fire and only one round reaches a rifleman (rows 1/3 red); nerve 1 + obedience 0 (never breaks) ⇒ rows 1–4 pass but the bounds miss 120 s — so the hostiles' break time IS what sets this scenario. ⚠ the margin: rows 1/3 at 4.5 s vs a break at ~5–7 s; a change to stress gain moves it.** **DECIDED `2026-11-18` (user, via coordinator: "approved"): ① — the two hostiles get a real soldier's SOP (they react to fire); runFor stays 120; the near-miss row must still pass**
 
 **Measured** (live, after CE-4652's fixes): the two InertSop hostiles now lie down and fire the whole run (Hostile 2: 103 rounds by 80 s,
 empty at 200 s — the old passing golden's ~100). Every near miss drops a mover (row 2 now PASSES), so the squad closes ~45 m by 120 s, ~60 m by

@@ -85,7 +85,8 @@ namespace Fdp.Toolkit.Squad.Systems
                     {
                         MergeHeard(ref localPool, heardRadius, heardClass, mem.EntityIds[k],
                                    mem.PositionsX[k], mem.PositionsY[k], mem.PositionsZ[k], mem.Radius[k], mem.SourceClass[k],
-                                   mem.Freshness[k], mem.LastSeenTick[k], mem.Modalities[k], sourceBit);
+                                   mem.Freshness[k], mem.LastSeenTick[k], mem.Modalities[k], sourceBit,
+                                   TargetMemory.IsHeardThroughAnOpening(in mem, k));   // ⭐ CE-4666 (D-8)
                         continue;
                     }
                     MergeContact(
@@ -187,7 +188,7 @@ namespace Fdp.Toolkit.Squad.Systems
         private static void MergeHeard(
             ref SquadContactPool pool, float* radii, byte* classes,
             long id, float x, float y, float z, float radius, byte sourceClass,
-            float threatScore, uint lastSeenTick, byte modalities, ushort sourceMemberBit)
+            float threatScore, uint lastSeenTick, byte modalities, ushort sourceMemberBit, bool through = false)
         {
             var span = MemoryMarshal.CreateSpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref pool.Contacts), 16);
@@ -214,6 +215,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 if (lastSeenTick > c.LastSeenTick) c.LastSeenTick = lastSeenTick;
                 c.SourceMembersMask = (ushort)(c.SourceMembersMask | sourceMemberBit);
                 c.Flags             = (ushort)(c.Flags | modalities);
+                if (!through) c.Flags = (ushort)(c.Flags & ~SquadContact.HeardThroughFlag);   // ⭐ CE-4666 — one straight hearing makes it a source estimate
                 return;
             }
 
@@ -233,7 +235,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 PositionZ         = z,
                 ThreatScore       = threatScore,
                 LastSeenTick      = lastSeenTick,
-                Flags             = (ushort)(modalities | SquadContact.AnonymousFlag),
+                Flags             = (ushort)(modalities | SquadContact.AnonymousFlag | (through ? SquadContact.HeardThroughFlag : 0)),   // ⭐ CE-4666
                 SourceMembersMask = sourceMemberBit,
             };
             radii[slot] = radius;

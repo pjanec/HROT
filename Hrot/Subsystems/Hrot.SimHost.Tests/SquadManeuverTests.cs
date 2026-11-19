@@ -1126,8 +1126,9 @@ namespace Hrot.SimHost.Tests
             // ⭐ no current reaction declares LeavesRoute ⇒ a Defend / Hold order refuses no reaction (lane decision; HoldsFirm keeps its job)
             //   ⭐ CE-4624 MS-B1 — the ONE ruled exception: MineStrike declares Halts | LeavesRoute (Minefields MR-6, R-4272) — a unit holding a
             //   position that sets off a mine keeps holding (it is not moving through the field)
+            //   ⭐ CE-3474 — and BackOut, the drill's own leg (MR-5, R-2125: the men back out along their tracks): the same exception
             foreach (var d in Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default.Behaviors)
-                Assert.True((d.Conduct & Fdp.Toolkit.Behavior.Conduct.LeavesRoute) == 0 || d.Name == BehaviorNames.MineStrike,
+                Assert.True((d.Conduct & Fdp.Toolkit.Behavior.Conduct.LeavesRoute) == 0 || d.Name == BehaviorNames.MineStrike || d.Name == BehaviorNames.BackOut,
                     $"{d.Name} leaves the route: a Defend / Hold order would now refuse it");
         }
 
@@ -3519,6 +3520,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, c.Picture.Elements.Count);                                   // the lost SPOT, at once (not at the refresh)
         }
 
+        /// <summary>⭐⭐ <c>CE-4666</c> (D-8, user-approved) — a contact the squad heard only THROUGH AN OPENING is where to look, not where the enemy is:
+        /// it makes no element (no SPOT, the platoon's picture stays empty); once a member hears it straight it is a source estimate and is SPOTted.
+        /// 📌 Live pc-defend-house: a shot 125 m off, heard through the reserve's window, was SPOTted at its own post and turned the line away.
+        /// ✅ Red-proof: the HeardThroughFlag skip removed from <c>ComposeSpot</c> ⇒ an element at once ⇒ red.</summary>
+        [Fact]
+        public void CE4666_AContactHeardOnlyThroughAnOpening_IsNoElement_HeardStraightItIs()
+        {
+            var c = new Chain(members: 3);
+            ref var squad = ref c.S.Repo.GetComponentRW<SquadCognitiveState>(c.S.Commander);
+            var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
+            span[0] = new SquadContact { EntityId = -1, PositionX = 0f, PositionY = 200f, ThreatScore = 1f, SourceMembersMask = 1,
+                                         Flags = (ushort)(SquadContact.AnonymousFlag | SquadContact.HeardThroughFlag) };
+            squad.Contacts.Count = 1;
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(0, c.Picture.Elements.Count);                                   // through his window: no enemy there
+
+            c.S.Repo.GetComponentRW<SquadCognitiveState>(c.S.Commander).Contacts.Contacts[0].Flags = SquadContact.AnonymousFlag;
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(1, c.Picture.Elements.Count);                                   // heard straight: SPOTted
+        }
+
         /// <summary>⭐ <c>CE-2294</c> (CB-33, CB-34) — a squad re-SPOTs an element it still holds every 15 s, so the platoon's copy stays
         /// fresh while it is there (a stale one then means it is gone). ✅ Red-proof: the refresh check removed ⇒ no second SPOT.</summary>
         [Fact]
@@ -4789,6 +4812,28 @@ namespace Hrot.SimHost.Tests
             p.ReportSpot(p.Bravo, new Vector3(0f, -100f, 0f), 2);   // south: nobody left to turn
             p.Ticks(12);
             Assert.Equal((2, 2, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo), DefendOrders(p, p.Charlie)));
+        }
+
+        /// <summary>⭐⭐ <c>CE-4666</c> (D-8, user-approved) — a squad turned to a flank turns BACK to its home slice once the flank element goes
+        /// stale (no fresh SPOT in the turned slice for <see cref="PlatoonDefendBehavior.TriggerFreshSeconds"/>): ordered again, facing its own
+        /// share of the area. 📌 pc-defend-house: a phantom flank kept the line facing away from the attack all fight.
+        /// ✅ Red-proof: the turn-back loop skipped ⇒ Alpha stays turned (no third order) ⇒ red.</summary>
+        [Fact]
+        public void CE4666_ATurnedSquad_TurnsBack_WhenItsFlankGoesStale()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            var home = SectorOf(p, p.Alpha);
+            p.ReportSpot(p.Bravo, new Vector3(100f, 0f, 0f), 2);    // east, 100 m: Alpha turns to it
+            p.Ticks(12);
+            Assert.Equal(2, DefendOrders(p, p.Alpha));
+            Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(Vector3.Zero, SectorOf(p, p.Alpha).LeftBearing,
+                SectorOf(p, p.Alpha).RightBearing, 0f, 0f, new Vector3(100f, 0f, 0f)), "turned to the flank");
+            p.S.Pause(PlatoonDefendBehavior.TriggerFreshSeconds + 1f);   // no fresh SPOT there any more
+            p.Ticks(12);
+            Assert.Equal(3, DefendOrders(p, p.Alpha));                 // ordered again…
+            Assert.Equal((home.LeftBearing, home.RightBearing), (SectorOf(p, p.Alpha).LeftBearing, SectorOf(p, p.Alpha).RightBearing));   // …to its own slice
         }
 
         /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-61, DA-63) — every squad is asked for a 15 s SITREP; Bravo reports RED but the enemy is not in its

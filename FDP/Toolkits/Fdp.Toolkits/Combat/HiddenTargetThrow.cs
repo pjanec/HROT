@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Combat
             if (flat > range) return false;
             if (!AimAndFireExecutor.RoePermitsFire(world, unit)) return false;
             // ⭐ CE-2360 — the friend check over the ONE lethal radius (GrenadeRules): a blast radius alone left an M67's fragments out
-            if (FriendlyInBurst(world, unit, point, GrenadeRules.LethalRadius(warhead))) return false;
+            if (FriendHurtByBurst(world, unit, point, warhead)) return false;   // ⭐ CE-2452 — the one law, the wall between counted
             if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, unit, point)) return false;   // ⭐ CE-2282 DA-L
 
             world.Bus.Publish(new WeaponFireIntent
@@ -160,6 +160,32 @@ namespace Fdp.Toolkit.Combat
                 point = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
                 seenStance = mem.SeenStance[i];
                 return true;
+            }
+            return false;
+        }
+
+        [ThreadStatic] private static System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>? t_scratch;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2452</c> — L-2 by the ONE law (<see cref="GrenadeRules.Hurts"/>, the room drill's CB-70): any living friend of
+        /// <paramref name="unit"/> (the thrower too) that <paramref name="warhead"/> bursting at <paramref name="point"/> would hurt — within its
+        /// lethal radius AND with fragments getting through what stands between (a wall counts). ⛔ Was a flat 2-D radius: a defender behind
+        /// his own wall vetoed a grenade at a man hugging its far side.
+        /// </summary>
+        public static bool FriendHurtByBurst(EntityRepository world, Entity unit, Vector3 point, WarheadDto warhead)
+        {
+            if (!world.IsComponentTypeRegistered<EntityInfo>() || !world.HasComponent<EntityInfo>(unit)) return false;
+            var force = world.GetComponentRO<EntityInfo>(unit).ForceId;
+            float reach = MathF.Max(warhead.BlastInjuryRadiusM, warhead.FragmentRadiusM);
+            float r2 = reach * reach;
+            var query = Fdp.Toolkit.World.WorldQuery.Of(world);
+            var scratch = t_scratch ??= new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
+            foreach (var e in world.Query().With<EntityInfo>().With<SimTransform>().Build())
+            {
+                if (world.GetComponentRO<EntityInfo>(e).ForceId != force || !CombatLife.IsAlive(world, e)) continue;
+                var p = world.GetComponentRO<SimTransform>(e).Position;
+                if (new Vector2(p.X - point.X, p.Y - point.Y).LengthSquared() > r2) continue;
+                if (GrenadeRules.Hurts(query, warhead, point, p, scratch)) return true;
             }
             return false;
         }

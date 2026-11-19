@@ -194,8 +194,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         public static void Judge(EntityRepository world, Entity e, double now)
         {
-            if (!JudgeCompute(world, e, now, out var edge, out bool broken)) return;
-            JudgeApply(world, e, edge, broken);
+            bool judged = JudgeCompute(world, e, now, out var edge, out bool broken);
+            if (judged) JudgeApply(world, e, edge, broken);
+            // ⭐ CE-3462 (D-6) — independent of the break: a CALM man is judged nothing (JudgeCompute is false under his break line) and can still be cornered
+            if (!broken && CorneredCandidate(world, e)) GiveUpIfCornered(world, e);
         }
 
         /// <summary>⭐ P-1 (the parallel experiment) — the part of <see cref="Judge"/> that writes only <paramref name="e"/>'s own Stress: the
@@ -264,6 +266,32 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ CE-4652 — his SOP is <c>InertSop</c> (no reactions).</summary>
         public static bool IsInertSop(EntityRepository world, Entity e)
             => world.IsComponentTypeRegistered<SopState>() && world.HasComponent<SopState>(e) && world.GetComponentRO<SopState>(e).SopHash == s_inertSop;
+
+        /// <summary>⭐ <c>CE-3462</c> (D-6, user-approved; TS-6 row) — a CORNERED man is a rifle this close (m).</summary>
+        public const float CorneredMetres = 5f;
+
+        /// <summary>⭐ <c>CE-3462</c> (D-6) — the part of the cornered rule that reads only HIM (parallel-safe): resolve under
+        /// <see cref="SurrenderResolve"/>, not InertSop, and no break / grenade / surrender reaction already running.</summary>
+        public static bool CorneredCandidate(EntityRepository world, Entity e)
+        {
+            if (!world.HasComponent<BehaviorState>(e) || !world.HasComponent<Stress>(e) || !Feels(world, e) || IsInertSop(world, e)) return false;
+            if (TemperamentOf.Effective(world, e, TemperamentTrait.Resolve) >= SurrenderResolve) return false;
+            var task = world.GetComponentRO<BehaviorState>(e);
+            return !(task.Origin == BehaviorOrigin.Reaction && task.ActiveBehaviorHash != BehaviorIds.None
+                     && (task.Urgency == ReactionUrgency.Grenade || task.Urgency == ReactionUrgency.Break));
+        }
+
+        /// <summary>⭐⭐ <c>CE-3462</c> (D-6, user-approved; TS-6 row) — a low-resolve man with a forces rifle on him at close range
+        /// (<see cref="Covering.By"/> within <see cref="CorneredMetres"/>) GIVES UP at once, without waiting for his stress to break him: a room
+        /// entry is too fast for the near-miss stress to reach his break line (📐 ts-house-defenders: the Waverer peaked at 0.11 and was shot).
+        /// SERIAL (it reads the other men's weapon postures).</summary>
+        public static void GiveUpIfCornered(EntityRepository world, Entity e)
+        {
+            if (Covering.By(world, e, CorneredMetres).IsNull) return;
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.NoteReactionCause(world, e, (byte)SensorChange.StressBreak);
+            SopActions.React(world, e, Hrot.Map.Definitions.Behavior.BehaviorNames.Surrender, ReactionUrgency.Break,
+                             new Hrot.Map.Definitions.Behavior.SurrenderParamsJsonDto { Seconds = 0f });
+        }
 
         /// <summary>TS-6 — he gives up: effective resolve under <see cref="SurrenderResolve"/> and a forces rifle on him (<see cref="Covering.By"/>).</summary>
         public static bool Surrenders(EntityRepository world, Entity e)
@@ -439,11 +467,18 @@ namespace Hrot.AI.Behaviors.Brains
             public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx)
             {
                 StressModel.StepExisting(Repo, e, Now);
-                if (!StressModel.JudgeCompute(Repo, e, Now, out var edge, out bool broken)) return;
-                if (edge != null || broken) ctx.Defer(e, edge is { } w ? (int)w : -1, broken ? 1f : 0f);
+                bool judged = StressModel.JudgeCompute(Repo, e, Now, out var edge, out bool broken);
+                // ⭐ CE-3462 (D-6) — Value 2: not broken, but a cornered candidate (his own state only, judged or not — a calm man too); the rifle
+                //   check runs serially below
+                bool cornered = !broken && StressModel.CorneredCandidate(Repo, e);
+                if (!judged && !cornered) return;
+                if (edge != null || broken || cornered) ctx.Defer(e, edge is { } w ? (int)w : -1, broken ? 1f : cornered ? 2f : 0f);
             }
             public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d)
-                => StressModel.JudgeApply(repo, d.Entity, d.Code >= 0 ? (SensorChange)d.Code : null, d.Value != 0f);
+            {
+                StressModel.JudgeApply(repo, d.Entity, d.Code >= 0 ? (SensorChange)d.Code : null, d.Value == 1f);
+                if (d.Value == 2f) StressModel.GiveUpIfCornered(repo, d.Entity);
+            }
         }
 
         private bool Owned(EntityRepository repo, Entity e)

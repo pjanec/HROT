@@ -2014,6 +2014,8 @@ namespace Hrot.NED.Descriptors
         public byte  Family;
         /// <summary>⭐ CE-3283 — the TKB type that made it (a weapon / a munition), when the ear told it; 0 otherwise. A TYPE, never an entity.</summary>
         public long  Signature;
+        /// <summary>⭐ CE-4666 (D-8) — 1 when heard FROM an opening or a corner (the point is the way in, not the source).</summary>
+        public byte  Via;
     }
 
 }

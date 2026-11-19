@@ -486,6 +486,8 @@ sequenceDiagram
   S->>C: PutDown — Success at once when he carries nothing
   S->>C: Embark Role=Gunner — walk to it, board its Gunner seat (ManWeapon)
   S->>D: DeployWeapon { weapon }
+  D->>W: CanBegin(weapon) — read only (CE-3470)
+  Note over D,W: in the parallel brain phase the weapon is ANOTHER entity — Deploy/Pack runs as a follow-up after the phase (BatchContext.Later), outside a phase at once
   D->>W: Deploy(weapon) once — false when already Deployed
   loop each tick
     D->>W: read WeaponSystemState.Deploy
@@ -493,6 +495,8 @@ sequenceDiagram
   D-->>S: Success at Deployed · Failure: weapon gone / state not ours / Stowed again
   Note over S: now the controller (§6) — his weapon brain fires the weapon
 ```
+
+⭐ **As built `2026-11-19` (CE-3470, behaviors):** under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` the gunner's `DeployWeapon` read and WROTE the weapon's `WeaponSystemState` in the brain phase (a cross-entity write, R-4212) — the deploy now defers its write (`WeaponDeployment.CanBegin` decides, a follow-up writes); `WeaponSystemState` (AiBrainReads) and `NetworkAuthority` (BrainReads, `Owns`) are declared reads. `ua-m2-engage` / `ua-weapon-systems` pass under the strict env.
 
 ```mermaid
 graph TD

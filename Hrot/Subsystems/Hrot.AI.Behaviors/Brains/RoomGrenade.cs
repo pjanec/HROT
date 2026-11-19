@@ -72,15 +72,14 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class GrenadeCheck
     {
-        /// <summary>CB-30 — no throw when a friend would be stunned longer than this (s).</summary>
-        public const float FriendStunSeconds = 0.5f;
+        /// <summary>CB-30 — no throw when a friend would be stunned longer than this (s) (⭐ CE-2452: the one rule, <see cref="GrenadeRules"/>).</summary>
+        public const float FriendStunSeconds = GrenadeRules.FriendStunSeconds;
         /// <summary>CB-70 — a fragmentation grenade's lethal radius, as a share of its fragment reach (⭐ CE-2360: the one rule, <see cref="GrenadeRules"/>).</summary>
         public const float LethalShareOfReach = GrenadeRules.LethalShareOfReach;
-        /// <summary>CB-70 — fragments still getting through a wall above this share count as reaching the man (the same transmission the
-        /// area effect applies, <see cref="AreaEffect.FragmentTransmission"/>).</summary>
-        public const float FragmentsThrough = 0.05f;
-        /// <summary>A man's body point the prediction is made at: his chest (m above his feet).</summary>
-        public const float ChestHeight = 1.2f;
+        /// <summary>CB-70 — fragments still getting through a wall above this share count as reaching the man (<see cref="GrenadeRules"/>).</summary>
+        public const float FragmentsThrough = GrenadeRules.FragmentsThrough;
+        /// <summary>A man's body point the prediction is made at: his chest (m above his feet) (<see cref="GrenadeRules"/>).</summary>
+        public const float ChestHeight = GrenadeRules.ChestHeight;
 
         /// <summary>CB-67 — the grenade the room gets: not suspected ⇒ none; Precision ⇒ stun; HighIntensity ⇒ fragmentation, a stun when
         /// civilians are known.</summary>
@@ -139,20 +138,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// left out — it only ever shrinks the effect, so leaving it out errs safe. No world query ⇒ no barrier (errs safe too).
         /// </summary>
         public static bool Hurts(IWorldQuery? query, WarheadDto warhead, Vector3 burst, Vector3 friend, List<TraceCrossing> scratch)
-        {
-            var chest = friend + new Vector3(0f, 0f, ChestHeight);
-            float r = Vector3.Distance(burst, chest);
-            float reach = MathF.Max(warhead.BlastInjuryRadiusM, warhead.FragmentRadiusM);
-            if (r > reach) return false;
-            scratch.Clear();
-            query?.Trace(burst, chest, TracePurpose.Fire, scratch);
-            float barrier = query == null ? 1f : AreaEffect.ClosedBarrierTransmission(scratch);
-            if (warhead.Kind == WarheadKind.Stun)
-                return warhead.EffectSeconds * AreaEffect.BlastFalloff(r, warhead.BlastLethalRadiusM, warhead.BlastInjuryRadiusM) * barrier > FriendStunSeconds;
-            float lethal = GrenadeRules.LethalRadius(warhead);
-            float through = query == null ? 1f : AreaEffect.FragmentTransmission(scratch, warhead.FragmentPenetrationMm);
-            return r <= lethal && through > FragmentsThrough;
-        }
+            => GrenadeRules.Hurts(query, warhead, burst, friend, scratch);   // ⭐ CE-2452 — the one law, in FDP Combat
 
         /// <summary>CB-70 — is <paramref name="burst"/> safe for every man at <paramref name="men"/> — where each will stand at the BANG (the
         /// stack at its stack points behind the wall, the thrower back at his), never where he stands while the grenade is thrown.</summary>
