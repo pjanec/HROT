@@ -15,6 +15,11 @@ namespace Hrot.AI.Behaviors.Orders
     /// <c>[x, y, z]</c>, <c>"@Key"</c> or both — the type alone makes the menu ask for a point (DESIGN_Map_Picking_Unification). ⛔ Not geodetic
     /// since S0 (it was a <c>PickableGeoPoint</c>; CE-2433).
     /// </summary>
+    /// <summary>⭐ <c>CE-4670</c> D-10 B — an order's light discipline: <see cref="Unset"/> keeps the vehicle's own (standing) discipline; the rest name a
+    /// <see cref="Fdp.Toolkit.Behavior.Components.LightDiscipline"/> by the same name.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum OrderLights : byte { Unset = 0, Normal, Convoy, Blackout, Off }
+
     [Order(nameof(OrderKind.Move), Gesture = OrderGesture.GroundClick)]
     [StructLayout(LayoutKind.Sequential)]
     public struct MoveOrder
@@ -35,6 +40,10 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>How much to prefer roads.</summary>
         [JsonPropertyName("RoadUse")]
         public RoadUse RoadUse;
+        /// <summary>⭐ <c>CE-4670</c> D-10 B — the vehicle's light discipline WHILE this order runs (a night move: <c>Convoy</c>; a covert one:
+        /// <c>Blackout</c>); none ⇒ the vehicle keeps its standing (authored) discipline. Restored when the order ends (<c>VehicleCrewNodes.LightsByOrder</c>).</summary>
+        [JsonPropertyName("Lights")]
+        public OrderLights Lights;
     }
 
     /// <summary>
@@ -83,6 +92,10 @@ namespace Hrot.AI.Behaviors.Orders
         [JsonPropertyName("Route")]
         [Fdp.Toolkit.Behavior.Attributes.MapPickableEntity("road_graphs")]
         public Fdp.Toolkit.Replication.EntityLink Route;
+        /// <summary>⭐ <c>CE-4670</c> D-10 B — the vehicle's light discipline WHILE this order runs (a night move: <c>Convoy</c>; a covert one:
+        /// <c>Blackout</c>); none ⇒ the vehicle keeps its standing (authored) discipline. Restored when the order ends (<c>VehicleCrewNodes.LightsByOrder</c>).</summary>
+        [JsonPropertyName("Lights")]
+        public OrderLights Lights;
     }
 
     /// <summary>

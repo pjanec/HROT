@@ -51,6 +51,8 @@ namespace Fdp.Toolkit.Utility
         public const ushort WeaponEffectivenessVsTarget = 0xEE5F;
         /// <summary>⭐ CE-3071 — how many rounds the mount has left, on a log scale (<see cref="StandardInputs.RoundsLeft"/>).</summary>
         public const ushort RoundsLeft               = 0xCAE9;
+        /// <summary>⭐ CE-2451 D-9 — 0 when an anti-armour mount would be wasted on an unarmoured target (<see cref="StandardInputs.MountSuitsTarget"/>).</summary>
+        public const ushort MountSuitsTarget         = 0x6685;
         /// <summary>⭐ CE-3084 — an identified remembered contact is held by a sensor NOW, by sight (<see cref="StandardInputs.ThreatInSight"/>).</summary>
         public const ushort ThreatInSight            = 0x2D27;
         /// <summary>⭐ WL-4 W-12f — the unit carries a hand-thrown indirect round it can still throw (<see cref="StandardInputs.CarriesThrowable"/>).</summary>
@@ -469,6 +471,20 @@ namespace Fdp.Toolkit.Utility
             return result;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-2451</c> D-9 (user-approved `2026-11-19`) — 0 when this mount is ANTI-ARMOUR, the context target is UNARMOURED (a man, an
+        /// animal) and the unit has another loaded mount that can hurt him (<see cref="Fdp.Toolkit.Combat.WeaponChoice.HeldForArmour"/>), else 1.
+        /// A Step consideration in <c>WeaponSelectionDecision</c>: the RPG scores 0 against a rifleman while the rifle has rounds — Aggregate
+        /// Squad R-3 made true. ⛔ Kept apart from <see cref="WeaponEffectivenessVsTarget"/>, which stays the share of a kill.
+        /// </summary>
+        [UtilityInput("MountSuitsTarget")]
+        public static float MountSuitsTarget(in UtilityInputCtx ctx)
+        {
+            if (ctx.Context.IsNull || !ctx.Repo.IsAlive(ctx.Context)) return 1f;
+            var owner = Fdp.Toolkit.Combat.CombatTkb.OwnerOf(ctx.Repo, ctx.Self);
+            return Fdp.Toolkit.Combat.WeaponChoice.HeldForArmour(ctx.Repo, owner, MountNumbers(ctx.Repo, ctx.Self, ctx.Params.MountIndex), ctx.Context) ? 0f : 1f;
+        }
+
         /// <summary>The ammunition count at which <see cref="RoundsLeft"/> reaches 1.</summary>
         public const float RoundsLeftFullScale = 300f;
 
@@ -578,6 +594,7 @@ namespace Fdp.Toolkit.Utility
             UtilityInputReaderStore.Register(StandardInputIds.WeaponRangeBandFit,       &WeaponRangeBandFit);
             UtilityInputReaderStore.Register(StandardInputIds.WeaponEffectivenessVsTarget, &WeaponEffectivenessVsTarget);
             UtilityInputReaderStore.Register(StandardInputIds.RoundsLeft,               &RoundsLeft);
+            UtilityInputReaderStore.Register(StandardInputIds.MountSuitsTarget,         &MountSuitsTarget);   // ⭐ CE-2451 D-9
             UtilityInputReaderStore.Register(StandardInputIds.ThreatInSight,            &ThreatInSight);
             UtilityInputReaderStore.Register(StandardInputIds.CarriesThrowable,         &CarriesThrowable);
             UtilityInputReaderStore.Register(StandardInputIds.UnderFire,                &UnderFire);

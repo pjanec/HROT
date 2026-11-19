@@ -711,6 +711,42 @@ namespace Fdp.Toolkit.Tests.Utility
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-2451</c> D-9 (user-approved `2026-11-19`; Aggregate Squad R-3) — an RPG man (mount 0 an RPG whose round is a SHAPED
+        /// CHARGE, mount 1 a rifle): against a soldier 13 m off the RPG suits nothing (0) and the rifle does (1); against a tank the RPG suits (1);
+        /// with the rifle EMPTY the RPG suits the soldier again (1 — his only loaded mount: he does not stand idle). 📐 Before: the RPG won a near
+        /// tie against a man (`ts-house-defenders`, one rocket into the stack). ✅ Red-proof: <c>HeldForArmour</c> never true ⇒ the first row red.
+        /// </summary>
+        [Fact]
+        public void CE2451_D9_AnRpg_SuitsATankNotASoldier_UnlessItIsHisOnlyLoadedMount()
+        {
+            const long RpgRound = 9601, RpgMan = 9602;
+            var round = new Fdp.Interfaces.TkbTemplate("RPG round", RpgRound);
+            round.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.ShapedCharge, FragmentRadiusM = 20f });
+            var type = new Fdp.Interfaces.TkbTemplate("RPG man", RpgMan);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 3,   Range = 300, Penetration = 500, DamagePerHit = 400, AmmoGuid = (ulong)RpgRound },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 150, Range = 400, Penetration = 8,   DamagePerHit = 35 },
+            } });
+            _world.UseTkb(type, round, UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate());
+            var man = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(man, new SimTransform { Position = Vector3.Zero });
+            _world.SetType(man, RpgMan);
+            var rpg   = _world.SpawnWeaponMount(man, mountIndex: 0, weaponGuid: 1, effRange: 300f, ammo01: 1f, initialAmmunition: 3);
+            var rifle = _world.SpawnWeaponMount(man, mountIndex: 1, weaponGuid: 2, effRange: 400f, ammo01: 1f, initialAmmunition: 150);
+            var soldier = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 13f, maxHealth: 100f);
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            _world.Repo.AddComponent(soldier, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Pedestrian });
+            var tank = _world.SpawnTypedTarget(UtilityTestWorld.TankType, 300f, maxHealth: 2500f);
+
+            Assert.Equal(0f, StandardInputs.MountSuitsTarget(MakeCtx(rpg, soldier)));
+            Assert.Equal(1f, StandardInputs.MountSuitsTarget(MakeCtx(rifle, soldier)));
+            Assert.Equal(1f, StandardInputs.MountSuitsTarget(MakeCtx(rpg, tank)));
+            _world.Repo.GetComponentRW<WeaponState>(rifle).Ammo = 0;
+            Assert.Equal(1f, StandardInputs.MountSuitsTarget(MakeCtx(rpg, soldier)));
+        }
+
+        /// <summary>
         /// ⭐ M1 (DESIGN_Armour_Hit_Model §5) — the AI expects the face the SHOT would meet, in 3-D: a Bradley 30 m above a tank
         /// 10 m away expects its roof (20 mm: the 25 mm defeats it — 60 of 2500), level at 1500 m its front (500 mm: nothing). The
         /// same ArmorModel the damage step applies (R-212 A1).
