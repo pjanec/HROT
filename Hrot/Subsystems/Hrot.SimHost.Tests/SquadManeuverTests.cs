@@ -3981,6 +3981,17 @@ namespace Hrot.SimHost.Tests
         {
             var p = new Platoon(squads: 3);
             var o = new Vector3(0f, 200f, 0f);
+            // ⭐ Alpha as a squad WITH a man: its entity's own transform stays where it was authored, its one man stands elsewhere
+            var stale = new Vector3(500f, -400f, 0f);
+            var manAt = new Vector3(30f, 40f, 0f);
+            if (p.S.Repo.HasComponent<SimTransform>(p.Alpha)) p.S.Repo.GetComponentRW<SimTransform>(p.Alpha).Position = stale;
+            else p.S.Repo.AddComponent(p.Alpha, new SimTransform { Position = stale, Rotation = Quaternion.Identity });
+            var man = p.S.Repo.CreateEntity();
+            p.S.Repo.AddComponent(man, new SimTransform { Position = manAt, Rotation = Quaternion.Identity });
+            p.S.Repo.AddComponent(man, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            var roster = new UnitRoster { Count = 1 };
+            roster.SubordinateEntities[0] = man;
+            if (p.S.Repo.HasComponent<UnitRoster>(p.Alpha)) p.S.Repo.GetComponentRW<UnitRoster>(p.Alpha) = roster; else p.S.Repo.AddComponent(p.Alpha, roster);
             p.ReportSpot(p.Bravo, o, 3);
             p.Ticks(2);
             Attack(p, o);
@@ -3989,6 +4000,9 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             foreach (var waiting in new[] { p.Alpha, p.Charlie })
             {
+                if (waiting == p.Alpha)
+                    Assert.True(Vector3.Distance(OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend).Position, manAt) < 0.5f,
+                                "it waits where its MEN stand, never at the squad entity's authored transform");
                 Assert.Equal(1, p.OrdersTo(waiting, BehaviorNames.SquadDefend));
                 var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend);
                 Assert.Equal(PlatoonAttackBehavior.WaitRadius, d.SearchRadius);

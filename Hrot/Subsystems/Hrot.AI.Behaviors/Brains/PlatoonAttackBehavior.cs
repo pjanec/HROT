@@ -13,6 +13,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Perception.Survey;
 using Fdp.Toolkit.Squad.Command;
+using Fdp.Toolkit.Combat;
 using Fhsm.Compiler;
 using Fhsm.Compiler.Graph;
 using Fhsm.Kernel.Attributes;
@@ -590,7 +591,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (reserveArrived) p.Dirty[slot] = 1;
                 if (p.Dirty[slot] == 0 && CommandOrders.Stands(world, self, squad)) continue;
                 p.Dirty[slot] = 0;
-                var standsAt = StaffComposerSystem.CentreOf(world, squad);   // ⭐ D-12 — where a waiting squad takes cover
+                var standsAt = MenCentre(world, squad);   // ⭐ D-12 — where a waiting squad takes cover: where its MEN stand
                 if (!OrderFor(ref p, slot, json, out var behaviour, out var order, out var kind, out var neutral, reserveArrived, standsAt)) continue;
                 // ⭐ CE-2346 (R-2066 D) — a phase change re-dirties every slot; the support's SquadDefend is the same order in the next
                 //   phase, and re-sending it restarted the squad from "move to the point" (measured: men walked back round the berm)
@@ -603,6 +604,23 @@ namespace Hrot.AI.Behaviors.Brains
             }
             Lift(ref p, world, self, n);   // ⭐ AU-1 — after the orders: the assault's new order has restarted its progress row
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ D-12 — where a squad's live men stand (their mean), never the squad entity's own transform: 📌 live (`pc-corridor-fight`) that
+        /// one stays where the squad was authored, so a wait ordered "where it stands" on the attack's second objective marched the squad 120 m
+        /// back across the open. No live man ⇒ <see cref="StaffComposerSystem.CentreOf"/>.</summary>
+        private static Vector3 MenCentre(EntityRepository world, Entity squad)
+        {
+            if (!world.HasComponent<UnitRoster>(squad)) return StaffComposerSystem.CentreOf(world, squad);
+            ref readonly var roster = ref world.GetComponentRO<UnitRoster>(squad);
+            var sum = Vector3.Zero; int n = 0;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = CommandPictureOps.Subordinate(world, squad, i);
+                if (m.IsNull || !world.IsAlive(m) || !Injury.IsInTheFight(world, m) || !world.HasComponent<SimTransform>(m)) continue;
+                sum += world.GetComponentRO<SimTransform>(m).Position; n++;
+            }
+            return n > 0 ? sum / n : StaffComposerSystem.CentreOf(world, squad);
         }
 
         /// <summary>The order a slot of <paramref name="slot"/>'s role gets in the plan's phase (false = none: it keeps what it has).</summary>
