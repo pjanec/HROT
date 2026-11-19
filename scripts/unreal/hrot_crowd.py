@@ -119,7 +119,23 @@ def spawn_up_to(target):
             a.set_folder_path("Crowd"); a.set_actor_label(f"Person_{len(crowd):04d}")
         crowd.append(a)
     R["people"] = len(crowd)
-    if JOB.get("fire"):   # ⭐ every soldier fires bursts (UHrotShotRenderer's native driver — measures the shots, not Python)
+    if JOB.get("fire") and not JOB.get("play"): start_fire(crowd)
+    if JOB.get("people") == "soldiers":   # ⭐ check, never assume: who runs our animation and holds a visible weapon
+        tally = {}
+        for a in crowd:
+            st = a.get_component_by_class(unreal.HrotPersonState)
+            lead = st.find_leader() if st else None
+            ai = lead.get_anim_instance() if lead else None
+            w = st.get_weapon_component() if st else None
+            key = (ai.get_class().get_name() if ai else None, bool(w and w.is_visible()), str(w.get_attach_socket_name()) if w else None)
+            tally[str(key)] = tally.get(str(key), 0) + 1
+        R.setdefault("tally", []).append(tally); log(f"people by (anim, weapon visible, weapon socket): {tally}")
+    log(f"{len(crowd)} people placed within {JOB['radius']} m in {time.time() - t:.0f} s; editor memory {proc_gb():.1f} GB")
+
+
+def start_fire(crowd):
+    """⭐ every soldier fires bursts (UHrotShotRenderer's native driver — measures the shots, not Python). In play: the PLAY copies."""
+    if crowd:
         r = unreal.HrotShotRenderer.for_world(crowd[0])
         if JOB.get("allNiagara"):   # the comparison: the old way — every extra spawned per shot, no range, no budget
             r.near_range = 1e9; r.impact_range = 1e9
@@ -132,17 +148,6 @@ def spawn_up_to(target):
         r.start_test_fire([s for s in states if s], float(JOB["fire"]), 1.0, 1.0)
         S["fire_start"] = (time.time(), 0)
         log(f"firing: {len(states)} shooters, {JOB['fire']} rounds/s in 1 s bursts, 1 s pauses ({'all Niagara' if JOB.get('allNiagara') else 'instanced + near budget'}; budgets/s smoke {r.smoke_per_second:.0f} shell {r.shell_per_second:.0f} impact {r.impact_per_second:.0f}, lights {r.max_lights})")
-    if JOB.get("people") == "soldiers":   # ⭐ check, never assume: who runs our animation and holds a visible weapon
-        tally = {}
-        for a in crowd:
-            st = a.get_component_by_class(unreal.HrotPersonState)
-            lead = st.find_leader() if st else None
-            ai = lead.get_anim_instance() if lead else None
-            w = st.get_weapon_component() if st else None
-            key = (ai.get_class().get_name() if ai else None, bool(w and w.is_visible()), str(w.get_attach_socket_name()) if w else None)
-            tally[str(key)] = tally.get(str(key), 0) + 1
-        R.setdefault("tally", []).append(tally); log(f"people by (anim, weapon visible, weapon socket): {tally}")
-    log(f"{len(crowd)} people placed within {JOB['radius']} m in {time.time() - t:.0f} s; editor memory {proc_gb():.1f} GB")
 
 
 def proc_gb():
@@ -217,6 +222,12 @@ def apply_variant(var):
             a.set_actor_tick_enabled(False)
             for c in a.get_components_by_class(unreal.ActorComponent): c.set_component_tick_enabled(False)
             a.set_actor_hidden_in_game(True)
+        if var == "nolod" and n == 0:   # the comparison: every person every frame (UHrotPeopleLod off)
+            setattr(unreal.HrotPeopleLod.for_world(a), "enabled", False)
+        if var.startswith("interval"):   # the body ticks every N ms (interval100 = 10 Hz): does the cost scale with tick COUNT?
+            lead.set_component_tick_interval(float(var[len("interval"):]) / 1000.0)
+        if var == "noweapontick" and w:   # the weapon's bones never animate: its tick is pure cost
+            w.set_component_tick_enabled(False)
         if var == "hiddenquiet":   # neither drawn nor animated: what remains is the per-actor overhead
             a.set_actor_hidden_in_game(True)
         if var == "frozen":   # no animation at all: what remains is skinning, drawing, per-actor overhead
@@ -250,6 +261,7 @@ def measure_tick(dt):
             w = game_world()
             S["play_crowd"] = [a for a in unreal.GameplayStatics.get_all_actors_of_class(w, unreal.Actor) if a.get_actor_label().startswith("Person_")] if w else []
             log(f"play: Simulate running, {len(S['play_crowd'])} people in the game world")
+            if JOB.get("fire") and S["play_crowd"]: start_fire(S["play_crowd"])
         else:
             LES().editor_request_end_play(); log("play: ended")
         S["queue"].pop(0); return True
@@ -271,15 +283,16 @@ def measure_tick(dt):
     m = {"view": ph["view"]["name"], "people": ph["count"], "mode": ph.get("mode", "editor"), "frames": len(d),
          "msMean": round(1000 * sum(d) / max(len(d), 1), 2), "msMedian": round(1000 * d[len(d) // 2], 2) if d else None,
          "ms95": round(1000 * d[int(len(d) * 0.95)], 2) if d else None, "editorGB": round(proc_gb(), 2)}
-    if S.get("fire_start") and S.get("crowd"):
-        r = unreal.HrotShotRenderer.for_world(S["crowd"][0])
+    if S.get("fire_start") and S.get("crowd") and (not JOB.get("play") or S.get("play_crowd")):
+        r = unreal.HrotShotRenderer.for_world((S.get("play_crowd") or S["crowd"])[0])
         t0, n0 = S["fire_start"]; m["roundsPerSecond"] = round((r.test_rounds_fired - n0) / max(time.time() - t0, 0.001))
         m["liveFlashes"], m["liveTracers"], m["nearSpawnedLastFrame"] = r.live_flashes, r.live_tracers, r.near_spawned_last_frame
+        m["fireMs"], m["rebuildMs"] = round(r.fire_ms_last_frame, 2), round(r.rebuild_ms_last_frame, 2)
         S["fire_start"] = (time.time(), r.test_rounds_fired)
     R["measure"].append(m)
     json.dump(R, open(JOB["out"], "w", encoding="utf-8"), indent=1)   # partial results survive a stop
     log(f"[{m['mode']}] {m['view']} with {m['people']} people: {m['msMean']} ms mean, {m['ms95']} ms p95, editor {m['editorGB']} GB"
-        + (f"; {m['roundsPerSecond']} rounds/s, {m['liveFlashes']} flashes / {m['liveTracers']} tracers live" if 'roundsPerSecond' in m else ""))
+        + (f"; {m['roundsPerSecond']} rounds/s, {m['liveFlashes']} flashes / {m['liveTracers']} tracers live; renderer: fire {m['fireMs']} ms, rebuild {m['rebuildMs']} ms" if 'roundsPerSecond' in m else ""))
     if ph["count"]:
         tag = ph.get("mode", "editor").replace(": ", "-").replace(", ", "-").replace(" ", "-")
         path = os.path.join(JOB["shots"], f"crowd-{ph['count']}-{ph['view']['name']}-{tag}.png").replace("\\", "/")

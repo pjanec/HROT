@@ -1,5 +1,6 @@
 // CE-4651 (U-16) — see the header.
 #include "HrotPersonAnimInstance.h"
+#include "HrotPeopleLod.h"
 
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimSequence.h"
@@ -337,6 +338,9 @@ UMeshComponent* UHrotPersonState::ApplyWeapon()
 		K->SetSkeletalMeshAsset(SK);
 		K->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;   // also on a copy made in play
 		K->RefreshBoneTransforms();
+		// ⭐ its bones never animate: posed ONCE (its sockets right), then no tick — it follows the hand by attachment.
+		// Measured, 1000 soldiers in play: the weapons' ticks cost 3.1 ms for nothing
+		K->SetComponentTickEnabled(false);
 	}
 	C->SetVisibility(true);
 	C->AttachToComponent(Hand, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocket);
@@ -357,6 +361,7 @@ void UHrotPersonState::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	ApplyWeapon();   // a body Blueprint rebuilt in play keeps the weapon in the hand
 	ApplyMaterials();
 	QuietOwner();    // play copies the components with their ticks on: the hidden parts and the actor stop here
+	if (UHrotPeopleLod* Lod = UHrotPeopleLod::Get(this)) Lod->Add(this);   // how often it updates: by distance (staggered)
 	bAppliedInPlay = true;
 	SetComponentTickEnabled(false);   // once: nothing per frame
 }

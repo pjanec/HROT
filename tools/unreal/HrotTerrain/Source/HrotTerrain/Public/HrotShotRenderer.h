@@ -65,6 +65,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 LiveFlashes = 0;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 LiveTracers = 0;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 NearSpawnedLastFrame = 0;
+	/** ⭐ the renderer's own cost last frame (ms, game thread): firing (the test driver's FireShot calls) and the instance rebuild */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") float FireMsLastFrame = 0.f;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") float RebuildMsLastFrame = 0.f;
 
 	/** ⭐ MEASUREMENT: every shooter fires its weapon (UHrotPersonState's) in bursts — `RoundsPerSecond` while in a burst of
 	 *  `BurstSeconds`, then `PauseSeconds` quiet, the shooters out of step; each round "hits" 40 m along the barrel. Native, so a

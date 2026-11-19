@@ -148,6 +148,7 @@ void UHrotShotRenderer::StopTestFire() { TestShooters.Reset(); TestCarry.Reset()
 
 void UHrotShotRenderer::Tick(float DeltaTime)
 {
+	const double FireStart = FPlatformTime::Seconds();
 	if (TestRate > 0.f && TestShooters.Num() > 0)
 	{
 		static FHrotShotFx Fx = UHrotWeaponFx::LyraRifleFx();
@@ -168,6 +169,9 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 			}
 		}
 	}
+	FireMsLastFrame = float((FPlatformTime::Seconds() - FireStart) * 1000.0);
+	const double RebuildStart = FPlatformTime::Seconds();
+	ON_SCOPE_EXIT { RebuildMsLastFrame = float((FPlatformTime::Seconds() - RebuildStart) * 1000.0); };
 	NearSpawnedLastFrame = NearThisFrame; NearThisFrame = 0;
 	const float Rates[4] = { SmokePerSecond, ShellPerSecond, ImpactPerSecond, BlastPerSecond };
 	for (int32 K = 0; K < 4; ++K) Tokens[K] = FMath::Min(Tokens[K] + Rates[K] * DeltaTime, FMath::Max(Rates[K] * 0.1f, 1.f));   // ≤ 0.1 s of burst
