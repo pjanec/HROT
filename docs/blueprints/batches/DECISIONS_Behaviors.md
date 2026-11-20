@@ -6,6 +6,20 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-15 · CE-8311 — a soldier SUPPRESSING a hidden enemy stands upright in the open *(2026-11-20, agg-behaviors)*
+
+**DECIDED `2026-11-20` (user: "yes, go ahead with your lean"): ① — 🛠 BUILT (agg-behaviors): cover in reach ⇒ suppress from it (the take-cover cycle); none ⇒ prone. Decision Layer §3.3g′. Rails `TacticsTreesTests.CE8311_*`.**
+
+📐 `bt-window-duel`: the Street Rifleman picks Suppress (the Window Rifleman unseen), blind-fires 5 rounds into the house wall STANDING at (108.5, 80) for 12 s, and dies to two aimed rounds; Van 1 is 4.5 m away. `PostureNodes.Suppress` = fire blind, no stance, no move.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| Suppress sets no stance and never moves | ✅ `PostureNodes.Suppress` (Fire, blind) | ⛔ searched Decision Layer §3.3, Peek and Fire: none |
+| the posture already holds a cover answer at the TakeCover branch's reach | ✅ `PostureSensors` (CE-4652) | ✅ CE-4652 |
+| the take-cover cycle fires blind bursts at the freshest evidence | ✅ `PeekAndFireNodes` D13 | ✅ Peek and Fire D13 |
+
+- ① (chosen) take cover in reach, else prone, then suppress. · ② suppress from a lower stance only: he stays in the open. · ③ keep: a man suppresses standing in the open.
+
 ## D-14 · CE-8308 — a round is released with a friend 0.65 m off its line, 45 m out: the spread hits him (the friend check ignores the spread; the neutral check does not) *(2026-11-19, agg-behaviors)*
 
 **Measured** (`pc-corridor-fight`, agg-behaviors `2247b504d` — D-13's prone half; deterministic, 2 runs): the new red *"no Blue round hits a Blue man"* at

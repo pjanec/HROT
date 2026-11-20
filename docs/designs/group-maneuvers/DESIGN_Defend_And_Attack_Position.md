@@ -1076,6 +1076,8 @@ scenario (DA-5) · `ContactOutsideSector` displacement (DA-21) · `sq-defend-hou
 
 #### D-2m — posts for COVERAGE, and a lone man's guard round *(`CE-2373`; behaviors — AQ104 L ✅ approved 2026-10-25, R-2079; build-state: BUILDING — L1 below; L2 the open-ground overview ask)*
 
+⭐⭐ **`CE-8312` (agg-behaviors, `2026-11-20`, on the user's word) — the coverage fan looks from where the post WATCHES.** The frame pass (D-2l) runs before coverage, so a Regular's window post is a frame point 0.5 m INSIDE the wall beside its opening; the fan looked from there, through the wall, and every window saw almost nothing — 📐 live `ia-area-defend`: the lone guard's round was two posts on House A's south wall and Blue East walked in from the east unseen. ⭐ `DefencePlan.CoverageEye`: a frame post's coverage origin (and its candidate point in `CoveragePosts.Seen`) is its OPENING at the post's height (where he leans out to watch and fire, DA-80); any other post its point. ⛔ Was: the post point. Rail `SquadManeuverTests.CE8312_*` (red-proved).
+
 🔒 User, `2026-10-25`: *"defendenrs always need to have a good overview of the surroundings"* · *"in case there is a squad … the goys need to
 guard clevely not just randomly changing their observation posts"*. 📄 [AQ104](../../blueprints/Architect_Question_104_Area_And_Building_Combat.md) §4 L.
 

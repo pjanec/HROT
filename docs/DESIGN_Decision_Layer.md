@@ -927,6 +927,10 @@ Rails: `StandardInputReaderTests.CE3084_*` (the input) · `TacticsTreesTests.CE3
 ⇒ flanks, firing, and on arrival goes straight on without ending the run · in sight ⇒ Direct · the outer posture still switches to
 TakeCover and the flank goes) · `TacticsTreesTests.CE2117_*` and `HybridLifecycleTests.CE2117_*` (both red before the kernel fix).
 
+### 3.3g′ `CE-8311` (D-15) — SUPPRESS never stands in the open *(agg-behaviors, `2026-11-20`, user-approved: "go ahead with your lean"; build-state: BUILT)*
+
+⭐ The Suppress branch is an ObserverSelector of three: the willing grenadier's close-to-throw (AQ89 C, unchanged) · ⭐ **cover in reach** (`PostureNodes.CoverInReach`: the posture's own cover sensor — the one the decision's TakeCover score reads, at the TakeCover branch's reach, CE-4652 — holds a point scoring > 0.05) ⇒ the take-cover cycle (`PeekAndFire`: hide, expose, a blind burst at the freshest evidence — suppressing FROM cover) · otherwise `PostureNodes.Suppress`, now **prone** (its deactivator stands him up). 📐 Why: live `bt-window-duel` — a lone attacker blind-fired at a window for 12 s STANDING in the open, Van 1 4.5 m away, and was shot; the Suppress node set no stance at all (searched this design and Peek and Fire: no rule said where a suppressing man stands). ⛔ Was: Suppress fired from wherever he stood, at his current stance. Rails `TacticsTreesTests.CE8311_*` (red-proved twice: no prone ⇒ standing; no from-cover branch ⇒ PeekAndFire never runs).
+
 ### 3.3f `CE-3090` — the wounded unit on open ground: HoldProne, and Flee only when able *(behaviors, `2026-10-07`; build-state: BUILT)*
 
 > 🔒 **User, `2026-10-07`:** *"flee is only realistic if the unit is healthy and capable of fleeing without becoming easy target; for
