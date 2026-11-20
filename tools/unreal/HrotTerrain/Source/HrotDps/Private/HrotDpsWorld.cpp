@@ -10,6 +10,9 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
 #include "HrotFire.h"
+#include "HrotAnimal.h"
+#include "Engine/DecalActor.h"
+#include "Components/DecalComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
@@ -49,6 +52,12 @@ namespace
 	using FMunitionLook = SimNetGateway_Protocol_DdsPlayer_MunitionLook;
 	using FVehicleLook = SimNetGateway_Protocol_DdsPlayer_VehicleLook;
 	using FTkbType = SimNetGateway_Protocol_DdsPlayer_TkbType;
+	using FAnimalS = SimNetGateway_Protocol_DdsPlayer_Animal;
+	using FFlameJet = SimNetGateway_Protocol_DdsPlayer_FlameJet;
+	using FFireSpots = SimNetGateway_Protocol_DdsPlayer_FireSpots;
+	using FGroundMarks = SimNetGateway_Protocol_DdsPlayer_GroundMarks;
+	using FMoverS = SimNetGateway_Protocol_DdsPlayer_Mover;
+	using FMoverTracks = SimNetGateway_Protocol_DdsPlayer_MoverTracks;
 	/** a contract direction (ENU) → Unreal (no scale) */
 	FVector Dir(const SimNetGateway_Protocol_DdsPlayer_Vec3f& V) { return FVector(V.X, -V.Y, V.Z).GetSafeNormal(); }
 
@@ -83,6 +92,11 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	UHrotDpsSubsystem* Dps = GEngine->GetEngineSubsystem<UHrotDpsSubsystem>();
 	// ⚠ measured (U-18b): loading a kit on its first spawn stalled the editor ~9 s inside the poll — load the whole table up front
 	Preloaded.Reset();
+	DefaultLife();
+	for (const auto& K : AnimalKinds) if (UObject* O = K.Value.LoadSynchronous()) Preloaded.Add(O);
+	for (const auto& K : CarKits) if (UObject* O = K.LoadSynchronous()) Preloaded.Add(O);
+	for (const auto& K : VanKits) if (UObject* O = K.LoadSynchronous()) Preloaded.Add(O);
+	if (UObject* O = BusKit.LoadSynchronous()) Preloaded.Add(O);
 	for (const auto& K : KitsByType) if (UObject* O = K.Value.LoadSynchronous()) Preloaded.Add(O);
 	for (const auto& K : KitsByDis) if (UObject* O = K.Value.LoadSynchronous()) Preloaded.Add(O);
 	for (const auto& K : KitsByDomain) if (UObject* O = K.Value.LoadSynchronous()) Preloaded.Add(O);
@@ -115,6 +129,12 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_Round"), &UHrotDpsWorld::OnRound);
 	Sub(TEXT("DPS_VehicleLook"), &UHrotDpsWorld::OnVehicleLook);
 	Sub(TEXT("DPS_TkbType"), &UHrotDpsWorld::OnTkbType);
+	Sub(TEXT("DPS_Animal"), &UHrotDpsWorld::OnAnimal);
+	Sub(TEXT("DPS_FlameJet"), &UHrotDpsWorld::OnFlameJet);
+	Sub(TEXT("DPS_FireSpots"), &UHrotDpsWorld::OnFireSpots);
+	Sub(TEXT("DPS_GroundMarks"), &UHrotDpsWorld::OnGroundMarks);
+	Sub(TEXT("DPS_Mover"), &UHrotDpsWorld::OnMover);
+	Sub(TEXT("DPS_MoverTracks"), &UHrotDpsWorld::OnMoverTracks);
 	UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: joined domain %d partition '%s'"), Domain, *Partition);
 	return true;
 }
@@ -140,6 +160,7 @@ void UHrotDpsWorld::Clear()
 {
 	TArray<int32> Ids; Ents.GetKeys(Ids);
 	for (int32 Id : Ids) Forget(Id);
+	ClearLife();
 	Clock.Reset();
 	bEpoch = false;
 }
@@ -149,6 +170,7 @@ void UHrotDpsWorld::Forget(int32 Id)
 	FEnt E;
 	if (!Ents.RemoveAndCopyValue(Id, E)) return;
 	if (AActor* A = E.Actor.Get()) { A->Destroy(); ++Removed; }
+	for (TWeakObjectPtr<AHrotAnimal>& B : E.Birds) if (AHrotAnimal* X = B.Get()) X->Destroy();
 }
 
 // ── samples ──
@@ -617,6 +639,7 @@ void UHrotDpsWorld::OnPersonState(const FHrotDpsSample& S)
 	P.Posture = uint8(D.Posture); P.Held = uint8(D.Held); P.Injury = uint8(D.Injury); P.Gesture = uint8(D.Gesture);
 	P.bInSeat = D.SeatVehicleId != 0; P.bSeatExposed = D.SeatExposed;
 	E.ActiveSlot = D.ActiveSlot;
+	E.bPersonBurning = D.Burning;
 	E.bHasPerson = true;
 }
 
@@ -784,7 +807,17 @@ UHrotVehicleKit* UHrotDpsWorld::KitFor(const FEnt& E) const
 void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 {
 	if (E.Actor.IsValid() || !E.bHasEntity || !E.bHasState) return;
-	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainAnimal) { E.DrawnAs = TEXT("not drawn yet"); return; }
+	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainAnimal)
+	{
+		AActor* A = SpawnAnimal(E, HrotDpsMotion::ToUnreal(E.Shown, OriginCm));
+		if (!A) return;
+#if WITH_EDITOR
+		A->SetActorLabel(FString::Printf(TEXT("DPS_%d_%s"), Id, *E.Name));
+#endif
+		E.Actor = A;
+		++Spawned;
+		return;
+	}
 	// ⚠ measured LIVE (U-18g, showcases/player-station): 510 of 551 entities were Domain Other — HROT's doors (no door state yet, the
 	// guide's known gap), groups (teams, squads), score holders, a terrain's own buildings (already in the level). None is a body:
 	// counted, never a box (the "never invisible" box is for a vehicle or a person with no model)
@@ -886,7 +919,16 @@ void UHrotDpsWorld::Tick(float)
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R);
 	const double Dt = FMath::Clamp(Placed - Prev, 0.0, 0.5);
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) ApplyPerson(It.Value, Placed, Dt);   // after every pose: an aim reads its target's
+	for (TPair<int32, FEnt>& It : Ents)
+	{
+		FEnt& E = It.Value;
+		if (!E.Actor.IsValid()) continue;
+		if (E.bAnimal) ApplyAnimal(E, Placed);
+		if (E.bJet || E.JetComp.IsValid() || E.bPersonBurning != E.bShownBurning) ApplyFlame(E);
+	}
 	DrawStreams(Placed);
+	TickSpots(Placed);
+	TickMovers(R);
 }
 
 // ── read back ──
@@ -905,4 +947,383 @@ FString UHrotDpsWorld::Describe(int32 EntityId) const
 	if (!E) return TEXT("unknown");
 	return FString::Printf(TEXT("'%s' %s type %lld dis %s -> %s, damage %u, track t %.3f"), *E->Name, DomainName(E->Domain), E->TypeId,
 		*E->Dis, E->DrawnAs.IsEmpty() ? TEXT("(waiting)") : *E->DrawnAs, E->Damage, E->Track.T);
+}
+
+// ── U-18h: animals, flame, traffic ──
+
+namespace
+{
+	FVector ToUe(const FVector3d& P, const FVector& OriginCm) { return FVector(P.X, -P.Y, P.Z) * 100.0 + OriginCm; }
+	/** the body's heading in the contract's frame (radians, 0 = +x, counter-clockwise) */
+	double HeadingOf(const FQuat4d& Q) { const FVector3d F = Q.RotateVector(FVector3d(1, 0, 0)); return FMath::Atan2(F.Y, F.X); }
+}
+
+void UHrotDpsWorld::DefaultLife()
+{
+	// stand-ins from the Animal Variety Pack (U-17e kinds) until real bodies exist: the nearest body by build, sized to the family
+	if (AnimalKinds.Num() == 0)
+	{
+		auto K = [this](const TCHAR* Family, const TCHAR* Kind, float Scale)
+		{
+			AnimalKinds.Add(Family, TSoftObjectPtr<UHrotAnimalKind>(FSoftObjectPath(FString::Printf(TEXT("/Game/Hrot/Animals/%s.%s"), Kind, Kind))));
+			AnimalScales.FindOrAdd(Family, Scale);
+		};
+		K(TEXT("Cattle"), TEXT("DA_Animal_Stag"), 1.25f);
+		K(TEXT("Horse"), TEXT("DA_Animal_Stag"), 1.15f);
+		K(TEXT("Sheep"), TEXT("DA_Animal_Doe"), 0.7f);
+		K(TEXT("Goat"), TEXT("DA_Animal_Doe"), 0.65f);
+		K(TEXT("Pig"), TEXT("DA_Animal_Pig"), 1.f);
+		K(TEXT("Dog"), TEXT("DA_Animal_Wolf"), 0.75f);
+		K(TEXT("Cat"), TEXT("DA_Animal_Fox"), 0.6f);
+		K(TEXT("Rabbit"), TEXT("DA_Animal_Fox"), 0.4f);
+		K(TEXT("Bird"), TEXT("DA_Animal_Crow"), 1.5f);
+		K(TEXT("Poultry"), TEXT("DA_Animal_Crow"), 1.6f);
+	}
+	auto Kit = [](const TCHAR* Name) { return TSoftObjectPtr<UHrotVehicleKit>(FSoftObjectPath(FString::Printf(TEXT("/Game/Hrot/Vehicles/%s.%s"), Name, Name))); };
+	if (CarKits.Num() == 0)
+		for (const TCHAR* N : { TEXT("DA_City_vehicle02_Car"), TEXT("DA_City_vehicle03_Car"), TEXT("DA_City_vehicle05_Car"), TEXT("DA_City_vehicle06_Car") })
+			CarKits.Add(Kit(N));
+	if (VanKits.Num() == 0)
+		for (const TCHAR* N : { TEXT("DA_City_vehicle01_Van"), TEXT("DA_City_vehicle04_Truck") }) VanKits.Add(Kit(N));
+	if (BusKit.IsNull()) BusKit = Kit(TEXT("DA_City_vehicle10_Bus"));
+}
+
+void UHrotDpsWorld::ClearLife()
+{
+	for (TPair<int32, FMover>& M : Movers) if (AActor* A = M.Value.Actor.Get()) A->Destroy();
+	Movers.Reset();
+	NewestBatchSim = -1e300;
+	for (TPair<int32, TArray<FSpot>>& H : Spots) for (FSpot& S : H.Value) if (AActor* A = S.Fire.Get()) A->Destroy();
+	Spots.Reset();
+	for (TPair<int32, TArray<TWeakObjectPtr<ADecalActor>>>& H : Scorches) for (TWeakObjectPtr<ADecalActor>& D : H.Value) if (ADecalActor* A = D.Get()) A->Destroy();
+	Scorches.Reset();
+}
+
+// ── animals ──
+
+AActor* UHrotDpsWorld::SpawnAnimal(FEnt& E, const FTransform& At)
+{
+	const HrotDpsLife::EFamily F = HrotDpsLife::FamilyOfDis(E.Dis);
+	E.Family = uint8(F);
+	E.bAnimal = true;
+	E.MeshYaw = 0; E.MeshZ = 0;   // the kind turns its own body (UHrotAnimalKind::MeshYaw)
+	const FString Family = HrotDpsLife::FamilyName(F);
+	const TSoftObjectPtr<UHrotAnimalKind>* KP = AnimalKinds.Find(Family);
+	UHrotAnimalKind* Kind = KP ? KP->LoadSynchronous() : nullptr;
+	if (!Kind) { E.bAnimal = false; E.DrawnAs = FString::Printf(TEXT("not drawn: no kind for %s"), *Family); Count(E.DrawnAs); return nullptr; }
+	const bool bFlock = E.TypeId == 707 || E.FlockCount > 1;   // HROT: a flock is type 707, ONE entity drawn as N birds
+	if (bFlock)
+	{
+		// the flock's own actor is only its centre; the birds are actors of their own, placed by FlockBirds every frame
+		AActor* C = GetWorld()->SpawnActor<AActor>(AActor::StaticClass(), At);
+		USceneComponent* R = NewObject<USceneComponent>(C, TEXT("Root"));
+		C->SetRootComponent(R);
+		R->RegisterComponent();
+		C->SetActorTransform(At);
+		E.DrawnAs = FString::Printf(TEXT("flock of %s"), *Kind->GetName());
+		Count(TEXT("animal drawn: flock"));
+		return C;
+	}
+	AHrotAnimal* A = GetWorld()->SpawnActorDeferred<AHrotAnimal>(AHrotAnimal::StaticClass(), At, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	A->Kind = Kind;
+	A->FinishSpawning(At);
+	const float Scale = AnimalScales.FindRef(Family);
+	A->SetActorScale3D(FVector(Scale > 0 ? Scale : 1.f));
+	E.DrawnAs = FString::Printf(TEXT("animal %s as %s"), *Family, *Kind->GetName());
+	Count(FString::Printf(TEXT("animal drawn: %s"), *Family));
+	return A;
+}
+
+void UHrotDpsWorld::OnAnimal(const FHrotDpsSample& S)
+{
+	const FAnimalS& D = *static_cast<const FAnimalS*>(S.Data);
+	if (!S.bValid) return;   // gone with its Entity
+	FEnt& E = Ents.FindOrAdd(D.EntityId);
+	E.bHasAnimal = true;
+	E.AnimalMode = uint8(D.Mode); E.bDangerous = D.Dangerous; E.bAirborne = D.Airborne;
+	E.FlockCount = D.FlockCount; E.FlockSeed = D.FlockSeed; E.FlockMode = uint8(D.FlockMode);
+}
+
+void UHrotDpsWorld::ApplyAnimal(FEnt& E, double SimNow)
+{
+	using namespace HrotDpsLife;
+	const EFamily F = EFamily(E.Family);
+	const FString Family = FamilyName(F);
+	AActor* Actor = E.Actor.Get();
+	if (AHrotAnimal* A = Cast<AHrotAnimal>(Actor))
+	{
+		FAnimalIn In;
+		In.Family = F; In.Mode = E.AnimalMode; In.bDangerous = E.bDangerous; In.bAirborne = E.bAirborne;
+		In.bDead = E.StateDamage >= SimNetGateway_Protocol_DdsPlayer_PartConditionDestroyed;
+		In.Speed = float(FVector2d(E.Track.V.X, E.Track.V.Y).Size());
+		const FAnimalOut O = AnimalShown(In);
+		const EHrotAnimalState Want = EHrotAnimalState(uint8(O.Shown));
+		if (A->State != Want || FMath::Abs(A->PlayRate - O.PlayRate) > 0.05f)
+		{
+			if (A->State != Want) Count(FString::Printf(TEXT("animal %s: %s"), *Family, *UEnum::GetDisplayValueAsText(Want).ToString()));
+			A->PlayRate = O.PlayRate;
+			A->SetState(Want);
+		}
+		return;
+	}
+	if (!Actor) return;
+	// a flock: min(alive, MaxFlockDrawn) birds at FlockBirds' offsets about the centre, in the flock's frame (x along its heading)
+	const int32 Want = FMath::Clamp(E.FlockCount, 0, FMath::Min(MaxFlockDrawn, FlockMaxDrawn));
+	const TSoftObjectPtr<UHrotAnimalKind>* KP = AnimalKinds.Find(Family);
+	UHrotAnimalKind* Kind = KP ? KP->Get() : nullptr;
+	while (E.Birds.Num() > Want) { if (AHrotAnimal* B = E.Birds.Pop().Get()) B->Destroy(); }   // the HIGHEST indices go first (HROT)
+	const float Scale = AnimalScales.FindRef(Family) > 0 ? AnimalScales.FindRef(Family) : 1.f;
+	while (Kind && E.Birds.Num() < Want)
+	{
+		AHrotAnimal* B = GetWorld()->SpawnActorDeferred<AHrotAnimal>(AHrotAnimal::StaticClass(), Actor->GetActorTransform(), nullptr, nullptr,
+			ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		B->Kind = Kind;
+		B->FinishSpawning(Actor->GetActorTransform());
+		B->SetActorScale3D(FVector(Scale));
+		E.Birds.Add(B);
+	}
+	const double Yaw = HeadingOf(E.Shown.Q);
+	const FQuat4d Turn(FVector3d::UnitZ(), Yaw);
+	const EHrotAnimalState Shown = E.FlockMode == FlockFlying ? EHrotAnimalState::Fly : EHrotAnimalState::Idle;
+	for (int32 I = 0; I < E.Birds.Num(); ++I)
+	{
+		AHrotAnimal* B = E.Birds[I].Get();
+		if (!B) continue;
+		const FVector3f O = FlockOffset(E.FlockSeed, I, SimNow, E.FlockMode, E.FlockCount);
+		const FVector3d P = E.Shown.P + Turn.RotateVector(FVector3d(O));
+		const double BirdYaw = Yaw + FlockYaw(E.FlockSeed, I, SimNow, E.FlockMode);
+		B->SetActorLocationAndRotation(ToUe(P, OriginCm), FRotator(0, -FMath::RadiansToDegrees(BirdYaw), 0));
+		if (B->State != Shown) B->SetState(Shown);
+	}
+}
+
+// ── flame ──
+
+void UHrotDpsWorld::OnFlameJet(const FHrotDpsSample& S)
+{
+	const FFlameJet& D = *static_cast<const FFlameJet*>(S.Data);
+	FEnt* E = Ents.Find(D.EntityId);
+	if (!S.bValid || !S.bAlive) { if (E) E->bJet = false; return; }   // the jet went out (disposed when unlit)
+	if (!E) E = &Ents.Add(D.EntityId);
+	if (!E->bJet) Count(TEXT("flame jet lit"));
+	E->bJet = true;
+	E->JetAim = V3(D.AimPoint); E->JetTarget = D.TargetId; E->JetRange = D.RangeM; E->JetIntensity = D.Intensity;
+}
+
+void UHrotDpsWorld::ApplyFlame(FEnt& E)
+{
+	AActor* A = E.Actor.Get();
+	if (!A) return;
+	// a burning man (PersonState.Burning; FlameLook U-3: one body-sized fire)
+	if (E.bPersonBurning != E.bShownBurning)
+	{
+		E.bShownBurning = E.bPersonBurning;
+		UHrotBurning::SetBurning(A, E.bPersonBurning ? 1.f : 0.f);
+		Count(E.bPersonBurning ? TEXT("man burning") : TEXT("man stopped burning"));
+	}
+	// the jet: FlameLook — from the muzzle toward the aim (the target's chest when it is an entity we have), min(distance, RangeM) long
+	UHrotFlamethrower* F = E.JetComp.Get();
+	if (!E.bJet) { if (F && F->bFiring) F->SetFiring(false); return; }
+	if (!F)
+	{
+		if (UHrotPersonState* St = A->FindComponentByClass<UHrotPersonState>())
+		{
+			St->bFlamethrower = true;
+			St->SetFlameFiring(true);
+			F = St->ApplyFlame();
+		}
+		if (!F)   // not a person with a weapon: a flame on its body, 1.5 m up (⏳ a vehicle's flame by its TKB mount)
+			F = UHrotFlamethrower::Attach(A->GetRootComponent(), NAME_None, FTransform(FVector(0, 0, 150)), 1.f);
+		E.JetComp = F;
+		Count(TEXT("flame jet drawn"));
+	}
+	if (!F) return;
+	FVector3d Aim = E.JetAim;
+	if (E.JetTarget != 0) if (const FEnt* T = Ents.Find(E.JetTarget); T && T->bHasState) Aim = T->Shown.P + FVector3d(0, 0, 1);
+	const FVector From = F->GetComponentLocation(), To = ToUe(Aim, OriginCm);
+	const float Dist = float((To - From).Size() / 100.0);
+	if (Dist > 0.5f) F->SetWorldRotation((To - From).Rotation());
+	F->Range = HrotDpsLife::JetLength(Dist, E.JetRange) * 100.f / FMath::Max(F->Size, 0.01f);
+	if (!F->bFiring) F->SetFiring(true);
+}
+
+void UHrotDpsWorld::OnFireSpots(const FHrotDpsSample& S)
+{
+	const FFireSpots& D = *static_cast<const FFireSpots*>(S.Data);
+	TArray<FSpot>& L = Spots.FindOrAdd(D.EntityId);
+	const uint32 N = (S.bValid && S.bAlive) ? D.Spots._length : 0;
+	// the holder's spots, in world coordinates: reuse the fires in order, spawn the new ones, put out the rest
+	while (L.Num() > int32(N)) { if (AActor* A = L.Last().Fire.Get()) A->Destroy(); L.Pop(); }
+	for (uint32 I = 0; I < N; ++I)
+	{
+		const auto& X = D.Spots._buffer[I];
+		if (int32(I) >= L.Num()) { L.AddDefaulted(); Count(TEXT("fire spot")); }
+		FSpot& Sp = L[I];
+		Sp.P = V3(X.Position); Sp.Radius = X.Radius; Sp.Intensity = X.Intensity; Sp.Since = X.Since; Sp.Seconds = X.Seconds;
+		Sp.ShownStrength = -1;
+	}
+	if (N == 0) Spots.Remove(D.EntityId);
+}
+
+void UHrotDpsWorld::TickSpots(double SimNow)
+{
+	for (TPair<int32, TArray<FSpot>>& H : Spots)
+	{
+		// a vehicle that burns already shows its own fire (VehicleLook.Burning → AHrotVehicle destroyed): its spots are not doubled
+		const FEnt* Holder = Ents.Find(H.Key);
+		if (Holder && Cast<AHrotVehicle>(Holder->Actor.Get()) && Holder->Damage >= 2) continue;
+		for (FSpot& Sp : H.Value)
+		{
+			// strength in quarter steps: the ground fire rebuilds its flames on a change
+			const float Strength = FMath::RoundToFloat(HrotDpsLife::SpotStrength(Sp.Intensity, Sp.Since, Sp.Seconds, SimNow) * 4.f) / 4.f;
+			if (Strength == Sp.ShownStrength && Sp.Fire.IsValid()) continue;
+			Sp.ShownStrength = Strength;
+			AHrotGroundFire* G = Sp.Fire.Get();
+			const FVector At = ToUe(Sp.P, OriginCm);
+			if (!G)
+			{
+				G = GetWorld()->SpawnActor<AHrotGroundFire>(AHrotGroundFire::StaticClass(), At, FRotator::ZeroRotator);
+				Sp.Fire = G;
+			}
+			else G->SetActorLocation(At);
+			// the burning disc: the spot's radius, within FlameLook's 0.3–8 m (the flames themselves are the ground fire's ~1 m ones)
+			if (G) G->SetFire(FMath::Clamp(Sp.Radius, 0.4f, 8.f) * 100.f, Strength);
+		}
+	}
+}
+
+void UHrotDpsWorld::OnGroundMarks(const FHrotDpsSample& S)
+{
+	const FGroundMarks& D = *static_cast<const FGroundMarks*>(S.Data);
+	TArray<TWeakObjectPtr<ADecalActor>>& L = Scorches.FindOrAdd(D.EntityId);
+	for (TWeakObjectPtr<ADecalActor>& X : L) if (ADecalActor* A = X.Get()) A->Destroy();
+	L.Reset();
+	if (!S.bValid || !S.bAlive) { Scorches.Remove(D.EntityId); return; }
+	static UMaterialInterface* Mat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Hrot/Fx/M_HrotScorch.M_HrotScorch"));   // FHrotFireLook::Scorch (not exported)
+	for (uint32 I = 0; I < D.Marks._length; ++I)
+	{
+		const auto& M = D.Marks._buffer[I];
+		// BurnedArea = a scorch (FlameLook.Scorch); VehicleStand / BodyImprint are THERMAL marks (a sensor view's, not the eye's)
+		if (M.Kind != SimNetGateway_Protocol_DdsPlayer_HeatMarkKindBurnedArea) { Count(TEXT("not drawn: thermal ground mark")); continue; }
+		ADecalActor* A = GetWorld()->SpawnActor<ADecalActor>(ToUe(V3(M.Centre), OriginCm), FRotator(-90.f, -FMath::RadiansToDegrees(M.Heading), 0.f));
+		if (!A) continue;
+		A->SetDecalMaterial(Mat);
+		A->GetDecal()->DecalSize = FVector(150.f, FMath::Max(M.Width, 0.5f) * 50.f, FMath::Max(M.Length, 0.5f) * 50.f);
+		A->GetDecal()->MarkRenderStateDirty();
+		L.Add(A);
+		Count(TEXT("scorch"));
+	}
+}
+
+// ── traffic ──
+
+void UHrotDpsWorld::OnMover(const FHrotDpsSample& S)
+{
+	const FMoverS& D = *static_cast<const FMoverS*>(S.Data);
+	if (!S.bAlive)   // despawned
+	{
+		FMover M;
+		if (Movers.RemoveAndCopyValue(D.MoverId, M)) if (AActor* A = M.Actor.Get()) A->Destroy();
+		return;
+	}
+	if (!S.bValid) return;
+	FMover& M = Movers.FindOrAdd(D.MoverId);
+	M.bInfo = true; M.Kind = uint8(D.Kind); M.Length = D.Length; M.Width = D.Width; M.Colour = D.ColourRgba;
+}
+
+void UHrotDpsWorld::OnMoverTracks(const FHrotDpsSample& S)
+{
+	if (!S.bValid) return;
+	const FMoverTracks& D = *static_cast<const FMoverTracks*>(S.Data);
+	for (uint32 I = 0; I < D.Knots._length; ++I)
+	{
+		const auto& K = D.Knots._buffer[I];
+		TArray<HrotDpsLife::FKnot>& Ks = Movers.FindOrAdd(K.MoverId).Knots;
+		HrotDpsLife::FKnot N;
+		N.T = D.SimTime + K.Dt;
+		if (Ks.Num() > 0 && N.T <= Ks.Last().T) continue;   // a late or repeated knot
+		N.P = FVector3d(K.X, K.Y, K.Z);
+		N.Heading = K.HeadingCentiDeg * UE_DOUBLE_PI / 18000.0; N.Pitch = K.PitchCentiDeg * UE_DOUBLE_PI / 18000.0; N.Speed = K.Speed;
+		Ks.Add(N);
+	}
+	NewestBatchSim = FMath::Max(NewestBatchSim, D.SimTime);
+	NewestBatchAt = RealNow();
+}
+
+void UHrotDpsWorld::TickMovers(double Real)
+{
+	if (NewestBatchSim < -1e299) return;
+	// MoverPlayback: the batch clock (at most 0.25 s past the newest batch: a paused sim sends none and the movers stand) less the delay
+	const double T = NewestBatchSim + FMath::Clamp(Real - NewestBatchAt, 0.0, HrotDpsLife::MaxExtrapolation) - HrotDpsLife::PlaybackDelay;
+	int32 Drawn = 0;
+	for (TPair<int32, FMover>& It : Movers)
+	{
+		FMover& M = It.Value;
+		AActor* A = M.Actor.Get();
+		// shown from its second knot, once playback reaches its first
+		HrotDpsLife::FTrackPose P;
+		bool bShow = M.bInfo && M.Knots.Num() >= 2 && T >= M.Knots[0].T;
+		if (bShow) { HrotDpsLife::TrimBefore(M.Knots, T); bShow = HrotDpsLife::PoseAt(M.Knots, T, P); }
+		if (!bShow) { if (A) A->SetActorHiddenInGame(true); continue; }
+		const FVector At = ToUe(P.P, OriginCm);
+		const FRotator Rot(FMath::RadiansToDegrees(P.Pitch), -FMath::RadiansToDegrees(P.Heading), 0.f);
+		if (!A && !M.bSkipped)
+		{
+			if (MaxMovers > 0 && Drawn >= MaxMovers) { M.bSkipped = true; Count(TEXT("not drawn: traffic over MaxMovers")); continue; }
+			if (M.Kind != SimNetGateway_Protocol_DdsPlayer_MoverKindCar)
+			{
+				M.bSkipped = true; Count(TEXT("not drawn: pedestrian mover")); continue;   // ⏳ a civilian body (PersonLook by seed)
+			}
+			const TSoftObjectPtr<UHrotVehicleKit>* KP = M.Length >= 8.5f ? &BusKit
+				: M.Length >= 5.5f ? (VanKits.Num() ? &VanKits[It.Key % VanKits.Num()] : nullptr)
+				: (CarKits.Num() ? &CarKits[It.Key % CarKits.Num()] : nullptr);
+			UHrotVehicleKit* Kit = KP ? KP->LoadSynchronous() : nullptr;
+			if (!Kit) { M.bSkipped = true; Count(TEXT("not drawn: no traffic kit")); continue; }
+			const FTransform X(Rot, At);
+			AHrotVehicle* V = GetWorld()->SpawnActorDeferred<AHrotVehicle>(AHrotVehicle::StaticClass(), X, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+			V->Kit = Kit;
+			V->FinishSpawning(X);
+#if WITH_EDITOR
+			V->SetActorLabel(FString::Printf(TEXT("DPS_Mover_%d"), It.Key));
+#endif
+			M.Actor = V; A = V;
+			Count(TEXT("traffic car"));
+		}
+		if (!A) continue;
+		A->SetActorHiddenInGame(false);
+		A->SetActorLocationAndRotation(At, Rot);
+		++Drawn;
+	}
+}
+
+int32 UHrotDpsWorld::MoversDrawn() const
+{
+	int32 N = 0;
+	for (const TPair<int32, FMover>& M : Movers) if (const AActor* A = M.Value.Actor.Get(); A && !A->IsHidden()) ++N;
+	return N;
+}
+
+FString UHrotDpsWorld::FireSummary() const
+{
+	int32 Jets = 0, Men = 0, Lit = 0, Marks = 0;
+	for (const TPair<int32, FEnt>& E : Ents) { Jets += E.Value.bJet; Men += E.Value.bShownBurning; }
+	for (const TPair<int32, TArray<FSpot>>& H : Spots) for (const FSpot& S : H.Value) Lit += S.ShownStrength > 0;
+	for (const TPair<int32, TArray<TWeakObjectPtr<ADecalActor>>>& H : Scorches) Marks += H.Value.Num();
+	return FString::Printf(TEXT("%d jets, %d men, %d spots, %d scorches"), Jets, Men, Lit, Marks);
+}
+
+TArray<int32> UHrotDpsWorld::AnimalIds() const
+{
+	TArray<int32> Ids;
+	for (const TPair<int32, FEnt>& E : Ents) if (E.Value.bAnimal && E.Value.Actor.IsValid()) Ids.Add(E.Key);
+	Ids.Sort();
+	return Ids;
+}
+
+TArray<int32> UHrotDpsWorld::JetShooterIds() const
+{
+	TArray<int32> Ids;
+	for (const TPair<int32, FEnt>& E : Ents) if (E.Value.bJet) Ids.Add(E.Key);
+	Ids.Sort();
+	return Ids;
 }

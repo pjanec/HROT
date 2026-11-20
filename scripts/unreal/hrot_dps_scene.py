@@ -150,9 +150,33 @@ def run():
         if zs:
             S["grounded"] = True; z = zs[len(zs) // 2]
             w.set_editor_property("origin_cm", unreal.Vector(0, 0, -z * 100.0)); log(f"world shifted down {z:.1f} m (the people's median height)")
-    if S["pics"] and not S.get("pending_pic") and scene >= S["pics"][0]["sim"]:   # one picture at a time (a second camera move lost the first)
+    # U-18h: a picture that follows the FLAME waits (until its "until") for a lit jet
+    if S["pics"] and S["pics"][0].get("follow") == "jet" and not w.jet_shooter_ids() and scene < S["pics"][0].get("until", 1e9) and scene >= S["pics"][0]["sim"]:
+        pass
+    elif S["pics"] and not S.get("pending_pic") and scene >= S["pics"][0]["sim"]:   # one picture at a time (a second camera move lost the first)
         pic = S["pics"].pop(0)
-        if pic.get("follow"):   # U-18g: frame a named entity (or the centre of all) where it is NOW
+        if pic.get("follow") in ("jet", "traffic", "animals"):   # U-18h: the flamer while he fires · a drawn car · the animals' centre
+            locs = []
+            if pic["follow"] == "jet":
+                locs = [w.actor_of(i).get_actor_location() for i in w.jet_shooter_ids() if w.actor_of(i)][:1]
+            elif pic["follow"] == "animals":
+                locs = [w.actor_of(i).get_actor_location() for i in w.animal_ids() if w.actor_of(i) and pic.get("name_has", "").lower() in w.describe(i).lower()]
+            else:
+                gw = UES().get_game_world()
+                cars = [a for a in unreal.GameplayStatics.get_all_actors_of_class(gw, unreal.HrotVehicle) if a.get_actor_label().startswith("DPS_Mover_") and not a.is_hidden_ed()]
+                cars = [a for a in cars if not a.get_editor_property("hidden")] if cars else []
+                locs = [a.get_actor_location() for a in cars[:1]]
+                if pic.get("near") and cars:   # the car nearest a point (Unreal cm) — ⚠ measured: an all-pairs "crowd" pick over 1078 cars stalled the editor ~30 s
+                    nx, ny = pic["near"]
+                    best = min(cars, key=lambda a: (a.get_actor_location().x - nx) ** 2 + (a.get_actor_location().y - ny) ** 2)
+                    locs = [best.get_actor_location()]
+            if locs:
+                n = len(locs)
+                c = unreal.Vector(sum(l.x for l in locs) / n, sum(l.y for l in locs) / n, sum(l.z for l in locs) / n + pic.get("lookZ", 120))
+                pic = dict(pic, look=[c.x, c.y, c.z])
+                camera(pic["look"], pic.get("back", 1500), c.z + pic.get("up", 500), pic.get("side", 0.45))
+            else: log(f"picture {pic['name']}: nothing to follow for {pic['follow']!r}")
+        elif pic.get("follow"):   # U-18g: frame a named entity (or the centre of all) where it is NOW
             locs = []
             for i in w.entity_ids():
                 a = w.actor_of(i)
@@ -180,11 +204,14 @@ def run():
         R.setdefault("rendererAtPicture", {})[name] = {k: rr.get_editor_property(k) for k in ("live_puffs", "live_tracers", "live_dashes", "live_flashes")} if rr else None
         R.setdefault("atPicture", {})[name] = {"scene": round(w.sim_now() - float(JOB.get("simBase", 0)), 2),
                                                 "people": {str(i): [w.person_look(i), person_extras(w, i)] for i in w.entity_ids() if w.person_look(i)}}
-        log(f"picture {name} at scene {w.sim_now() - float(JOB.get('simBase', 0)):.2f} s")
+        R.setdefault("lifeAtPicture", {})[name] = {"fires": w.fire_summary(), "movers": [w.movers_known(), w.movers_drawn()],
+                                                    "jets": list(w.jet_shooter_ids()), "animals": {str(i): w.describe(i) for i in w.animal_ids()}}
+        log(f"picture {name} at scene {w.sim_now() - float(JOB.get('simBase', 0)):.2f} s  [{w.fire_summary()}; movers {w.movers_known()}/{w.movers_drawn()}]")
     if t >= float(JOB["seconds"]):
         R["final"] = {str(i): w.describe(i) for i in w.entity_ids()}
         R["spawned"], R["removed"] = w.spawned_total(), w.removed_total()
         R["events"] = dict(w.event_counts())
+        R["life"] = {"fires": w.fire_summary(), "movers": [w.movers_known(), w.movers_drawn()], "animals": {str(i): w.describe(i) for i in w.animal_ids()}}
         LES().editor_request_end_play(); S.update(phase="end", t=time.time() + 3)
 
 

@@ -23,6 +23,11 @@
 // (stance and its timed transition, gait from speed, posture on the upper body, HROT's aim twist, death, hidden inside a vehicle);
 // without one, the stand-in mesh. ⏳ not yet: seats and carrying in place, gestures beyond wave / throw, the head turn, VehicleLook, ground marks and wreck flame / smoke effects, rounds and animals
 // (Domain Munition / Animal are counted, not drawn), the delayed mode for traffic.
+// ⭐ U-18h — ANIMALS, TRAFFIC, FLAME (rules in HrotDpsLife, ports of HROT's / the gateway's): an Animal entity is an AHrotAnimal of its
+// family's kind (the DIS category), its clip from Animal.Mode + speed; a FLOCK is one entity drawn as N birds at HROT's closed-form
+// offsets. Traffic (Mover + MoverTracks, never in Entity) is a car kit per mover, played PlaybackDelay behind on the Hermite track. A
+// FlameJet lights the shooter's flamethrower (a person's at his weapon's muzzle, pointed by his aim; anything else's on its body,
+// pointed at the aim), PersonState.Burning burns the man, FireSpots are ground fires where HROT says, a BurnedArea mark a scorch.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -30,11 +35,17 @@
 #include "HrotDpsMotion.h"
 #include "HrotDpsPeople.h"
 #include "HrotWeaponFx.h"
+#include "HrotDpsLife.h"
 #include "HrotDpsWorld.generated.h"
 
 class UHrotVehicleKit;
 class UHrotPersonKit;
 class UHrotMissileKind;
+class UHrotAnimalKind;
+class AHrotAnimal;
+class AHrotGroundFire;
+class ADecalActor;
+class UHrotFlamethrower;
 class USkeletalMesh;
 class UAnimationAsset;
 
@@ -76,6 +87,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float PuffBrightnessBuilding = 0.85f;
 	/** a muzzle flash's size for the shot renderer per metre of Effect.Size (⚠ a first guess: rifle 1 ≈ 0.3 m, a tank kit's 8 ≈ 2.7 m) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float FlashPerMetre = 3.f;
+	/** U-18h — an animal FAMILY ("Cattle", "Sheep", "Horse", "Dog", "Cat", "Bird", "Poultry", "Pig", "Goat", "Rabbit") → its kind and
+	 *  its size on that kind's body; an empty map gets the stand-ins from the Animal Variety Pack (DefaultAnimals) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TMap<FString, TSoftObjectPtr<UHrotAnimalKind>> AnimalKinds;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TMap<FString, float> AnimalScales;
+	/** the most birds drawn per flock (HROT draws up to 400 boxes; each bird here is a skinned actor) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") int32 MaxFlockDrawn = 40;
+	/** U-18h — traffic: the kits of SUMO cars by size (a mover's Length: < 5.5 m a car, < 8.5 m a van / truck, else a bus); a car's
+	 *  kit picked by its id among CarKits (the same car on every channel) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TArray<TSoftObjectPtr<UHrotVehicleKit>> CarKits;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TArray<TSoftObjectPtr<UHrotVehicleKit>> VanKits;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UHrotVehicleKit> BusKit;
+	/** the most traffic movers drawn at once (the nearest-to-nothing rule: the first ones seen); 0 = no limit */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") int32 MaxMovers = 0;
 	/** where the contract's origin (Session's UTM origin) is in this level, cm */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") FVector OriginCm = FVector::ZeroVector;
 
@@ -101,6 +125,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TMap<FString, int32> EventCounts() const { return Events; }
 	/** a person's look this frame: "<role>=<clip> upper <role> weapon <0|1> hidden <0|1> rate <r> aim <twist>/<pitch>" */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString PersonLook(int32 EntityId) const;
+	/** U-18h — traffic movers known / drawn now, and one's shown position (contract frame, m) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 MoversKnown() const { return Movers.Num(); }
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 MoversDrawn() const;
+	/** U-18h — what is burning now: "<jets> jets, <men> men, <spots> spots, <scorches> scorches" */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString FireSummary() const;
+	/** U-18h — the ids of entities drawn as animals, and of lit flame jets' shooters */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TArray<int32> AnimalIds() const;
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TArray<int32> JetShooterIds() const;
 
 	virtual bool DoesSupportWorldType(const EWorldType::Type T) const override { return T == EWorldType::Game || T == EWorldType::PIE; }
 	virtual void Deinitialize() override;
@@ -133,6 +165,18 @@ private:
 		double RocketFiredAt = -1;           // real seconds of his last rocket / ATGM shot (the tube, when no type data says)
 		uint8 StateDamage = 0, LookDamage = 0;   // EntityState.Damage and VehicleLook's verdict; the shown damage is the worse
 		bool bBurning = false;   // real seconds of his last shot (the kick) and of the last hit on him (the flinch)
+		// U-18h — an animal: Animal's state, its flock's birds
+		bool bAnimal = false, bHasAnimal = false, bDangerous = false, bAirborne = false;
+		uint8 AnimalMode = 0, FlockMode = 0, Family = 0;
+		int32 FlockCount = 0;
+		uint32 FlockSeed = 0;
+		TArray<TWeakObjectPtr<AHrotAnimal>> Birds;
+		// U-18h — a lit flame jet (FlameJet), and a burning man (PersonState.Burning)
+		bool bJet = false, bPersonBurning = false, bShownBurning = false;
+		FVector3d JetAim = FVector3d::ZeroVector;   // contract m
+		int32 JetTarget = 0;
+		float JetRange = 0, JetIntensity = 0;
+		TWeakObjectPtr<UHrotFlamethrower> JetComp;
 		// a round in flight (U-18e)
 		bool bRound = false, bLying = false;
 		int64 MunitionType = 0;
@@ -146,6 +190,23 @@ private:
 		TWeakObjectPtr<AActor> Actor;
 	};
 	TMap<int32, FEnt> Ents;
+	// U-18h — traffic (Mover / MoverTracks: never an Entity)
+	struct FMover
+	{
+		bool bInfo = false;
+		uint8 Kind = 0;
+		float Length = 0, Width = 0;
+		uint32 Colour = 0;
+		TArray<HrotDpsLife::FKnot> Knots;
+		TWeakObjectPtr<AActor> Actor;
+		bool bSkipped = false;
+	};
+	TMap<int32, FMover> Movers;
+	double NewestBatchSim = -1e300, NewestBatchAt = 0;
+	// U-18h — fires and scorches by their holder (FireSpots / GroundMarks keyed by EntityId; the holder need not be drawn)
+	struct FSpot { FVector3d P; float Radius = 0, Intensity = 0, Seconds = 0; double Since = 0; TWeakObjectPtr<AHrotGroundFire> Fire; float ShownStrength = -1; };
+	TMap<int32, TArray<FSpot>> Spots;
+	TMap<int32, TArray<TWeakObjectPtr<ADecalActor>>> Scorches;
 	FHrotDpsClock Clock;
 	uint32 Epoch = 0;
 	bool bEpoch = false;
@@ -181,6 +242,19 @@ private:
 	AActor* SpawnRound(FEnt& E, const FTransform& At);
 	void OnVehicleLook(const struct FHrotDpsSample& S);
 	void OnTkbType(const struct FHrotDpsSample& S);
+	void OnAnimal(const struct FHrotDpsSample& S);
+	void OnFlameJet(const struct FHrotDpsSample& S);
+	void OnFireSpots(const struct FHrotDpsSample& S);
+	void OnGroundMarks(const struct FHrotDpsSample& S);
+	void OnMover(const struct FHrotDpsSample& S);
+	void OnMoverTracks(const struct FHrotDpsSample& S);
+	void DefaultLife();
+	AActor* SpawnAnimal(FEnt& E, const FTransform& At);
+	void ApplyAnimal(FEnt& E, double SimNow);
+	void ApplyFlame(FEnt& E);
+	void TickSpots(double SimNow);
+	void TickMovers(double Real);
+	void ClearLife();
 	void ApplyDamage(FEnt& E);
 	bool HoldsTube(const FEnt& E, double Real) const;
 	AActor* SpawnPerson(FEnt& E, const FTransform& At);
