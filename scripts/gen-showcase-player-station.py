@@ -205,7 +205,7 @@ def checks():
             {"name": "Blue fires at Red", "on": "shot", "by": "*Blue 1-", "n": 1},
             {"name": "a Red man goes down", "on": "field", "who": "*Red 1-", "path": "Health.Current", "op": "==", "value": 0},
             {"name": "Blue's tickets fall with its losses", "on": "field", "who": "Blue tickets", "path": "ObjectiveStatus.Value",
-             "op": "<", "value": 20},
+             "op": "<", "value": 20, "after": 5},   # ⚠ not from t = 0: the counter reads 0 until it starts at 20 (measured: a bare check passed at 0.25 s)
         ],
     }
 

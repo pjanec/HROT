@@ -63,7 +63,8 @@
       "who": "Blue tickets",
       "path": "ObjectiveStatus.Value",
       "op": "<",
-      "value": 20
+      "value": 20,
+      "after": 5
     }
   ]
 }
