@@ -106,6 +106,7 @@ namespace Hrot.UI.Common.Audio
             Doors(world, ear, now);
             Voices(world, own, ear, now);
             Animals(world, ear, now);   // ⭐ CE-4623 AU-8
+            Dragons(world, ear, now);   // ⭐ CE-4634 (DESIGN_Dragon §8.2 S)
             Boarding(world, own, ear, now);
             Town(world, ear);
             Beds(ear, dt, output);
@@ -595,6 +596,96 @@ namespace Hrot.UI.Common.Audio
             float f = Vector3.Dot(to, fwd), l = Vector3.Dot(to, left);
             if (MathF.Abs(f) >= MathF.Abs(l)) return f >= 0f ? VoiceTkbCatalog.ContactSide.Front : VoiceTkbCatalog.ContactSide.Rear;
             return l >= 0f ? VoiceTkbCatalog.ContactSide.Left : VoiceTkbCatalog.ContactSide.Right;
+        }
+
+        // ═══ ⭐ CE-4634 (DESIGN_Dragon §8.2 S) — what a DRAGON sounds like ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+        private struct DragonSeen { public long Strokes, Calls; public byte Airborne; public bool Dead; public float Health; public double Burst, LastRoar, Sim; public Vector3 At; }
+        private readonly Dictionary<Entity, DragonSeen> _dragonSeen = new();
+        private readonly List<Entity> _dragonGone = new();
+        private EntityRepository? _dragonWorld;
+        private EntityQuery? _dragonQuery;
+        private int _dragonFrame;
+
+        /// <summary>⭐ CE-4634 — the dragons' sounds played so far (rails): a whoosh per down-stroke, a roar, a dying roar.</summary>
+        public int DragonWhooshes { get; private set; }
+        public int DragonRoars { get; private set; }
+        public int DragonDeathRoars { get; private set; }
+
+        /// <summary>A dragon roars on its own now and then in flight — about once in this many sim seconds (its phase seeded by its id) — and never twice inside <see cref="RoarQuietSeconds"/> (a death roar always plays).</summary>
+        public const double RoarEverySeconds = 20.0, RoarQuietSeconds = 3.0;
+
+        /// <summary>
+        /// ⭐ CE-4634 (DESIGN_Dragon §8.2 S; NOTE_Backend_To_Ui_Dragon_Visuals) — a winged beast (a type whose own acoustic MOVING class is <see cref="SoundSourceClass.Roar"/>: the TKB says what it is, not
+        /// a type id) as the operator hears it, every sound from sim state: ⭐ a WHOOSH on each down-stroke while it beats its wings (the stroke count is <see cref="Hrot.UI.Common.Map3D.DragonPoses"/>' sim-time
+        /// phase and its beat rule — the same the look draws, so the whoosh lands on the drawn stroke; gliding and landed: none); a ROAR when it starts to breathe fire (beside the flame's own roar), when it
+        /// takes off (<c>Airborne</c> 0 → 1), when it is hit (a <c>Health</c> drop), and now and then in flight (a closed-form count, so a seek or a late join hears the same); a DYING ROAR once, when it dies.
+        /// The first frame only learns its state. 0 B in the steady state.
+        /// </summary>
+        private void Dragons(EntityRepository w, in Ear ear, double now)
+        {
+            var tkb = _tkb();
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) { _dragonSeen.Clear(); return; }
+            if (!ReferenceEquals(w, _dragonWorld))
+            {
+                _dragonWorld = w; _dragonSeen.Clear();
+                _dragonQuery = w.Query().With<Fdp.Toolkit.Replication.Components.TkbIdentity>().With<SimTransform>().Build();
+            }
+            double sim = Fdp.Toolkit.Time.SimClock.TotalTimeOf(w);
+            bool flight = w.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>();
+            bool health = w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>();
+            bool netId = w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            foreach (var e in _dragonQuery!)
+            {
+                long type = w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType;
+                if (AcousticCached(tkb, type) is not { MovingClass: SoundSourceClass.Roar }) continue;
+                var at = w.GetComponentRO<SimTransform>(e).Position;
+                bool known = _dragonSeen.TryGetValue(e, out var seen);
+                var fs = flight && w.HasComponent<Fdp.Toolkit.Motion.FlightState>(e) ? w.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(e) : default;
+                bool airborne = fs.Airborne != 0;
+                float hp = health && w.HasComponent<Fdp.Toolkit.Combat.Components.Health>(e) ? w.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Current : 1f;
+                bool dead = health && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(w, e);
+                double burst = Fdp.Toolkit.Combat.FlameJets.TryGet(w, e, sim, out var jet) ? jet.BurstStartedAt : seen.Burst;
+                uint key = netId && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) && w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value is int nid && nid != 0 ? (uint)nid : (uint)e.Index;
+                double phase = (key * 2654435761u % 1000u) / 1000.0 * RoarEverySeconds;
+                long calls = (long)Math.Floor((sim + phase) / RoarEverySeconds);
+                long strokes = (long)Math.Floor(sim * Hrot.UI.Common.Map3D.DragonPoses.BeatHz - 0.25);   // a down-stroke begins a quarter beat in (the wing at its top)
+                double dt = sim - seen.Sim;
+                float speed = known && dt > 1e-4 ? new Vector2(at.X - seen.At.X, at.Y - seen.At.Y).Length() / (float)dt : 0f;
+                var next = new DragonSeen { Strokes = strokes, Calls = calls, Airborne = fs.Airborne, Dead = dead, Health = hp, Burst = burst, LastRoar = seen.LastRoar, Sim = sim, At = at };
+                if (known && !seen.Dead)
+                {
+                    float d = Vector3.Distance(at, ear.Position);
+                    if (dead) { if (DragonSound(tkb, SoundTkbCatalog.DragonDeathRoar, at, d, now)) DragonDeathRoars++; }
+                    else
+                    {
+                        bool roar = (airborne && seen.Airborne == 0)                         // a take-off
+                                    || hp < seen.Health - 0.5f                               // hit
+                                    || burst > seen.Burst + 0.5                              // a new breath
+                                    || (airborne && calls > seen.Calls);                     // now and then in flight
+                        if (roar && sim - seen.LastRoar >= RoarQuietSeconds && DragonSound(tkb, SoundTkbCatalog.DragonRoar, at, d, now)) { DragonRoars++; next.LastRoar = sim; }
+                        if (airborne && strokes > seen.Strokes && Hrot.UI.Common.Map3D.DragonPoses.BeatTarget(speed, fs.VerticalSpeed) > 0f
+                            && DragonSound(tkb, SoundTkbCatalog.DragonWhoosh, at, d, now)) DragonWhooshes++;
+                    }
+                }
+                _dragonSeen[e] = next;
+            }
+            if (_dragonSeen.Count > 16 && ++_dragonFrame % 300 == 0)
+            {
+                _dragonGone.Clear();
+                foreach (var g in _dragonSeen.Keys) if (!w.IsAlive(g)) _dragonGone.Add(g);
+                foreach (var g in _dragonGone) _dragonSeen.Remove(g);
+            }
+        }
+
+        /// <summary>Plays a dragon's one-shot <paramref name="clip"/> at <paramref name="at"/>, <paramref name="d"/> m from the ear; false when out of its reach.</summary>
+        private bool DragonSound(ITkbDatabase? tkb, long clip, Vector3 at, float d, double now)
+        {
+            if (SoundTkbCatalog.SoundOf(tkb, clip) is not { } s) return false;
+            float g = Spatializer.Gain(d, s.ReferenceM, s.RangeM) * Volume(s);
+            if (g <= 1e-3f) return false;
+            _mixer.Request(clip, at, true, g, Jitter(s), s.Priority, now, Spatializer.Delay(d));
+            return true;
         }
 
         // ═══ ⭐ CE-4623 (animals AU-8, AN-19) — what the animals SAY, as the operator hears it ════════════════════════════════════════════════════════════════════════════
