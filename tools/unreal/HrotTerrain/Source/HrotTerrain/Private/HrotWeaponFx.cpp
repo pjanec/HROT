@@ -46,7 +46,7 @@ FHrotShotFx UHrotWeaponFx::MinigunFx()
 	FHrotShotFx Fx = LyraRifleFx();
 	Fx.MuzzleSocket = NAME_None;
 	Fx.TracerEvery = 1;          // every round: at 50 a second and 850 m/s the rounds fly ~17 m apart ...
-	Fx.TracerLength = 1500.f;    // ... ⚠ measured: 9 m streaks still read as a dashed line — 15 m nearly closes the gaps
+	Fx.TracerLength = 900.f;     // ... 9 m streaks: a dashed stream (user, 2026-11-20: "they are great as they are")
 	Fx.TracerWidth = 4.f;
 	Fx.FlashSize = 1.6f;
 	Fx.DustSize = 70.f; Fx.DustLife = 2.0f; Fx.DustBrightness = 0.4f;
