@@ -53,6 +53,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FVector EngineDeck = FVector::ZeroVector;
 	/** the damage effects' size for this vehicle (1 = a tank; ⚠ measured: a tank-sized fire hid a whole car) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float DamageFxScale = 1.f;
+	/** ⭐ a FLAMETHROWER (U-17f): the helicopter's, the dragon's mouth — at FlameMount (hull space, X = the stream), FlameSize */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bFlamethrower = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform FlameMount;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlameSize = 1.f;
 };
 
 UCLASS()
@@ -71,6 +75,9 @@ public:
 	/** the gun's elevation, degrees (+ = up) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float GunPitch = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") EHrotVehicleDamage Damage = EHrotVehicleDamage::Intact;
+	/** the kit's flamethrower streams (HROT's state; a destroyed vehicle never fires) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bFlaming = false;
+	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void SetFlaming(bool bNewFlaming);
 
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void ApplyState();
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void SetAim(float Yaw, float Pitch);
@@ -91,6 +98,7 @@ public:
 private:
 	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> PartComps;
 	UPROPERTY(Transient) TArray<TObjectPtr<UFXSystemComponent>> DamageFx;
+	UPROPERTY(Transient) TObjectPtr<class UHrotFlamethrower> Flame;
 	EHrotVehicleDamage Shown = EHrotVehicleDamage::Intact;
 	void ClearDamageFx();
 };

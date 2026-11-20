@@ -6,7 +6,9 @@
     and which way it faces) — or "skeletal" + "anim" (+ "loop": false = hold the last frame): an animal playing its own clip;
     "heading" = the actor's yaw (default −60: three-quarter toward the camera); "at": [x, y, z] places it (a grid) and "rowAt"
     aims the row picture at the grid's centre; "animal": a UHrotAnimalKind + "state" (+ "then": {"state", "after"}
-    = a change in play, by game time) spawns an AHrotAnimal; "views": [{"name", "label" | "at", "back", "up", "lookZ", "az"}] = more pictures, any framing
+    = a change in play, by game time) spawns an AHrotAnimal; "views": [{"name", "label" | "at", "back", "up", "lookZ", "az"}] = more pictures, any framing; "person": a soldier
+    (hrot_person); "groundFire": {"radius", "intensity"}; on any entry, in play: "burn": intensity (UHrotBurning), "flamethrower":
+    {"socket", "loc", "rot", "size", "firing"} (UHrotFlamethrower; a person's goes on its weapon)
 
 A row of AHrotVehicle (one kit) in a new level, each with its state (turret yaw / gun pitch / damage), played in Simulate (the
 damage effects and the shot renderer run in the game world); pictures timed by GAME time: the row at 3 s (smoke grown), the firing
@@ -22,6 +24,7 @@ LES = lambda: unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 UES = lambda: unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
 EAS = lambda: unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 T0 = time.time()
+HERE = os.path.dirname(os.path.abspath(__file__))   # ⚠ measured: __file__ is gone inside the slate tick callback — taken here, at load
 SPACING = float(JOB.get("spacing", 1100.0))   # cm between vehicles along X
 
 
@@ -75,8 +78,28 @@ def level():
             ad.set_editor_property("saved_playing", True); ad.set_editor_property("saved_position", 0.0)
             c.set_editor_property("animation_data", ad)
             continue
+        if v.get("person"):   # ⭐ a soldier (the ONE person setup, hrot_person.PersonKit): {"body", "state": {"base", "upper", "weapon", …}}
+            if "kit" not in S:
+                import sys; sys.path.insert(0, HERE)
+                import hrot_person; S["kit"] = hrot_person.PersonKit(log)
+            made = S["kit"].make(v["person"].get("body") or None, at, float(v.get("heading", 0)), v["label"], v["person"].get("state"), always_tick=True)
+            if made is None: raise RuntimeError("person clips missing: " + v["label"])
+            continue
+        if v.get("groundFire"):   # ⭐ an AHrotGroundFire: {"radius", "intensity"}
+            g = v["groundFire"]; a = spawn(unreal.HrotGroundFire, at, rot, v["label"])
+            setattr(a, "radius", float(g.get("radius", 300))); setattr(a, "intensity", float(g.get("intensity", 1)))
+            continue
+        if v.get("fx"):   # an effect as the pack ships it ("rot": [pitch, yaw, roll], "scale") — a trial of its look, axis and size
+            r = v.get("rot", (0, 0, 0))
+            a = unreal.EditorLevelLibrary.spawn_actor_from_object(unreal.load_asset(v["fx"]), unreal.Vector(*at),
+                                                                 unreal.Rotator(pitch=r[0], yaw=r[1], roll=r[2]))
+            a.set_actor_label(v["label"]); a.set_actor_scale3d(unreal.Vector(*([float(v.get("scale", 1))] * 3)))
+            continue
         if v.get("mesh"):   # a bare mesh, as the pack ships it
             a = spawn(unreal.StaticMeshActor, at, rot, v["label"])
+            if v.get("scale"): a.set_actor_scale3d(unreal.Vector(*([float(v["scale"])] * 3)))
+            b = unreal.load_asset(v["mesh"]).get_bounds()
+            log(f"{v['label']}: bounds origin {b.origin.x:.0f}, {b.origin.y:.0f}, {b.origin.z:.0f} extent {b.box_extent.x:.0f}, {b.box_extent.y:.0f}, {b.box_extent.z:.0f}")
             a.static_mesh_component.set_static_mesh(unreal.load_asset(v["mesh"])); a.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
             continue
         kit = unreal.load_asset(v.get("kit") or JOB["kit"])
@@ -85,6 +108,7 @@ def level():
         setattr(a, "kit", kit)
         setattr(a, "turret_yaw", float(v.get("yaw", 0))); setattr(a, "gun_pitch", float(v.get("pitch", 0)))
         setattr(a, "damage", getattr(unreal.HrotVehicleDamage, v.get("damage", "INTACT")))
+        setattr(a, "flaming", bool(v.get("flaming", False)))   # the kit's flamethrower (HROT's state)
         a.build()
     log(f"{len(JOB['vehicles'])} vehicles")
     LES().editor_play_simulate()
@@ -148,6 +172,25 @@ def step():
             c, anim, loop = S["v"][v["label"]].skeletal_mesh_component, unreal.load_asset(v["anim"]), bool(v.get("loop", True))
             c.set_animation_mode(unreal.AnimationMode.ANIMATION_SINGLE_NODE); c.play_animation(anim, loop)
             if not loop: c.set_position(anim.get_play_length() * 0.995, False); c.stop()
+        for v in JOB["vehicles"]:   # ⭐ fire set in PLAY, as HROT would: "burn" = intensity; "flamethrower" = {"socket", "loc", "rot", "size", "firing"}
+            a = S["v"].get(v["label"])
+            if a is None: continue
+            if v.get("burn") is not None:
+                b = unreal.HrotBurning.set_burning(a, float(v["burn"])); log(f"{v['label']}: burning {v['burn']} -> {b.num_fires() if b else 0} fires")
+            if v.get("person") and v["person"].get("flame"):   # ⭐ a flamethrower soldier: the person state's own flamethrower (U-17f)
+                ps = a.get_component_by_class(unreal.HrotPersonState)
+                setattr(ps, "flamethrower", True); ps.set_flame_firing(True); log(f"{v['label']}: flame firing -> {ps.apply_flame() is not None}")
+            if v.get("flamethrower"):
+                f = v["flamethrower"]; parent = a.root_component
+                if v.get("person"):   # the soldier's weapon: its muzzle
+                    ps = a.get_component_by_class(unreal.HrotPersonState)
+                    parent = ps.get_weapon_component() if ps else None
+                    if parent is None: raise RuntimeError(v["label"] + ": no weapon component in play")
+                r = f.get("rot", (0, 0, 0))
+                off = unreal.Transform(location=unreal.Vector(*f.get("loc", (0, 0, 0))), rotation=unreal.Rotator(pitch=r[0], yaw=r[1], roll=r[2]))
+                ft = unreal.HrotFlamethrower.attach(parent, unreal.Name(f.get("socket", "None")), off, float(f.get("size", 1)))
+                ft.set_firing(bool(f.get("firing", True))); S.setdefault("flames", {})[v["label"]] = ft
+                log(f"{v['label']}: flamethrower on {parent.get_name()} socket {f.get('socket', 'None')}")
         S["later"] = [(v["label"], v["then"]) for v in JOB["vehicles"] if v.get("then") and v["label"] in S["v"]]
         if S["later"]: S["t0"] = game_now()
         S["queue"] = [("row", None)] + [("close", v["label"]) for v in JOB["vehicles"] if v.get("damage", "INTACT") != "INTACT"] + \

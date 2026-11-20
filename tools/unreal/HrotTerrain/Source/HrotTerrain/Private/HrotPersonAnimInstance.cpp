@@ -1,5 +1,6 @@
 // CE-4651 (U-16) — see the header.
 #include "HrotPersonAnimInstance.h"
+#include "HrotFire.h"
 #include "HrotPeopleLod.h"
 
 #include "Animation/AnimInstanceProxy.h"
@@ -345,7 +346,29 @@ UMeshComponent* UHrotPersonState::ApplyWeapon()
 	C->SetVisibility(true);
 	C->AttachToComponent(Hand, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocket);
 	C->SetRelativeTransform(WeaponOffset);
+	if (bFlamethrower || bFlameFiring) ApplyFlame();
 	return C;
+}
+
+void UHrotPersonState::SetFlameFiring(bool bFiring)
+{
+	bFlameFiring = bFiring;
+	ApplyFlame();
+}
+
+UHrotFlamethrower* UHrotPersonState::ApplyFlame()
+{
+	UMeshComponent* C = GetWeaponComponent();
+	if (!C) return nullptr;
+	UHrotFlamethrower* F = nullptr;
+	for (USceneComponent* Child : C->GetAttachChildren()) if (UHrotFlamethrower* X = Cast<UHrotFlamethrower>(Child)) { F = X; break; }
+	if (!F && bFlamethrower)
+	{
+		const FName Muzzle = C->DoesSocketExist(TEXT("Muzzle")) ? FName(TEXT("Muzzle")) : NAME_None;
+		F = UHrotFlamethrower::Attach(C, Muzzle, FTransform::Identity, FlameSize);
+	}
+	if (F) F->SetFiring(bFlamethrower && bFlameFiring);
+	return F;
 }
 
 void UHrotPersonState::OnRegister()

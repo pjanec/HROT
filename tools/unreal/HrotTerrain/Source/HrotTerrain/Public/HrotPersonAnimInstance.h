@@ -56,6 +56,15 @@ public:
 	 *  ApplyMaterials, and again in play. Slots the body does not have are ignored. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") TMap<FName, TObjectPtr<UMaterialInterface>> MaterialOverrides;
 
+	/** ⭐ the weapon is a FLAMETHROWER (U-17f): a UHrotFlamethrower rides on its "Muzzle" socket; bFlameFiring = HROT's state */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") bool bFlamethrower = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") bool bFlameFiring = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") float FlameSize = 1.f;
+	/** sets bFlameFiring and applies it (the stream starts / stops) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Person") void SetFlameFiring(bool bFiring);
+	/** the flamethrower on the weapon (created when bFlamethrower and a weapon is in the hand), or null */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Person") class UHrotFlamethrower* ApplyFlame();
+
 	/** set by the first tick in play (ApplyAnimation + ApplyWeapon ran) — a check the anim lab reads */
 	UPROPERTY(Transient, VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Person") bool bAppliedInPlay = false;
 

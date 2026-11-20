@@ -4,6 +4,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "HrotFire.h"
 #include "HrotShotRenderer.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
@@ -15,7 +16,6 @@ namespace
 {
 	// ⭐ the look of damage: Realistic Starter VFX Pack Vol 2 (Cascade) + our burnt material (scripts/unreal/hrot_shotfx_assets.py)
 	const TCHAR* SmokeFx = TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Smoke/P_Smoke_A.P_Smoke_A");
-	const TCHAR* FireFx = TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Fire/P_Fire_Big.P_Fire_Big");
 	const TCHAR* MuzzleSmokeFx = TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Explosion/P_Explosion_Smoke.P_Explosion_Smoke");
 	const float MuzzleSmokeScale = 1.5f;
 	// ⚠ measured (the vehicle lab): P_Smoke_A ×1 from the engine deck read as a faint wisp — ×3 for "damaged", the wreck's ×4
@@ -61,8 +61,10 @@ void AHrotVehicle::Build()
 	for (UStaticMeshComponent* C : PartComps) if (C) C->DestroyComponent();
 	PartComps.Reset();
 	ClearDamageFx();
+	if (Flame) { Flame->DestroyComponent(); Flame = nullptr; }
 	Shown = EHrotVehicleDamage::Intact;
 	if (!Kit) return;
+	if (Kit->bFlamethrower) Flame = UHrotFlamethrower::Attach(Hull, NAME_None, Kit->FlameMount, Kit->FlameSize);
 	for (const FHrotVehiclePart& P : Kit->Parts)
 	{
 		if (!P.Mesh) continue;
@@ -85,6 +87,12 @@ void AHrotVehicle::SetAim(float Yaw, float Pitch)
 	ApplyState();
 }
 
+void AHrotVehicle::SetFlaming(bool bNewFlaming)
+{
+	bFlaming = bNewFlaming;
+	ApplyState();
+}
+
 void AHrotVehicle::SetDamage(EHrotVehicleDamage NewDamage)
 {
 	Damage = NewDamage;
@@ -102,6 +110,7 @@ void AHrotVehicle::ApplyState()
 	FTransform G = Kit->GunPivot;
 	G.SetRotation(G.GetRotation() * FRotator(GunPitch, 0.f, 0.f).Quaternion());
 	Gun->SetRelativeTransform(G);
+	if (Flame) Flame->SetFiring(bFlaming && !bWreck);
 	if (Damage == Shown) return;
 
 	// ---- the damage look, only when it changes ----------------------------------------------------------------------------------
@@ -121,7 +130,9 @@ void AHrotVehicle::ApplyState()
 				DamageFx.Add(C);
 	};
 	if (Damage == EHrotVehicleDamage::Damaged) Attach(SmokeFx, DamagedSmokeScale);
-	if (bWreck) { Attach(FireFx, 1.0f); Attach(SmokeFx, WreckSmokeScale); }
+	// ⭐ the wreck burns through the ONE fire implementation (UHrotBurning, U-17f): one fire + its smoke at the engine deck
+	if (bWreck) { if (UHrotBurning* B = UHrotBurning::SetBurningAt(this, Kit->EngineDeck, Kit->DamageFxScale)) { B->SmokeScale = WreckSmokeScale; B->Apply(); } }
+	else UHrotBurning::SetBurning(this, 0.f);
 	Shown = Damage;
 }
 

@@ -3,7 +3,7 @@
     UnrealEditor-Cmd <project> -run=pythonscript -script=<this> -nullrhi      HROT_KIT_JOB = { "kit", "probe", "turret", "gun", "skip",
                                                                                                 "actor", "meshes": [{"mesh", "loc" | "ground": true, "rot" (yaw: the nose onto +X), "scale"}],
                                                                                                 "turretParts", "gunParts", "muzzle",
-                                                                                                "engineDeck", "flashSize", "out" }
+                                                                                                "engineDeck", "flashSize", "flame": {"loc", "rot", "size"}, "out" }
     probe        hrot_level_probe.py's result for the vendor's showcase map (every part placed: the hull frame = the map origin)
     turret, gun  the pivots: the turret ring centre (hull space) and the trunnion (hull space) — here: where the vendor placed the
                  turret and the gun meshes (their pivots are the ring and the trunnion)
@@ -58,7 +58,8 @@ def main(JOB):
         if m.get("ground"):   # no measured offset: centre it over the origin, its lowest point on the ground (scale 1)
             b = sm.get_bounds(); o, x = b.origin, b.box_extent
             yaw = math.radians(m.get("rot", (0, 0, 0))[1])   # turned (the nose onto +X): the centring offset turns with it
-            loc = (-(o.x * math.cos(yaw) - o.y * math.sin(yaw)), -(o.x * math.sin(yaw) + o.y * math.cos(yaw)), x.z - o.z)
+            k = float(m.get("scale", 1))   # scaled (the dragon ×6): so is the offset
+            loc = (-k * (o.x * math.cos(yaw) - o.y * math.sin(yaw)), -k * (o.x * math.sin(yaw) + o.y * math.cos(yaw)), k * (x.z - o.z))
             log(f"{sm.get_name()}: grounded at {loc[0]:.1f}, {loc[1]:.1f}, {loc[2]:.1f} (size {2*x.x:.0f} x {2*x.y:.0f} x {2*x.z:.0f} cm)")
         t = T(loc, m.get("rot", (0, 0, 0)))
         if m.get("scale"): t.scale3d = unreal.Vector(m["scale"], m["scale"], m["scale"])
@@ -81,6 +82,11 @@ def main(JOB):
     kit.set_editor_property("flash_size", float(JOB.get("flashSize", 8)))
     kit.set_editor_property("damage_fx_scale", float(JOB.get("damageFxScale", 1)))
     kit.set_editor_property("flash_life", float(JOB.get("flashLife", 0.15)))
+    fl = JOB.get("flame")   # a flamethrower: {"loc", "rot", "size"} in hull space (X = the stream)
+    kit.set_editor_property("flamethrower", bool(fl))
+    if fl:
+        kit.set_editor_property("flame_mount", T(fl.get("loc", (0, 0, 0)), fl.get("rot", (0, 0, 0))))
+        kit.set_editor_property("flame_size", float(fl.get("size", 1)))
     EAL.save_loaded_asset(kit, False)
     R["parts"] = len(parts)
     log(f"{path}: {len(parts)} parts")
