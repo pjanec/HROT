@@ -60,6 +60,34 @@ public sealed class RecastNavmeshFactoryTests
         Assert.Equal(55f, wps[n - 1].Position.X, 0.5f);
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-8309</c> — a path that starts 0.8 m beside a parked-CAR-sized box (4.5 × 1.8 m, 1.5 m tall: 'Bold Cover' / 'Van 1') and ends far
+    /// beyond it goes AROUND it, on the ground. 📐 live ts-aggression / ia-house-hunt / bt-window-duel: the planned path was 2 points straight THROUGH
+    /// the car and the walker ended on its roof (z 1.5) — so a clean bake is NOT the cause (this passes); the live mesh is. ⚠ The 1.5 m roof itself
+    /// bakes as a walkable island (IsWalkable at the car's centre is true); unreachable (climb 0.4 m), so a plan never uses it.
+    /// </summary>
+    [Fact]
+    public void CE8309_ACarSizedBox_IsNotWalkable_AndAPathFromBesideItGoesAround()
+    {
+        const string world = """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","height":1.5},
+               "geometry":{"type":"Polygon","coordinates":[[[27.75,29.1],[32.25,29.1],[32.25,30.9],[27.75,30.9],[27.75,29.1]]]}}]}
+            """;
+        var nav = Bake(world);
+        Span<NavWaypoint> wps = stackalloc NavWaypoint[64];
+        int n = nav.PlanPath(new Vector3(28.9f, 28.3f, 0), new Vector3(30f, 55f, 0), wps, (uint)NavLayerMask.Infantry);
+        var pts = new System.Text.StringBuilder();
+        for (int i = 0; i < n; i++) pts.Append(wps[i].Position).Append(' ');
+        for (int i = 0; i + 1 < n; i++)
+            for (int k = 0; k <= 20; k++)
+            {
+                var q = Vector3.Lerp(wps[i].Position, wps[i + 1].Position, k / 20f);
+                Assert.False(q.X > 27.8f && q.X < 32.2f && q.Y > 29.15f && q.Y < 30.85f, $"n={n} the path crosses the car at {q}: {pts}");
+                Assert.InRange(q.Z, -0.5f, 0.5f);
+            }
+    }
+
     [Fact]
     public void SwitchableProvider_AnswersStraightLinesUntilABakeIsPublished_ThenTheBake()
     {
