@@ -69,7 +69,8 @@
         "who": "*Blue Squad 1 ",
         "is": "open",
         "m": 3,
-        "quantifier": "all"
+        "quantifier": "all",
+        "upright": true
       },
       "after": 90
     },
@@ -80,7 +81,8 @@
         "who": "*Blue Squad 2 ",
         "is": "open",
         "m": 3,
-        "quantifier": "all"
+        "quantifier": "all",
+        "upright": true
       },
       "after": 90
     },
@@ -91,7 +93,8 @@
         "who": "*Blue Squad 3 ",
         "is": "open",
         "m": 3,
-        "quantifier": "all"
+        "quantifier": "all",
+        "upright": true
       },
       "after": 90
     },

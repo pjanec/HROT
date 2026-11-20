@@ -485,6 +485,45 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-8316</c> — <c>upright</c> on a cover cue: a man lying PRONE counts as using the ground, never as standing in the open — two men in the open, one
+    /// of them prone: "all in the open" holds without it and fails with it. 🔴 Red-proof: ignore <c>upright</c> ⇒ the upright row holds ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE8316_Upright_AProneManIsNotStandingInTheOpen()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "the squad is all in the open", "on": "cover", "who": "*Sq ", "is": "open", "m": 2, "quantifier": "all"},
+                {"name": "the squad all STANDS in the open", "on": "cover", "who": "*Sq ", "is": "open", "m": 2, "quantifier": "all", "upright": true}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(new Fdp.Toolkit.Spatial.Eqs.ManualCoverProvider(new[]
+            { new Fdp.Toolkit.Spatial.Eqs.CoverPoint { PositionX = 100, PositionY = 0, PositionZ = 0, DirectionX = 1, Quality = 1 } }));
+        var w = new FakeWorld { World = world };
+        void Man(string name, int id, double x, string stance)
+        {
+            w.U.Ids[name] = id;
+            w.Comps[id] = new JsonObject
+            {
+                ["Health"] = new JsonObject { ["Current"] = 100, ["Max"] = 100 },
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, 0, 0) },
+                ["StanceStatus"] = new JsonObject { ["CurrentStance"] = stance },
+            };
+        }
+        Man("Sq Leader", 1, 10, "Prone");      // suppressing, lying down in the open
+        Man("Sq Rifleman 1", 2, 14, "Crouched"); // bounding
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        book.Finish(10);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["the squad is all in the open"].Ok);
+        Assert.False(v["the squad all STANDS in the open"].Ok);
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "near", "who": "A", "point": [0,0], "upright": true}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("upright belongs to a cover cue", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2443</c> — <c>also</c> on a field cue: every extra condition holds on the SAME unit ("a man inside the field's x-span AND above the lane's band");
     /// a man who meets one condition and another man the other does not make it hold. 🔴 Red-proof: judge <c>also</c> on ANY unit ⇒ the split pair holds ⇒ red.
     /// </summary>
