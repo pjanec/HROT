@@ -1,5 +1,5 @@
 <!--STATUS
-state: OPEN — for backend (the person mover)
+state: RESOLVED 2026-11-20 by agg-behaviors (CE-8309) — the cause was the navmesh soup, not the mover
 updated: 2026-11-19
 current-answer: the whole note
 related-designs:
@@ -32,3 +32,14 @@ refused (the edge is a drop). ⛔ No line instrumented.
 | ⭐ lean | a walker never steps UP more than a body's step height (a car roof is no stair); a planned path through a parked vehicle goes round it (or the step is refused at the side, not taken onto the top) |
 | why behaviors does not build it | the mover and its ground snap are backend's; the brain's re-send is its correct answer to no progress |
 | how to verify | `ts-aggression`, editor: Bold's z stays 0 and he ends north of y 340 (the scenario's rows (3) pass) |
+
+
+## ✅ RESOLVED `2026-11-20` (agg-behaviors, CE-8309, on the user's word) — the car had left the NAVMESH, not a mover defect
+
+📐 The obstacle rebake reported *"0 baked, 18 from the cache"* — the car changed no navmesh tile. Cause: CE-4656 (`e0775a331`, 2026-11-18) made the ONE
+terrain soup (`TerrainWorldMesh.Build` / `BuildRegion`, the navmesh's input) skip a prism that draws its own body (a platform-typed parked car), so the
+car left the navmesh while `TerrainWorld.SurfaceZ` still had its prism: the path ran through it, the walker stepped inside its footprint, and SurfaceZ's
+"inside a solid ⇒ the lowest surface above" put him on the roof. ⭐ Fixed: the navmesh soup keeps every solid prism; only the new `BuildDrawn` (the 3-D
+terrain layer's render geometry) skips the self-drawn car. 📄 `docs/DESIGN_Map_3D_Mode.md` (the CE-8309 paragraph after CE-4656). Rails
+`DirtyRegionBakeTests.CE8309_*` (red-proved), `RecastNavmeshFactoryTests.CE8309_*`. ⚠ The mover is unchanged: `SurfaceZ`'s "lowest surface" fallback
+still lifts a man who is somehow put INSIDE a solid prism — no longer reachable by a path.

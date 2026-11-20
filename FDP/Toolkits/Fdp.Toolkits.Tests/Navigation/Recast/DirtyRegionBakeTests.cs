@@ -54,6 +54,37 @@ public sealed class DirtyRegionBakeTests : IDisposable
         Assert.Equal(FullKeys(w2, cache), Keys(f));
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-8309</c> — a parked CAR (4.5 × 1.8 × 1.5 m, the live 'Bold Cover'; a platform-typed obstacle that DRAWS ITS OWN BODY, CE-4656) ADDED by a
+    /// dirty rebake over a bare first bake is in the navmesh: a walker's path from 0.8 m beside it to far beyond goes AROUND it, in a full bake and in
+    /// the dirty one. 📐 live ts-aggression: the obstacle rebake reported "0 baked, 18 from the cache" (the car changed no tile) and the walker's path
+    /// ran straight through the car onto its roof. 🔴 Red-proof: the navmesh soup skipping a self-drawn prism (CE-4656's IsDrawn) ⇒ the path crosses.
+    /// </summary>
+    [Fact]
+    public void CE8309_ACarAddedByADirtyRebake_IsInTheNavmesh_AndAPathGoesAround()
+    {
+        var baseWorld = _f.BaseWorld();
+        var cache = new NavTileCache();
+        var f = Factory(cache);
+        f.Build(baseWorld);
+        var car = TerrainObstacles.PrismOf(new Vector3(250f, 250f, 0f), 0f, new ObstacleShape { Length = 4.5f, Width = 1.8f, Height = 1.5f }, baseWorld.Materials.Get("concrete", "t"), "obstacle:car", drawnByEntity: true);   // a platform-typed car draws its own body (CE-4656)
+        var withCar = TerrainObstacles.With(baseWorld, new[] { car });
+        var nav = f.Build(withCar, new List<(Vector2, Vector2)> { Box(withCar.Prisms[^1]) })!;
+        var full = Factory(new NavTileCache()).Build(withCar)!;
+        Span<NavWaypoint> wps = stackalloc NavWaypoint[64];
+        foreach (var (name, mesh) in new[] { ("full bake", full), ("dirty rebake", nav) })
+        {
+            int n = mesh.PlanPath(new Vector3(248.9f, 248.3f, 0f), new Vector3(250f, 280f, 0f), wps, (uint)NavLayerMask.Infantry);
+            Assert.True(n >= 2, $"{name}: no path");
+            for (int i = 0; i + 1 < n; i++)
+                for (int k = 0; k <= 20; k++)
+                {
+                    var q = Vector3.Lerp(wps[i].Position, wps[i + 1].Position, k / 20f);
+                    Assert.False(q.X > 247.8f && q.X < 252.2f && q.Y > 249.15f && q.Y < 250.85f, $"{name}: the path crosses the car at {q} (n={n}, stats {f.LastStats})");
+                }
+        }
+    }
+
     /// <summary>(a, hamlet) A MOVED HAMLET (a merged overlay world): the dirty region = the old and new block's parts; keys equal the full bake's.</summary>
     [Fact]
     public void AMovedHamlet_DirtyBakeKeysEqualAFullBakes()

@@ -204,10 +204,10 @@ namespace Fdp.Toolkit.Terrain
 
         object ITerrainRenderGeometry.Identity => World;
 
-        /// <summary>The terrain mesh (the navmesh's own soup, unchanged), each triangle classed by its slope and its height over the ground.</summary>
+        /// <summary>The terrain mesh as DRAWN (⭐ CE-8309: the navmesh soup minus the self-drawn entities, TerrainWorldMesh.BuildDrawn), each triangle classed by its slope and its height over the ground.</summary>
         public void Build(out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds)
         {
-            TerrainWorldMesh.Build(World, out vertices, out indices);
+            TerrainWorldMesh.BuildDrawn(World, out vertices, out indices, out _);   // ⭐ CE-8309 — what is DRAWN (no self-drawn car); the navmesh keeps the solid soup
             kinds = new TerrainSurfaceKind[indices.Length / 3];
             for (int t = 0; t < kinds.Length; t++)
                 kinds[t] = Classify(vertices[indices[3 * t]], vertices[indices[3 * t + 1]], vertices[indices[3 * t + 2]]);
@@ -284,7 +284,7 @@ namespace Fdp.Toolkit.Terrain
         public void BuildTagged(out Vector3[] vertices, out int[] indices, out TerrainSurfaceKind[] kinds, out string?[] materials)
         {
             Build(out var soupVerts, out var soupIndices, out var soupKinds);
-            TerrainWorldMesh.Build(World, out _, out _, out var tags);
+            TerrainWorldMesh.BuildDrawn(World, out _, out _, out var tags);   // ⭐ CE-8309 — the same drawn soup as Build's triangles
             var v = new List<Vector3>(soupVerts);
             var idx = new List<int>(soupIndices);
             var k = new List<TerrainSurfaceKind>(soupKinds);
