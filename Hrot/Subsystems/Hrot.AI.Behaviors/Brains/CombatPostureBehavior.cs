@@ -242,6 +242,11 @@ namespace Hrot.AI.Behaviors.Brains
                                 .Sequence(close => close
                                     .StatefulCondition(bb => bb.Willing, bb => bb.SuppressThrowState, PostureNodes.WillingToClose)
                                     .StatefulAction(bb => bb.Throw, bb => bb.SuppressThrowState, EqsTacticsNodes.CloseToThrow))
+                                // ⭐⭐ CE-8313 — a POSTED man (window, frame, room, open spot: his squad chose it) suppresses FROM his post, in the stance
+                                //   the post gave him: never prone behind a sill, never off to other cover (📐 bt-window-duel: prone at his window, 0 rounds)
+                                .Sequence(posted => posted
+                                    .Condition(bb => bb.Peek, PostureNodes.Posted)
+                                    .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.SuppressFromPost))
                                 // ⭐⭐ CE-8311 (D-15) — Suppress itself runs to cover in reach (crouched, firing) or lies down: never upright in the open
                                 .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.Suppress)))
                         .Sequence(prone => prone

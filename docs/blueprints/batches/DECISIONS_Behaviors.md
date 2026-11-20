@@ -8,7 +8,7 @@ current-answer: the whole file
 
 ## D-15 · CE-8311 — a soldier SUPPRESSING a hidden enemy stands upright in the open *(2026-11-20, agg-behaviors)*
 
-**DECIDED `2026-11-20` (user: "yes, go ahead with your lean"): ① — 🛠 BUILT (agg-behaviors): cover in reach ⇒ he runs there crouched, firing, and suppresses from it crouched; none ⇒ prone; he never stops firing. ⛔ A first cut used the take-cover cycle, which fires blind only on evidence ≤ 5 s old and silenced every suppressor (the 24-scenario re-run). Decision Layer §3.3g′. Rails `TacticsTreesTests.CE8311_*`.**
+**DECIDED `2026-11-20` (user: "yes, go ahead with your lean"): ① — 🛠 BUILT (agg-behaviors): cover in reach ⇒ he runs there crouched, firing, and suppresses from it crouched; none ⇒ prone; he never stops firing. ⛔ A first cut used the take-cover cycle, which fires blind only on evidence ≤ 5 s old and silenced every suppressor (the 24-scenario re-run). Decision Layer §3.3g′. ⚠ **`CE-8313`:** a POSTED man is not placed — he suppresses from his post in its stance (D-15 had laid bt-window-duel's window rifleman prone behind his sill: 0 rounds). Rails `TacticsTreesTests.CE8311_*`.**
 
 📐 `bt-window-duel`: the Street Rifleman picks Suppress (the Window Rifleman unseen), blind-fires 5 rounds into the house wall STANDING at (108.5, 80) for 12 s, and dies to two aimed rounds; Van 1 is 4.5 m away. `PostureNodes.Suppress` = fire blind, no stance, no move.
 

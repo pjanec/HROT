@@ -286,6 +286,27 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Running;
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8313</c> — the man holds a POST his squad gave him (any kind: <see cref="PeekAndFireParams.AnchorRadius"/> &gt; 0 — window, frame,
+        /// roof, a room, an open dispersal spot). The Suppress branch then fires from it (<see cref="SuppressFromPost"/>) instead of placing him
+        /// (<see cref="Suppress"/>, D-15): the post already IS his place and his stance. 📐 Live <c>bt-window-duel</c>: D-15 laid the window
+        /// rifleman prone behind his sill once the attacker dropped out of sight — he never fired again.
+        /// </summary>
+        [SharedAiCondition]
+        public static NodeStatus Posted(ref PeekAndFireParams p, Entity self, EntityRepository world)
+            => p.AnchorRadius > 0f ? NodeStatus.Success : NodeStatus.Failure;
+
+        /// <summary>⭐ <c>CE-8313</c> — a POSTED man's suppression: blind fire at the top threat's last-known spot from where he is, stance
+        /// untouched (the post set it). Running; Failure when he has no weapon.</summary>
+        [SharedAiAction]
+        public static NodeStatus SuppressFromPost(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+            => Fire(world, self, ref ws, p.CooldownSeconds, blind: true) ? NodeStatus.Running : NodeStatus.Failure;
+
+        /// <summary>Leaving a posted man's suppression: the fire stops; he keeps his stance and his place.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.SuppressFromPost")]
+        public static void Deactivate_SuppressFromPost(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+            => StopFiring(world, self, ref ws);
+
         /// <summary>⭐ <c>CE-8311</c> — a suppressor this close to his cover spot is on it (m); the speed he runs there (m/s, crouched).</summary>
         public const float SuppressCoverArrive = 1.5f, SuppressCoverSpeed = 3f;
 
@@ -649,9 +670,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>
         /// ⭐⭐ <c>CE-8311</c> (D-15, user-approved 2026-11-20) — the posture's cover sensor (<see cref="PostureSensors"/>, within the TakeCover branch's
-        /// own reach, CE-4652) holds a cover point: the SUPPRESS branch then fights from it — the take-cover cycle (<see cref="PeekAndFireNodes.PeekAndFire"/>:
-        /// hide, expose, a blind burst at the freshest evidence, D13) — instead of standing where he is. 📐 live <c>bt-window-duel</c>: a lone attacker
-        /// blind-fired at a window for 12 s standing in the open, Van 1 4.5 m away, and was shot. The same buffer the decision's cover score reads.
+        /// own reach, CE-4652) holds a cover point worth moving to: <see cref="Suppress"/> runs there crouched, firing, and suppresses from it.
         /// </summary>
         public static bool CoverInReach(EntityRepository world, Entity self, out Vector3 spot)
         {

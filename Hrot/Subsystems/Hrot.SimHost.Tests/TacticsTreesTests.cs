@@ -674,6 +674,42 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8313</c> — a POSTED man (his squad's post: <c>Peek.AnchorRadius</c> &gt; 0) suppressing a hidden enemy fires blind FROM his post,
+        /// in the stance he holds: never prone (behind a sill he cannot fire), never off to other cover, even with a cover point in reach.
+        /// 📐 live bt-window-duel: D-15 laid the window rifleman prone at his window — 0 rounds in 60 s. 🔴 Red-proof: drop the posted branch ⇒
+        /// prone ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE8313_APostedMan_SuppressesFromHisPost_NeitherProneNorMoved()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+            SeesNothing(w);
+            w.Contact(armed: true);
+            w.Order("CombatPosture", Objective);
+            Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+            if (!w.Repo.HasComponent<SimTransform>(w.Unit)) w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            var at = w.Repo.GetComponentRO<SimTransform>(w.Unit).Position;
+            for (int i = 0; i < 12; i++)
+            {
+                if (w.TaskName == "CombatPosture")
+                {
+                    var b = Block(w, hash);
+                    b->Peek.Anchor = at; b->Peek.AnchorRadius = 3f;   // on his post
+                    b->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.Suppress;
+                }
+                var cover = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
+                if (!cover.IsNull) w.AnswerScored(cover, 5, 3f, 3f, 0.8f);   // cover in reach — not for him
+                w.Tick();
+            }
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.Equal(1, BlindFireAsked(w));
+            Assert.NotEqual(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+            Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+        }
+
+        /// <summary>
         /// ⭐⭐ AQ89 B/C/D — a grenadier at a hidden enemy CLOSES TO THROW under his own blind fire only when WILLING: brave on his own
         /// (risk 0.8), or ordered to assault (an ordinary soldier's obedience 0.8). An ordinary grenadier left to himself (0.5), or a
         /// disobedient one ordered to assault (0.3), suppresses where he is.
