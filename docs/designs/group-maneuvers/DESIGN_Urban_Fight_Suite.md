@@ -1,0 +1,96 @@
+<!--STATUS
+state: LIVE
+build-state: BUILDING — the grammar (CE-2455) BUILT; U1 being built; U2–U6 DESIGN
+updated: 2026-11-20 (first version — behaviors, on the user's request)
+current-answer: §1 the rubric · §3 the suite · §4 U1 in detail
+stale-below: nothing
+known-rot: none
+known-conflict: none
+related-designs:
+  - ../../DESIGN_Scenario_Regression.md — OWNS the check grammar (§3) these scenarios are judged by; CE-2455 added still / for / fighting for this suite
+  - DESIGN_Squad_Tactics.md — OWNS the squad plays the suite exercises (contact reaction §7.6.3, fire and movement, bounding, danger crossing)
+  - DESIGN_Building_Clearing.md — OWNS the room drill and ClearBuilding U3 judges
+  - DESIGN_Defend_And_Attack_Position.md — OWNS SquadDefend (posts, frames, the lone man's round) U3 / U5 / U6 judge
+  - DESIGN_City_Battle_Showcase.md — §12 the test ladder: this suite is a tier-③ set at SQUAD scale (the ladder covers scale, not squad realism)
+  - ../../../scenarios/tests/pc-corridor-fight — the PLATOON precedent of "REALISM" rows (cover within a minute, never wholly in the open, not bunched); this suite reuses them at squad scale in a dense town
+-->
+
+# DESIGN — the urban fight suite: squad against squad in a town, judged for REALISM
+
+🔒 **User, `2026-11-20`:** *"2 or 3 squads that are fighting the same amount of enemies in a dense urban environment, but in different situations"* ·
+*"not just the scenarios, but the success conditions to check how realistic the behavior is … it might need your judgment"* · *"Go ahead"*.
+
+## 1. The rubric — how a run is judged realistic
+
+```mermaid
+graph TD
+  R[a run of one scenario] --> L1[1 NEVER rows - hard doctrine]
+  R --> L2[2 TIMELINE rows - the drill in time]
+  R --> L3[3 OUTCOME bands - several seeds]
+  R --> L4[4 REVIEW - judgement against a written checklist]
+  L1 --> M[machine verdict - scenario-regression.sh]
+  L2 --> M
+  L3 --> M
+  L4 --> J{expressible as a cue?}
+  J -->|yes| L1
+  J -->|no| T[tracker row with the evidence]
+```
+*What the picture shows that prose hid:* judgement is the INPUT of the machine checks, not a parallel verdict — every defect found by eye becomes a
+never / timeline row when the grammar can say it, so the automatic share grows with every review.
+
+| layer | catches | judged by | the yardstick |
+|---|---|---|---|
+| **1 · never** | what no trained soldier does | a `never` row | doctrine (ATP 3-06 urban operations; the squad battle drills — react to contact, break contact, enter and clear a room) |
+| **2 · timeline** | the right reaction, in time | a row with a window (`after` / `before` an anchor) | the same drills' timings (return fire at once; in cover within seconds; rushes of 3–5 s) |
+| **3 · outcome** | plausible totals | a band over several seeds | rules of thumb: a defended building costs the attacker ~2–3× · urban engagements mostly at 10–50 m |
+| **4 · review** | facing, side of cover, robotic timing | me, a fixed checklist per scenario (§4), a verdict per item | "would an instructor say *that's wrong*?" |
+
+⭐ **The tells** every scenario's rows hunt (from what the live runs of `2026-11-20` exposed): frozen in the open · seeing an armed enemy and not
+shooting · ignoring cover · bunching · a stalemate that never ends · perfect accuracy. ⚠ **A downed man is not idle** — every row about men judges
+`fighting: true` (📌 the stair "stand-off" of `2026-11-20` was a dead man).
+
+⚠ **One sample is not a band.** The deterministic run gives layers 1–2 one honest sample; layer 3 needs several seeds — added when layer 3 is.
+
+## 2. INVENTORY *(2026-11-20)*
+
+| query | result |
+|---|---|
+| `search_graph` `.*(ConditionBook\|AnchorBook\|ExpectRow\|CueDefinition\|ScenarioCheck).*` Class | 4 — `ConditionBook`, `AnchorBook`, `ScenarioChecks`, `ScenarioChecksTests` |
+| scenarios whose checks use `cover` | 1 — `pc-corridor-fight` (platoon, wide-corridor, CE-4672) |
+| urban / house / car scenarios (folder sweep) | `bc-house-*`, `bt-window-duel`, `ia-*`, `sq-defend-house`, `ts-house-defenders`, `pc-*` (platoons), `rf-car-squads` (cars, OPEN desert), `rf-house-obstacle`, `rf-wall-hugger` — ⛔ none squad-vs-squad in a dense town |
+| dense terrains | `demo-city` (169 enterable buildings, SUMO streets) · `city-battle` (472) · `cqb-village` (9) |
+
+⚠ Coverage of the graph could not be checked through the CLI.
+
+## 3. The suite *(squad 6 v 6, `demo-city`, the squads' default SOP unless said)*
+
+| # | situation | exercises (attack · defend) | state |
+|---|---|---|---|
+| **U1** | **car shootout** — both squads behind parked cars on opposite kerbs, ~70 m apart down a 22 m street | cover use, peek and fire, suppression, moving to better cover, casualty care under fire | ⏳ building (§4) |
+| U2 | **corner fight** — one squad holds an intersection corner, the other comes down the cross street | leaning round a corner, slicing the pie, suppress and flank through a parallel street / building | DESIGN |
+| U3 | **house defence v clearing** — a squad defends a 2–3 storey house, the other clears it with a fire-support half outside | window posts, falling back upstairs, suppressing windows, the stack, room by room, the stair | DESIGN |
+| U4 | **meeting engagement** — two squads advancing down one street meet at ~80 m | the contact reaction, cover (cars, doorways), fire and movement, the side-street flank | DESIGN |
+| U5 | **window to window** — both hold facing houses; one then crosses the street | window duels, smoke, crossing under covering fire | DESIGN |
+| U6 | **street ambush** — a squad in buildings ambushes one moving down the street | return fire, assault into the near building or break contact, casualty extraction | DESIGN |
+
+Rejected: **one scenario with all situations at once** — a failure cannot be told to one situation (a sampler can come later) · **immortal men**
+(as `rf-car-squads`) — the fight must be decided, and casualty care needs casualties · **`cqb-village`** — 9 buildings, not dense.
+
+## 4. U1 — the car shootout *(build-state: BUILDING)*
+
+**Site** — `demo-city`'s street on y ≈ 400 between the office row (front wall y 410.8, `biz-ms-03…07`) and the shop row (front y 388.4):
+Blue's three cars on the south kerb (x 470–494, y 392), Red's on the north kerb (x 540–564, y 407.5) — ~72 m on the diagonal. Six men
+each (leader, rifle and grenadier, mortal), no order: the default squad SOP fights.
+
+| row | layer | cue |
+|---|---|---|
+| both sides fire; each within 10 s of the other's first round | 2 | `shot` by `*Blue ` / `*Red `, `before` the other's first + 10 |
+| nobody in the fight stands UPRIGHT in the open 15 s once the shooting starts | 1 | `never` `cover` `open` `upright` `fighting` `for` 15, after the first round |
+| no knot of the squad (all within 3 m) held 10 s after the first half minute | 1 | `never` `bunched` `fighting` `for` 10 |
+| no friendly hits | 1 | `never` `shot` `by` `*Blue ` `hit` `*Blue ` (and Red) |
+| both sides take losses (the fight is real, not two walls) | 3 | `shot` `hit` each side |
+
+**Review checklist (layer 4)** — read from the recording and the probes, a verdict per item: ① who peeks from which side of the car (the
+side away from the enemy?) · ② does anyone fire from the open while cover is 2 m away · ③ are rounds aimed at men or at cars · ④ does a
+squad move (bound, flank along the shop fronts) or both just trade fire for 4 min · ⑤ is a wounded man dragged behind cover · ⑥ how long
+the first exchange takes to settle who is winning.

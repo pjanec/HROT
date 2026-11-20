@@ -79,6 +79,8 @@ namespace Hrot.Editor.Director
         // ⭐ CE-2455 — "for": since when each (cue, unit) has held without a break (unit -1 = the cue itself); "still": where each (cue, unit) settled
         private readonly Dictionary<(CheckCue Cue, int Unit), double> _heldSince = new();
         private readonly Dictionary<(CheckCue Cue, int Unit), System.Numerics.Vector2> _settledAt = new();
+        // ⭐ CE-2456 — the standing vehicles' cover points of THIS sample (the AI's own live rule), built on the first cover cue that asks
+        private List<Fdp.Toolkit.Spatial.Eqs.CoverPoint>? _vehiclePoints;
 
         /// <param name="t0">The sim time the run started at (rows carry absolute sim times).</param>
         public ConditionBook(ScenarioChecks checks, IVerifyWorld world, double t0)
@@ -108,6 +110,7 @@ namespace Hrot.Editor.Director
         {
             _rel = rel;
             _comps.Clear();
+            _vehiclePoints = null;
             _nameOf = _w.Named().GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Name);
             ReadRows();
             foreach (var (name, cue) in _checks.Anchors)
@@ -395,6 +398,12 @@ namespace Hrot.Editor.Director
                 int n = cover.GetCoverPointsInRadius(new System.Numerics.Vector2(at.X, at.Y), c.M, found);
                 bool near = false;
                 for (int i = 0; i < n && !near; i++) near = MathF.Abs(found[i].PositionZ - at.Z) <= 2f;
+                // ⭐ CE-2456 — a STANDING vehicle is cover too, read live as the AI's cover search reads it (VehicleCover.StandingPoints, CE-3142):
+                //   it is never in the terrain's database. ⛔ Before: a man crouched behind a parked car read as "in the open" (📐 uf-car-shootout)
+                if (!near)
+                    foreach (var vp in VehiclePoints(world))
+                        if (System.Numerics.Vector2.Distance(new System.Numerics.Vector2(vp.PositionX, vp.PositionY), new System.Numerics.Vector2(at.X, at.Y)) <= c.M
+                            && MathF.Abs(vp.PositionZ - at.Z) <= 2f) { near = true; break; }
                 // ⭐ CE-8316 — "upright": a man lying prone uses the ground (never "standing in the open")
                 if (c.Upright && Components(id)?["StanceStatus"]?["CurrentStance"]?.ToString() == "Prone") near = true;
                 if (Lasted(c, id, near != wantOpen)) held++;   // ⭐ CE-2455 — "for": this man, that long
@@ -451,6 +460,15 @@ namespace Hrot.Editor.Director
             double max = Num(hp["Max"]) ?? 0;
             double below = Num(comps["InjuryThresholds"]?["IncapacitatedBelow"]) ?? 0;
             return max <= 0 || cur / max >= below;
+        }
+
+        private List<Fdp.Toolkit.Spatial.Eqs.CoverPoint> VehiclePoints(EntityRepository world)
+        {
+            if (_vehiclePoints != null) return _vehiclePoints;
+            _vehiclePoints = new List<Fdp.Toolkit.Spatial.Eqs.CoverPoint>();
+            var terrain = world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
+            Fdp.Toolkit.Spatial.Eqs.VehicleCover.StandingPoints(world, terrain, _vehiclePoints);
+            return _vehiclePoints;
         }
 
         /// <summary>⭐ <c>CE-4672</c> — <c>bunched</c>: at least two LIVE units <see cref="AnchorSpec.Who"/> names, and EVERY one of them within <see cref="CheckCue.M"/> of

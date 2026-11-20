@@ -582,6 +582,56 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2456</c> (U1, the car shootout) — the <c>cover</c> cue reads a STANDING vehicle's sides as cover, as the AI's own cover search does
+    /// (<c>VehicleCover.StandingPoints</c>, CE-3142): a man crouched beside a parked car is not "in the open"; a man 30 m away is; the same car DRIVING is no cover.
+    /// 🔴 Red-proof: drop the vehicle loop in <c>CoverHolds</c> ⇒ the man by the car reads open ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE2456_Cover_AStandingCarIsCover_AsTheAiReadsIt()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "the man by the car is in the open", "on": "cover", "who": "By Car", "is": "open", "m": 1.5},
+                {"name": "the man far off is in the open", "on": "cover", "who": "Far Off", "is": "open", "m": 1.5}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+        world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+        world.RegisterComponent<global::CarKinem.Core.VehicleState>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new Fdp.Toolkit.Terrain.TerrainWorld()));
+        var car = world.CreateEntity();
+        world.AddComponent(car, new SimTransform { Position = new Vector3(30, 0, 0), Rotation = System.Numerics.Quaternion.Identity });
+        world.AddComponent(car, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 2.4f, Height = 1.5f, CollisionLayer = 1 });
+        world.AddComponent(car, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.PersonalCar, Length = 4.5f, Width = 1.8f });
+        world.AddComponent(car, new global::CarKinem.Core.VehicleState { Speed = 0f });
+        var w = new FakeWorld { World = world };
+        void Man(string name, int id, double x, double y)
+        {
+            w.U.Ids[name] = id;
+            w.Comps[id] = new JsonObject
+            {
+                ["Health"] = new JsonObject { ["Current"] = 100, ["Max"] = 100 },
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, y, 0) },
+            };
+        }
+        Man("By Car", 101, 30, -1.6);
+        Man("Far Off", 102, 60, 0);
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.False(v["the man by the car is in the open"].Ok);
+        Assert.True(v["the man far off is in the open"].Ok);
+
+        world.SetComponent(car, new global::CarKinem.Core.VehicleState { Speed = 5f });   // driving: no cover
+        var moving = new ConditionBook(checks, w, 0);
+        moving.Observe(1);
+        Assert.True(moving.Verdicts().Single(x => x.Name == "the man by the car is in the open").Ok);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2443</c> — <c>also</c> on a field cue: every extra condition holds on the SAME unit ("a man inside the field's x-span AND above the lane's band");
     /// a man who meets one condition and another man the other does not make it hold. 🔴 Red-proof: judge <c>also</c> on ANY unit ⇒ the split pair holds ⇒ red.
     /// </summary>
