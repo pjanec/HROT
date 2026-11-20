@@ -45,6 +45,7 @@ related-designs:
 | item | what is measured | ⭐ lean |
 |---|---|---|
 | **Goldens** | 20 passing scenarios show GOLDEN "different" (expected after these changes) | ⭐ the user decides; lean: re-record the 20 green now (`--verify-capture`, each must come back SAME in a second fresh process), leave the 4 red |
+| ⭐⭐ **NEXT — CE-2453** (`2026-11-20`, behaviors) | a clearing squad stops at the door when it HEARS the enemy inside: the squad SOP's contact row pauses `ClearArea` with `ReactToContact` → `SquadHold` (probe: 60 s+ at House A's entry) — the room drill's CB-66 / CB-72 are meant to answer it | ⭐ gate the four contact rows: kind == ClearBuilding AND the contact inside the building being cleared (tracker row has the measurement, claim rows, rails) |
 | `ia-area-defend` row (1) | the guard fires on Blue East only at ~231 s, after he is within 30 m (89.75 s) | ⭐ dump it; check the lone guard's round (CE-2373 / D-2m: `SquadDefendPlay.Round`, `CoveragePosts.NextRound`) — which posts the round visits and whether one sees the east approach |
 | `pc-urban-ambush` | the clearing squad stalls ~40 m short of H5 | ⭐ UrbanMovement / ClearBuilding play territory — dump at `every=5` (1 s runs out of memory) |
 | `pc-ambush-bypass` | the bypass works; a straggler idles 40–60 s after his CombatPosture order completes, so "the movement ends" never fires | ⭐ the UrbanMovement play's completion — runFor 300 did not help (reverted to 200) |
