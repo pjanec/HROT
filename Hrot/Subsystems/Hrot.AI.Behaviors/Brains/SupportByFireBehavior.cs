@@ -249,7 +249,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var post = posted ? ws.Plan.Point(ws.Plan.PostOf[i]) : p.Position;
                 if (ws.Phase == 0)
                     SquadManeuverRunner.Hold(world, self, member, post, p.Speed,
-                                             posted ? new MemberPost { Set = 1, Radius = SquadDefendPlay.PostRadius } : default);   // ⭐ D-11 B — his post
+                                             posted ? new MemberPost { Set = 1, Radius = SquadDefendPlay.PostRadius, Open = ws.Plan.Open[ws.Plan.PostOf[i]] } : default);   // ⭐ D-13 — prone on a dispersal spot   // ⭐ D-11 B — his post
                 else if (ws.Empty[i] != 0 || ws.Down != 0) SquadManeuverRunner.Hold(world, self, member, at, p.Speed);
                 else SquadManeuverRunner.Suppress(world, self, member, Entity.Null, p.Post(i % Math.Max(1, p.Posts)), at, p.Speed);
                 ws.Orders++;

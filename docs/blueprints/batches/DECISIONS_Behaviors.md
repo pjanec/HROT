@@ -6,6 +6,42 @@ current-answer: the whole file
 
 # DECISIONS — behaviors
 
+## D-15 · CE-8311 — a soldier SUPPRESSING a hidden enemy stands upright in the open *(2026-11-20, agg-behaviors)*
+
+**DECIDED `2026-11-20` (user: "yes, go ahead with your lean"): ① — 🛠 BUILT (agg-behaviors, user `2026-11-20`: *"go with your lean"*): a FIRING POSITION on the last-known spot in reach ⇒ he runs there crouched, firing; there (or where he is when none answers in 2 s) the LOWEST stance whose line to the spot clears — prone, else crouched, else standing; he never stops firing. ⛔ A second cut (cover in reach, crouched) hid him behind the cover his rounds then struck (bt-window-duel). ⛔ A first cut used the take-cover cycle, which fires blind only on evidence ≤ 5 s old and silenced every suppressor (the 24-scenario re-run). Decision Layer §3.3g′. ⚠ **`CE-8313`:** a POSTED man is not placed — he suppresses from his post in its stance (D-15 had laid bt-window-duel's window rifleman prone behind his sill: 0 rounds). Rails `TacticsTreesTests.CE8311_*`.**
+
+📐 `bt-window-duel`: the Street Rifleman picks Suppress (the Window Rifleman unseen), blind-fires 5 rounds into the house wall STANDING at (108.5, 80) for 12 s, and dies to two aimed rounds; Van 1 is 4.5 m away. `PostureNodes.Suppress` = fire blind, no stance, no move.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| Suppress sets no stance and never moves | ✅ `PostureNodes.Suppress` (Fire, blind) | ⛔ searched Decision Layer §3.3, Peek and Fire: none |
+| the posture already holds a cover answer at the TakeCover branch's reach | ✅ `PostureSensors` (CE-4652) | ✅ CE-4652 |
+| the take-cover cycle fires blind bursts at the freshest evidence | ✅ `PeekAndFireNodes` D13 | ✅ Peek and Fire D13 |
+
+- ① (chosen) take cover in reach, else prone, then suppress. · ② suppress from a lower stance only: he stays in the open. · ③ keep: a man suppresses standing in the open.
+
+## D-14 · CE-8308 — a round is released with a friend 0.65 m off its line, 45 m out: the spread hits him (the friend check ignores the spread; the neutral check does not) *(2026-11-19, agg-behaviors)*
+
+**Measured** (`pc-corridor-fight`, agg-behaviors `2247b504d` — D-13's prone half; deterministic, 2 runs): the new red *"no Blue round hits a Blue man"* at
+72.58 s — shot seq 159: **Blue Squad 1 Rifleman 2** at (240.8, 194.2), suppressing at the POINT (412.8, 185.9) (no target), hits **Blue Squad 3
+Rifleman 1**, alone ~45 m out on that line (0.04 m off it at 70 s, ~0.65 m at the shot, moving). The base (`b8ff411f4`) has no friendly hit — only
+the two "wholly in the open" rows (Blue S1 162.25 s, S3 91.5 s); with D-13's prone half Blue S1's open row PASSES, S3's moves to 158.5 s. ⇒ prone
+moved the fight; the hit exposes a latent rule gap.
+
+| the lean rests on | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a friend holds the shot only within his strike radius of the LINE | ✅ `LineOfFire.FriendOnLine.Test` — `StrikeRadius` (collider / pose reach), no spread | ✅ CE-321: "a unit never fires through a friendly" (the line only) |
+| a NEUTRAL holds it within the spread too | ✅ `LineOfFire.NeutralOnLine` — circle widened by `HitModel.Sigma` × his range (AW-20) | ✅ R-2026 / Civilians §5h |
+| the round leaves inside the spread, not on the line | ✅ `HitModel.Sigma` (the uniform cone's half-width × moving × under fire × stance) | — |
+
+**DECIDED `2026-11-20` (user: "Yes, sure. One rule for friends and civilians."): ①.** **🛠 BUILT (agg-behaviors): `LineOfFire.BlockedByFriendly(…, σ)` — σ required, every caller passes its mount's `HitModel.Sigma` (the missile 0); Civilians §5h.1. Rail `AimAndFireExecutorTests.CE8308_*`.** **My lean: ① widen the FRIEND's circle by the same spread** (`StrikeRadius + σ × his distance along the line`, exactly AW-20's rule — one rule for
+friend and neutral, ruling 9). Doctrine: you do not fire with a friend near your line of fire. Blast radius: every direct shot (AI and the
+point/burst forms) holds a little more often near friends ⇒ goldens of close fights move; an engine change in `Fdp.Toolkits/Combat/LineOfFire.cs`.
+- ② a fixed safety margin (e.g. +1 m) instead of the spread: simpler, but a second rule beside AW-20's and wrong at long range.
+- ③ keep it; re-author the scenario: hides a real fratricide.
+
+⛔ Not built — the change touches every direct shot. D-13's prone half stays committed (it is right on its own, and fixes Blue S1's open row).
+
 ## D-13 · CE-4666 — a squad's post plan finds too few cover posts: every man WITHOUT a post holds where he stands, shoulder to shoulder *(2026-11-19)*
 
 **Measured** (`pc-corridor-fight`, behaviors `e661d0936`, the last red rows — Blue Squad 3 "bunched" 131.25 s, "wholly in the open" 146.75 s):
@@ -20,7 +56,7 @@ run's own snapshots (the stepped HTTP probes diverge from it after ~77 s).
 | cover posts are kept apart, other posts 2.5 m | ✅ `DefencePostPicker.CoverSpacingMetres` 8 / `SpacingMetres` 2.5 | ✅ CE-2345 (R-2066 B): "two cover posts are spread wider" |
 | a section in the open disperses | — | ✅ doctrine (ATP 3-21.8): dispersion of ~5–10 m between men; no cover ⇒ go prone, spread |
 
-**DECIDED `2026-11-19` (user: "approved"): ①.** **🛠 BUILT `2026-11-19` (behaviors): `DefencePlan.Disperse`, real men only (`IDefenceCrew.DispersesUnposted`; a stochastic squad keeps its D-P5 fallback line); ⚠ not prone (no post flag for it). Rail `D13_*` red-proved; 381 / 0. Defend & Attack §8f D-2n.** **My lean: ① the plan gives every man still without a post a DISPERSAL spot** — on a line across the facing (or round the point when
+**DECIDED `2026-11-19` (user: "approved"): ①.** **🛠 BUILT `2026-11-19` (behaviors): `DefencePlan.Disperse`, real men only (`IDefenceCrew.DispersesUnposted`; a stochastic squad keeps its D-P5 fallback line); ⚠ not prone (no post flag for it) — ✅ the prone half BUILT `2026-11-19` (agg-behaviors, on the user's word): a dispersal spot is an OPEN post and `CombatPosture` holds a man on it prone (`AtOpenPost` → `HoldProne`); Defend & Attack §8f D-2n. Rail `D13_*` red-proved; 381 / 0. Defend & Attack §8f D-2n.** **My lean: ① the plan gives every man still without a post a DISPERSAL spot** — on a line across the facing (or round the point when
 all-round) through the position, at least `SpacingMetres` × 2 (5 m) from every other man's post or spot, inside the radius; he holds it
 PRONE (no cover). In `DefencePlan` (one place: every squad defence, the wait, the base of fire). Blast radius: every `SquadDefend` that finds
 too few cover posts; goldens move.

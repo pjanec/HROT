@@ -71,6 +71,43 @@ namespace Hrot.SimHost.Tests
             public ref WeaponChannel Channel => ref Repo.GetComponentRW<WeaponChannel>(Self);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-8314</c> — the squad-ordered suppressor uses D-15's ONE placement (<c>PostureNodes.PlaceSuppressor</c>): where he holds, the
+        /// lowest stance whose round reaches the man he suppresses — open ground ⇒ prone; a chest-high (1.2 m) wall 2 m in front ⇒ standing over it;
+        /// and the same for a man who never saw him, aimed at the squad's reported point. 📐 live pc-corridor-fight: Blue Squad 3's covering men
+        /// crouched in the open (no stance rule). 🔴 Red-proof: drop the placement call ⇒ no stance asked ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, true, Fdp.Toolkit.Tkb.Domain.StanceId.Prone)]
+        [InlineData(1.2f, true, Fdp.Toolkit.Tkb.Domain.StanceId.Standing)]
+        [InlineData(0f, false, Fdp.Toolkit.Tkb.Domain.StanceId.Prone)]
+        [InlineData(1.2f, false, Fdp.Toolkit.Tkb.Domain.StanceId.Standing)]
+        public void CE8314_AnOrderedSuppressor_TakesTheLowestStanceThatReachesHim(float wall, bool remembers, Fdp.Toolkit.Tkb.Domain.StanceId expected)
+        {
+            using var c = new Coverer(remembers, sees: false);
+            string feature = wall <= 0f ? "" : $$"""
+                { "type": "Feature", "properties": { "kind": "wall", "height": {{wall.ToString(System.Globalization.CultureInfo.InvariantCulture)}}, "material": "concrete", "thickness": 0.3 },
+                  "geometry": { "type": "LineString", "coordinates": [[102, 95], [102, 105]] } }
+                """;
+            c.Repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse($$"""
+                { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 }, "features": [ {{feature}} ] }
+                """, "stance-range"));
+            // he holds at (100, 100), the enemy 30 m east of him (the fixture's EnemyAt moved into the range)
+            c.Repo.AddComponent(c.Self, new SimTransform { Position = new Vector3(100f, 100f, 0f), Rotation = Quaternion.Identity });
+            c.Repo.AddComponent(c.Self, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+            var enemyAt = new Vector3(130f, 100f, 0f);
+            c.Repo.GetComponentRW<SimTransform>(c.Enemy).Position = enemyAt;
+            if (remembers)
+            {
+                ref var mem = ref c.Repo.GetComponentRW<TargetMemory>(c.Self);
+                mem.PositionsX[0] = enemyAt.X; mem.PositionsY[0] = enemyAt.Y; mem.PositionsZ[0] = 0f;
+            }
+            c.P.Point = enemyAt;
+            Assert.Equal(NodeStatus.Running, c.Tick());
+            Assert.Equal(expected, c.Repo.GetComponentRO<Hrot.MuscleCharacter.Animation.Components.StanceIntent>(c.Self).TargetStance);
+            Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, c.Repo.GetComponentRO<LocomotionChannel>(c.Self).ActiveAction);   // reach 0: he holds
+        }
+
         [Fact]
         public void CE2152_ASuppressorWhoSeesHim_FiresAimedAtHim()
         {

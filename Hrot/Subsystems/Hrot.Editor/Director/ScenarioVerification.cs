@@ -388,6 +388,8 @@ namespace Hrot.Editor.Director
                 int n = cover.GetCoverPointsInRadius(new System.Numerics.Vector2(at.X, at.Y), c.M, found);
                 bool near = false;
                 for (int i = 0; i < n && !near; i++) near = MathF.Abs(found[i].PositionZ - at.Z) <= 2f;
+                // ⭐ CE-8316 — "upright": a man lying prone uses the ground (never "standing in the open")
+                if (c.Upright && Components(id)?["StanceStatus"]?["CurrentStance"]?.ToString() == "Prone") near = true;
                 if (near != wantOpen) held++;
             }
             return Quantified(c.Quantifier, units, held);

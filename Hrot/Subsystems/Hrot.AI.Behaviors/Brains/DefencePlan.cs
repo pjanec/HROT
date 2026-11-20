@@ -293,6 +293,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (best < 0) continue;
                 var spot = new Vector3(cand[best].X, cand[best].Y, at.Z);
                 posts.Add(spot);
+                posts.Open[posts.Count - 1] = 1;   // ⭐ D-13 (the prone half) — no cover there: he holds it prone
                 posts.PostOf[i] = (byte)(posts.Count - 1);
                 taken[t++] = spot;
             }
@@ -435,7 +436,7 @@ namespace Hrot.AI.Behaviors.Brains
                 }
                 posts.X[keep] = at.X; posts.Y[keep] = at.Y; posts.Z[keep] = at.Z;
                 posts.Window[keep] = 1;
-                posts.Authored[keep] = posts.Roof[keep] = posts.Shallow[keep] = 0;
+                posts.Authored[keep] = posts.Roof[keep] = posts.Shallow[keep] = posts.Open[keep] = 0;
                 posts.WatchX[keep] = posts.WatchY[keep] = posts.WatchZ[keep] = 0f;
                 posts.Frame[keep] = framed ? (byte)1 : (byte)0;
                 keep++;
@@ -501,7 +502,7 @@ namespace Hrot.AI.Behaviors.Brains
                 float farthest = 0f;
                 for (int k = 0; k < m; k++)
                 {
-                    var at = posts.Point(k);
+                    var at = CoverageEye(ref posts, k);   // ⭐ CE-8312 — where he WATCHES from (a frame post's opening), not where he hides
                     farthest = MathF.Max(farthest, Flat(at - position));
                     origins.Add(new SurveyOrigin { X = at.X, Y = at.Y, Z = at.Z, Bearing = 0f, HalfArc = CoveragePosts.HalfArc });
                 }
@@ -520,7 +521,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return true;
             }
             Span<Vector3> candidates = stackalloc Vector3[WorldSurveyRequest.MaxOrigins];
-            for (int k = 0; k < m; k++) candidates[k] = posts.Point(k);
+            for (int k = 0; k < m; k++) candidates[k] = CoverageEye(ref posts, k);   // ⭐ CE-8312 — the same eye as the fan's origins
             Span<Vector3> probes = stackalloc Vector3[CoveragePosts.ProbeCount];
             CoveragePosts.Probes(position, radius, probes);
             Span<uint> sees = stackalloc uint[WorldSurveyRequest.MaxOrigins];
@@ -536,6 +537,15 @@ namespace Hrot.AI.Behaviors.Brains
             posts.CoverageStage = 2;
             return true;
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8312</c> — where a post WATCHES from, for coverage: a FRAME post's opening (he leans out of it to watch and to fire, D-2l DA-80) at
+        /// the post's height; any other post its own point. 📐 live <c>ia-area-defend</c>: the frame pass runs BEFORE coverage, so every Regular's
+        /// window post was a frame point 0.5 m inside the wall beside its opening — the coverage fan looked from there through the WALL, every window
+        /// saw almost nothing, and the lone guard's round was two posts on the south wall: Blue East walked in from the east unseen. ⛔ Was: the post point.
+        /// </summary>
+        internal static unsafe Vector3 CoverageEye(ref DefencePosts posts, int k)
+            => posts.Frame[k] != 0 ? new Vector3(posts.OpeningX[k], posts.OpeningY[k], posts.Z[k]) : posts.Point(k);
 
         /// <summary>⭐ <c>CE-2345</c> — which posts are COVER posts (not a window, the roof, or authored): those are spread wider.</summary>
         internal static unsafe void CoverPosts(ref DefencePosts posts, Span<bool> spread)

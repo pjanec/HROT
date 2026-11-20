@@ -32,12 +32,12 @@
       "after": "stack"
     },
     {
-      "name": "both insurgents are down",
+      "name": "both insurgents are down (incapacitated or dead: health under 30 %)",
       "on": "field",
       "who": "*Insurgent",
       "path": "Health.Current",
-      "op": "<=",
-      "value": 0,
+      "op": "<",
+      "value": 30,
       "quantifier": "all",
       "atEnd": true
     },

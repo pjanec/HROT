@@ -315,7 +315,7 @@ namespace Fdp.Toolkit.Combat.Executors
             //   ⭐ CE-3230 (H-5) — the warhead of the round that flies: the loaded one when there is one, else the mount's own
             var roundWarhead = ammo != 0 ? CombatTkb.WarheadOf(world, ammo) : CombatTkb.WarheadOf(world, CombatTkb.MountOf(world, firing, mountIndex));
             if (roundWarhead is not { Indirect: true }
-                && LineOfFire.BlockedByFriendly(world, unit, point))
+                && LineOfFire.BlockedByFriendly(world, unit, point, HitModel.Sigma(world, firing, CombatTkb.MountOf(world, firing, mountIndex), HitModel.Now(world))))   // ⭐ CE-8308 — and its spread
                 return Fdp.Toolkit.Behavior.Diagnostics.ActionReason.HoldFriendlyOnLine;
             // ⭐ AW-20 (R-2026) — the AI's direct round neither, while a NEUTRAL person is on the line or in the spread (an operator — obeyRoe
             //   false — decides himself, as for the neutral target, CE-2233)

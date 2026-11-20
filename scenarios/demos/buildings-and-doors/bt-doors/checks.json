@@ -36,7 +36,8 @@
           100.25
         ],
         "within": 0.75
-      }
+      },
+      "before": "the Visitor arrives in the west room"
     },
     {
       "name": "the Locksmith walks through the front doorway",

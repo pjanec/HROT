@@ -131,6 +131,54 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8315</c> (user, 2026-11-20: "aim") — where a BLIND round at an UNSEEN spot is aimed: the spot + <paramref name="height"/>
+        /// (the blind aim height); but when that line is blocked and the spot is INSIDE a building, the nearest opening of that building on the
+        /// spot's storey (a window, a door, a gap) that the shooter's eye reaches — at the spot's chest height, kept inside the opening. A man
+        /// suppressing a defender he knows is upstairs fires through the window, not into the wall under it. 📐 live ia-house-hunt: the spot
+        /// + 0.5 m sat under the upstairs sill, every round struck the wall and the defender, never suppressed, shot the attacker as he ran in.
+        /// No world / no terrain / not in a building / no opening reached ⇒ the spot + height, as before.
+        /// </summary>
+        public static Vector3 BlindAt(EntityRepository repo, IWorldQuery? world, Vector3 eye, Vector3 feet, float height)
+        {
+            var point = feet with { Z = feet.Z + height };
+            if (world == null || !world.SightBlocked(eye, point)) return point;
+            if (!repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() || repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is not { } terrain) return point;
+            int building = Fdp.Toolkit.Terrain.BuildingLayoutCache.BuildingAt(terrain, new Vector2(feet.X, feet.Y));
+            if (building < 0) return point;
+            float best = float.MaxValue;
+            var aim = point;
+            var panels = terrain.Panels;
+            for (int pi = 0; pi < panels.Count; pi++)
+            {
+                var panel = panels[pi];
+                if (panel.Building != building || panel.Openings.Count == 0) continue;
+                float length = Vector2.Distance(panel.A, panel.B);
+                if (length < 1e-3f) continue;
+                var dir = (panel.B - panel.A) / length;
+                for (int oi = 0; oi < panel.Openings.Count; oi++)
+                {
+                    var op = panel.Openings[oi];
+                    if (op.HeadZ < feet.Z + StoreyBandLow || op.SillZ > feet.Z + StoreyBandHigh) continue;   // another storey's opening
+                    var centre = panel.A + dir * (op.At + op.Width * 0.5f);
+                    float z = System.Math.Clamp(feet.Z + OpeningAimHeight, op.SillZ + OpeningMargin, System.Math.Max(op.SillZ + OpeningMargin, op.HeadZ - OpeningMargin));
+                    var target = new Vector3(centre.X, centre.Y, z);
+                    // judged to the near side of the opening (its glass, if any, is what the round meets there)
+                    var toward = eye - target; toward.Z = 0f;
+                    float flat = toward.Length();
+                    var near = flat > 1e-3f ? target + toward / flat * NearSideMetres : target;
+                    if (world.SightBlocked(eye, near)) continue;
+                    float d = Vector2.DistanceSquared(centre, new Vector2(feet.X, feet.Y));
+                    if (d < best) { best = d; aim = target; }
+                }
+            }
+            return aim;
+        }
+
+        /// <summary>⭐ <c>CE-8315</c> — an opening is on the spot's storey when it spans [feet + low, feet + high] at all (m); a blind round through it
+        /// goes at the spot's chest height (m), at least this far inside the opening's sill and head (m), judged this far short of its plane (m).</summary>
+        public const float StoreyBandLow = 0.3f, StoreyBandHigh = 2.2f, OpeningAimHeight = 1.2f, OpeningMargin = 0.1f, NearSideMetres = 0.3f;
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2326</c> (R-3030; DESIGN_Peek_And_Fire §11.6a) — where a round aims at a BODY REMEMBERED at <paramref name="feet"/> in
         /// <paramref name="stance"/>: the man is no longer there, so his body is built from the stance — the pose's CHEST
         /// (<see cref="Chest"/>, an armed man aiming, the reference size) and the sample heights the live rule uses

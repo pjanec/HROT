@@ -633,6 +633,154 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8311</c> (D-15, user-approved 2026-11-20) — a man SUPPRESSING a hidden enemy never does it standing in the open, and never stops
+        /// FIRING: while his firing-position search on the enemy's last-known spot has no answer he suppresses from the lowest stance whose line
+        /// clears (no terrain here ⇒ prone); once it answers a point 4 m off he runs there crouched, still suppressing blind.
+        /// 📐 live bt-window-duel: a lone attacker blind-fired standing for 12 s, Van 1 4.5 m away, and was shot; ⛔ a cut that ran to COVER
+        /// crouched fired into the van (0 rounds out in 35 s). 🔴 Red-proofs: no stance ⇒ standing ⇒ red; no move ⇒ no MoveTo ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE8311_ASuppressingMan_LiesDownInTheOpen_AndRunsToAFiringPositionOnTheSpot()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+            SeesNothing(w);
+            w.Contact(armed: true);
+            w.Order("CombatPosture", Objective);
+            Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+            void Suppressing(int ticks, Entity firing = default)
+            {
+                for (int i = 0; i < ticks; i++)
+                {
+                    if (w.TaskName == "CombatPosture") Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.Suppress;
+                    if (!firing.IsNull) w.AnswerScored(firing, 5, 3f, 3f, 0.8f);
+                    w.Tick();
+                }
+            }
+            if (!w.Repo.HasComponent<SimTransform>(w.Unit)) w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            Suppressing(10);
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+            Assert.Equal(1, BlindFireAsked(w));   // suppressing, lying down
+            Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+
+            var firingSensor = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.SuppressFromSite);
+            Assert.False(firingSensor.IsNull, "the firing-position search on the spot is up");
+            Suppressing(3, firingSensor);
+            Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance(w));
+            Assert.Equal(1, BlindFireAsked(w));   // still suppressing on the way
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8311</c> (D-15) — a suppressor takes the LOWEST stance whose round reaches the hidden enemy's last-known spot: a wall 2 m in
+        /// front of him, 20 m from the spot — none ⇒ prone; knee-high (0.6 m) ⇒ crouched over it; chest-high (1.2 m, a car) ⇒ standing over it;
+        /// 3 m ⇒ nothing clears ⇒ prone (his rounds cannot reach it, so he does not stand in it). 📐 live bt-window-duel: crouched behind Van 1
+        /// he fired into the van. 🔴 Red-proofs: always crouched ⇒ the 0 / 1.2 / 3 rows red; the spot + 0.5 m always ⇒ the seen row red.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, Fdp.Toolkit.Tkb.Domain.StanceId.Prone)]
+        [InlineData(0.6f, Fdp.Toolkit.Tkb.Domain.StanceId.Crouched)]
+        [InlineData(1.2f, Fdp.Toolkit.Tkb.Domain.StanceId.Standing)]
+        [InlineData(3f, Fdp.Toolkit.Tkb.Domain.StanceId.Prone)]
+        // ⭐ the round's own aim: an enemy SEEN standing is aimed at his chest (AimPoint.ForBodyAt, CE-2326), not 0.5 m over his feet —
+        //   📐 live ia-house-hunt: a defender seen at an upstairs window was "below the sill" for the spot + 0.5 m, so no stance cleared
+        [InlineData(1.08f, Fdp.Toolkit.Tkb.Domain.StanceId.Standing)]
+        [InlineData(1.08f, Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, true)]
+        public unsafe void CE8311_ASuppressor_TakesTheLowestStanceThatClearsTheLineToTheSpot(float wall, Fdp.Toolkit.Tkb.Domain.StanceId expected, bool seenStanding = false)
+        {
+            var w = new World();
+            string feature = wall <= 0f ? "" : $$"""
+                { "type": "Feature", "properties": { "kind": "wall", "height": {{wall.ToString(System.Globalization.CultureInfo.InvariantCulture)}}, "material": "concrete", "thickness": 0.3 },
+                  "geometry": { "type": "LineString", "coordinates": [[82, 95], [82, 105]] } }
+                """;
+            w.Repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse($$"""
+                { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 }, "features": [ {{feature}} ] }
+                """, "stance-range"));
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = new Vector3(80f, 100f, 0f), Rotation = Quaternion.Identity });
+            var enemy = w.Contact(armed: true);
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 100f; mem.PositionsY[0] = 100f; mem.PositionsZ[0] = 0f;
+            if (seenStanding) mem.SeenStance[0] = (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Standing + 1);
+            Assert.Equal(expected, PostureNodes.SuppressStance(w.Repo, w.Unit, enemy));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8315</c> — a BLIND round at an unseen man UPSTAIRS goes through the window, not into the wall under it: bt-range House A, the
+        /// ia-house-hunt attacker's firing spot (104, 77.5) prone and the defender's remembered spot (107.1, 100.9, z 3). The spot + 0.5 m is
+        /// behind the wall; <c>AimPoint.BlindAt</c> answers a point in an opening of House A on that storey that his eye reaches.
+        /// 🔴 Red-proof: BlindAt returning the spot + height ⇒ blocked ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8315_ABlindRoundAtAnUnseenManUpstairs_GoesThroughTheWindow()
+        {
+            var w = new World();
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
+            var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
+                "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+            w.Repo.SetSingletonManaged(terrain);
+            var query = Fdp.Toolkit.World.WorldQuery.Of(w.Repo)!;
+            Assert.NotNull(query);
+            var feet = new Vector3(107.1f, 100.9f, 3f);
+            foreach (float eyeZ in new[] { 0.35f, 1.1f })
+            {
+                var eye = new Vector3(104f, 77.5f, eyeZ);
+                Assert.True(query.SightBlocked(eye, feet + new Vector3(0, 0, Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.BlindAimHeightMetres)), "the plain blind aim is in the wall");
+                var aim = Fdp.Toolkit.Combat.AimPoint.BlindAt(w.Repo, query, eye, feet, Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.BlindAimHeightMetres);
+                Assert.NotEqual(feet + new Vector3(0, 0, Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.BlindAimHeightMetres), aim);
+                bool inAnOpening = false;
+                foreach (var panel in terrain.Panels)
+                {
+                    if (panel.Building < 0 || terrain.Buildings[panel.Building].Label != "House A") continue;
+                    var dir = Vector2.Normalize(panel.B - panel.A);
+                    foreach (var op in panel.Openings)
+                    {
+                        var c = panel.A + dir * (op.At + op.Width * 0.5f);
+                        if (Vector2.Distance(c, new Vector2(aim.X, aim.Y)) < 0.01f && aim.Z > op.SillZ && aim.Z < op.HeadZ && op.SillZ >= 2.5f) inAnOpening = true;
+                    }
+                }
+                Assert.True(inAnOpening, $"eye {eyeZ}: {aim} is not inside an upstairs opening of House A");
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8313</c> — a POSTED man (his squad's post: <c>Peek.AnchorRadius</c> &gt; 0) suppressing a hidden enemy fires blind FROM his post,
+        /// in the stance he holds: never prone (behind a sill he cannot fire), never off to other cover, even with a cover point in reach.
+        /// 📐 live bt-window-duel: D-15 laid the window rifleman prone at his window — 0 rounds in 60 s. 🔴 Red-proof: drop the posted branch ⇒
+        /// prone ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE8313_APostedMan_SuppressesFromHisPost_NeitherProneNorMoved()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+            SeesNothing(w);
+            w.Contact(armed: true);
+            w.Order("CombatPosture", Objective);
+            Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+            if (!w.Repo.HasComponent<SimTransform>(w.Unit)) w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            var at = w.Repo.GetComponentRO<SimTransform>(w.Unit).Position;
+            for (int i = 0; i < 12; i++)
+            {
+                if (w.TaskName == "CombatPosture")
+                {
+                    var b = Block(w, hash);
+                    b->Peek.Anchor = at; b->Peek.AnchorRadius = 3f;   // on his post
+                    b->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.Suppress;
+                }
+                var cover = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
+                if (!cover.IsNull) w.AnswerScored(cover, 5, 3f, 3f, 0.8f);   // cover in reach — not for him
+                w.Tick();
+            }
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.Equal(1, BlindFireAsked(w));
+            Assert.NotEqual(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+            Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+        }
+
+        /// <summary>
         /// ⭐⭐ AQ89 B/C/D — a grenadier at a hidden enemy CLOSES TO THROW under his own blind fire only when WILLING: brave on his own
         /// (risk 0.8), or ordered to assault (an ordinary soldier's obedience 0.8). An ordinary grenadier left to himself (0.5), or a
         /// disobedient one ordered to assault (0.3), suppresses where he is.
@@ -2106,6 +2254,40 @@ namespace Hrot.SimHost.Tests
             }
             Assert.Equal("CombatPosture", w.TaskName);
             Assert.NotEqual(Fdp.Toolkit.Combat.LeanSide.LeanNone, Fdp.Toolkit.Combat.Leans.Of(w.Repo, w.Unit));
+        }
+
+        /// <summary>
+        /// ⭐⭐ D-13 (CE-4666, the prone half; Defend &amp; Attack §8f D-2n) — a man ON an OPEN post (his squad's dispersal spot: no cover in
+        /// reach) lies PRONE there whatever the posture decision chose — quiet (Advance forced, which wins with no enemy) and with a threat (TakeCover
+        /// forced). 🔴 Red-proof: the open branch removed ⇒ he never asks for prone. A plain cover post (not open) is not this branch.
+        /// </summary>
+        [Fact]
+        public unsafe void D13_AManOnAnOpenPost_LiesProne_WhateverTheDecisionChooses()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });   // on his post
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());   // a body that can lie down (CE-2121)
+            w.Order("CombatPosture", "{\"stay\":true,\"post\":{\"point\":[0,0,0],\"radius\":4,\"open\":true}}");
+            Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+            for (int i = 0; i < 30; i++)
+            {
+                if (w.TaskName == "CombatPosture") Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.AdvanceAndAttack;
+                w.Tick();
+            }
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+            w.Contact(armed: true);
+            for (int i = 0; i < 30; i++)
+            {
+                Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.TakeCover;
+                w.Tick();
+            }
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+            var cover = new PeekAndFireParams { Anchor = Vector3.Zero, AnchorRadius = 4f };
+            Assert.Equal(Fbt.NodeStatus.Failure, PostureNodes.AtOpenPost(ref cover, w.Unit, w.Repo));
+            cover.Open = 1;
+            Assert.Equal(Fbt.NodeStatus.Success, PostureNodes.AtOpenPost(ref cover, w.Unit, w.Repo));
         }
 
         /// <summary>

@@ -1254,6 +1254,17 @@ graph TD
 | rails | `TargetMemoryModalityTests.CE2326_TheSeenStance_FollowsItsContact` · `ThreatEvaluationSystemTests.CE2326_ASeenMansStance_IsRemembered_AHeardOneAndAVehiclesAreNot` · `FireProcessingSystemTests.CE2326_ABlindBurstAtARememberedMan_IsAimedAsAtTheBodyLastSeenThere` · `AimAndFireExecutorTests.CE2326_ABurstAtARememberedBody_CarriesItsStance_ToTheMuscle`, `CE2326_ABlindRoundAtAManSeenCrouched_NamesHisBody` · `WeaponFireIntentEgressTranslatorTests.M8_TheLoadedRound_RoundTripsTheWire` (+ `BodyStance`) · `TargetMemoryTranslatorTests` (save → load + inject); ⭐ 6/6 mutants caught (Sort carry · stamp · `Resolve` in `ForBodyAt` · the executor's copy · the blind round's copy · the egress mapping). Gates: Toolkits 3989/0, SimHost 1785/0, NED 149/0 — the one red met, `WeaponFireIntent`'s size pin, moved 70 → 71 (the appended byte) |
 | ✅ behaviors *(`2026-10-21`)* | `PeekAndFireNodes.StartBurst`: the freshest evidence's slot (`FreshestEvidence(…, out slotId)`) → `SeenStanceOf` (`StanceSeen` + 1) → `FireAtPointNodeParams.BodyStance` (new, the padding after `Mount`: layout unchanged) → `FireAtPointNodes.FireAtPoint` forwards it; a known stance fires at the FEET, unknown keeps the spot + `BlindAimHeight`. Rail `PeekAndFireNodesTests.CE2326_ABlindBurstAtABodySeenCrouched_*` |
 
+#### 11.6b `CE-8315` — a blind round at a man NEVER SEEN inside a building goes through its opening *(agg-behaviors, `2026-11-20`, user: "aim"; build-state: BUILT)*
+
+⭐ §11.6 aims a burst at a body the memory SAW; a spot never seen (an attack order's target, a reported point) kept the spot + `BlindAimHeightMetres`.
+⭐ `AimPoint.BlindAt(repo, world, eye, feet, height)` is now THE blind aim for such a spot: the spot + height, unless that line is blocked AND the spot
+is inside a building (`BuildingLayoutCache.BuildingAt`) — then the opening of that building on the spot's storey (a window, door or gap whose span meets
+[feet + 0.3, feet + 2.2]) nearest the spot that the eye reaches (judged 0.3 m short of its plane), aimed at feet + 1.2 kept 0.1 m inside sill and head.
+Callers: `AimAndFireExecutor.FireBlind` (no seen stance) and the suppressor's stance check (`PostureNodes.StanceToReach`, D-15) — one rule, so the
+stance he picks is the one his round flies from. 📐 Why: live `ia-house-hunt` — the attacker never saw the upstairs defender; the spot + 0.5 m was
+under the sill, every round struck the wall, the defender was never suppressed and shot the attacker as he ran in. Rail `TacticsTreesTests.CE8315_*`
+(bt-range House A, prone and crouched). ⚠ `FireAtPointExecutor` (a squad's reported point) still aims at the plain point — not converted.
+
 ### 11.7 As built *(`2026-10-20`)* — matches §11.2–§11.5
 
 | | |

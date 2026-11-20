@@ -76,6 +76,10 @@ namespace Hrot.Map.Definitions.Behavior
         /// <summary>⭐ D-2g (DA-5, DA-22) — a ROOF post: prone behind the parapet, up to the point's stance (crouched) to fire over it.</summary>
         [JsonPropertyName("roof")]
         public bool Roof;
+        /// <summary>⭐ D-13 (CE-4666) — an OPEN post (a squad's dispersal spot, no cover in reach): he lies PRONE on it and returns fire from
+        /// there, whatever the fight's decision. Default false.</summary>
+        [JsonPropertyName("open")]
+        public bool Open;
 
         /// <summary>⭐ D-2l (DA-77…DA-84, R-2059) — a FRAME post: he stands beside the window frame behind the wall at
         /// <see cref="Point"/> (one of <see cref="FrameA"/> / <see cref="FrameB"/>) and leans out toward <see cref="Opening"/> to watch

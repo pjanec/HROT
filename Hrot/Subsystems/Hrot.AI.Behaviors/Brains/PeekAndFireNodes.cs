@@ -118,6 +118,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// 📄 DESIGN_Defend_And_Attack_Position.md §8c D-2l.</summary>
         public byte Frame;
         public Vector3 FrameA, FrameB, Opening;
+        /// <summary>⭐ D-13 (CE-4666, the prone half) — 1 = an OPEN post (a dispersal spot, no cover in reach): on it he lies prone and
+        /// returns fire (<see cref="PostureNodes.AtOpenPost"/> → <see cref="PostureNodes.HoldProne"/>). Not read by the peek cycle.</summary>
+        public byte Open;
     }
 
     /// <summary>

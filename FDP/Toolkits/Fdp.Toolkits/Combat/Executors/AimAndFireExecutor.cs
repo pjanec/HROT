@@ -255,7 +255,7 @@ namespace Fdp.Toolkit.Combat.Executors
 
             // ⭐ CE-321 — hold fire while a friendly is on the line (LineOfFire): the action keeps running and no round is spent,
             //   so a unit that moves clear (or a friendly that moves away) fires again.
-            if (!bomb && LineOfFire.BlockedByFriendly(world, platform, p.Target))
+            if (!bomb && LineOfFire.BlockedByFriendly(world, platform, p.Target, HitModel.Sigma(world, platform, mountDto, HitModel.Now(world))))   // ⭐ CE-8308 — and its spread
             {
                 channel.Status = NodeStatus.Running;
                 Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target);
@@ -460,6 +460,8 @@ namespace Fdp.Toolkit.Combat.Executors
             // when the memory knows the stance he was SEEN in, the round itself names that body (BodyStance) and the MUSCLE aims it (its
             // chest, or the band that showed over a cover that stops a round). ⛔ Before: always the spot + 0.5 m, blind to the cover.
             var point = feet with { Z = feet.Z + BlindAimHeightMetres };
+            // ⭐⭐ CE-8315 — an UNSEEN spot inside a building his line cannot reach: through the nearest opening of it that he can (AimPoint.BlindAt)
+            if (seenStance == 0) point = AimPoint.BlindAt(world, Fdp.Toolkit.World.WorldQuery.Of(world), ShotOrigin.Eye(world, shooter, out _), feet, BlindAimHeightMetres);
             if (!Magazine.Ready(weapon))
             {
                 Magazine.StartIfEmpty(ref weapon);
@@ -471,8 +473,9 @@ namespace Fdp.Toolkit.Combat.Executors
             //   (aimed at the remembered POINT, so the gait turns him to where the round goes, not to where the hidden man really is)
             if (BodyAim.HoldsFire(world, entity, point)) { SayAt(world, entity, ActionReason.Turning, point); return; }
             if (BodyAim.OutsideFixedCone(world, entity, mountDto, point)) { SayAt(world, entity, ActionReason.OutOfArc, point); return; }   // ⭐ Air Ops 6a (AW-1)
-            if (LineOfFire.BlockedByFriendly(world, shooter, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
-            if (LineOfFire.BlockedByNeutral(world, shooter, point, HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world)))
+            float blindSigma = HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world));
+            if (LineOfFire.BlockedByFriendly(world, shooter, point, blindSigma)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }   // ⭐ CE-8308
+            if (LineOfFire.BlockedByNeutral(world, shooter, point, blindSigma)
                 || LineOfFire.NeutralInFlame(world, shooter, mountDto, loadedAmmo, point))   // ⭐ CE-3486 (flame F-9)
             { Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target); return; }   // ⭐ AW-20
             if (ShotLedger.Held(in weapon, out var refused)) { Say(world, entity, HoldReasonOf(refused), p.Target); return; }   // ⭐ CE-2218 → Q94 A-4: the muscle's refusal

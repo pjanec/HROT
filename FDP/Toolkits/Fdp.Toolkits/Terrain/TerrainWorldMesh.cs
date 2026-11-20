@@ -46,23 +46,41 @@ namespace Fdp.Toolkit.Terrain
             //   caller (measured: none mutates them). A non-default cell size builds directly, uncached.
             if (cellSize <= 0f)
             {
-                var m = Memo.GetValue(world, w => new Lazy<Result>(() => BuildCore(w, DefaultCellSize(w)), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+                var m = Memo.GetValue(world, w => new Lazy<Result>(() => BuildCore(w, DefaultCellSize(w), drawnOnly: false), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
                 verts = m.Verts; indices = m.Indices; tags = m.Tags;
                 return;
             }
-            var r = BuildCore(world, cellSize);
+            var r = BuildCore(world, cellSize, drawnOnly: false);
             verts = r.Verts; indices = r.Indices; tags = r.Tags;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8309</c> — the soup as it is DRAWN: <see cref="Build(TerrainWorld, out Vector3[], out int[], out TerrainTriangleTag[], float)"/>
+        /// without the prisms the terrain mesh does not draw (<see cref="IsDrawn"/>: a volume effect, ⭐ a baked entity that draws its own body —
+        /// CE-4656's parked car). The 3-D terrain layer and its picker read THIS (<see cref="TerrainWorldQuery"/>'s render geometry); the navmesh,
+        /// the sight and the collision read <see cref="Build(TerrainWorld, out Vector3[], out int[], float)"/>, where the car stays SOLID.
+        /// ⛔ Was (CE-4656, 2026-11-18): the one soup skipped the self-drawn car for everyone, so it left the NAVMESH too — 📐 live ts-aggression /
+        /// ia-house-hunt / bt-window-duel: a walker's path ran straight through a parked car and he ended on its roof.
+        /// </summary>
+        public static void BuildDrawn(TerrainWorld world, out Vector3[] verts, out int[] indices, out TerrainTriangleTag[] tags)
+        {
+            bool any = false;
+            foreach (var prism in world.Prisms) if (prism.DrawnByEntity) { any = true; break; }
+            if (!any) { Build(world, out verts, out indices, out tags); return; }   // nothing self-drawn: the very same (memoised) soup
+            var m = DrawnMemo.GetValue(world, w => new Lazy<Result>(() => BuildCore(w, DefaultCellSize(w), drawnOnly: true), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
+            verts = m.Verts; indices = m.Indices; tags = m.Tags;
         }
 
         private sealed record Result(Vector3[] Verts, int[] Indices, TerrainTriangleTag[] Tags);
 
         private static readonly ConditionalWeakTable<TerrainWorld, Lazy<Result>> Memo = new();
+        private static readonly ConditionalWeakTable<TerrainWorld, Lazy<Result>> DrawnMemo = new();   // ⭐ CE-8309 — the drawn soup, built only when a prism draws itself
         private static readonly ConditionalWeakTable<TerrainWorld, StrongBox<int>> CoreBuilds = new();
 
         /// <summary>How many times THIS world's soup has really been built (a rail counts it — the memo must make it one per world).</summary>
         internal static int CoreBuildCount(TerrainWorld world) => CoreBuilds.TryGetValue(world, out var n) ? Volatile.Read(ref n.Value) : 0;
 
-        private static Result BuildCore(TerrainWorld world, float cellSize)
+        private static Result BuildCore(TerrainWorld world, float cellSize, bool drawnOnly)
         {
             Interlocked.Increment(ref CoreBuilds.GetOrCreateValue(world).Value);
             var v = new List<Vector3>();
@@ -74,7 +92,7 @@ namespace Fdp.Toolkit.Terrain
             foreach (var prism in world.Prisms)
             {
                 if ((++built & 255) == 0) Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the load advances (docs/DESIGN_Cluster_Load_Phase.md §12)
-                if (IsDrawn(prism)) AddPrism(prism, v, t, g);
+                if (drawnOnly ? IsDrawn(prism) : IsSolid(prism)) AddPrism(prism, v, t, g);   // ⭐ CE-8309 — the navmesh soup keeps a self-drawn car SOLID
             }
             foreach (var w in world.Walkables)
             {
@@ -116,7 +134,7 @@ namespace Fdp.Toolkit.Terrain
             foreach (int k in ix.Pieces(ix.Prisms, min, max))
             {
                 var prism = world.Prisms[k];
-                if (IsDrawn(prism)) AddPrism(prism, v, t, null);
+                if (IsSolid(prism)) AddPrism(prism, v, t, null);   // ⭐ CE-8309 — the navmesh's tiles: a self-drawn car is still solid (CE-4656 skipped it ⇒ no car in the navmesh)
             }
             foreach (int k in ix.Pieces(ix.Walkables, min, max))
                 AddWalkable(world.Walkables[k], v, t, null);
@@ -417,6 +435,10 @@ namespace Fdp.Toolkit.Terrain
         /// prism itself. ⚠ Every built-in see-through material today (glass, hedge, chain-link fence) blocks movement, so none is affected.
         /// </summary>
         public static bool IsVolumeEffect(TerrainPrism prism) => prism.Material is { SightTransmittance: > 0f, BlocksMovement: false };
+
+        /// <summary>⭐ <c>CE-8309</c> — whether <paramref name="prism"/> is in the SOLID soup (the navmesh's): everything but a volume effect — a self-drawn
+        /// entity (a parked car) included. ⚠ Not <see cref="IsDrawn"/>, which is the DRAWN soup's test.</summary>
+        public static bool IsSolid(TerrainPrism prism) => !IsVolumeEffect(prism);
 
         /// <summary>⭐ CE-4656 — the ONE test of whether the terrain mesh draws <paramref name="prism"/>: not a volume effect, and not a baked entity that draws itself.</summary>
         public static bool IsDrawn(TerrainPrism prism) => !IsVolumeEffect(prism) && !prism.DrawnByEntity;

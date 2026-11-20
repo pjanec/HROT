@@ -14,6 +14,7 @@ known-rot: (2026-10-13, P7) the class diagram's `[BehaviorContract Infantry]` on
 known-conflict:
   - docs/DESIGN_Sensors_And_Doctrine.md §11.2b G2 ("a mission PHASE may name a doctrine") — superseded by §2 here: the mission is NOT changed (user, 2026-10-04).
 related-designs:
+  - DESIGN_Peek_And_Fire.md — OWNS the blind aim (§11.6 a body seen; §11.6b `AimPoint.BlindAt`, CE-8315: through a building's opening) that §3.3g′'s suppressor stance is judged on
   - docs/DESIGN_Scenario_Rules.md — SR-18: a scenario director asset hosts a utility decision with self = the World Environment entity; the winner is an order down the chain
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) A/E: UnderFire in the posture choice; RecentlyLostContact gates the approach options (G6/A1)
   - docs/DESIGN_Entity_Brain_View.md — the brain journal is written at this design's entry gate (start / pause / resume / clear / refusals, with origin and urgency)
@@ -927,6 +928,32 @@ Rails: `StandardInputReaderTests.CE3084_*` (the input) · `TacticsTreesTests.CE3
 ⇒ flanks, firing, and on arrival goes straight on without ending the run · in sight ⇒ Direct · the outer posture still switches to
 TakeCover and the flank goes) · `TacticsTreesTests.CE2117_*` and `HybridLifecycleTests.CE2117_*` (both red before the kernel fix).
 
+### 3.3g′ `CE-8311` (D-15) — SUPPRESS from where the rounds reach: a firing position on the spot, the lowest stance that clears *(agg-behaviors, `2026-11-20`, user-approved: "go ahead with your lean"; build-state: BUILT)*
+
+⭐ `PostureNodes.Suppress` (the Suppress branch's leaf after the willing grenadier's close-to-throw, AQ89 C, and the posted arm, CE-8313) keeps firing blind every tick and places the man **where his rounds reach the spot**:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Seeking
+    Seeking --> Moving: a firing position on the last-known spot answers (FindOpenFiringPosition, cover reach)
+    Seeking --> Holding: no answer in 2 s / nothing to aim at
+    Moving --> Holding: arrived / the move failed
+    Holding --> Holding: every 1 s - the lowest stance whose line clears
+```
+
+*What the picture shows that prose hid: the stance is chosen only where he HOLDS (seeking or there), never while he runs — the move's own gait (crouched) carries him.*
+
+| piece | as built |
+|---|---|
+| the move | `EqsTacticsNodes.FiringPositionOnRemembered` — `FindOpenFiringPosition` on the top threat's LAST-KNOWN point (site `SuppressFromSite`), search radius = the TakeCover branch's reach (CE-4652), crouched rush; its own fire off (`From.FireWhileMoving = 0`) — Suppress fires |
+| the stance | `PostureNodes.SuppressStance` / `StanceToReach` — prone, else crouched, else standing: the first whose eye (`TerrainWorldLosStrategy.EyeHeightFor`, the fire chain's muzzle rule) sees the point the round itself aims at (`IWorldQuery.SightBlocked`): a body the memory saw in a stance → `AimPoint.ForBodyAt` (CE-2326: the chest, or the band over his cover), else the blind aim (`AimPoint.BlindAt`, CE-8315); none ⇒ prone; no world ⇒ prone. 📐 ia-house-hunt: aimed at the spot + 0.5 m, a defender seen at an upstairs window sat "below the sill", no stance cleared and the attacker lay behind his car firing into it |
+| ⭐ `CE-8314` — ONE placement | `PostureNodes.PlaceSuppressor` / `ReleaseSuppressor` (state `SuppressPlacement`) is the rule both suppressors run: the posture's Suppress, and the squad-ordered `SuppressContact` (`SuppressBehavior`) — its firing-position search within `OrderedFiringPositionMetres` (8 m: a man's own adjustment, never off the base of fire his commander chose); a man who never saw the target takes the stance for the squad's reported point and holds. ⛔ Was: the squad order held him where he stood in whatever stance he had (📐 pc-corridor-fight: Blue Squad 3's covering men crouched in the open). Rail `SuppressNodesTests.CE8314_*` |
+| the blind aim | `AimPoint.BlindAt` (`CE-8315`, Peek and Fire §11.6b) — through the opening of the building the unseen spot is in |
+| state | `SuppressParams` (`Engage` + `From`) · `SuppressRunState` (`Fire`, `From`, `Phase`, `SeekSince`, `StanceAt`); the deactivator stops fire, search and move, and stands him up |
+
+📐 Why: live `bt-window-duel` — a lone attacker blind-fired at a window for 12 s STANDING in the open, Van 1 4.5 m away, and was shot; the Suppress node set no stance and never moved (searched this design and Peek and Fire: no rule). ⛔ SUPERSEDED the same day, twice: ① the take-cover cycle (`PeekAndFire`) when cover was in reach — it fires blind only on evidence ≤ 5 s old, so every suppressor holding a remembered spot went silent (📐 the 24-scenario re-run); ② cover in reach (the posture's cover sensor), crouched — the cover hid him from the spot, so his rounds struck it (📐 `bt-window-duel`: crouched behind Van 1, 0 rounds out from 2 s to 37 s, the window man never saw him). Rails `TacticsTreesTests.CE8311_*`.
+
+⭐⭐ **`CE-8313` — a POSTED man is not placed.** A man holding his squad's post (`Peek.AnchorRadius` > 0: window, frame, roof, room, open spot) whom the decision sends to Suppress fires blind from the post in the stance the post gave him (`PostureNodes.Posted` → `SuppressFromPost`, ahead of `Suppress` in the branch): the post already IS his place and his cover. 📐 Why: live `bt-window-duel` after D-15 — once the attacker dropped out of sight the window rifleman's decision went to Suppress, D-15 laid him prone behind his sill, and he fired 0 rounds in 60 s (before D-15: first round at 5.8 s). ⛔ The open-post (D-13, prone) and the opening-post-with-threat (CE-2366 A, the peek cycle) branches still come first. Rail `TacticsTreesTests.CE8313_*`.
 ### 3.3f `CE-3090` — the wounded unit on open ground: HoldProne, and Flee only when able *(behaviors, `2026-10-07`; build-state: BUILT)*
 
 > 🔒 **User, `2026-10-07`:** *"flee is only realistic if the unit is healthy and capable of fleeing without becoming easy target; for

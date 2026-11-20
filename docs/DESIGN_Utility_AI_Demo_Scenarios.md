@@ -1336,6 +1336,8 @@ T-72 loses health (only a TOW penetrates its 500 front armour), the insurgent is
 
 ### 12.1 ✅ AS-BUILT — G7 (`CE-3089`), `2026-10-06`
 
+⭐⭐ **`CE-8310` (agg-behaviors, `2026-11-20`) — a mount past its range is NO choice.** The range band is a reversed logistic that never reaches 0, so `WeaponChoice.Choose` (`score <= 0` ⇒ the primary) let a weapon far past its range win when nothing else scored: 📐 live `uf-alone-under-fire` — two riflemen whose rifles were empty fired their PISTOLS (range 50 m) at a man 112 m off for 25 s (range factor ~3e-7). ⭐ Now a top score `<= WeaponChoice.MinUsableScore` (0.01) is no choice: the primary stands, and an empty primary holds fire. A mount in range scores ≥ ~0.1. Rail `StarterPackIntegrationTests.CE8310_*` (pistol at 30 m, none at 112 m; red-proved).
+
 | §12 said | as built / measured |
 |---|---|
 | W1–W5 | ✅ as drawn |

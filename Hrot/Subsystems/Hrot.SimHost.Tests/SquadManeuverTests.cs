@@ -1072,6 +1072,40 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(breaks, s.Kind == BreakContactManeuver.ManeuverKind);
         }
 
+        private const string CE2453House = """
+            { "type": "Feature", "properties": { "kind": "building", "label": "H",
+                "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                  "storeys": [ { "height": 3, "walls": [
+                    { "from": [0,0], "to": [10,0], "thickness": 0.3, "openings": [ { "kind": "door", "at": 5, "width": 1.0 } ] },
+                    { "from": [10,0], "to": [10,8], "thickness": 0.3 },
+                    { "from": [10,8], "to": [0,8], "thickness": 0.3 }, { "from": [0,8], "to": [0,0], "thickness": 0.3 } ] } ] } },
+              "geometry": { "type": "Point", "coordinates": [0, 0] } }
+            """;
+
+        /// <summary>⭐⭐ <c>CE-2453</c> (Building Clearing CB-66 / CB-72; the <c>NotDefending</c> precedent) — a squad CLEARING a house whose contact is INSIDE
+        /// that house keeps clearing (its room drill answers: the heard man suspects the room); a contact in the STREET still pauses the clear with
+        /// <c>ReactToContact</c>; a squad on any other order reacts as before. 📐 Live before: <c>ia-area-defend</c>, the clearer held at the door 60 s+.
+        /// ✅ Red-proof: the condition always true ⇒ the inside case reacts ⇒ red.</summary>
+        [Theory]
+        [InlineData(5f, 4f, false)]     // inside the house he is at the door of ⇒ the drill answers
+        [InlineData(5f, -30f, true)]    // in the street ⇒ the SOP reacts
+        public void CE2453_AClearingSquad_KeepsClearing_WhenItsContactIsInTheHouse_ButReactsToOneInTheStreet(float x, float y, bool reacts)
+        {
+            var s = new Squad(members: 2);
+            s.Repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{ \"type\": \"FeatureCollection\", \"features\": [ " + CE2453House + " ] }", "range"));
+            s.Order("{\"Point\":[5,4,0]}", BehaviorNames.ClearBuilding);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.ClearBuilding, Hrot.AI.Behaviors.Orders.CurrentOrders.Of(s.Repo, s.Commander).Kind);
+            s.PoolMany(1, new Vector3(x, y, 0f));
+            Assert.Equal(reacts, RoomSuspicion.NotClearingItsContact(s.Commander, s.Repo));
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();
+            if (reacts) Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            else Assert.NotEqual(BehaviorNames.ReactToContact, s.TaskName);
+        }
+
         /// <summary>⭐⭐ <c>CE-4612</c> (R-2088…R-2090; DESIGN_Orders_Params_Entity_Classes.md §15) — the squad's ORDER, typed and derived: a
         /// superior's <c>SquadHold</c> reads as a Hold with a request id; a reaction PAUSES it and the order is the same order (kind, request
         /// id), marked paused; the SOP's own task is no order. ✅ Red-proofs: the paused arm of <c>CurrentOrders.Of</c> dropped ⇒ None under the
@@ -2357,6 +2391,12 @@ namespace Hrot.SimHost.Tests
                 for (int j = i + 1; j < posts.Length; j++)
                     Assert.True(Vector2.Distance(new Vector2(posts[i].X, posts[i].Y), new Vector2(posts[j].X, posts[j].Y)) >= DefencePlan.DispersalMetres - 0.01f,
                                 $"men {i} and {j} posted {posts[i]} and {posts[j]}");
+            // ⭐ D-13 (the prone half) — the three dispersal spots are OPEN posts (he lies prone there); the one cover post is not
+            var open = s.Members.Select(m => System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
+                s.Orders.Last(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture).JsonParams,
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!.Post.Open).ToArray();
+            Assert.Equal(3, open.Count(o => o));
+            Assert.False(open[Array.FindIndex(posts, p => Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(6f, 26f)) < 0.1f)], "the cover post is not open");
         }
 
         /// <summary>A squad of four at the position (6, 20) whose own sector looks north (an arc from (0, 20), 330°–30°, out to 200 m ⇒ its
@@ -3040,6 +3080,33 @@ namespace Hrot.SimHost.Tests
             s.Pause(SquadDefendPlay.RoundDwellSeconds + 1);
             s.Tick(); s.Tick();
             Assert.True(s.Orders.Count == 0 || PostureOf(s, s.Members[0]).Post.Point.Local.Equals((Fdp.Core.WorldPoint)west), "an enemy in the area: no round");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8312</c> (📐 <c>ia-area-defend</c>) — the all-round defence's COVERAGE fan looks from where each post WATCHES: a Regular's two window
+        /// posts are frame posts (0.5 m inside the wall, beside the opening), and the fan's origins are their OPENINGS on the wall (y 25), not the frame
+        /// points. ✅ Red-proof: the fan from the post point ⇒ origins at y 24.5 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8312_TheCoverageFan_LooksFromAFramePostsOpening_NotFromBehindTheWall()
+        {
+            var s = new Squad(members: 1);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            s.Repo.AddComponent(s.Members[0], new CombatProficiency { Authored = ProficiencyOf.Regular, Set = CombatProficiency.AuthoredSet });
+            s.FrameSurvey = NorthFace((2f, 1f), (12f, 1f));
+            s.CoverageSurvey = null;   // never answered: the request stays up to be read
+            s.Teleport(s.Members[0], new Vector3(7, 30, 0));
+            s.Order("{\"Position\":[7,32,0],\"SearchRadius\":10}", BehaviorNames.SquadDefend);   // all-round: no engagement area
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 24.5f, 0), new Vector3(12, 24.5f, 0));
+            for (int i = 0; i < 6; i++) s.Tick();
+            var fan = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, SquadDefendPlay.CoverageSite);
+            Assert.False(fan.IsNull, "the coverage fan was asked");
+            var origins = s.Repo.GetComponent<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(fan).Origins;
+            Assert.Equal(2, origins.Count);
+            Assert.All(origins, o => Assert.Equal(25f, o.Y, 2));   // on the wall, in the opening
+            Assert.Contains(origins, o => MathF.Abs(o.X - 2f) < 0.01f);
+            Assert.Contains(origins, o => MathF.Abs(o.X - 12f) < 0.01f);
         }
 
         /// <summary>

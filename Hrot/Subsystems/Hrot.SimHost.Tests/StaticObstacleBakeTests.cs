@@ -107,14 +107,17 @@ namespace Hrot.SimHost.Tests
             var flat = TerrainWorldParser.Parse("{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-50,-50,50,50],\"groundZ\":0},\"features\":[]}", "ce4656");
             var baked = TerrainObstacles.With(flat, prisms);
             Assert.Equal(2, baked.Prisms.Count);                                   // both still block (collision / navmesh / sight)
-            TerrainWorldMesh.Build(baked, out var verts, out var idx, cellSize: 5f);
-            bool AnyAbove(float x0, float x1)
+            // ⭐ CE-8309 — what is DRAWN is TerrainWorldMesh.BuildDrawn (the render geometry); the solid soup (Build — the navmesh's input) keeps the car
+            TerrainWorldMesh.BuildDrawn(baked, out var verts, out var idx, out _);
+            bool AnyAbove(Vector3[] vs, int[] ix, float x0, float x1)
             {
-                for (int i = 0; i < idx.Length; i++) { var v = verts[idx[i]]; if (v.Z > 0.5f && v.X > x0 && v.X < x1) return true; }
+                for (int i = 0; i < ix.Length; i++) { var v = vs[ix[i]]; if (v.Z > 0.5f && v.X > x0 && v.X < x1) return true; }
                 return false;
             }
-            Assert.False(AnyAbove(-3f, 3f), "a terrain box drawn over the parked car");
-            Assert.True(AnyAbove(17f, 23f), "the sandbag wall's box is gone");
+            Assert.False(AnyAbove(verts, idx, -3f, 3f), "a terrain box drawn over the parked car");
+            Assert.True(AnyAbove(verts, idx, 17f, 23f), "the sandbag wall's box is gone");
+            TerrainWorldMesh.Build(baked, out var solidVerts, out var solidIdx, cellSize: 5f);
+            Assert.True(AnyAbove(solidVerts, solidIdx, -3f, 3f), "CE-8309: the parked car left the SOLID soup (the navmesh would route through it)");
         }
 
         /// <summary>
