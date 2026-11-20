@@ -37,14 +37,16 @@ AHrotVehicle::AHrotVehicle()
 	PrimaryActorTick.bStartWithTickEnabled = false;
 	Hull = CreateDefaultSubobject<USceneComponent>(TEXT("Hull"));
 	RootComponent = Hull;
+	Lift = CreateDefaultSubobject<USceneComponent>(TEXT("Lift"));
+	Lift->SetupAttachment(Hull);
 	Turret = CreateDefaultSubobject<USceneComponent>(TEXT("Turret"));
-	Turret->SetupAttachment(Hull);
+	Turret->SetupAttachment(Lift);
 	Gun = CreateDefaultSubobject<USceneComponent>(TEXT("Gun"));
 	Gun->SetupAttachment(Turret);
 	WingLeft = CreateDefaultSubobject<USceneComponent>(TEXT("WingLeft"));
-	WingLeft->SetupAttachment(Hull);
+	WingLeft->SetupAttachment(Lift);
 	WingRight = CreateDefaultSubobject<USceneComponent>(TEXT("WingRight"));
-	WingRight->SetupAttachment(Hull);
+	WingRight->SetupAttachment(Lift);
 }
 
 void AHrotVehicle::OnConstruction(const FTransform& Transform)
@@ -69,7 +71,7 @@ void AHrotVehicle::Build()
 	if (Flame) { Flame->DestroyComponent(); Flame = nullptr; }
 	Shown = EHrotVehicleDamage::Intact;
 	if (!Kit) return;
-	if (Kit->bFlamethrower) Flame = UHrotFlamethrower::Attach(Hull, NAME_None, Kit->FlameMount, Kit->FlameSize);
+	if (Kit->bFlamethrower) Flame = UHrotFlamethrower::Attach(Lift, NAME_None, Kit->FlameMount, Kit->FlameSize);
 	for (const FHrotVehiclePart& P : Kit->Parts)
 	{
 		if (!P.Mesh) continue;
@@ -77,7 +79,7 @@ void AHrotVehicle::Build()
 		C->CreationMethod = EComponentCreationMethod::UserConstructionScript;   // rebuilt with the actor, never saved
 		C->SetMobility(EComponentMobility::Movable);
 		C->SetStaticMesh(P.Mesh);
-		USceneComponent* On = Hull.Get();
+		USceneComponent* On = Lift.Get();
 		switch (P.Parent)
 		{
 		case EHrotVehicleParent::Turret: On = Turret.Get(); break;
@@ -123,7 +125,11 @@ void AHrotVehicle::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	if (!Kit) return;
 	FlapClock += DeltaTime;
-	ApplyWings(Kit->FlapAmplitude * FMath::Sin(2.f * PI * Kit->FlapRate * FlapClock));
+	const float S = FMath::Sin(2.f * PI * Kit->FlapRate * FlapClock);
+	ApplyWings(Kit->FlapAmplitude * S);
+	// wings down → body high (the downstroke lifts). ⚠ measured (five side pictures): a positive beat angle lowers the wings — with
+	// −Bob·S the body rose with the wings, the wrong way round
+	Lift->SetRelativeLocation(FVector(0.f, 0.f, Kit->FlapBob * S));
 }
 
 void AHrotVehicle::SetFlaming(bool bNewFlaming)
@@ -151,7 +157,7 @@ void AHrotVehicle::ApplyState()
 	Gun->SetRelativeTransform(G);
 	if (Flame) Flame->SetFiring(bFlaming && !bWreck);
 	const bool bFlap = bFlying && !bWreck && Kit->FlapAmplitude > 0.f;
-	if (!bFlap) ApplyWings(0.f);   // folded at rest (the pose the mesh was modelled in)
+	if (!bFlap) { ApplyWings(0.f); Lift->SetRelativeLocation(FVector::ZeroVector); }   // at rest: the modelled pose, no bob
 	SetActorTickEnabled(bFlap);
 	if (Damage == Shown) return;
 

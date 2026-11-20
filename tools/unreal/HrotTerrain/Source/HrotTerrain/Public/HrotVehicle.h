@@ -65,6 +65,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform WingRightPivot;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlapAmplitude = 30.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlapRate = 0.8f;
+	/** the body's rise and fall with the beat (cm, on top of HROT's steady altitude): highest when the wings are lowest (the
+	 *  downstroke lifts) — U-17i, user: "synchronized up/down motion on top of HROT steady altitude" */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlapBob = 0.f;
 	/** ⭐ where riders sit (U-17j: the dragon's driver and passenger), UHrotRiding::SitOn */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TArray<FHrotSeat> Seats;
 };
@@ -110,6 +113,9 @@ public:
 	virtual void BeginPlay() override;
 
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Hull;
+	/** ⭐ everything the vehicle IS rides on Lift (parts, turret, wings, flamethrower, riders) — Lift moves for the wing beat's bob,
+	 *  the actor (HROT's transform) never does */
+	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Lift;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Turret;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Gun;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> WingLeft;

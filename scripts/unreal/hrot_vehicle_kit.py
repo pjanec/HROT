@@ -110,6 +110,7 @@ def main(JOB):
         if JOB.get(side): kit.set_editor_property("wing_left_pivot" if side == "wingLeft" else "wing_right_pivot", T(JOB[side]))
     if "flapAmplitude" in JOB: kit.set_editor_property("flap_amplitude", float(JOB["flapAmplitude"]))
     if "flapRate" in JOB: kit.set_editor_property("flap_rate", float(JOB["flapRate"]))
+    if "flapBob" in JOB: kit.set_editor_property("flap_bob", float(JOB["flapBob"]))
     if "seats" in JOB: kit.set_editor_property("seats", seats_of(JOB))
     fl = JOB.get("flame")   # a flamethrower: {"loc", "rot", "size"} in hull space (X = the stream)
     kit.set_editor_property("flamethrower", bool(fl))

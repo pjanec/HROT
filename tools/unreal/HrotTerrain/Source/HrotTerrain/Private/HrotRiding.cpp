@@ -22,6 +22,7 @@ bool UHrotRiding::SitOn(AActor* Rider, AActor* Mount, int32 Seat)
 	const FHrotSeat& S = Seats[Seat];
 	// the component the seat rides on: the animal's skinned body at the bone, else the mount's root
 	USceneComponent* Parent = Mount->GetRootComponent();
+	if (AHrotVehicle* V = Cast<AHrotVehicle>(Mount); V && V->Lift) Parent = V->Lift;   // riders rise and fall with the beat
 	FName Socket = NAME_None;
 	if (const AHrotAnimal* A = Cast<AHrotAnimal>(Mount); A && !S.Bone.IsNone() && A->Body && A->Body->DoesSocketExist(S.Bone))
 	{
