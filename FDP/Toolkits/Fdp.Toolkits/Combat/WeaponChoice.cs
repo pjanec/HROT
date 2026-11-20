@@ -61,12 +61,20 @@ namespace Fdp.Toolkit.Combat
         /// (<paramref name="owner"/> for mount 0, a mount child otherwise). Falls back to mount 0 on the owner when the decision
         /// is not registered, the unit has no ranked mount, or every mount scores 0 (out of range / no ammo everywhere).
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <c>CE-8310</c> — a mount whose best score is this low is NO choice: the primary stands (and, empty, holds fire). The range band is a
+        /// reversed logistic that never reaches 0 (CE-3089), so far past a weapon's range it still scored above 0. 📐 live
+        /// <c>uf-alone-under-fire</c>: with their rifles empty, two riflemen kept firing their PISTOLS (range 50 m) at a man 112 m off — a
+        /// range factor of ~3e-7 that still "won". A mount in range scores ≥ ~0.1 (ammo × range × effectiveness × rounds left).
+        /// </summary>
+        public const float MinUsableScore = 0.01f;
+
         public static int Choose(EntityRepository repo, Entity owner, Entity target, out Entity mount)
         {
             int primary = WeaponSystems.PrimaryMount(repo, owner, out mount);   // ⭐ WS-3 — the fallback: a bare host's station weapon
             var scorer = UtilityDecisionCatalog.ScorerOverShared(ref _scorer);
             if (!scorer.TopCandidate(repo, owner, WeaponSelectionDecision.Id, target, 0, out var top, out float score)
-                || score <= 0f || top.IsNull || !repo.IsAlive(top) || top.Equals(owner))
+                || score <= MinUsableScore || top.IsNull || !repo.IsAlive(top) || top.Equals(owner))
                 return primary;
             // ⭐ WS-3 (W-D) — a weapon system the unit controls: its place in the unit's mount list (it fires as itself, mount 0)
             //   ⭐ CE-3203 — a BROKEN one (health 0) is never chosen: the primary (the next working one) fires instead

@@ -844,6 +844,33 @@ namespace Fdp.Toolkit.Tests
             Assert.NotEqual(hands, mount);
         }
 
+        /// <summary>⭐⭐ <c>CE-8310</c> — a rifleman whose RIFLE is empty draws his PISTOL (range 50 m) at a man 30 m off, but NOT at one 112 m off
+        /// (the pistol's range factor there is ~3e-7: no choice — the empty rifle stands, he holds fire). 📐 live uf-alone-under-fire: pistols fired
+        /// at 112 m for 25 s. 🔴 Red-proof: <c>score &lt;= 0</c> as the cut ⇒ the pistol is chosen at 112 m ⇒ red.</summary>
+        [Fact]
+        public void CE8310_AnEmptyRifle_DrawsThePistolUpClose_ButNotFarPastItsRange()
+        {
+            const long riflemanWithPistol = 9311;
+            var t = new Fdp.Interfaces.TkbTemplate("Rifleman with pistol", riflemanWithPistol);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 100 });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 0, Range = 500, Penetration = 5, DamagePerHit = 10 },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 45, Range = 50, Penetration = 2, DamagePerHit = 8 },
+            } });
+            _world.UseTkb(t, UtilityTestWorld.InfantryTemplate());
+            var rifleman = _world.SpawnAgent(1.0f, 1.0f, initialAmmunition: 0);
+            _world.SetType(rifleman, riflemanWithPistol);
+            var pistol = _world.SpawnWeaponMount(rifleman, mountIndex: 1, weaponGuid: 0, effRange: 50f, ammo01: 1f, initialAmmunition: 45);
+            var near = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 30f, maxHealth: 100f);
+            var far = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 112f, maxHealth: 100f);
+
+            Assert.Equal(1, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, rifleman, near, out var m1));
+            Assert.Equal(pistol, m1);
+            Assert.Equal(0, global::Fdp.Toolkit.Combat.WeaponChoice.Choose(_world.Repo, rifleman, far, out var m0));
+            Assert.Equal(rifleman, m0);
+        }
+
         /// <summary>⭐ The executor on <c>Mount = Auto</c> fires <c>WeaponIndex 1</c> at a tank and spends the CHILD's round;
         /// <c>Mount = 0</c> (every other writer) still fires the primary. ✅ Red-proof: keep <c>WeaponIndex = 0</c> ⇒ red.</summary>
         [Fact]
