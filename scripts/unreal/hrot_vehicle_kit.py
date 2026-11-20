@@ -2,7 +2,7 @@
 
     UnrealEditor-Cmd <project> -run=pythonscript -script=<this> -nullrhi      HROT_KIT_JOB = { "kit", "probe", "turret", "gun", "skip",
                                                                                                 "actor", "meshes": [{"mesh", "loc" | "ground": true, "rot" (yaw: the nose onto +X), "scale",
-                                                                                                  "parent": HULL | WING_LEFT | WING_RIGHT}],
+                                                                                                  "parent": HULL | TURRET | GUN | WING_LEFT | WING_RIGHT}],
                                                                                                 "turretParts", "gunParts", "muzzle",
                                                                                                 "engineDeck", "flashSize", "flame": {"loc", "rot", "size"},
                                                                                                 "wingLeft", "wingRight" (pivots), "flapAmplitude", "flapRate",
@@ -82,8 +82,8 @@ def main(JOB):
             loc = (-k * (o.x * math.cos(yaw) - o.y * math.sin(yaw)), -k * (o.x * math.sin(yaw) + o.y * math.cos(yaw)), k * (x.z - o.z))
             log(f"{sm.get_name()}: grounded at {loc[0]:.1f}, {loc[1]:.1f}, {loc[2]:.1f} (size {2*x.x:.0f} x {2*x.y:.0f} x {2*x.z:.0f} cm)")
         par = m.get("parent", "HULL")   # a wing's part rides on its pivot: its place relative to that pivot (U-17i)
-        if par in ("WING_LEFT", "WING_RIGHT"):
-            pv = JOB["wingLeft" if par == "WING_LEFT" else "wingRight"]
+        if par in ("WING_LEFT", "WING_RIGHT", "TURRET", "GUN"):   # a part riding on a pivot: its place relative to that pivot
+            pv = JOB[{"WING_LEFT": "wingLeft", "WING_RIGHT": "wingRight", "TURRET": "turret", "GUN": "gun"}[par]]
             loc = (loc[0] - pv[0], loc[1] - pv[1], loc[2] - pv[2])
         p.set_editor_property("parent", getattr(unreal.HrotVehicleParent, par))
         t = T(loc, m.get("rot", (0, 0, 0)))
