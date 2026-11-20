@@ -1,5 +1,6 @@
 // CE-4651 (U-17) — see the header.
 #include "HrotVehicle.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -108,7 +109,27 @@ void AHrotVehicle::Build()
 		C->RegisterComponent();
 		PartComps.Add(C);
 	}
+	if (bPainted) SetPaint(Paint);
 	ApplyState();
+}
+
+int32 AHrotVehicle::SetPaint(FLinearColor NewPaint)
+{
+	Paint = NewPaint; bPainted = true;
+	if (!Kit || Kit->PaintSlot.IsNone()) return 0;
+	int32 N = 0;
+	for (UStaticMeshComponent* C : PartComps)
+	{
+		if (!C) continue;
+		const int32 I = C->GetMaterialIndex(Kit->PaintSlot);
+		if (I == INDEX_NONE) continue;
+		UMaterialInstanceDynamic* M = Cast<UMaterialInstanceDynamic>(C->GetMaterial(I));
+		if (!M) M = C->CreateDynamicMaterialInstance(I);
+		if (!M) continue;
+		M->SetVectorParameterValue(Kit->PaintParam, Paint);
+		++N;
+	}
+	return N;
 }
 
 void AHrotVehicle::SetAim(float Yaw, float Pitch)

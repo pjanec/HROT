@@ -11,6 +11,8 @@
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
 #include "HrotFire.h"
 #include "HrotAnimal.h"
+#include "HrotRiding.h"
+#include "HrotPeopleLod.h"
 #include "Engine/DecalActor.h"
 #include "Components/DecalComponent.h"
 #include "Engine/StaticMesh.h"
@@ -640,6 +642,7 @@ void UHrotDpsWorld::OnPersonState(const FHrotDpsSample& S)
 	P.bInSeat = D.SeatVehicleId != 0; P.bSeatExposed = D.SeatExposed;
 	E.ActiveSlot = D.ActiveSlot;
 	E.bPersonBurning = D.Burning;
+	E.SeatVehicleId = D.SeatVehicleId; E.SeatIndex = D.SeatIndex;
 	E.bHasPerson = true;
 }
 
@@ -654,7 +657,9 @@ void UHrotDpsWorld::OnPersonAim(const FHrotDpsSample& S)
 
 AActor* UHrotDpsWorld::SpawnPerson(FEnt& E, const FTransform& At)
 {
-	UHrotPersonKit* K = PersonKit.Get();
+	UHrotPersonKit* K = E.Kit.IsValid() ? E.Kit.Get() : PersonKit.Get();
+	if (!K) return nullptr;
+	E.Kit = K;
 	UWorld* W = GetWorld();
 	AActor* A = nullptr;
 	// the kit's measured offsets: the actor goes at feet − ZOffset, turned so the mesh (+Y forward, turned YawOffset on its actor) faces
@@ -687,7 +692,7 @@ AActor* UHrotDpsWorld::SpawnPerson(FEnt& E, const FTransform& At)
 	St->AimTurnRate = 0.f;   // the aim is eased here, on SIM time (HROT's 0.12 s), not by the anim instance's own rate
 	St->WeaponSocket = K->WeaponSocket;
 	St->WeaponOffset = K->WeaponOffset;
-	if (const TObjectPtr<UMaterialInterface>* Mat = K->SideMaterials.Find(E.Side == 2 ? TEXT("B") : TEXT("A")))
+	if (const TObjectPtr<UMaterialInterface>* Mat = K->SideSlots.Num() ? K->SideMaterials.Find(E.Side == 2 ? TEXT("B") : TEXT("A")) : nullptr)
 	{
 		for (const FName& Slot : K->SideSlots) St->MaterialOverrides.Add(Slot, *Mat);
 		St->ApplyMaterials();
@@ -696,12 +701,18 @@ AActor* UHrotDpsWorld::SpawnPerson(FEnt& E, const FTransform& At)
 	E.Actor = A;   // ApplyPerson reads it
 	ApplyPerson(E, Clock.Now(RealNow()), 0.0);
 	St->ApplyAnimation();
+	// ⚠ measured LIVE (U-18i): 299 pedestrians + 1078 cars ran at ~1 fps — the DPS people had none of U-16's savings. ⇒ the body's parts
+	// merged into one skinned mesh (U-16d: 15 skinning passes a person → 1) and the person handed to the distance tiers (UHrotPeopleLod,
+	// U-16: every frame near, 30 Hz mid, 15 Hz far, staggered)
+	// ⚠ measured LIVE (U-18i): MergeBodyParts on 300 pedestrians spawned together froze the editor for one 320 s frame — the merge is
+	// NOT done here (U-16d's merge was measured on soldiers placed once; ⏳ a merged body per KIT, made once, is the cheap form)
+	if (UHrotPeopleLod* Lod = UHrotPeopleLod::Get(this)) Lod->Add(St);
 	return A;
 }
 
 void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 {
-	UHrotPersonKit* K = PersonKit.Get();
+	UHrotPersonKit* K = E.Kit.IsValid() ? E.Kit.Get() : PersonKit.Get();
 	AActor* A = E.Actor.Get();
 	UHrotPersonState* St = A ? A->FindComponentByClass<UHrotPersonState>() : nullptr;
 	if (!K || !St) return;
@@ -725,6 +736,8 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	FName Role = L.Base;
 	UAnimSequence* Base = K->Clip(Role);
 	for (int32 I = 0; !Base && !Role.IsNone() && I < 6; ++I) { Role = HrotDpsPeople::Fallback(Role); Base = K->Clip(Role); }
+	// U-18i — a RIDER: his body sits (the seat's clip, U-17j), his upper body still readies and aims (firing from the saddle)
+	if (E.bRiding && E.SeatPose.IsValid()) { Base = E.SeatPose.Get(); Role = TEXT("Seat.Riding"); }
 	// a hit on him (U-18e): the flinch plays once over the body, unless he is going down (his Injury wins) or prone
 	const double Real = RealNow();
 	St->BaseAnim = Base;
@@ -747,7 +760,8 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	else if (St->ActionAnim) { St->ActionAnim = nullptr; St->ActionTime = -1.f; }
 	// the play rate: a once-clip of a transition over its stated seconds; a gait by the speed over the clip's own; frozen while paused
 	float Rate = 1.f;
-	if (L.bTransition && !L.bLoops && Base && E.Person.StanceSeconds > 0) Rate = float(Base->GetPlayLength()) / E.Person.StanceSeconds;
+	if (E.bRiding) Rate = 1.f;
+	else if (L.bTransition && !L.bLoops && Base && E.Person.StanceSeconds > 0) Rate = float(Base->GetPlayLength()) / E.Person.StanceSeconds;
 	else if (L.Gait != HrotDpsPeople::EGait::Idle && L.bLoops)
 	{
 		const float Native = L.Stance == HrotDpsPeople::Prone ? K->CrawlSpeed : L.Stance == HrotDpsPeople::Crouched ? K->CrouchSpeed
@@ -767,7 +781,8 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 		if (bTube) Count(TEXT("drawn: tube on the shoulder"));
 	}
 	if (bTube && L.Stance != HrotDpsPeople::Prone) St->UpperAnim = K->Clip(TEXT("Upper.Aimed"));   // the tube is held in the aimed pose (the lab's)
-	if (A->IsHidden() != L.bHidden) A->SetActorHiddenInGame(L.bHidden);
+	const bool bHide = L.bHidden && !E.bRiding;   // a rider is in an open seat: seen
+	if (A->IsHidden() != bHide) A->SetActorHiddenInGame(bHide);
 
 	// the aim (HROT's rule): the target's chest (its shown position + 1 m) or the stated point; eased on sim time
 	double Twist = 0, Pitch = 0;
@@ -830,7 +845,7 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 	AActor* A = nullptr;
 	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainMunition)
 		A = SpawnRound(E, At);
-	else if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson && PersonKit.Get())
+	else if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson && (E.Kit = KitOfPerson(Id, E)).IsValid())
 	{
 		A = SpawnPerson(E, At);
 		if (!A) { E.DrawnAs = TEXT("person kit without a body"); return; }
@@ -877,7 +892,7 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 		A = B;
 	}
 #if WITH_EDITOR
-	A->SetActorLabel(FString::Printf(TEXT("DPS_%d_%s"), Id, *E.Name));
+	if (!E.bHasPerson && E.Domain != SimNetGateway_Protocol_DdsPlayer_DomainPerson) A->SetActorLabel(FString::Printf(TEXT("DPS_%d_%s"), Id, *E.Name));   // ⚠ never a person: a rename rebuilds its Blueprint (U-16d)
 #endif
 	E.Actor = A;
 	++Spawned;
@@ -896,6 +911,7 @@ void UHrotDpsWorld::Place(FEnt& E, double Real)
 	const FHrotDpsPose Pose = PoseAt(E, Real);
 	if (E.BlendStart >= 0 && Real - E.BlendStart >= HrotDpsMotion::BlendSeconds) E.BlendStart = -1;
 	E.Shown = Pose;
+	if (E.bRiding) return;   // U-18i: attached to its mount's seat — the mount carries it
 	if (AActor* A = E.Actor.Get())
 	{
 		FHrotDpsPose Drawn = Pose;
@@ -918,6 +934,7 @@ void UHrotDpsWorld::Tick(float)
 	Placed = Clock.Now(R);
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R);
 	const double Dt = FMath::Clamp(Placed - Prev, 0.0, 0.5);
+	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) UpdateRiding(It.Value);
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) ApplyPerson(It.Value, Placed, Dt);   // after every pose: an aim reads its target's
 	for (TPair<int32, FEnt>& It : Ents)
 	{
@@ -992,6 +1009,7 @@ void UHrotDpsWorld::ClearLife()
 {
 	for (TPair<int32, FMover>& M : Movers) if (AActor* A = M.Value.Actor.Get()) A->Destroy();
 	Movers.Reset();
+	Walkers.Reset();
 	NewestBatchSim = -1e300;
 	for (TPair<int32, TArray<FSpot>>& H : Spots) for (FSpot& S : H.Value) if (AActor* A = S.Fire.Get()) A->Destroy();
 	Spots.Reset();
@@ -1224,11 +1242,12 @@ void UHrotDpsWorld::OnMover(const FHrotDpsSample& S)
 	{
 		FMover M;
 		if (Movers.RemoveAndCopyValue(D.MoverId, M)) if (AActor* A = M.Actor.Get()) A->Destroy();
+		Walkers.Remove(D.MoverId);
 		return;
 	}
 	if (!S.bValid) return;
 	FMover& M = Movers.FindOrAdd(D.MoverId);
-	M.bInfo = true; M.Kind = uint8(D.Kind); M.Length = D.Length; M.Width = D.Width; M.Colour = D.ColourRgba;
+	M.bInfo = true; M.Kind = uint8(D.Kind); M.Length = D.Length; M.Width = D.Width; M.Colour = D.ColourRgba; M.Seed = D.Seed;
 }
 
 void UHrotDpsWorld::OnMoverTracks(const FHrotDpsSample& S)
@@ -1255,7 +1274,8 @@ void UHrotDpsWorld::TickMovers(double Real)
 	if (NewestBatchSim < -1e299) return;
 	// MoverPlayback: the batch clock (at most 0.25 s past the newest batch: a paused sim sends none and the movers stand) less the delay
 	const double T = NewestBatchSim + FMath::Clamp(Real - NewestBatchAt, 0.0, HrotDpsLife::MaxExtrapolation) - HrotDpsLife::PlaybackDelay;
-	int32 Drawn = 0;
+	const double PlaybackT = T;
+	int32 Drawn = 0, NewThisFrame = 0;
 	for (TPair<int32, FMover>& It : Movers)
 	{
 		FMover& M = It.Value;
@@ -1269,11 +1289,28 @@ void UHrotDpsWorld::TickMovers(double Real)
 		const FRotator Rot(FMath::RadiansToDegrees(P.Pitch), -FMath::RadiansToDegrees(P.Heading), 0.f);
 		if (!A && !M.bSkipped)
 		{
+			// U-18i: at most MaxMoverSpawnsPerFrame new bodies a frame — a join into a full town is spread over frames, not one hitch
+			if (MaxMoverSpawnsPerFrame > 0 && NewThisFrame >= MaxMoverSpawnsPerFrame) continue;
+			++NewThisFrame;
 			if (MaxMovers > 0 && Drawn >= MaxMovers) { M.bSkipped = true; Count(TEXT("not drawn: traffic over MaxMovers")); continue; }
-			if (M.Kind != SimNetGateway_Protocol_DdsPlayer_MoverKindCar)
+			if (M.Kind == SimNetGateway_Protocol_DdsPlayer_MoverKindPedestrian)
 			{
-				M.bSkipped = true; Count(TEXT("not drawn: pedestrian mover")); continue;   // ⏳ a civilian body (PersonLook by seed)
+				// U-18i — a pedestrian: a civilian body by its seed, driven like any person (idle / walk / run by its speed)
+				FEnt& W = Walkers.FindOrAdd(It.Key);
+				W.Kit = CivilianKits.Num() ? CivilianKits[M.Seed % uint32(CivilianKits.Num())].LoadSynchronous() : PersonKit.Get();
+				W.Name = FString::Printf(TEXT("pedestrian %d"), It.Key);
+				W.bHasPerson = true; W.bHasState = true;
+				A = W.Kit.IsValid() ? SpawnPerson(W, FTransform(Rot, At)) : nullptr;
+				if (!A) { M.bSkipped = true; Count(TEXT("not drawn: pedestrian, no person kit")); continue; }
+#if WITH_EDITOR
+				A->Tags.Add(TEXT("DPS_Walker"));   // a tag, not a label: renaming a Blueprint person rebuilds it (U-16d)
+#endif
+				M.Actor = A;
+				Count(TEXT("traffic pedestrian"));
 			}
+			else if (M.Kind != SimNetGateway_Protocol_DdsPlayer_MoverKindCar) { M.bSkipped = true; Count(TEXT("not drawn: mover of unknown kind")); continue; }
+			else
+			{
 			const TSoftObjectPtr<UHrotVehicleKit>* KP = M.Length >= 8.5f ? &BusKit
 				: M.Length >= 5.5f ? (VanKits.Num() ? &VanKits[It.Key % VanKits.Num()] : nullptr)
 				: (CarKits.Num() ? &CarKits[It.Key % CarKits.Num()] : nullptr);
@@ -1282,16 +1319,33 @@ void UHrotDpsWorld::TickMovers(double Real)
 			const FTransform X(Rot, At);
 			AHrotVehicle* V = GetWorld()->SpawnActorDeferred<AHrotVehicle>(AHrotVehicle::StaticClass(), X, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 			V->Kit = Kit;
+			// U-18i — HROT's street paint (TrafficPaint, chosen by vehicle id in the gateway: every viewer agrees), 0xRRGGBBAA, sRGB
+			if (M.Colour != 0) { V->bPainted = true; V->Paint = FLinearColor::FromSRGBColor(FColor(uint8(M.Colour >> 24), uint8(M.Colour >> 16), uint8(M.Colour >> 8))); }
 			V->FinishSpawning(X);
 #if WITH_EDITOR
-			V->SetActorLabel(FString::Printf(TEXT("DPS_Mover_%d"), It.Key));
+			// (a tag, not a label: SetActorLabel is an editor edit per actor — measured U-18i, spawning ran ~45 ms a body)
 #endif
+			V->Tags.Add(TEXT("DPS_Mover"));
 			M.Actor = V; A = V;
 			Count(TEXT("traffic car"));
+			if (M.Colour != 0) Count(TEXT("traffic car painted"));
+			}
 		}
 		if (!A) continue;
 		A->SetActorHiddenInGame(false);
-		A->SetActorLocationAndRotation(At, Rot);
+		if (FEnt* W = Walkers.Find(It.Key))
+		{
+			// a walker: its pose as a person's (the kit's facing and origin), its gait from the track's speed
+			W->Shown.P = P.P; W->Shown.Q = FQuat4d(FVector3d::UnitZ(), P.Heading);
+			W->Track.V = FVector3d(FMath::Cos(P.Heading), FMath::Sin(P.Heading), 0) * P.Speed;
+			FTransform Tw(Rot, At);
+			Tw.SetRotation(Tw.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(W->MeshYaw)));
+			Tw.AddToTranslation(FVector(0, 0, W->MeshZ));
+			Tw.SetScale3D(A->GetActorScale3D());
+			A->SetActorTransform(Tw);
+			ApplyPerson(*W, PlaybackT, 0.0);
+		}
+		else A->SetActorLocationAndRotation(At, Rot);
 		++Drawn;
 	}
 }
@@ -1326,4 +1380,71 @@ TArray<int32> UHrotDpsWorld::JetShooterIds() const
 	for (const TPair<int32, FEnt>& E : Ents) if (E.Value.bJet) Ids.Add(E.Key);
 	Ids.Sort();
 	return Ids;
+}
+
+// ── U-18i: civilians, riders ──
+
+UHrotPersonKit* UHrotDpsWorld::KitOfPerson(int32 Id, const FEnt& E) const
+{
+	// a CIVILIAN (DIS life form, category 2 — HROT's civilians; 1 = a soldier) gets a crowd body by its id: the same one on every channel
+	TArray<FString> Parts; E.Dis.ParseIntoArray(Parts, TEXT("."));
+	const bool bCivilian = Parts.Num() > 3 && Parts[3] == TEXT("2");
+	if (bCivilian && CivilianKits.Num()) return CivilianKits[uint32(Id) % uint32(CivilianKits.Num())].LoadSynchronous();
+	return PersonKit.Get();
+}
+
+void UHrotDpsWorld::UpdateRiding(FEnt& E)
+{
+	AActor* A = E.Actor.Get();
+	if (!A) return;
+	// HROT's seat (PersonState.SeatVehicleId / SeatIndex) on a mount that HAS seats here — an animal (HROT: a riding horse is a carrier,
+	// seat 0 the rider, seat 1 a second rider) or an open vehicle seat (a motorcycle) — puts the rider ON it (U-17j SitOn: attached to
+	// the mount, the seat's clip); a closed seat stays hidden inside (U-18d)
+	AActor* Mount = nullptr;
+	bool bAnimal = false;
+	if (E.SeatVehicleId != 0) if (const FEnt* C = Ents.Find(E.SeatVehicleId)) { Mount = C->Actor.Get(); bAnimal = C->bAnimal; }
+	const TArray<FHrotSeat> Seats = Mount ? UHrotRiding::SeatsOf(Mount) : TArray<FHrotSeat>();
+	const int32 Seat = E.SeatIndex == 255 ? 0 : E.SeatIndex;
+	// a kit names only OPEN seats (an animal's saddle, a motorcycle's driver and pillion — U-17j / U-17l); a closed seat (an APC's) has
+	// none, so its man stays hidden inside. ⚠ HROT's SeatExposed is per seat RULE, not "visible": a pillion's firing seat says it, a
+	// motorcycle driver's need not — the kit's seat list decides
+	const bool bCan = Mount && Seats.IsValidIndex(Seat);
+	if (E.bRiding && (!bCan || E.RidingOn.Get() != Mount || E.RidingSeat != E.SeatIndex))
+	{
+		UHrotRiding::GetOff(A);
+		E.bRiding = false; E.RidingOn = nullptr; E.SeatPose = nullptr;
+		Count(TEXT("rider got off"));
+	}
+	if (!E.bRiding && bCan && UHrotRiding::SitOn(A, Mount, Seat))
+	{
+		E.bRiding = true; E.RidingOn = Mount; E.RidingSeat = E.SeatIndex; E.SeatPose = Seats[Seat].Pose.Get();
+		Count(FString::Printf(TEXT("rider on %s seat %d"), bAnimal ? TEXT("an animal") : TEXT("a vehicle"), Seat));
+	}
+	else if (!E.bRiding && E.SeatVehicleId != 0 && Mount && !bCan && bAnimal && !E.bNoSeatCounted)
+	{
+		E.bNoSeatCounted = true;
+		Count(TEXT("not drawn: rider, the mount's kind has no such seat"));
+	}
+}
+
+int32 UHrotDpsWorld::RidersNow() const
+{
+	int32 N = 0;
+	for (const TPair<int32, FEnt>& E : Ents) N += E.Value.bRiding;
+	return N;
+}
+
+TArray<int32> UHrotDpsWorld::RiderIds() const
+{
+	TArray<int32> Ids;
+	for (const TPair<int32, FEnt>& E : Ents) if (E.Value.bRiding) Ids.Add(E.Key);
+	Ids.Sort();
+	return Ids;
+}
+
+int32 UHrotDpsWorld::WalkersDrawn() const
+{
+	int32 N = 0;
+	for (const TPair<int32, FEnt>& W : Walkers) if (const AActor* A = W.Value.Actor.Get(); A && !A->IsHidden()) ++N;
+	return N;
 }

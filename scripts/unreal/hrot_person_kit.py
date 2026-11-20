@@ -2,6 +2,7 @@
 the full Unreal EDITOR (-ExecutePythonScript; it spawns throwaway bodies to measure them).
 
     HROT_PERSON_KIT_JOB = { "body": "US_Soldier", "asset": "/Game/Hrot/People/DA_Person_USSoldier", "out": <json> }
+                        or { "kits": [{"body", "asset"}, ...], "out" }   (U-18i: several in one run — the civilians' crowd bodies)
 
 The kit holds: the body (Blueprint or mesh), its leader mesh's yaw and height on the actor (PersonKit.body_offsets), the components to
 hide (its own gun), the rifle and where the hand holds it (PersonKit.weapon_at_hand — the grip through the shared aim pose), the two
@@ -40,11 +41,10 @@ def log(m):
     m = f"{m}"; unreal.log_warning(f"[HROT-PKIT] {m}"); R["log"].append(m)
 
 
-def build():
-    body = JOB["body"]
+def build(body, path):
     kit_tools = hrot_person.PersonKit(log)
     EAL = unreal.EditorAssetLibrary
-    path = JOB["asset"]; folder, name = path.rsplit("/", 1)
+    folder, name = path.rsplit("/", 1)
     # every property is set below, so the kit is defined HERE, never by a stale value. ⚠ measured: deleting the existing asset failed
     # silently (it is loaded) and create_asset then returned None — so an existing kit is updated in place
     kit = unreal.load_asset(path) if EAL.does_asset_exist(path) else \
@@ -103,6 +103,7 @@ def build():
         if a: clips[unreal.Name(role)] = a
         else: missing.append(role)
     kit.set_editor_property("clips", clips)
+    R.setdefault("kits", {})[path] = {"roles": len(clips), "missing": missing}
     R["roles"] = {str(k): v.get_name() for k, v in clips.items()}; R["missing"] = missing
     log(f"{len(clips)} roles, missing {missing}")
     EAL.save_loaded_asset(kit, False)
@@ -117,7 +118,8 @@ def tick(dt):
     S["done"] = True
     try:
         unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).new_level("/Game/Maps/PersonKitTmp") if not unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/PersonKitTmp") else None
-        build(); R["ok"] = True
+        for k in (JOB.get("kits") or [JOB]): build(k["body"], k["asset"])   # U-18i: several kits in one editor run
+        R["ok"] = True
     except Exception:
         R["ok"] = False; R["why"] = traceback.format_exc()
     json.dump(R, open(JOB["out"], "w", encoding="utf-8"), indent=1)

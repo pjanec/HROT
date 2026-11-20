@@ -68,6 +68,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TMap<FString, TSoftObjectPtr<UHrotVehicleKit>> KitsByDomain;
 	/** ⭐ the body every person gets (U-18d): its clips by role, driven from PersonState / PersonAim */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UHrotPersonKit> PersonKit;
+	/** U-18i — CIVILIANS' bodies (City Sample crowd people): a civilian entity (DIS life form category 2) gets one by its id, a pedestrian
+	 *  mover by its seed (the same person on every channel); empty = PersonKit */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TArray<TSoftObjectPtr<UHrotPersonKit>> CivilianKits;
 	/** rounds in flight (U-18e): a munition type (Round.MunitionTypeId) → its missile kind; a round with a motor or a smoke trail and no
 	 *  entry gets DefaultMissileKind; every other round is a small body of its MunitionLook size */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TMap<int64, TSoftObjectPtr<UHrotMissileKind>> MissileKindsByType;
@@ -100,6 +103,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UHrotVehicleKit> BusKit;
 	/** the most traffic movers drawn at once (the nearest-to-nothing rule: the first ones seen); 0 = no limit */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") int32 MaxMovers = 0;
+	/** U-18i — the most traffic bodies (cars, pedestrians) created in one frame; 0 = no limit */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") int32 MaxMoverSpawnsPerFrame = 16;
 	/** where the contract's origin (Session's UTM origin) is in this level, cm */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") FVector OriginCm = FVector::ZeroVector;
 
@@ -133,6 +138,10 @@ public:
 	/** U-18h — the ids of entities drawn as animals, and of lit flame jets' shooters */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TArray<int32> AnimalIds() const;
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TArray<int32> JetShooterIds() const;
+	/** U-18i — riders seated on a mount now; pedestrian movers drawn now */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 RidersNow() const;
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 WalkersDrawn() const;
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TArray<int32> RiderIds() const;
 
 	virtual bool DoesSupportWorldType(const EWorldType::Type T) const override { return T == EWorldType::Game || T == EWorldType::PIE; }
 	virtual void Deinitialize() override;
@@ -177,6 +186,13 @@ private:
 		int32 JetTarget = 0;
 		float JetRange = 0, JetIntensity = 0;
 		TWeakObjectPtr<UHrotFlamethrower> JetComp;
+		// U-18i — the body's kit (a soldier's or a civilian's), and a seat on a mount it RIDES (PersonState.SeatVehicleId / SeatIndex)
+		TWeakObjectPtr<UHrotPersonKit> Kit;
+		int32 SeatVehicleId = 0;
+		uint8 SeatIndex = 255, RidingSeat = 255;
+		bool bRiding = false, bNoSeatCounted = false;
+		TWeakObjectPtr<AActor> RidingOn;
+		TWeakObjectPtr<class UAnimSequence> SeatPose;
 		// a round in flight (U-18e)
 		bool bRound = false, bLying = false;
 		int64 MunitionType = 0;
@@ -196,12 +212,14 @@ private:
 		bool bInfo = false;
 		uint8 Kind = 0;
 		float Length = 0, Width = 0;
-		uint32 Colour = 0;
+		uint32 Colour = 0, Seed = 0;
 		TArray<HrotDpsLife::FKnot> Knots;
 		TWeakObjectPtr<AActor> Actor;
 		bool bSkipped = false;
 	};
 	TMap<int32, FMover> Movers;
+	/** U-18i — pedestrian movers drawn as people: a person entry per mover id (ApplyPerson drives the body by its speed) */
+	TMap<int32, FEnt> Walkers;
 	double NewestBatchSim = -1e300, NewestBatchAt = 0;
 	// U-18h — fires and scorches by their holder (FireSpots / GroundMarks keyed by EntityId; the holder need not be drawn)
 	struct FSpot { FVector3d P; float Radius = 0, Intensity = 0, Seconds = 0; double Since = 0; TWeakObjectPtr<AHrotGroundFire> Fire; float ShownStrength = -1; };
@@ -255,6 +273,8 @@ private:
 	void TickSpots(double SimNow);
 	void TickMovers(double Real);
 	void ClearLife();
+	UHrotPersonKit* KitOfPerson(int32 Id, const FEnt& E) const;
+	void UpdateRiding(FEnt& E);
 	void ApplyDamage(FEnt& E);
 	bool HoldsTube(const FEnt& E, double Real) const;
 	AActor* SpawnPerson(FEnt& E, const FTransform& At);

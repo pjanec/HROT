@@ -76,6 +76,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform SkinnedTransform;
 	/** ⭐ where riders sit (U-17j: the dragon's driver and passenger), UHrotRiding::SitOn */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TArray<FHrotSeat> Seats;
+	/** U-18i — where a PAINT colour goes: the material slot of the body paint and its colour parameter (the City Sample cars:
+	 *  veh_carPaint / BaseColor, measured); a kit without that slot is not repainted */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FName PaintSlot = TEXT("veh_carPaint");
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FName PaintParam = TEXT("BaseColor");
 };
 
 UCLASS()
@@ -99,6 +103,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void SetFlaming(bool bNewFlaming);
 	/** flying: the kit's wings beat (the actor ticks only then) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bFlying = false;
+	/** U-18i — the body's paint (HROT's: a traffic car's street colour); bPainted false = the kit's own */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bPainted = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FLinearColor Paint = FLinearColor::White;
+	/** sets the paint and applies it (a dynamic instance of the paint slot's material on every part that has the slot); returns the parts repainted */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") int32 SetPaint(FLinearColor NewPaint);
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void SetFlying(bool bNewFlying);
 	virtual void Tick(float DeltaTime) override;
 

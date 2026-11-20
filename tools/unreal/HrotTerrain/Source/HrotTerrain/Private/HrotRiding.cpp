@@ -32,7 +32,9 @@ bool UHrotRiding::SitOn(AActor* Rider, AActor* Mount, int32 Seat)
 	// ⭐ placed in the MOUNT's frame (upright, facing its way) at the bone's position, then attached keeping that world transform —
 	// so it follows the bone (the stride) from there, whatever the bone's own axes are
 	const FTransform MountX = Mount->GetActorTransform();
-	const FVector At = (Socket.IsNone() ? MountX.GetLocation() : Parent->GetSocketLocation(Socket)) + MountX.TransformVectorNoScale(S.Offset.GetLocation());
+	// ⚠ measured (U-18i, live): a horse is the stag at ×1.15 (UHrotDpsWorld::AnimalScales) and the rider sat 15 % too low, legs under the
+	// belly — the seat is part of the mount's BODY, so its offset scales with the mount (TransformVector, not …NoScale)
+	const FVector At = (Socket.IsNone() ? MountX.GetLocation() : Parent->GetSocketLocation(Socket)) + MountX.TransformVector(S.Offset.GetLocation());
 	const FQuat Rot = MountX.GetRotation() * S.Offset.GetRotation();
 	Rider->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 	Rider->SetActorLocationAndRotation(At, Rot);

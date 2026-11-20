@@ -77,6 +77,7 @@ def join():
     L = unreal.load_asset
     if JOB.get("personKit"): w.set_editor_property("person_kit", L(JOB["personKit"]))
     if JOB.get("missileKind"): w.set_editor_property("default_missile_kind", L(JOB["missileKind"]))
+    if JOB.get("civilianKits"): w.set_editor_property("civilian_kits", [L(k) for k in JOB["civilianKits"]])   # U-18i: civilians and pedestrians
     if JOB.get("missileKinds"): w.set_editor_property("missile_kinds_by_type", {int(k): L(v) for k, v in JOB["missileKinds"].items()})   # U-18f: a munition type -> its kind
     w.set_editor_property("kits_by_type", {2001: L(KITS + "DA_ArmoredTruck")})                       # by the contract's type id
     w.set_editor_property("kits_by_dis", {"1.1.222": L(KITS + "DA_BTR60"), "1.1.225.1": L(KITS + "DA_Sherman")})   # by DIS prefix
@@ -116,6 +117,10 @@ def person_extras(w, i):
 
 def run():
     w, t = S["w"], time.time() - S["t0"]
+    # U-18i: the frame rate in play (frames and wall time since the first run frame), and the worst frame
+    now = time.time(); S["nf"] = S.get("nf", 0) + 1; S.setdefault("f0", now)
+    if S.get("fprev"): S["fmax"] = max(S.get("fmax", 0.0), now - S["fprev"])
+    S["fprev"] = now
     if JOB.get("simBase") == "join":   # U-18g LIVE: scene time from the first sim time this world sees (a running exercise joined late)
         if w.sim_now() <= 0: return
         JOB["simBase"] = w.sim_now(); log(f"joined a running exercise at sim {JOB['simBase']:.1f} s")
@@ -155,15 +160,20 @@ def run():
         pass
     elif S["pics"] and not S.get("pending_pic") and scene >= S["pics"][0]["sim"]:   # one picture at a time (a second camera move lost the first)
         pic = S["pics"].pop(0)
-        if pic.get("follow") in ("jet", "traffic", "animals"):   # U-18h: the flamer while he fires · a drawn car · the animals' centre
+        if pic.get("follow") in ("jet", "traffic", "animals", "rider", "walker"):   # U-18h: the flamer while he fires · a drawn car · the animals' centre
             locs = []
             if pic["follow"] == "jet":
                 locs = [w.actor_of(i).get_actor_location() for i in w.jet_shooter_ids() if w.actor_of(i)][:1]
+            elif pic["follow"] == "rider":   # U-18i: a person seated on a mount
+                locs = [w.actor_of(i).get_actor_location() for i in w.rider_ids() if w.actor_of(i)][:1]
             elif pic["follow"] == "animals":
                 locs = [w.actor_of(i).get_actor_location() for i in w.animal_ids() if w.actor_of(i) and pic.get("name_has", "").lower() in w.describe(i).lower()]
             else:
                 gw = UES().get_game_world()
-                cars = [a for a in unreal.GameplayStatics.get_all_actors_of_class(gw, unreal.HrotVehicle) if a.get_actor_label().startswith("DPS_Mover_") and not a.is_hidden_ed()]
+                if pic["follow"] == "walker":   # U-18i: a pedestrian mover's body
+                    cars = list(unreal.GameplayStatics.get_all_actors_with_tag(gw, "DPS_Walker"))
+                else:
+                    cars = list(unreal.GameplayStatics.get_all_actors_with_tag(gw, "DPS_Mover"))
                 cars = [a for a in cars if not a.get_editor_property("hidden")] if cars else []
                 locs = [a.get_actor_location() for a in cars[:1]]
                 if pic.get("near") and cars:   # the car nearest a point (Unreal cm) — ⚠ measured: an all-pairs "crowd" pick over 1078 cars stalled the editor ~30 s
@@ -204,13 +214,16 @@ def run():
         R.setdefault("rendererAtPicture", {})[name] = {k: rr.get_editor_property(k) for k in ("live_puffs", "live_tracers", "live_dashes", "live_flashes")} if rr else None
         R.setdefault("atPicture", {})[name] = {"scene": round(w.sim_now() - float(JOB.get("simBase", 0)), 2),
                                                 "people": {str(i): [w.person_look(i), person_extras(w, i)] for i in w.entity_ids() if w.person_look(i)}}
+        R.setdefault("framesAtPicture", {})[name] = [S.get("nf", 0), round(time.time() - S.get("f0", time.time()), 2)]   # U-18i: fps per interval
         R.setdefault("lifeAtPicture", {})[name] = {"fires": w.fire_summary(), "movers": [w.movers_known(), w.movers_drawn()],
+                                                    "riders": w.riders_now(), "walkers": w.walkers_drawn(),
                                                     "jets": list(w.jet_shooter_ids()), "animals": {str(i): w.describe(i) for i in w.animal_ids()}}
-        log(f"picture {name} at scene {w.sim_now() - float(JOB.get('simBase', 0)):.2f} s  [{w.fire_summary()}; movers {w.movers_known()}/{w.movers_drawn()}]")
+        log(f"picture {name} at scene {w.sim_now() - float(JOB.get('simBase', 0)):.2f} s  [{w.fire_summary()}; movers {w.movers_known()}/{w.movers_drawn()}; riders {w.riders_now()}; walkers {w.walkers_drawn()}]")
     if t >= float(JOB["seconds"]):
         R["final"] = {str(i): w.describe(i) for i in w.entity_ids()}
         R["spawned"], R["removed"] = w.spawned_total(), w.removed_total()
         R["events"] = dict(w.event_counts())
+        el = time.time() - S["f0"]; R["frames"] = {"n": S["nf"], "seconds": round(el, 1), "fps": round(S["nf"] / max(el, 1e-3), 1), "worstFrameMs": round(S.get("fmax", 0) * 1000)}
         R["life"] = {"fires": w.fire_summary(), "movers": [w.movers_known(), w.movers_drawn()], "animals": {str(i): w.describe(i) for i in w.animal_ids()}}
         LES().editor_request_end_play(); S.update(phase="end", t=time.time() + 3)
 
