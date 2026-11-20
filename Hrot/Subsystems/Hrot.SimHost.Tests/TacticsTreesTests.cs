@@ -677,14 +677,18 @@ namespace Hrot.SimHost.Tests
         /// ⭐⭐ <c>CE-8311</c> (D-15) — a suppressor takes the LOWEST stance whose round reaches the hidden enemy's last-known spot: a wall 2 m in
         /// front of him, 20 m from the spot — none ⇒ prone; knee-high (0.6 m) ⇒ crouched over it; chest-high (1.2 m, a car) ⇒ standing over it;
         /// 3 m ⇒ nothing clears ⇒ prone (his rounds cannot reach it, so he does not stand in it). 📐 live bt-window-duel: crouched behind Van 1
-        /// he fired into the van. 🔴 Red-proof: always crouched ⇒ the 0 / 1.2 / 3 rows red.
+        /// he fired into the van. 🔴 Red-proofs: always crouched ⇒ the 0 / 1.2 / 3 rows red; the spot + 0.5 m always ⇒ the seen row red.
         /// </summary>
         [Theory]
         [InlineData(0f, Fdp.Toolkit.Tkb.Domain.StanceId.Prone)]
         [InlineData(0.6f, Fdp.Toolkit.Tkb.Domain.StanceId.Crouched)]
         [InlineData(1.2f, Fdp.Toolkit.Tkb.Domain.StanceId.Standing)]
         [InlineData(3f, Fdp.Toolkit.Tkb.Domain.StanceId.Prone)]
-        public unsafe void CE8311_ASuppressor_TakesTheLowestStanceThatClearsTheLineToTheSpot(float wall, Fdp.Toolkit.Tkb.Domain.StanceId expected)
+        // ⭐ the round's own aim: an enemy SEEN standing is aimed at his chest (AimPoint.ForBodyAt, CE-2326), not 0.5 m over his feet —
+        //   📐 live ia-house-hunt: a defender seen at an upstairs window was "below the sill" for the spot + 0.5 m, so no stance cleared
+        [InlineData(1.08f, Fdp.Toolkit.Tkb.Domain.StanceId.Standing)]
+        [InlineData(1.08f, Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, true)]
+        public unsafe void CE8311_ASuppressor_TakesTheLowestStanceThatClearsTheLineToTheSpot(float wall, Fdp.Toolkit.Tkb.Domain.StanceId expected, bool seenStanding = false)
         {
             var w = new World();
             string feature = wall <= 0f ? "" : $$"""
@@ -698,6 +702,7 @@ namespace Hrot.SimHost.Tests
             var enemy = w.Contact(armed: true);
             ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
             mem.PositionsX[0] = 100f; mem.PositionsY[0] = 100f; mem.PositionsZ[0] = 0f;
+            if (seenStanding) mem.SeenStance[0] = (byte)(Fdp.Toolkit.Tkb.Domain.StanceId.Standing + 1);
             Assert.Equal(expected, PostureNodes.SuppressStance(w.Repo, w.Unit, enemy));
         }
 

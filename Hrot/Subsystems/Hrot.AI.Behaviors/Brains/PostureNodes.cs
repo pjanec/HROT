@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -9,6 +10,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fbt.Kernel;
 using Fdp.Toolkit.Tkb.Domain;
@@ -311,27 +313,39 @@ namespace Hrot.AI.Behaviors.Brains
         public const double SuppressSeekSeconds = 2.0, SuppressStanceSeconds = 1.0;
 
         /// <summary>
-        /// ⭐⭐ <c>CE-8311</c> (D-15) — the LOWEST stance from which the man's round reaches <paramref name="threat"/>'s last-known spot: the line from
-        /// his eye for that stance (<c>TerrainWorldLosStrategy.EyeHeightFor</c> — the fire chain raises the muzzle by the same rule) to the spot raised by
-        /// the blind aim height (<see cref="AimAndFireExecutor.BlindAimHeightMetres"/>, where his blind rounds go) is not blocked by the terrain
-        /// or a solid (<c>TerrainWorld.SegmentBlocked</c>). Prone, else crouched, else standing; none clear (or no spot) ⇒ prone (his rounds
-        /// cannot reach it from here, so he does not stand in it). No terrain loaded ⇒ every line is clear ⇒ prone.
+        /// ⭐⭐ <c>CE-8311</c> (D-15) — the LOWEST stance from which the man's round reaches <paramref name="threat"/>'s last-known spot, judged on the
+        /// SAME line the round flies: from his eye for that stance (<c>TerrainWorldLosStrategy.EyeHeightFor</c> — the fire chain's muzzle rule)
+        /// to the point the fire chain aims at — a remembered BODY (the memory knows the stance he was seen in) aimed as a live one
+        /// (<see cref="AimPoint.ForBodyAt"/>, CE-2326: the chest, or the band over his cover), else the spot + <see cref="AimAndFireExecutor.BlindAimHeightMetres"/>
+        /// — not blocked (<c>IWorldQuery.SightBlocked</c>). Prone, else crouched, else standing; none clear (or no spot) ⇒ prone (his rounds cannot
+        /// reach it from here, so he does not stand in it). No world ⇒ every line is clear ⇒ prone. 📐 live ia-house-hunt: aimed at the spot + 0.5 m,
+        /// a defender seen at an upstairs window sat below the sill — no stance cleared, the attacker lay behind his car and fired into it.
         /// </summary>
-        public static StanceId SuppressStance(EntityRepository world, Entity self, Entity threat)
+        public static unsafe StanceId SuppressStance(EntityRepository world, Entity self, Entity threat)
         {
-            if (threat.IsNull || !world.HasComponent<SimTransform>(self)
-                || !EqsTacticsNodes.ThreatPosition(world, self, new ThreatAim(threat, 0, default), out var spot)) return StanceId.Prone;
-            var terrain = world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
-            if (terrain == null) return StanceId.Prone;
+            if (threat.IsNull || !world.HasComponent<SimTransform>(self) || !world.HasComponent<TargetMemory>(self)) return StanceId.Prone;
+            var query = Fdp.Toolkit.World.WorldQuery.Of(world);
+            if (query == null) return StanceId.Prone;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            int slot = -1;
+            for (int i = 0; i < mem.Count; i++) if (mem.EntityIds[i] == (long)threat.PackedValue) { slot = i; break; }
+            if (slot < 0) return StanceId.Prone;
+            var spot = new Vector3(mem.PositionsX[slot], mem.PositionsY[slot], mem.PositionsZ[slot]);
+            var seen = TargetMemory.StanceSeen(in mem, slot);
             var feet = world.GetComponentRO<SimTransform>(self).Position;
-            var aim = spot + new Vector3(0f, 0f, AimAndFireExecutor.BlindAimHeightMetres);
+            var scratch = _aimScratch ??= new List<Vector3>(4);   // ⭐ per thread (the parallel brain phase)
             for (var stance = StanceId.Prone; ; stance = stance == StanceId.Prone ? StanceId.Crouched : StanceId.Standing)
             {
                 var eye = feet + new Vector3(0f, 0f, Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(world, self, stance));
-                if (!terrain.SegmentBlocked(eye, aim)) return stance;
+                var aim = seen is StanceId body
+                    ? AimPoint.ForBodyAt(query, eye, spot, body, 0f, scratch)
+                    : spot + new Vector3(0f, 0f, AimAndFireExecutor.BlindAimHeightMetres);
+                if (!query.SightBlocked(eye, aim)) return stance;
                 if (stance == StanceId.Standing) return StanceId.Prone;
             }
         }
+
+        [ThreadStatic] private static List<Vector3>? _aimScratch;
 
         /// <summary>
         /// ⭐⭐ <c>CE-8313</c> — the man holds a POST his squad gave him (any kind: <see cref="PeekAndFireParams.AnchorRadius"/> &gt; 0 — window, frame,
