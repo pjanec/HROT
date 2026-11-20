@@ -75,6 +75,9 @@ def level():
             a = spawn(unreal.SkeletalMeshActor, at, rot, v["label"])
             c = a.skeletal_mesh_component
             c.set_skeletal_mesh_asset(unreal.load_asset(v["skeletal"]))
+            b = c.get_skinned_asset().get_bounds()
+            log(f"{v['label']}: bounds origin {b.origin.x:.0f},{b.origin.y:.0f},{b.origin.z:.0f} extent {b.box_extent.x:.0f},{b.box_extent.y:.0f},{b.box_extent.z:.0f}")
+            if not v.get("anim"): continue   # shown in its rest pose (a vehicle's skinned body)
             anim = unreal.load_asset(v["anim"])
             if anim is None: raise RuntimeError("no clip " + v["anim"])
             c.set_animation_mode(unreal.AnimationMode.ANIMATION_SINGLE_NODE)
@@ -251,7 +254,7 @@ def step():
                   if a.get_actor_label() in {v["label"] for v in JOB["vehicles"]}}
         log(f"play: {sorted(S['v'])}")
         for v in JOB["vehicles"]:
-            if not v.get("skeletal") or v["label"] not in S["v"]: continue
+            if not v.get("skeletal") or not v.get("anim") or v["label"] not in S["v"]: continue
             # ⚠ measured: the saved single-node data alone left a one-shot (a death) STANDING in play — start it here, in the game
             # world; a one-shot is frozen on its last frame (the body on the ground)
             c, anim, loop = S["v"][v["label"]].skeletal_mesh_component, unreal.load_asset(v["anim"]), bool(v.get("loop", True))
