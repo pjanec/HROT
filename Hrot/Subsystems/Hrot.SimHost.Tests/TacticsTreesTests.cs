@@ -707,6 +707,44 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8315</c> — a BLIND round at an unseen man UPSTAIRS goes through the window, not into the wall under it: bt-range House A, the
+        /// ia-house-hunt attacker's firing spot (104, 77.5) prone and the defender's remembered spot (107.1, 100.9, z 3). The spot + 0.5 m is
+        /// behind the wall; <c>AimPoint.BlindAt</c> answers a point in an opening of House A on that storey that his eye reaches.
+        /// 🔴 Red-proof: BlindAt returning the spot + height ⇒ blocked ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8315_ABlindRoundAtAnUnseenManUpstairs_GoesThroughTheWindow()
+        {
+            var w = new World();
+            var folder = System.IO.Path.Combine(Fdp.Toolkit.Orchestration.ContentLayout.TerrainAssets(Fdp.Toolkit.Orchestration.ContentLayout.TryFindSourceTree()!), "bt-range");
+            var terrain = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(System.IO.File.ReadAllText(System.IO.Path.Combine(folder, "bt-range.world.geojson")),
+                "bt-range", Fdp.Toolkit.Terrain.TerrainAssets.ForFolder(folder));
+            w.Repo.SetSingletonManaged(terrain);
+            var query = Fdp.Toolkit.World.WorldQuery.Of(w.Repo)!;
+            Assert.NotNull(query);
+            var feet = new Vector3(107.1f, 100.9f, 3f);
+            foreach (float eyeZ in new[] { 0.35f, 1.1f })
+            {
+                var eye = new Vector3(104f, 77.5f, eyeZ);
+                Assert.True(query.SightBlocked(eye, feet + new Vector3(0, 0, Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.BlindAimHeightMetres)), "the plain blind aim is in the wall");
+                var aim = Fdp.Toolkit.Combat.AimPoint.BlindAt(w.Repo, query, eye, feet, Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.BlindAimHeightMetres);
+                Assert.NotEqual(feet + new Vector3(0, 0, Fdp.Toolkit.Combat.Executors.AimAndFireExecutor.BlindAimHeightMetres), aim);
+                bool inAnOpening = false;
+                foreach (var panel in terrain.Panels)
+                {
+                    if (panel.Building < 0 || terrain.Buildings[panel.Building].Label != "House A") continue;
+                    var dir = Vector2.Normalize(panel.B - panel.A);
+                    foreach (var op in panel.Openings)
+                    {
+                        var c = panel.A + dir * (op.At + op.Width * 0.5f);
+                        if (Vector2.Distance(c, new Vector2(aim.X, aim.Y)) < 0.01f && aim.Z > op.SillZ && aim.Z < op.HeadZ && op.SillZ >= 2.5f) inAnOpening = true;
+                    }
+                }
+                Assert.True(inAnOpening, $"eye {eyeZ}: {aim} is not inside an upstairs opening of House A");
+            }
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-8313</c> — a POSTED man (his squad's post: <c>Peek.AnchorRadius</c> &gt; 0) suppressing a hidden enemy fires blind FROM his post,
         /// in the stance he holds: never prone (behind a sill he cannot fire), never off to other cover, even with a cover point in reach.
         /// 📐 live bt-window-duel: D-15 laid the window rifleman prone at his window — 0 rounds in 60 s. 🔴 Red-proof: drop the posted branch ⇒

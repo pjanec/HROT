@@ -25,6 +25,9 @@ namespace Hrot.AI.Behaviors.Brains
         public byte HasPoint;
         /// <summary>Seconds between aimed rounds (blind rounds go slower — the executor's cadence).</summary>
         public SimDuration CooldownSeconds;
+        /// <summary>⭐ <c>CE-8314</c> — the firing-position search round where he was ordered to hold (<c>PostureNodes.PlaceSuppressor</c>); a
+        /// SearchRadius of 0 = he holds exactly where he stands (the stance rule still applies).</summary>
+        public EqsTacticsParams From;
     }
 
     /// <summary>What <see cref="SuppressNodes.SuppressContact"/> is doing.</summary>
@@ -39,6 +42,8 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 PointFiring;
         /// <summary>1 once the node stopped this soldier's move.</summary>
         public byte Held;
+        /// <summary>⭐ <c>CE-8314</c> — where and how he suppresses from (the ONE placement rule, D-15).</summary>
+        public SuppressPlacement Place;
     }
 
     /// <summary>
@@ -77,6 +82,7 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 StopPoint(world, self, ref ws);
                 PostureNodes.Fire(world, self, ref ws.Fire, cooldown, 0, target, blind: true);
+                PostureNodes.PlaceSuppressor(ref p.From, ref ws.Place, self, world, target, default);   // ⭐⭐ CE-8314 — D-15's placement
                 return NodeStatus.Running;
             }
 
@@ -89,7 +95,11 @@ namespace Hrot.AI.Behaviors.Brains
             ref var channel = ref world.GetComponentRW<WeaponChannel>(self);
             bool running = ws.PointStarted != 0 && channel.ActionInstanceId == ws.PointStarted
                         && channel.ActiveAction == CombatConstants.ActionIdFireAtPoint && channel.Status == NodeStatus.Running;
-            if (running && Vector3.DistanceSquared(ws.PointFiring, p.Point) < 1f) return NodeStatus.Running;
+            if (running && Vector3.DistanceSquared(ws.PointFiring, p.Point) < 1f)
+            {
+                PostureNodes.PlaceSuppressor(ref p.From, ref ws.Place, self, world, Entity.Null, p.Point);   // ⭐ CE-8314
+                return NodeStatus.Running;
+            }
             if (world.HasComponent<BehaviorState>(self)) channel.BehaviorInstanceId = world.GetComponent<BehaviorState>(self).InstanceId;
             unchecked { channel.ActionInstanceId++; if (channel.ActionInstanceId == 0) channel.ActionInstanceId = 1; }
             channel.ActiveAction = CombatConstants.ActionIdFireAtPoint;
@@ -98,6 +108,7 @@ namespace Hrot.AI.Behaviors.Brains
                 new Fdp.Toolkit.Combat.Executors.FireAtPointParams { Point = p.Point, CooldownSeconds = cooldown * PointCooldownFactor, Rounds = 0, Mount = 0 };
             ws.PointStarted = channel.ActionInstanceId;
             ws.PointFiring = p.Point;
+            PostureNodes.PlaceSuppressor(ref p.From, ref ws.Place, self, world, Entity.Null, p.Point);   // ⭐ CE-8314 — never saw him: the stance for the point
             return NodeStatus.Running;
         }
 
@@ -106,6 +117,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             PostureNodes.StopFiring(world, self, ref ws.Fire);
             StopPoint(world, self, ref ws);
+            PostureNodes.ReleaseSuppressor(ref p.From, ref ws.Place, self, world);   // ⭐ CE-8314
             ws.Held = 0;
         }
 
@@ -135,6 +147,10 @@ namespace Hrot.AI.Behaviors.Brains
             public SuppressContactState State;
         }
 
+        /// <summary>⭐ <c>CE-8314</c> — how far from where his commander put him an ordered suppressor looks for a firing position (m): a man's own
+        /// adjustment into a fold or behind a wall, never a move off the base of fire.</summary>
+        public const float OrderedFiringPositionMetres = 8f;
+
         [BehaviorResolver(BehaviorNames.Suppress)]
         public static void Resolve(in SuppressParamsJsonDto authored, ref SuppressBlackboard block, EntityRepository world, Entity self)
         {
@@ -144,6 +160,8 @@ namespace Hrot.AI.Behaviors.Brains
                 Point           = new Vector3(authored.X, authored.Y, authored.Z),
                 HasPoint        = authored.X != 0f || authored.Y != 0f ? (byte)1 : (byte)0,
                 CooldownSeconds = authored.CooldownSeconds > 0f ? authored.CooldownSeconds : 1f,
+                // ⭐⭐ CE-8314 — the D-15 placement round where his commander put him: a firing position within a few metres, crouched, its own fire off
+                From            = new EqsTacticsParams { SearchRadius = OrderedFiringPositionMetres, MinRepositionMetres = 2f, Speed = 3f, ArrivalRadius = 1.5f, ScoreDeltaThreshold = 0.05f },
             };
             block.State = default;
         }

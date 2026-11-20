@@ -460,6 +460,8 @@ namespace Fdp.Toolkit.Combat.Executors
             // when the memory knows the stance he was SEEN in, the round itself names that body (BodyStance) and the MUSCLE aims it (its
             // chest, or the band that showed over a cover that stops a round). ⛔ Before: always the spot + 0.5 m, blind to the cover.
             var point = feet with { Z = feet.Z + BlindAimHeightMetres };
+            // ⭐⭐ CE-8315 — an UNSEEN spot inside a building his line cannot reach: through the nearest opening of it that he can (AimPoint.BlindAt)
+            if (seenStance == 0) point = AimPoint.BlindAt(world, Fdp.Toolkit.World.WorldQuery.Of(world), ShotOrigin.Eye(world, shooter, out _), feet, BlindAimHeightMetres);
             if (!Magazine.Ready(weapon))
             {
                 Magazine.StartIfEmpty(ref weapon);
