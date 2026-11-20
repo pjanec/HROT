@@ -399,6 +399,24 @@ namespace Hrot.AI.Behaviors.Brains
                 choice.Winner = (byte)SquadContactResponse.Hold;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2454</c> (Aggregate Squad D-5, §5 ReactToContact) — the squad has ONE man in the fight and the order the reaction paused
+        /// ATTACKS (Attack, ClearBuilding, Bound, FireAndMovement): an assault it cannot start ends the reaction and that order resumes. A squad
+        /// of two or more, or a lone man on any other order, holds until clear as before. No allocation.
+        /// </summary>
+        public static bool PressesOn(EntityRepository world, Entity self)
+        {
+            var kind = Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).Kind;
+            if (kind is not (Hrot.AI.Behaviors.Orders.OrderKind.Attack or Hrot.AI.Behaviors.Orders.OrderKind.ClearBuilding
+                         or Hrot.AI.Behaviors.Orders.OrderKind.Bound or Hrot.AI.Behaviors.Orders.OrderKind.FireAndMovement)) return false;
+            if (!world.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(self)) return false;
+            ref readonly var roster = ref world.GetComponentRO<Fdp.Core.CommandHierarchy.UnitRoster>(self);
+            int fighting = 0;
+            for (int i = 0; i < roster.Count; i++)
+                if (PlatoonConvoyBehavior.AnyInTheFight(world, roster.SubordinateEntities[i]) && ++fighting > 1) return false;
+            return fighting == 1;
+        }
+
         /// <summary>⭐ <c>CE-2152</c> C-c (R-2013) — while a man is down and not yet cared for, the choice is scored again this often (s).</summary>
         public const double RedecideSeconds = 5d;
 
@@ -484,6 +502,10 @@ namespace Hrot.AI.Behaviors.Brains
                     return NodeStatus.Running;
                 }
                 if (drill == NodeStatus.Running && ws.Play.Started != 0) return NodeStatus.Running;
+                // ⭐ CE-2454 — a LONE man cannot fix and flank (Aggregate Squad §5: the flank fails live < 2): on an attacking order he presses
+                //   on with it — the order's own posture fights, the room drill answers a contact in the building — instead of standing in the
+                //   open until the contact is forgotten (📐 live ia-area-defend: 46 s, 20 m short of House A, the guard unseen).
+                if ((SquadContactResponse)ws.Choice.Winner == SquadContactResponse.Assault && PressesOn(world, self)) return NodeStatus.Success;
                 Next(ref ws, StageHoldOn, world);                          // failed, or could not start (e.g. only a heard contact)
             }
             return SquadManeuverRunner.Tick<SquadHoldPlay, SquadHoldParams>(ref p.HoldOn, ref ws.Play, self, world);

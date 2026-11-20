@@ -1074,6 +1074,31 @@ Rejected: **a new decision option ("Close")** — the decision picks WHAT (assau
 flank radius** — a 150 m flank is still a walk in the open · **re-checking the range during the flank** — a squad pushed back would
 oscillate between drills.
 
+**⭐ `CE-2454` (behaviors, `2026-11-20`; build-state: BUILT) — a LONE man's assault presses on with his attacking order.** 📐 Live
+`ia-area-defend`: the one-man squad clearing House A was fired on from a window 20 m out; the decision chose `Assault`, the flank cannot start
+with one live man (`SuppressAndManeuverBehavior.cs` Start, `live < 2` — Aggregate Squad §5), so the reaction fell to the hold-on and he
+STOOD in the open for **46 s** until the squad forgot the contact. ⭐ Now: an `Assault` that could not start, in a squad with ONE man in the
+fight, whose paused order ATTACKS (`Attack`, `ClearBuilding`, `Bound`, `FireAndMovement` — `CurrentOrders.Of`) ENDS the reaction
+(`ReactToContactBehavior.PressesOn`) after the return-fire hold: the order resumes, its member posture fights, and a contact in the house
+is the room drill's (`CE-2453`). A squad of two or more, a lone man on any other order, and a chosen `Hold` are unchanged.
+
+```mermaid
+stateDiagram-v2
+    [*] --> ReturnFire
+    ReturnFire --> Drill: DecideAfterSeconds (3 s)
+    Drill --> Flank: Assault, two or more live
+    Drill --> PressOn: Assault, one man in the fight, the paused order attacks (CE-2454)
+    Drill --> HoldOn: Assault, one man, any other order / Hold / a drill that could not start
+    PressOn --> [*]: Success, the paused order resumes
+    HoldOn --> [*]: the contact is clear
+```
+
+*What the picture shows that the prose hid:* before `CE-2454` every arrow from a lone man's `Drill` went to `HoldOn`, whose only exit is
+the contact being FORGOTTEN — a timer nobody chose. Rejected: **"an assault that cannot start becomes Hold at choice time"** (Aggregate
+Squad §5's note) — for a real lone man that IS the measured 46 s stall · **build D-5's one-man fire and movement first** — at 20 m the
+assault goes straight to the flank, which still fails · **end every lone man's reaction** — a lone man on a march would walk on under fire.
+Rail `SquadManeuverTests.CE2454_ALoneClearer_PressesOn_WhenHeCannotAssault` (three cases).
+
 Rail `SquadManeuverTests.CE2158_ReactToContact_AFarContact_IsClosedByFireAndMovement_ThenFlanked` (one man left behind); the cluster rail
 `SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` now expects kinds 2 → 7 → 12 → 3 → 2; the near case stays
 `CE2123_ReactToContact_HoldsAndReturnsFire_ThenAStrongSquadAssaults` (60 m ⇒ the flank at once).

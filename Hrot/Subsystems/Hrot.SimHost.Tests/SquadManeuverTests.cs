@@ -1106,6 +1106,32 @@ namespace Hrot.SimHost.Tests
             else Assert.NotEqual(BehaviorNames.ReactToContact, s.TaskName);
         }
 
+        /// <summary>⭐ <c>CE-2454</c> (Aggregate Squad D-5 / §5) — a LONE man clearing a house, shot at from the street, cannot fix and flank: once
+        /// the return-fire hold is over the reaction ENDS and the clear resumes (he fights from its own posture). A lone man on a march, and a
+        /// squad of two on the clear, are unchanged (hold until clear · the flank). 📐 Live before: <c>ia-area-defend</c>, Blue East held 46 s in
+        /// the open 20 m from House A until the contact was forgotten. ✅ Red-proof: <c>PressesOn</c> always false ⇒ the lone clearer holds.</summary>
+        [Theory]
+        [InlineData(1, "ClearBuilding", "{\"Point\":[5,4,0]}", true)]
+        [InlineData(1, "SquadMarch", "{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", false)]
+        [InlineData(2, "ClearBuilding", "{\"Point\":[5,4,0]}", false)]
+        public void CE2454_ALoneClearer_PressesOn_WhenHeCannotAssault(int members, string task, string json, bool pressesOn)
+        {
+            var s = new Squad(members: members);
+            s.Repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{ \"type\": \"FeatureCollection\", \"features\": [ " + CE2453House + " ] }", "range"));
+            s.Order(json, task);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 4; i++) s.Tick();
+            var enemy = Enemy(s, new Vector3(5f, -30f, 0f));
+            s.Pool(enemy, new Vector3(5f, -30f, 0f), reporters: 0b0001);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            for (int i = 0; i < 300; i++) s.Tick();   // 5 s: past the 3 s return-fire hold, the assault tried
+            Assert.Equal(pressesOn, s.TaskName == task);
+            if (!pressesOn) Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+        }
+
         /// <summary>⭐⭐ <c>CE-4612</c> (R-2088…R-2090; DESIGN_Orders_Params_Entity_Classes.md §15) — the squad's ORDER, typed and derived: a
         /// superior's <c>SquadHold</c> reads as a Hold with a request id; a reaction PAUSES it and the order is the same order (kind, request
         /// id), marked paused; the SOP's own task is no order. ✅ Red-proofs: the paused arm of <c>CurrentOrders.Of</c> dropped ⇒ None under the

@@ -255,7 +255,7 @@ together that requires really two targets at the same time."*
 | BreakContact | moves to the answer, Success within 8 m; no smoke (only a coverer throws, `SquadContactBehaviors.cs:241`) | ✅ works · 🔧 smoke by the mover |
 | SquadMarch / Move | he is the lead; Success on arrival | ✅ works |
 | SquadCover | an empty element is Ready (`SquadCover.cs:66`) | ✅ works |
-| ReactToContact | ratio counts one body (`SquadInputs.cs:251-282`) ⇒ breaks contact against anyone; assault falls through two failing plays to Hold | 🔧 the D-2 seam for the ratio; an assault that cannot start becomes Hold at choice time |
+| ReactToContact | ratio counts one body (`SquadInputs.cs:251-282`) ⇒ breaks contact against anyone; assault falls through two failing plays to Hold | 🔧 the D-2 seam for the ratio; an assault that cannot start becomes Hold at choice time · ⭐ **`CE-2454` (2026-11-20, a REAL lone man): on an attacking order the reaction ends and the order resumes — [Squad Tactics §7.6.3](../group-maneuvers/DESIGN_Squad_Tactics.md); the "Hold" lean above measured as a 46 s stall** |
 | BasicSquadSop rows | UnderFire, Contact, AirThreat work; LeaderDown / MemberDown inert (correct) | ✅ works |
 | CasualtyCare / SquadRecover | inert for the representative (no injury, D-6) | ✅ (aggregate) · see §6 for real squads |
 | ShelterFromAir · Coordination · Callouts | per member, works; a lone man never calls (optional exemption) | ✅ works |
