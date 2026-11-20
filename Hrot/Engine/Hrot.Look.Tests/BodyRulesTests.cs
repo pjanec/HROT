@@ -69,4 +69,27 @@ public sealed class BodyRulesTests
         world.SetComponent(clearer, new Fdp.Toolkit.Terrain.MineClearing { Active = 1, Tool = Fdp.Toolkit.Terrain.MineClearingTool.Plough });
         Assert.False(FlailActivity.IsOn(world, clearer));
     }
+
+    /// <summary>RR-8 — <see cref="Hrot.Look.Airborne.Of"/>: a flyer's <c>FlightState</c> wins; else a flock's mode; else a lone bird's flag; else false.
+    /// 🔒 Red-proved: the flag arm dropped ⇒ red (the lone bird reads grounded).</summary>
+    [Fact]
+    public void RR8_AirborneIsReadFromState_FlightStateFlockOrTheBirdsFlag()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
+        world.RegisterComponent<FlockState>();
+        world.RegisterComponent<AnimalState>();
+        var jet = world.CreateEntity(); world.AddComponent(jet, new Fdp.Toolkit.Motion.FlightState { Airborne = 1 });
+        var parked = world.CreateEntity(); world.AddComponent(parked, new Fdp.Toolkit.Motion.FlightState { Airborne = 0 });
+        var flock = world.CreateEntity(); world.AddComponent(flock, new FlockState { Count = 20, Mode = FlockMode.Flying });
+        var bird = world.CreateEntity(); world.AddComponent(bird, new AnimalState { Flags = AnimalFlags.InFlight });
+        var cow = world.CreateEntity(); world.AddComponent(cow, new AnimalState());
+        var rock = world.CreateEntity();
+        Assert.True(Hrot.Look.Airborne.Of(world, jet));
+        Assert.False(Hrot.Look.Airborne.Of(world, parked));
+        Assert.True(Hrot.Look.Airborne.Of(world, flock));
+        Assert.True(Hrot.Look.Airborne.Of(world, bird));
+        Assert.False(Hrot.Look.Airborne.Of(world, cow));
+        Assert.False(Hrot.Look.Airborne.Of(world, rock));
+    }
 }
