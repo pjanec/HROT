@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-20
-build-state: BUILDING (RR-1 built; RR-2…RR-5 READY-TO-BUILD under R-4296; RR-6, RR-7, RR-8 wait on the decisions in §5)
+build-state: BUILDING (RR-1 built; RR-2…RR-6, RR-8 READY-TO-BUILD — D-1, D-3 approved; RR-7 needs no engine change, D-2)
 current-answer: §3 (what moves where, per item) and §5 (the decisions, with leans)
 stale-below: nothing yet
 known-rot: none
@@ -116,9 +116,9 @@ are map-side), so a node extension in that process reads it; a headless node has
 | **RR-3** spinning parts, leans | [CE-11003](../../blueprints/Blueprint_Issues_Tracker.md) | rotor 4.3 rev/s, run-on 20 s, spool 3 s; drone 7.3; antenna 0.6; flail 4 rev/s, spool 1 s; the bank `−atan(v·yawRate/g)` ≤ 35°, eased 0.15 s; wheel roll by distance over the wheel radius — as functions of replicated state on SIM time | the per-frame accumulator (`MotionTracker.State`) — a renderer keeps its own; ⚠ the map advances rotor angles by frame time × sim pace — the shared function takes sim seconds, the map's pacing stays its own | ⏳ |
 | **RR-4** rounds, flame | [CE-11004](../../blueprints/Blueprint_Issues_Tracker.md) | `TracerOf`, `TrailFactor`, `BurnOf`, the lying / stopped rule, the trail constants; the flame look: jets, burning spots (size clamp(r·0.7, 0.3, 8)), burning people, scorch marks — as specs | the `Color`s (an `Rgba` in Look where a colour IS the rule), the path ring buffer | ⏳ |
 | **RR-5** bodies, gaits, carriage, flail, HUD | [CE-11005](../../blueprints/Blueprint_Issues_Tracker.md) | `QuadrupedGaits`, `GaitBands`, `FlockBirds`, the grazing cycle; `Carriage.Of` + `CarriageKind` + placement; `FlailActivity.IsOn`; the HUD words (`KindOf`, `RoundName`, `Label`, `TypeName`) | `AnimalCoats` (colours of kits); the HUD's drawing and colours; `DismountDrop` (a per-entity timer of the map) | ⏳ |
-| **RR-6** the suggested camera | [CE-11006](../../blueprints/Blueprint_Issues_Tracker.md) | a NEW engine-level singleton (D-1) | the drivers themselves | ⏸ D-1 |
-| **RR-7** effects in replay | [CE-11007](../../blueprints/Blueprint_Issues_Tracker.md) | one path (D-2) | — | ⏸ D-2 (measure first) |
-| **RR-8** airborne | [CE-11008](../../blueprints/Blueprint_Issues_Tracker.md) | `Airborne.Of(world, e)` (D-3) | — | ⏸ D-3 |
+| **RR-6** the suggested camera | [CE-11006](../../blueprints/Blueprint_Issues_Tracker.md) | a NEW engine-level singleton (D-1) | the drivers themselves | ⏳ approved (D-1) |
+| **RR-7** effects in replay | [CE-11007](../../blueprints/Blueprint_Issues_Tracker.md) | one path (D-2) | — | ✅ no engine change (D-2) |
+| **RR-8** airborne | [CE-11008](../../blueprints/Blueprint_Issues_Tracker.md) | `Airborne.Of(world, e)` (D-3) | — | ⏳ approved (D-3) |
 
 ⭐ **Results the node extension's ports must match:** the motorcycle bank (RR-3), `Carriage.Of` (RR-5), `FlailActivity.IsOn` (RR-5), the HUD words (RR-5)
 move **verbatim** — same constants, same branches — and the map's existing rails stay the proof that the result did not change.
@@ -146,24 +146,50 @@ move **verbatim** — same constants, same branches — and the map's existing r
 
 ## 5. Decisions — for the user, each with a lean
 
-**D-1 (RR-6) — where the suggested camera lives.** Lean: ⭐ **an unmanaged singleton `CameraSuggestion` in `Fdp.Toolkits` (no presentation type in it:
+**D-1 (RR-6) — where the suggested camera lives. ✅ APPROVED `2026-11-20` (R-11000).** Lean: ⭐ **an unmanaged singleton `CameraSuggestion` in `Fdp.Toolkits` (no presentation type in it:
 position, orientation quaternion, field of view, source enum {Operator, Follow, Director}, mode enum {Free, Orbit, Eyes, Shoulder, Chase, FixedKey},
 bound `Entity`, continuum distance, shoulder side ±1, a cut counter, the take/shot name as a `FixedString64`)**, written every frame by whichever driver
 holds the map camera on that node, ⛔ **not recorded, not replicated** (`DataPolicy.NoReplay | NoScenario`, node-local advice). Blast radius: one new
 component id; three writers (FilmDirector, FollowCameraDriver, the free operator camera). What would change the lean: if the external renderer runs on a
 node with NO map (a headless gateway node), the suggestion must cross nodes — then it becomes a small DDS topic, a separate step.
 
-**D-2 (RR-7) — effects in replay.** Measured: the recorder writes events and playback injects them (`RecorderSystem.cs:207`, `PlaybackSystem.cs:108`);
-the Replay Browser swaps the bus so they are readable (`ReplayBrowserSubsystem.cs:511`); the spawner stops only to avoid spawning effects a second time
-(`EffectSystems.cs:139` — the effect ENTITIES are recorded). Lean: ⭐ **the replay raises the recorded notifications (it already does on the Replay
-Browser) and `EffectRules.ForFrame` is the one path; the work is a rail that proves each replay host (Replay Browser, a cluster node in replay) raises all
-four, and fixing the hosts that do not.** ⛔ Not a second "from recorded data" entry point. What would change the lean: a replay host that cannot raise
-events (e.g. the cluster's replay drives components only) — then that host gets the injection, not the rules.
+**D-2 (RR-7) — effects in replay. ✅ RESOLVED `2026-11-20`: NO ENGINE CHANGE (R-11001).** Measured: the map never draws effects from the events in
+replay — the spawner turns every fire / impact / detonation into an effect ENTITY (`SimTransform` + the effect's `TkbIdentity` + `Lifespan` + an optional
+`EffectAnchor`, `EffectSystems.cs:294-298`) on every map host (`MapInteraction.cs:255`); those entities are RECORDED, and in replay the spawner is off
+(`EffectSystems.cs:31-34`) and the map draws the recorded ones. ⇒ ⭐ **a gateway reads the effect entities exactly as the map does — one path, live and
+replay.** Conditions: ① the gateway's node runs the map's spawner (every map host does); a node with no map has no effect entities and calls `EffectRules`
+on the events itself. ② ⚠ the burst stream (RR-1) is NOT an entity — the map keeps it in `RecentShots`, empty in replay, so the map draws no streams in
+replay; a gateway matches that, or calls `FireStreams.StreamOf` on replayed fire notifications where the replay raises them (the Replay Browser does).
+🔒 User, `2026-11-20`: *"in D2 i do not think we really need to extend the HROT engine as the HROT side of the gateway can read whatever it needs same was
+as HROT's 3d map"*. ⛔ **Superseded lean (kept for the record):** a rail per replay host proving the four events are raised, and `ForFrame` as the one path.
 
-**D-3 (RR-8) — airborne.** Lean: ⭐ **a pure `Hrot.Look.Airborne.Of(world, e)`**: `FlightState.Airborne` where present (aircraft, the dragon), else
+**D-3 (RR-8) — airborne. ✅ APPROVED `2026-11-20` (R-11002).** Lean: ⭐ **a pure `Hrot.Look.Airborne.Of(world, e)`**: `FlightState.Airborne` where present (aircraft, the dragon), else
 `FlockState.Mode == Flying` (a flock), else **a new bit `AnimalFlags.Flying` in the replicated `AnimalState.Flags`** written by the bird's own motion (the
 behaviors lane's animal system — today the map guesses it from speed). Blast radius: one flag bit, one writer. What would change it: if the behaviors lane
 already plans a flight state for animals.
+
+**D-5 (RR-9) — the material an impact struck** *(gateway note, `2026-11-20`)*. Measured: `RoundImpactNotification` carries point, normal, travel,
+ammo, kind — no material (`RoundImpactNotification.cs:15-36`); `EffectRules.ForImpact` guesses only Ground vs Building from the height above the ground
+(`EffectRules.cs:155`); the ballistics DOES know the material at each crossing (`TerrainWorld.Crossing.Material`, a name). Lean: ⭐ **a byte
+`ImpactMaterial` class on the notification (Earth, Concrete, Brick, Wood, Metal, Glass, Water, Flesh, Vegetation, Unknown), mapped once from the terrain
+material name, carried on the NED wire, and used by `ForImpact` for its own surface** — one source for the map and a gateway. Blast radius: one FDP event
+field, the impact IDL + translator (a wire change, the backend lane's area — said in the commit), the rule. What would change it: if the wire must stay
+frozen, the gateway can resolve the material locally from the point (TerrainWorld query) — a second copy of the lookup, so worse.
+
+**D-6 (RR-10) — what a recorded explosion hit** *(gateway note)*. Measured: `DetonationNotification` DOES carry `Target` and `Damage`, and events are
+recorded (`RecorderSystem.cs:211`, only `NoReplay` types skipped — it has none) — but the effect ENTITY the map and a gateway read (R-11001) does not:
+the explosion's type is the same for a unit and the ground (`EffectRules.cs:176`); only a ground hit adds a decal. Lean: ⭐ **the spawner adds one small
+unmanaged, recorded, never-saved component to each effect it makes from a hit — `EffectCause { EffectSurface Surface; Entity Target; float Damage;
+long Ammo }`, straight from the spec the rule already computes** — so the entity alone says unit / person / ground / air, live and in replay. Blast
+radius: one new component id, one writer (the spawner), a few bytes per recorded effect. ⛔ Not "read the replayed event": that is a second path beside R-11001.
+
+**D-7 (RR-11) — a round's exact launch time** *(gateway note)*. Measured: a round carries only `BallisticProjectile.SpawnTick` (a tick,
+`CombatComponents.cs:125`); the replicated round (`LightweightRound`) is a bare tag. Lean: ⭐ **a `SimInstant LaunchedAt` on the round, set once by the
+shooter at creation and replicated with the round's creation (immutable after)** — sim time, so live and replay agree. Blast radius: one field on the round
+component and its creation sample (wire). What would change it: none known.
+
+⚠ **Correction to the gateway's note on the dragon:** the dragon FLIES AS A ROTORCRAFT (`FunTkbCatalog.cs:35`, `RotorcraftModel` unchanged), so it HAS
+`FlightState.Airborne` like any helicopter — the map reads exactly that (`EntityBodyLayer3D.cs:1521`). Only a LONE BIRD lacks flight state (D-3's flag).
 
 **D-4 — the small types RR-2…RR-5 need** (`MotionPose`, `ShapeKits` wheel radii, `BlockFigure` constants, `PostureBlend`): lean ⭐ **move them into
 `Hrot.Look` with the rules (namespace `Hrot.Look.Bodies`), the map using them from there** — the same move as `VisualFamily`; covered by R-4296, no
