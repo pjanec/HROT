@@ -3,7 +3,9 @@
     HROT_VEHICLELAB_JOB = { "kit", "vehicles": [{"label", "kit"?, "mesh"?, "yaw", "pitch", "damage", "heading"?}], "fire": <label>,
                             "firePics": [s…], "spacing", "rowBack", "rowUp", "closeBack", "shots", "out" }
     a vehicle is a kit (its own or the job's) — or "mesh": a bare static mesh (a gallery of a pack as it comes, to judge its scale
-    and which way it faces); "heading" = the actor's yaw (default −60: three-quarter toward the camera)
+    and which way it faces) — or "skeletal" + "anim" (+ "loop": false = hold the last frame): an animal playing its own clip;
+    "heading" = the actor's yaw (default −60: three-quarter toward the camera); "at": [x, y, z] places it (a grid) and "rowAt"
+    aims the row picture at the grid's centre; "views": [{"name", "label" | "at", "back", "up", "lookZ"}] = more pictures, any framing
 
 A row of AHrotVehicle (one kit) in a new level, each with its state (turret yaw / gun pitch / damage), played in Simulate (the
 damage effects and the shot renderer run in the game world); pictures timed by GAME time: the row at 3 s (smoke grown), the firing
@@ -53,7 +55,19 @@ def level():
         unreal.SystemLibrary.execute_console_command(None, c)
     LES().editor_set_viewport_realtime(True)
     for i, v in enumerate(JOB["vehicles"]):
-        at, rot = (i * SPACING, 0, float(v.get("z", 0))), (0, float(v.get("heading", -60)), 0)
+        at, rot = tuple(v.get("at") or (i * SPACING, 0, float(v.get("z", 0)))), (0, float(v.get("heading", -60)), 0)
+        if v.get("skeletal"):   # an animal (or any rigged body) playing one of its own clips — "loop": false holds the last frame (dead)
+            a = spawn(unreal.SkeletalMeshActor, at, rot, v["label"])
+            c = a.skeletal_mesh_component
+            c.set_skeletal_mesh_asset(unreal.load_asset(v["skeletal"]))
+            anim = unreal.load_asset(v["anim"])
+            if anim is None: raise RuntimeError("no clip " + v["anim"])
+            c.set_animation_mode(unreal.AnimationMode.ANIMATION_SINGLE_NODE)
+            ad = c.get_editor_property("animation_data")   # ⭐ saved on the actor, so the Simulate copy plays it too (hrot_animlab)
+            ad.set_editor_property("anim_to_play", anim); ad.set_editor_property("saved_looping", bool(v.get("loop", True)))
+            ad.set_editor_property("saved_playing", True); ad.set_editor_property("saved_position", 0.0)
+            c.set_editor_property("animation_data", ad)
+            continue
         if v.get("mesh"):   # a bare mesh, as the pack ships it
             a = spawn(unreal.StaticMeshActor, at, rot, v["label"])
             a.static_mesh_component.set_static_mesh(unreal.load_asset(v["mesh"])); a.static_mesh_component.set_mobility(unreal.ComponentMobility.MOVABLE)
@@ -75,10 +89,10 @@ def game_now():
     return unreal.GameplayStatics.get_time_seconds(w) if w else 0.0
 
 
-def camera(at, back, up=350.0):
-    """Looks at `at` from `back` cm toward −Y (three-quarter: a little from +X), `up` cm high."""
+def camera(at, back, up=350.0, look_z=150.0):
+    """Looks at `at` (`look_z` cm high) from `back` cm toward −Y (three-quarter: a little from +X), `up` cm high."""
     cam = unreal.Vector(at.x + back * 0.35, at.y - back, up)
-    UES().set_level_viewport_camera_info(cam, unreal.MathLibrary.find_look_at_rotation(cam, unreal.Vector(at.x, at.y, 150.0)))
+    UES().set_level_viewport_camera_info(cam, unreal.MathLibrary.find_look_at_rotation(cam, unreal.Vector(at.x, at.y, look_z)))
 
 
 def picture(name):
@@ -113,8 +127,15 @@ def step():
         S["v"] = {a.get_actor_label(): a for a in unreal.GameplayStatics.get_all_actors_of_class(w, unreal.Actor)
                   if a.get_actor_label() in {v["label"] for v in JOB["vehicles"]}}
         log(f"play: {sorted(S['v'])}")
+        for v in JOB["vehicles"]:
+            if not v.get("skeletal") or v["label"] not in S["v"]: continue
+            # ⚠ measured: the saved single-node data alone left a one-shot (a death) STANDING in play — start it here, in the game
+            # world; a one-shot is frozen on its last frame (the body on the ground)
+            c, anim, loop = S["v"][v["label"]].skeletal_mesh_component, unreal.load_asset(v["anim"]), bool(v.get("loop", True))
+            c.set_animation_mode(unreal.AnimationMode.ANIMATION_SINGLE_NODE); c.play_animation(anim, loop)
+            if not loop: c.set_position(anim.get_play_length() * 0.995, False); c.stop()
         S["queue"] = [("row", None)] + [("close", v["label"]) for v in JOB["vehicles"] if v.get("damage", "INTACT") != "INTACT"] + \
-                     ([("fire", JOB["fire"])] if JOB.get("fire") else [])
+                     [("view", w) for w in JOB.get("views", [])] + ([("fire", JOB["fire"])] if JOB.get("fire") else [])
         S.update(phase="next", ready=game_now() + 3.0); return
     if p == "next":
         if game_now() < S["ready"]: return
@@ -123,11 +144,17 @@ def step():
         kind, label = S["queue"].pop(0)
         n = len(JOB["vehicles"])
         if kind == "row":
-            camera(unreal.Vector((n - 1) * SPACING / 2, 0, 0), float(JOB.get("rowBack", 2600.0)), float(JOB.get("rowUp", 700.0)))
+            at = unreal.Vector(*JOB["rowAt"]) if JOB.get("rowAt") else unreal.Vector((n - 1) * SPACING / 2, 0, 0)   # a grid names its centre
+            camera(at, float(JOB.get("rowBack", 2600.0)), float(JOB.get("rowUp", 700.0)))
             S.update(phase="shoot", name="row", at=game_now() + 0.3)
         elif kind == "close":
             camera(S["v"][label].get_actor_location(), float(JOB.get("closeBack", 1100.0)), 450.0)
             S.update(phase="shoot", name=f"close-{label}", at=game_now() + 0.3)
+        elif kind == "view":   # {"name", "label" | "at", "back", "up", "lookZ"}: any framing — one aircraft, one row of animals
+            w = label
+            at = S["v"][w["label"]].get_actor_location() if w.get("label") else unreal.Vector(*w["at"])
+            camera(at, float(w.get("back", 1100.0)), float(w.get("up", 450.0)), float(w.get("lookZ", 150.0)))
+            S.update(phase="shoot", name=w["name"], at=game_now() + 0.3)
         else:
             v = S["v"][label]; camera(v.get_actor_location(), 1300.0, 400.0)
             S.update(phase="fire", fire=v, at=game_now() + 0.3)
