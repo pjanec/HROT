@@ -142,6 +142,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TArray<int32> JetShooterIds() const;
 	/** U-18i — riders seated on a mount now; pedestrian movers drawn now */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 RidersNow() const;
+	/** U-18l — for a camera: the entity's pose for THIS frame (the same rule its actor is placed by — HROT's BeforeDraw, CE-1352), in
+	 *  the contract's frame (metres, ENU), and its domain; false when there is none */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") bool PoseNow(int32 EntityId, FVector& PositionM, FQuat& Rotation, int32& Domain) const;
+	/** the entity an actor draws (0 = none) — a pick under the cursor */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 EntityOfActor(const AActor* Actor) const;
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FVector EnuMToUnreal(FVector PositionM) const { return FVector(PositionM.X, -PositionM.Y, PositionM.Z) * 100.0 + OriginCm; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FVector UnrealToEnuM(FVector Location) const { const FVector L = (Location - OriginCm) / 100.0; return FVector(L.X, -L.Y, L.Z); }
+	int32 DomainPerson() const; int32 DomainAir() const; int32 DomainAnimal() const;
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 WalkersDrawn() const;
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TArray<int32> RiderIds() const;
 

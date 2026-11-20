@@ -87,6 +87,9 @@ def join():
     w.set_editor_property("person_clip", L("/Game/Characters/Heroes/Mannequin/Animations/Locomotion/Rifle/MF_Rifle_Walk_Fwd"))
     if not w.start(int(JOB["domain"]), JOB["partition"]): raise RuntimeError("DPS start failed")
     S.update(w=w, phase="run", t0=time.time(), next_rec=0.0, pics=list(JOB.get("pictures", [])))
+    # U-18l: the IG camera (AHrotDpsCamera) — pictures with "rig" are taken THROUGH it (its camera copied into the viewport every frame)
+    if any(p.get("rig") for p in S["pics"]):
+        S["rig"] = unreal.HrotDpsCamera.spawn_in(gw, unreal.Vector(0, 0, 5000), unreal.Rotator(pitch=-30, yaw=0, roll=0))
     open(JOB["ready"], "w").write("ready")
     log("joined; ready")
 
@@ -197,10 +200,23 @@ def run():
                 pic = dict(pic, look=[c.x, c.y, c.z])
                 camera(pic["look"], pic.get("back", 1500), c.z + pic.get("up", 500), pic.get("side", 0.45))
             else: log(f"picture {pic['name']}: nothing to follow for {pic['follow']!r}")
+        elif pic.get("rig") and S.get("rig"):   # U-18l: {"follow": name text, "distance", "orbit": [yaw, pitch] deg, "wheel": notches, "settle": s}
+            rg, spec = S["rig"], pic["rig"]
+            ids = [i for i in w.entity_ids() if spec.get("follow", "").lower() in w.describe(i).lower()]
+            if ids:
+                if rg.followed_id() != ids[0] or spec.get("refollow"): rg.follow(ids[0], float(spec.get("distance", 14)))
+                else: rg.set_follow_distance(float(spec.get("distance", rg.get_follow_distance())))
+                if spec.get("orbit"): rg.orbit(float(spec["orbit"][0]), float(spec["orbit"][1]))
+                if spec.get("wheel"): rg.wheel(float(spec["wheel"]))
+                S["rig_on"] = True
+            else: log(f"picture {pic['name']}: nothing to follow for {spec.get('follow')!r}")
         elif pic.get("top"):   # straight down, screen up = east (+X), screen right = south (+Y)
             UES().set_level_viewport_camera_info(unreal.Vector(pic["look"][0], pic["look"][1], pic.get("up", 5000)), unreal.Rotator(pitch=-90, yaw=0, roll=0))
         elif "look" in pic: camera(pic["look"], pic.get("back", 6000), pic.get("up", 3500), pic.get("side", 0.45))
-        S["pending_pic"] = pic["name"]; S["pic_at"] = time.time() + 0.3; S["pic_frames"] = 3   # the camera settles: 0.3 s AND 3 frames
+        S["pending_pic"] = pic["name"]; S["pic_at"] = time.time() + 0.3 + float((pic.get("rig") or {}).get("settle", 0)); S["pic_frames"] = 3   # the camera settles: 0.3 s AND 3 frames
+    if S.get("rig_on") and S.get("rig"):   # U-18l: the viewport looks through the IG camera every frame (it follows the unit as it moves)
+        t_ = S["rig"].camera_transform()
+        UES().set_level_viewport_camera_info(t_.translation, t_.rotation.rotator())
     if S.get("pending_pic"): S["pic_frames"] = S.get("pic_frames", 0) - 1
     if S.get("pending_pic") and time.time() >= S["pic_at"] and S["pic_frames"] <= 0:
         name = S.pop("pending_pic")
@@ -215,6 +231,7 @@ def run():
         R.setdefault("atPicture", {})[name] = {"scene": round(w.sim_now() - float(JOB.get("simBase", 0)), 2),
                                                 "people": {str(i): [w.person_look(i), person_extras(w, i)] for i in w.entity_ids() if w.person_look(i)}}
         R.setdefault("framesAtPicture", {})[name] = [S.get("nf", 0), round(time.time() - S.get("f0", time.time()), 2)]   # U-18i: fps per interval
+        if S.get("rig"): R.setdefault("rigAtPicture", {})[name] = S["rig"].describe()
         R.setdefault("lifeAtPicture", {})[name] = {"fires": w.fire_summary(), "movers": [w.movers_known(), w.movers_drawn()],
                                                     "riders": w.riders_now(), "walkers": w.walkers_drawn(),
                                                     "jets": list(w.jet_shooter_ids()), "animals": {str(i): w.describe(i) for i in w.animal_ids()}}

@@ -1471,3 +1471,25 @@ int32 UHrotDpsWorld::WalkersDrawn() const
 	for (const TPair<int32, FEnt>& W : Walkers) if (const AActor* A = W.Value.Actor.Get(); A && !A->IsHidden()) ++N;
 	return N;
 }
+
+// ── U-18l: for a camera ──
+
+bool UHrotDpsWorld::PoseNow(int32 EntityId, FVector& PositionM, FQuat& Rotation, int32& Domain) const
+{
+	const FEnt* E = Ents.Find(EntityId);
+	if (!E || !E->bHasState) return false;
+	const FHrotDpsPose P = PoseAt(*E, RealNow());
+	PositionM = FVector(P.P); Rotation = FQuat(P.Q); Domain = E->Domain;
+	return true;
+}
+
+int32 UHrotDpsWorld::EntityOfActor(const AActor* Actor) const
+{
+	if (!Actor) return 0;
+	for (const TPair<int32, FEnt>& E : Ents) if (E.Value.Actor.Get() == Actor) return E.Key;
+	return 0;
+}
+
+int32 UHrotDpsWorld::DomainPerson() const { return SimNetGateway_Protocol_DdsPlayer_DomainPerson; }
+int32 UHrotDpsWorld::DomainAir() const { return SimNetGateway_Protocol_DdsPlayer_DomainAir; }
+int32 UHrotDpsWorld::DomainAnimal() const { return SimNetGateway_Protocol_DdsPlayer_DomainAnimal; }
