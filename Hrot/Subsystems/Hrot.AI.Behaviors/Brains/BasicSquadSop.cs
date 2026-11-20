@@ -50,6 +50,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe void Resolve(string json, byte* memory, int capacity, EntityRepository world, Entity self)
             => BehaviorParams.RequireNoStoredFields(json, BehaviorNames.BasicSquadSop, typeof(NoParams).FullName!);
 
+        private const string NotClearingWhy = "CE-2453 (Building Clearing CB-66 / CB-72 / CB-73): a squad CLEARING a building whose every contact is inside that building — its room drill answers (a heard man suspects the room, a seen one or a hit at the way in holds the entry); ReactToContact would hold it at the door (measured live, ia-area-defend: 60 s+ at House A's entry).";
         private const string NotDefendingWhy =
             "CE-2359 (AQ102 H, DA-55 at the squad level): a defending squad's defence answers the contact (its posts, displacement, flank turns, " +
             "the hunter) — ReactToContact would pause SquadDefend and take the men out of the house (measured live, rf-wall-hugger: two defenders " +
@@ -137,6 +138,9 @@ namespace Hrot.AI.Behaviors.Brains
                     .Condition(SquadDefendBehavior.NotDefending, Id("c2359000-0000-0000-0000-0000000000d1"))
                         .Label("Not defending a position")
                         .Comment(NotDefendingWhy)
+                    .Condition(RoomSuspicion.NotClearingItsContact, Id("c2453000-0000-0000-0000-0000000000e1"))
+                        .Label("Not clearing the building the contact is in")
+                        .Comment(NotClearingWhy)
                     .Condition(bb => bb.UnderFire, SopConditions.SensedFresh, Id("c2123000-0000-0000-0000-000000000011"))
                         .Label("Squad under fire (fresh, 3 s)")
                     .React(BehaviorNames.ReactToContact, ReactionUrgency.UnderFire, Id("c2123000-0000-0000-0000-000000000012"))
@@ -148,6 +152,9 @@ namespace Hrot.AI.Behaviors.Brains
                     .Condition(SquadDefendBehavior.NotDefending, Id("c2359000-0000-0000-0000-0000000000d3"))
                         .Label("Not defending a position")
                         .Comment(NotDefendingWhy)
+                    .Condition(RoomSuspicion.NotClearingItsContact, Id("c2453000-0000-0000-0000-0000000000e3"))
+                        .Label("Not clearing the building the contact is in")
+                        .Comment(NotClearingWhy)
                     .Condition(bb => bb.LeaderDown, SopConditions.SensedFresh, Id("c2123000-0000-0000-0000-000000000031"))
                         .Label("Squad leader down (fresh, 3 s)")
                     .React(BehaviorNames.ReactToContact, ReactionUrgency.UnderFire, Id("c2123000-0000-0000-0000-000000000032"))
@@ -159,6 +166,9 @@ namespace Hrot.AI.Behaviors.Brains
                     .Condition(SquadDefendBehavior.NotDefending, Id("c2359000-0000-0000-0000-0000000000d4"))
                         .Label("Not defending a position")
                         .Comment(NotDefendingWhy)
+                    .Condition(RoomSuspicion.NotClearingItsContact, Id("c2453000-0000-0000-0000-0000000000e4"))
+                        .Label("Not clearing the building the contact is in")
+                        .Comment(NotClearingWhy)
                     .Condition(bb => bb.MemberDown, SopConditions.SensedFresh, Id("c2123000-0000-0000-0000-000000000051"))
                         .Label("Squad member down (fresh, 3 s)")
                     .React(BehaviorNames.ReactToContact, ReactionUrgency.UnderFire, Id("c2123000-0000-0000-0000-000000000052"))
@@ -178,6 +188,9 @@ namespace Hrot.AI.Behaviors.Brains
                     .Condition(SquadDefendBehavior.NotDefending, Id("c2359000-0000-0000-0000-0000000000d2"))
                         .Label("Not defending a position")
                         .Comment(NotDefendingWhy)
+                    .Condition(RoomSuspicion.NotClearingItsContact, Id("c2453000-0000-0000-0000-0000000000e2"))
+                        .Label("Not clearing the building the contact is in")
+                        .Comment(NotClearingWhy)
                     .Condition(bb => bb.Contact, SopConditions.SensedFresh, Id("c2123000-0000-0000-0000-000000000021"))
                         .Label("Squad contact (fresh, 3 s)")
                     .React(BehaviorNames.ReactToContact, ReactionUrgency.Contact, Id("c2123000-0000-0000-0000-000000000022"))

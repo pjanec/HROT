@@ -72,7 +72,7 @@ namespace Hrot.AI.Behaviors.Brains
             };
         }
 
-        [Behavior(BehaviorNames.ClearArea, Params = typeof(global::Hrot.Map.Definitions.Behavior.ClearAreaParamsJsonDto), Categories = BehaviorCategory.Commander)]
+        [Behavior(BehaviorNames.ClearArea, Params = typeof(global::Hrot.Map.Definitions.Behavior.ClearAreaParamsJsonDto), Fulfils = nameof(Hrot.AI.Behaviors.Orders.OrderKind.ClearBuilding), Categories = BehaviorCategory.Commander)]
         [BTreeDefinition(BehaviorNames.ClearArea, Curated = true, Group = "Library/Combat", ParamsType = typeof(ClearAreaBlackboard))]
         public static BTreeBuilder<ClearAreaBlackboard, BTreeContext> BuildTree()
             => new BTreeBuilder<ClearAreaBlackboard, BTreeContext>()

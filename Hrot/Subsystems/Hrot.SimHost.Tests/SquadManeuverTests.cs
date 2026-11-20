@@ -1072,6 +1072,40 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(breaks, s.Kind == BreakContactManeuver.ManeuverKind);
         }
 
+        private const string CE2453House = """
+            { "type": "Feature", "properties": { "kind": "building", "label": "H",
+                "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                  "storeys": [ { "height": 3, "walls": [
+                    { "from": [0,0], "to": [10,0], "thickness": 0.3, "openings": [ { "kind": "door", "at": 5, "width": 1.0 } ] },
+                    { "from": [10,0], "to": [10,8], "thickness": 0.3 },
+                    { "from": [10,8], "to": [0,8], "thickness": 0.3 }, { "from": [0,8], "to": [0,0], "thickness": 0.3 } ] } ] } },
+              "geometry": { "type": "Point", "coordinates": [0, 0] } }
+            """;
+
+        /// <summary>⭐⭐ <c>CE-2453</c> (Building Clearing CB-66 / CB-72; the <c>NotDefending</c> precedent) — a squad CLEARING a house whose contact is INSIDE
+        /// that house keeps clearing (its room drill answers: the heard man suspects the room); a contact in the STREET still pauses the clear with
+        /// <c>ReactToContact</c>; a squad on any other order reacts as before. 📐 Live before: <c>ia-area-defend</c>, the clearer held at the door 60 s+.
+        /// ✅ Red-proof: the condition always true ⇒ the inside case reacts ⇒ red.</summary>
+        [Theory]
+        [InlineData(5f, 4f, false)]     // inside the house he is at the door of ⇒ the drill answers
+        [InlineData(5f, -30f, true)]    // in the street ⇒ the SOP reacts
+        public void CE2453_AClearingSquad_KeepsClearing_WhenItsContactIsInTheHouse_ButReactsToOneInTheStreet(float x, float y, bool reacts)
+        {
+            var s = new Squad(members: 2);
+            s.Repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{ \"type\": \"FeatureCollection\", \"features\": [ " + CE2453House + " ] }", "range"));
+            s.Order("{\"Point\":[5,4,0]}", BehaviorNames.ClearBuilding);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.ClearBuilding, Hrot.AI.Behaviors.Orders.CurrentOrders.Of(s.Repo, s.Commander).Kind);
+            s.PoolMany(1, new Vector3(x, y, 0f));
+            Assert.Equal(reacts, RoomSuspicion.NotClearingItsContact(s.Commander, s.Repo));
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();
+            if (reacts) Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            else Assert.NotEqual(BehaviorNames.ReactToContact, s.TaskName);
+        }
+
         /// <summary>⭐⭐ <c>CE-4612</c> (R-2088…R-2090; DESIGN_Orders_Params_Entity_Classes.md §15) — the squad's ORDER, typed and derived: a
         /// superior's <c>SquadHold</c> reads as a Hold with a request id; a reaction PAUSES it and the order is the same order (kind, request
         /// id), marked paused; the SOP's own task is no order. ✅ Red-proofs: the paused arm of <c>CurrentOrders.Of</c> dropped ⇒ None under the
