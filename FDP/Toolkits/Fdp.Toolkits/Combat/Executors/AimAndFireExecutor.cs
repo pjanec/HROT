@@ -255,7 +255,7 @@ namespace Fdp.Toolkit.Combat.Executors
 
             // ⭐ CE-321 — hold fire while a friendly is on the line (LineOfFire): the action keeps running and no round is spent,
             //   so a unit that moves clear (or a friendly that moves away) fires again.
-            if (!bomb && LineOfFire.BlockedByFriendly(world, platform, p.Target))
+            if (!bomb && LineOfFire.BlockedByFriendly(world, platform, p.Target, HitModel.Sigma(world, platform, mountDto, HitModel.Now(world))))   // ⭐ CE-8308 — and its spread
             {
                 channel.Status = NodeStatus.Running;
                 Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target);
@@ -469,8 +469,9 @@ namespace Fdp.Toolkit.Combat.Executors
             //   (aimed at the remembered POINT, so the gait turns him to where the round goes, not to where the hidden man really is)
             if (BodyAim.HoldsFire(world, entity, point)) { SayAt(world, entity, ActionReason.Turning, point); return; }
             if (BodyAim.OutsideFixedCone(world, entity, mountDto, point)) { SayAt(world, entity, ActionReason.OutOfArc, point); return; }   // ⭐ Air Ops 6a (AW-1)
-            if (LineOfFire.BlockedByFriendly(world, shooter, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
-            if (LineOfFire.BlockedByNeutral(world, shooter, point, HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world))))
+            float blindSigma = HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world));
+            if (LineOfFire.BlockedByFriendly(world, shooter, point, blindSigma)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }   // ⭐ CE-8308
+            if (LineOfFire.BlockedByNeutral(world, shooter, point, blindSigma))
             { Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target); return; }   // ⭐ AW-20
             if (ShotLedger.Held(in weapon, out var refused)) { Say(world, entity, HoldReasonOf(refused), p.Target); return; }   // ⭐ CE-2218 → Q94 A-4: the muscle's refusal
             if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, entity, point)) { SayAt(world, entity, ActionReason.HoldNoFireArea, point); return; }   // ⭐ CE-2282

@@ -101,7 +101,8 @@ namespace Fdp.Toolkit.Combat.Systems
             if (!repo.HasComponent<WeaponMuscleState>(part)) repo.AddComponent(part, default(WeaponMuscleState));
             ref var clock = ref repo.GetComponentRW<WeaponMuscleState>(part);
             if (clock.CooldownRemaining > 0f) return;
-            if (!task.Target.IsNull && LineOfFire.BlockedByFriendly(repo, hull, task.Target)) return;
+            if (!task.Target.IsNull && LineOfFire.BlockedByFriendly(repo, hull, task.Target,
+                    HitModel.Sigma(repo, hull, CombatTkb.MountOf(repo, hull, task.MountIndex), HitModel.Now(repo)))) return;   // ⭐ CE-8308 — and its spread
             // ⭐ AW-20 (R-2026; DESIGN_Civilians_And_Crowd_Control §5h) — nor while a NEUTRAL person is on the line or in the spread (the
             //   turret's direct rounds; an indirect warhead arcs over, as for the friendly check at a point)
             if (CombatTkb.WarheadOf(repo, unchecked((long)task.AmmoGuid)) is not { Indirect: true })

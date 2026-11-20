@@ -20,7 +20,7 @@ moved the fight; the hit exposes a latent rule gap.
 | a NEUTRAL holds it within the spread too | ✅ `LineOfFire.NeutralOnLine` — circle widened by `HitModel.Sigma` × his range (AW-20) | ✅ R-2026 / Civilians §5h |
 | the round leaves inside the spread, not on the line | ✅ `HitModel.Sigma` (the uniform cone's half-width × moving × under fire × stance) | — |
 
-**My lean: ① widen the FRIEND's circle by the same spread** (`StrikeRadius + σ × his distance along the line`, exactly AW-20's rule — one rule for
+**DECIDED `2026-11-20` (user: "Yes, sure. One rule for friends and civilians."): ①.** **🛠 BUILT (agg-behaviors): `LineOfFire.BlockedByFriendly(…, σ)` — σ required, every caller passes its mount's `HitModel.Sigma` (the missile 0); Civilians §5h.1. Rail `AimAndFireExecutorTests.CE8308_*`.** **My lean: ① widen the FRIEND's circle by the same spread** (`StrikeRadius + σ × his distance along the line`, exactly AW-20's rule — one rule for
 friend and neutral, ruling 9). Doctrine: you do not fire with a friend near your line of fire. Blast radius: every direct shot (AI and the
 point/burst forms) holds a little more often near friends ⇒ goldens of close fights move; an engine change in `Fdp.Toolkits/Combat/LineOfFire.cs`.
 - ② a fixed safety margin (e.g. +1 m) instead of the spread: simpler, but a second rule beside AW-20's and wrong at long range.

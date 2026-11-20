@@ -1155,6 +1155,8 @@ neutral-in-line hold in the ladder and the weapon brain's hold (`CE-2239`), the 
 `ThreatDanger.IsNeutral` calls neutral (the CE-2233 test, reused), other than the target, whose collider — widened by σ (`HitModel.Sigma`,
 the shooter's spread) × his distance along the line — the line crosses; a held round is `ActionReason.HoldNeutralOnLine` (posture stays Aimed).
 
+⭐⭐ **`CE-8308` (D-14, user-approved `2026-11-20`: *"one rule for friends and civilians"*) — the FRIEND check now uses the same circle**: `LineOfFire.BlockedByFriendly(world, shooter, target | point, σ)` widens each friend's strike radius by σ × his distance along the line, exactly as above; σ is a required argument (every caller passes `HitModel.Sigma` for its mount; the air-to-air missile, guided, passes 0). 📐 Found by `pc-corridor-fight`: a burst at a point 172 m out was released with a friend 0.65 m off its line 45 m out, and the spread hit him. ⛔ SUPERSEDED: the friend held only on the LINE (CE-321's strike radius). Rail `AimAndFireExecutorTests.CE8308_*`.
+
 | caller | as built |
 |---|---|
 | `AimAndFireExecutor` aimed path | after the friendly hold, same shape (Running, nothing spent) |

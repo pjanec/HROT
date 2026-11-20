@@ -424,17 +424,17 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(friend, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.3f });
             _world.AddComponent(friend, global::CarKinem.Core.VehiclePresets.GetPreset(global::CarKinem.Core.VehicleClass.Pedestrian));
             _world.AddComponent(friend, new Health { Current = 100f, Max = 100f });
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "a friend standing on the line holds it");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "a friend standing on the line holds it");
             _world.GetComponentRW<Health>(friend).Current = 0f;
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "a friend lying dead on the line: the round flies over him");
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, new Vector3(20f, 0f, 0f)), "…a burst at the point too");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "a friend lying dead on the line: the round flies over him");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, new Vector3(20f, 0f, 0f), 0f), "…a burst at the point too");
 
             var wreck = _world.CreateEntity();
             _world.AddComponent(wreck, new SimTransform { Position = new Vector3(8f, 0f, 0f), Rotation = Quaternion.Identity });
             _world.AddComponent(wreck, new EntityInfo { ForceId = ForceId.Friend });
             _world.AddComponent(wreck, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3f });
             _world.AddComponent(wreck, new Health { Current = 0f, Max = 1000f });
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "a wrecked friendly hull still stops the round");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "a wrecked friendly hull still stops the round");
         }
 
         /// <summary>
@@ -470,11 +470,11 @@ namespace Fdp.Toolkit.Combat.Tests
             }
 
             var friend = Man(ForceId.Friend, radius + (reach - radius) * 0.5f);   // centre beyond the collider, inside the arm reach
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "entity form: his arm covers the line");
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point), "point form: the same");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "entity form: his arm covers the line");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0f), "point form: the same");
             _world.GetComponentRW<SimTransform>(friend).Position = new Vector3(20f, reach + 0.2f, 0f);
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "beyond his reach: not held");
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point));
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "beyond his reach: not held");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0f));
 
             _world.DestroyEntity(friend);
             Man(ForceId.Neutral, radius + (reach - radius) * 0.5f);
@@ -514,15 +514,15 @@ namespace Fdp.Toolkit.Combat.Tests
                     var target = bodies[rng.Next(bodies.Count)];
                     var point = new Vector3(rng.NextSingle() * 600f - 300f, rng.NextSingle() * 600f - 300f, 0f);
                     float sigma = rng.NextSingle() * 0.05f;
-                    bool f1 = Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target);
-                    bool f2 = Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point);
+                    bool f1 = Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f);
+                    bool f2 = Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0f);
                     bool n1 = Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, sigma);
                     bool n2 = Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, point, sigma);
                     Fdp.Toolkit.Combat.LineOfFire.Bodies.EveryBodyForRails = true;
                     try
                     {
-                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), f1);
-                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point), f2);
+                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), f1);
+                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0f), f2);
                         Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, sigma), n1);
                         Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, point, sigma), n2);
                     }
@@ -530,7 +530,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 }
             }
             int held = 0;
-            foreach (var b in bodies) if (Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, b, new Vector3(0f, 0f, 0f))) held++;
+            foreach (var b in bodies) if (Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, b, new Vector3(0f, 0f, 0f), 0f)) held++;
             Assert.True(held > 20, $"the premise: plenty of lines are held ({held})");
 
             _world.Tick();
@@ -541,11 +541,11 @@ namespace Fdp.Toolkit.Combat.Tests
 
             _world.Tick();
             var shooterA = bodies[1];
-            Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooterA, Vector3.Zero);
+            Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooterA, Vector3.Zero, 0f);
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 200; i++)
             {
-                Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, bodies[i], new Vector3(i, -i, 0f));
+                Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, bodies[i], new Vector3(i, -i, 0f), 0f);
                 Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, bodies[i], new Vector3(-i, i, 0f), 0.02f);
             }
             Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
@@ -601,9 +601,38 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8308</c> (D-14, user-approved 2026-11-20: "one rule for friends and civilians") — a FRIEND just off the line holds the shot
+        /// exactly when a NEUTRAL there would: within the weapon's spread at his range. 📐 <c>pc-corridor-fight</c>: a friend 0.65 m off a burst's
+        /// line 45 m out (the point 172 m away) was hit. Both forms (target and point), with and without spread, give the neutral's answer.
+        /// 🔴 Red-proof: the spread term dropped from the friend's circle ⇒ held with σ 0.02 is false ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8308_LineOfFire_AFriendInTheSpread_HoldsTheShot_LikeANeutral()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var target = SpawnTarget(new Vector3(172f, 0f, 0f));
+            _world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
+            var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
+            var point = new Vector3(172f, 0f, 0f);
+
+            var friend = Neutral(new Vector3(45f, 0.65f, 0f), person: true, radius: 0.3f);   // 0.65 m off the line at 45 m
+            _world.GetComponentRW<EntityInfo>(friend) = new EntityInfo { ForceId = ForceId.Friend };
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "an exact aim passes him");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0f));
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0.02f), "20 mils: ±0.9 m at 45 m reaches him");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0.02f), "a burst at the point too");
+
+            _world.GetComponentRW<EntityInfo>(friend) = new EntityInfo { ForceId = ForceId.Neutral };   // the same man, a civilian: the same answers
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f));
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0.02f));
+        }
+
+        /// <summary>
         /// ⭐ <c>AW-20</c> — the line test itself: a neutral PERSON just off the line holds the shot only when the weapon's spread at his range
         /// reaches him (σ × his distance along it); one behind the shooter, beyond the target, dead, or of the shooter's own side does not
-        /// (his own side is <see cref="LineOfFire.BlockedByFriendly(EntityRepository, Entity, Entity)"/>'s); a NEUTRAL shooter is never held by it.
+        /// (his own side is <see cref="LineOfFire.BlockedByFriendly(EntityRepository, Entity, Entity, float)"/>'s); a NEUTRAL shooter is never held by it.
         /// </summary>
         [Fact]
         public void AW20_LineOfFire_ANeutralPersonInTheSpread_HoldsTheShot_ButNotBehindBeyondOrDead()
@@ -632,7 +661,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f));
             _world.GetComponentRW<EntityInfo>(shooter).ForceId = ForceId.Neutral;   // a neutral shooter: they are his friends (BlockedByFriendly)
             Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f));
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target));
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f));
             _ = onLine;
         }
 
@@ -952,7 +981,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 _world.AddComponent(f, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
             }
 
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target));
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f));
         }
             // ── CE-3136 P-3 — aim time (D3) and the sight gate (D4) ────────────────────────────────────────────────────────
 
