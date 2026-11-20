@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-20
+updated: 2026-11-20 (moved to behaviors)
 current-answer: §1 where we are · §2 open items with leans · §3 how to work
 stale-below: nothing
 related-designs:
@@ -12,9 +12,11 @@ related-designs:
   - ../designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md — D-2m coverage eye (CE-8312), §8f D-2n prone
 -->
 
-# RESUME — `exp/agg-behaviors`: realism of the infantry fight scenarios
+# RESUME — `behaviors` (was `exp/agg-behaviors`): realism of the infantry fight scenarios
 
-⭐ Run `RELEARN` first (`bash scripts/session-design-brief.sh`), then read this. Lane `exp/agg-behaviors`; ids from **CE-8300…8599**, next free **`CE-8317`** (the tracker header row).
+⭐ Run `RELEARN` first (`bash scripts/session-design-brief.sh`), then read this.
+
+⭐⭐ **MOVED TO `behaviors` (`2026-11-20`, user: *"i need the realism for non-aggregated entities so … move your work back to behaviors and continue there"*).** `behaviors` was fast-forwarded to `exp/agg-behaviors@806571016` (it held nothing `behaviors` lacked: the realism fixes below + coordinator merges, no aggregate code). ⇒ the realism programme continues on **`behaviors`**, ids from the **behaviors** block **CE-2000…2999** (next free in the tracker header), rulings R-2000…. The `CE-83xx` ids already used keep their numbers.
 
 ## 1. Where we are *(HEAD `3f547d727`, 2026-11-20)*
 
