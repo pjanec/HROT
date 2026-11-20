@@ -85,6 +85,10 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>The threat the weapon is aimed at (Null = not firing).</summary>
         public Entity Threat;
+        /// <summary>⭐ <c>CE-8311</c> (D-15) — <see cref="PostureNodes.Suppress"/>'s cover spot (where he suppresses from) and its state:
+        /// 0 = none chosen, 1 = moving there, 2 = there, 3 = the move failed (he suppresses prone where he is).</summary>
+        public Vector3 CoverSpot;
+        public byte CoverPhase;
     }
 
     /// <summary>⭐ AQ89 C/D (R-269) — the Suppress branch's closing gate (<see cref="PostureNodes.WillingToClose"/>).</summary>
@@ -261,9 +265,31 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus Suppress(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
         {
             if (!Fire(world, self, ref ws, p.CooldownSeconds, blind: true)) return NodeStatus.Failure;
-            StanceRequest.Set(world, self, StanceId.Prone, GoProneSeconds);
+            // ⭐⭐ CE-8311 (D-15) — cover in reach (the posture's own cover sensor): run there crouched, firing, and suppress from it crouched;
+            //   none (or the move failed): lie down and suppress. He keeps FIRING throughout — the take-cover cycle (PeekAndFire) fires blind
+            //   only on evidence ≤ 5 s old, so it silenced every suppressor (📐 the 24-scenario run: the Fanatic, uf-squad-under-fire's hostiles).
+            if (ws.CoverPhase == 0 && world.HasComponent<SimTransform>(self) && CoverInReach(world, self, out var spot))
+            {
+                var at = world.GetComponentRO<SimTransform>(self).Position;
+                if (Flat(spot - at) <= SuppressCoverArrive) { ws.CoverSpot = spot; ws.CoverPhase = 2; }
+                else if (LocomotionMoveTo.Issue(world, self, spot, SuppressCoverSpeed, SuppressCoverArrive, source: MoveSource.CoverSearch)) { ws.CoverSpot = spot; ws.CoverPhase = 1; }
+                else ws.CoverPhase = 3;
+            }
+            if (ws.CoverPhase == 1)
+            {
+                var status = LocomotionMoveTo.Status(world, self);
+                if (status == NodeStatus.Success) ws.CoverPhase = 2;
+                else if (status == NodeStatus.Failure) ws.CoverPhase = 3;
+            }
+            StanceRequest.Set(world, self, ws.CoverPhase is 1 or 2 ? StanceId.Crouched : StanceId.Prone,
+                              ws.CoverPhase is 1 or 2 ? PeekAndFireNodes.StanceBlendSeconds : GoProneSeconds);
             return NodeStatus.Running;
         }
+
+        /// <summary>⭐ <c>CE-8311</c> — a suppressor this close to his cover spot is on it (m); the speed he runs there (m/s, crouched).</summary>
+        public const float SuppressCoverArrive = 1.5f, SuppressCoverSpeed = 3f;
+
+        private static float Flat(Vector3 d) { d.Z = 0f; return d.Length(); }
 
         /// <summary>
         /// ⭐⭐ AQ89 C (R-269) — may the Suppress branch CLOSE to throw? All of: the top threat identified, remembered live and HIDDEN
@@ -613,7 +639,9 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Suppress(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
         {
             StopFiring(world, self, ref ws);
+            if (ws.CoverPhase == 1) StopMoving(world, self);
             StanceRequest.Set(world, self, StanceId.Standing, GetUpSeconds);
+            ws.CoverPhase = 0;
         }
 
         /// <summary>⭐ <c>CE-8311</c> (D-15) — a cover answer this good is cover worth moving to before suppressing.</summary>
@@ -625,12 +653,16 @@ namespace Hrot.AI.Behaviors.Brains
         /// hide, expose, a blind burst at the freshest evidence, D13) — instead of standing where he is. 📐 live <c>bt-window-duel</c>: a lone attacker
         /// blind-fired at a window for 12 s standing in the open, Van 1 4.5 m away, and was shot. The same buffer the decision's cover score reads.
         /// </summary>
-        [SharedAiCondition]
-        public static bool CoverInReach(ref PostureSensorsParams p, ref PostureSensorsState ws, Entity self, EntityRepository world)
+        public static bool CoverInReach(EntityRepository world, Entity self, out Vector3 spot)
         {
-            if (!ws.Cover.IsValid || !world.IsAlive(ws.Cover.ChildId) || !world.HasComponent<EqsCognitiveBuffer>(ws.Cover.ChildId)) return false;
-            ref readonly var buf = ref world.GetComponentRO<EqsCognitiveBuffer>(ws.Cover.ChildId);
-            return buf.IsReady && buf.Count > 0 && buf.GetTop().Score > SuppressCoverScore;
+            spot = default;
+            var child = EqsChildSensor.Find(world, self, CoverSite);
+            if (child.IsNull || !world.IsAlive(child) || !world.HasComponent<EqsCognitiveBuffer>(child)) return false;
+            ref readonly var buf = ref world.GetComponentRO<EqsCognitiveBuffer>(child);
+            if (!buf.IsReady || buf.Count == 0 || buf.GetTop().Score <= SuppressCoverScore) return false;
+            var top = buf.GetTop();
+            spot = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
+            return true;
         }
 
         /// <summary>⭐ <c>CE-3090</c> — leaving the prone hold: the weapon stops and the unit gets up (<c>CE-2121</c>).</summary>

@@ -633,11 +633,11 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐⭐ <c>CE-8311</c> (D-15, user-approved 2026-11-20) — a man SUPPRESSING a hidden enemy never does it standing in the open: with no cover in
-        /// reach he lies down (the decision's winner forced to Suppress); once his cover sensor answers a point he fights FROM it — the take-cover
-        /// cycle (PeekAndFire) runs, its own cover sensor up. 📐 live bt-window-duel: a lone attacker blind-fired standing for 12 s, Van 1 4.5 m
-        /// away, and was shot. 🔴 Red-proofs: Suppress without the prone stance ⇒ standing ⇒ red; the from-cover branch removed ⇒ PeekAndFire never
-        /// runs ⇒ red.
+        /// ⭐⭐ <c>CE-8311</c> (D-15, user-approved 2026-11-20) — a man SUPPRESSING a hidden enemy never does it standing in the open, and never stops
+        /// FIRING: with no cover in reach he lies down (the decision's winner forced to Suppress); once his cover sensor answers a point 4 m off he
+        /// runs there crouched, still suppressing blind. 📐 live bt-window-duel: a lone attacker blind-fired standing for 12 s, Van 1 4.5 m away, and
+        /// was shot; ⛔ a first cut ran the take-cover cycle instead, which fires blind only on evidence ≤ 5 s old and silenced every suppressor.
+        /// 🔴 Red-proofs: no prone ⇒ standing ⇒ red; no move to cover ⇒ no MoveTo ⇒ red.
         /// </summary>
         [Fact]
         public unsafe void CE8311_ASuppressingMan_LiesDownInTheOpen_AndFightsFromCoverInReach()
@@ -658,15 +658,19 @@ namespace Hrot.SimHost.Tests
                     w.Tick();
                 }
             }
+            if (!w.Repo.HasComponent<SimTransform>(w.Unit)) w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
             Suppressing(10);
             Assert.Equal("CombatPosture", w.TaskName);
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
-            Assert.False(Block(w, hash)->PeekState.CoverSensor.IsValid, "no cover in reach: he suppresses where he lies");
+            Assert.Equal(1, BlindFireAsked(w));   // suppressing, lying down
+            Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
 
             var coverSensor = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
             Assert.False(coverSensor.IsNull, "the posture's cover sensor is up");
-            Suppressing(10, coverSensor);
-            Assert.True(Block(w, hash)->PeekState.CoverSensor.IsValid, "cover in reach: he fights from it (the take-cover cycle runs)");
+            Suppressing(3, coverSensor);
+            Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance(w));
+            Assert.Equal(1, BlindFireAsked(w));   // still suppressing on the way
         }
 
         /// <summary>
