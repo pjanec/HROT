@@ -1,7 +1,7 @@
 """hrot_paint.py — runs in the Unreal editor COMMANDLET (CE-4651, U-17d): a plain paint for meshes a pack ships UNTEXTURED.
 
     UnrealEditor-Cmd <project> -run=pythonscript -script=<this> -nullrhi      HROT_PAINT_JOB = { "paints", "rules", "meshes", "out" }
-    paints   {name: {"color": [r, g, b] (linear), "roughness", "metallic"}} — one material instance each, /Game/Hrot/Paint/MI_Paint_<name>
+    paints   {name: {"color": [r, g, b] (linear), "roughness", "metallic", "specular"}} — one material instance each, /Game/Hrot/Paint/MI_Paint_<name>
     rules    [[regex, paint], …] over each material SLOT's name + its current material's name, first match wins (glass, tyres, metal)
     meshes   [{"mesh" | "kit", "body": paint}] — a slot no rule matches gets the mesh's body paint
 
@@ -25,7 +25,15 @@ def log(m):
 
 def base():
     """One opaque material: Color / Roughness / Metallic parameters (a flat paint — no texture to lose)."""
-    if EAL.does_asset_exist(BASE): return unreal.load_asset(BASE)
+    if EAL.does_asset_exist(BASE):
+        m = unreal.load_asset(BASE)
+        if "Specular" not in [str(n) for n in MEL.get_scalar_parameter_names(m)]:   # ⭐ added later (U-17m): rubber must not shine
+            e = MEL.create_material_expression(m, unreal.MaterialExpressionScalarParameter, -400, 400)
+            e.set_editor_property("parameter_name", "Specular"); e.set_editor_property("default_value", 0.5)
+            MEL.connect_material_property(e, "", unreal.MaterialProperty.MP_SPECULAR)
+            MEL.recompile_material(m); EAL.save_loaded_asset(m, False)
+            log("base: Specular parameter added")
+        return m
     folder, name = BASE.rsplit("/", 1)
     m = AT.create_asset(name, folder, unreal.Material, unreal.MaterialFactoryNew())
     def par(cls, pname, x, y, value):
@@ -49,6 +57,7 @@ def instance(name, p, parent):
     MEL.set_material_instance_vector_parameter_value(mi, "Color", unreal.LinearColor(*p["color"], 1.0))
     MEL.set_material_instance_scalar_parameter_value(mi, "Roughness", float(p.get("roughness", 0.6)))
     MEL.set_material_instance_scalar_parameter_value(mi, "Metallic", float(p.get("metallic", 0.0)))
+    MEL.set_material_instance_scalar_parameter_value(mi, "Specular", float(p.get("specular", 0.5)))   # ⚠ measured: rubber at 0.5 read grey
     MEL.update_material_instance(mi); EAL.save_loaded_asset(mi, False)
     return mi
 
