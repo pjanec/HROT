@@ -147,6 +147,16 @@ move **verbatim** — same constants, same branches — and the map's existing r
 
 ⚠ **Component ids:** the ui block (460–475) is full; 72 and 86 were the production-free ids whose only other use is a test struct in a project that never registers Hrot types. Finding them took a measurement the catalogue rail should give for free — [CE-11013](../../blueprints/Blueprint_Issues_Tracker.md).
 
+### 3.3 State, not events — stance timing, effects and streams for renderers (`2026-11-20`, R-11006, R-11007)
+
+| | as built |
+|---|---|
+| **stance** ([CE-11014](../../blueprints/Blueprint_Issues_Tracker.md)) | `StanceStatus.TransitionStartedAt` / `FromStance` / `TransitionSeconds` (muscle-written at a blend's start, replicated on `DdsStanceStatus`, recorded); progress anywhere = `StanceTiming.ProgressAt(status, now)`; the ONE duration rule `StanceTiming.Effective` (BlendTime, else 0.35 / 0.8 s by pair) is what the muscle hands its backend and what the map's blend uses |
+| **effects** ([CE-11015](../../blueprints/Blueprint_Issues_Tracker.md)) | `EffectRules.SpecOf(world, effectEntity, tkb, out spec)` — the live spec, rebuilt from the recorded entity (with `StartedAt`) |
+| **streams** ([CE-11016](../../blueprints/Blueprint_Issues_Tracker.md)) | `FireStreams.StreamOfFlash(world, flash, out stream, out firedAt)`; the flash records the stream's own aim (`TowardOf`) |
+
+⛔ **Rejected: re-raising recorded events in the cluster replay** (`ReplayModule` passes no bus) — events between keyframes are lost or burst on a seek; component state is restored by it. The events stay recorded; nothing reads them in replay.
+
 ## 4. What this design does NOT move, and why
 
 | | |

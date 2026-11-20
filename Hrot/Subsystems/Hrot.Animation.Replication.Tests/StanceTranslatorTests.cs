@@ -44,6 +44,62 @@ public sealed class StanceTranslatorTests : IDisposable
         return entity;
     }
 
+    /// <summary>
+    /// ⭐ CE-11014 — a transition the body started at t = 40 s with a 0.8 s blend (crouched → prone), sent by the body's egress and taken in on ANOTHER
+    /// node: that node reads progress 0 at t, ½ at t + 0.4, 1 at t + b and after — from the replicated start, origin and duration alone (no per-frame
+    /// progress). A NEW transition start republishes even when phase, stance and version did not change. 🔒 Red-proved: the ingress dropping the start ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE11014_ATransitionStartedAtT_ReadsProgress0AtT_And1AtTPlusBlend_OnAnotherNode()
+    {
+        var writer = new CapturingWriter<DdsStanceStatus>();
+        var egress = new StanceStatusEgressTranslator(writer, _entityMap);
+        var body = SpawnEntity(700);
+        _world.AddComponent(body, new StanceStatus
+        {
+            Phase = StanceTransitionPhase.Transitioning, CurrentStance = StanceId.Crouched, AckVersion = 3,
+            FromStance = StanceId.Crouched, TransitionStartedAt = (SimInstant)40.0, TransitionSeconds = new SimDuration(0.8f),
+        });
+        egress.ScanAndPublish(_world);
+        var sample = Assert.Single(writer.Written);
+
+        using var other = new EntityRepository();
+        other.RegisterComponent<StanceStatus>();
+        var otherMap = new NetworkEntityMap();
+        var replica = other.CreateEntity();
+        otherMap.Register(700, replica);
+        var ingress = new StanceStatusIngressTranslator(participant: null, otherMap);
+        using (var cmd = new EntityCommandBuffer())
+        {
+            ingress.ProcessSample(in sample, cmd, other);
+            cmd.Playback(other);
+        }
+        var seen = other.GetComponentRO<StanceStatus>(replica);
+        Assert.Equal(StanceId.Crouched, seen.FromStance);
+        Assert.Equal(0f, StanceTiming.ProgressAt(in seen, 40.0));
+        Assert.Equal(0.5f, StanceTiming.ProgressAt(in seen, 40.4), 3);
+        Assert.Equal(1f, StanceTiming.ProgressAt(in seen, 40.8), 3);
+        Assert.Equal(1f, StanceTiming.ProgressAt(in seen, 99.0));
+
+        // a new transition with the same phase / stance / version (an interrupted blend restarting) still goes out
+        writer.Written.Clear();
+        var st = _world.GetComponentRO<StanceStatus>(body);
+        st.TransitionStartedAt = (SimInstant)41.0;
+        _world.SetComponent(body, st);
+        egress.ScanAndPublish(_world);
+        Assert.Equal(41.0, Assert.Single(writer.Written).TransitionStartedAt);
+    }
+
+    /// <summary>⭐ CE-11014 — the ONE timing rule: an explicit blend wins; unset ⇒ 0.35 s crouch ↔ stand, 0.8 s into or out of prone (the map's feel).</summary>
+    [Fact]
+    public void CE11014_TheBlendDuration_IsTheIntentsElseThePairsDefault()
+    {
+        Assert.Equal(0.5f, StanceTiming.Effective(StanceId.Standing, StanceId.Prone, 0.5f));
+        Assert.Equal(StanceTiming.ProneSeconds, StanceTiming.Effective(StanceId.Standing, StanceId.Prone, 0f));
+        Assert.Equal(StanceTiming.CrouchSeconds, StanceTiming.Effective(StanceId.Crouched, StanceId.Standing, 0f));
+        Assert.Equal(1f, StanceTiming.ProgressAt(default, 10.0));   // no transition has run
+    }
+
     // ── SC-1: StanceStatus egress fires on Phase change ──────────────────────
 
     [Fact]

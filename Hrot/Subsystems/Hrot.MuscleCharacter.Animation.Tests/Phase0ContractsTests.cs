@@ -223,7 +223,8 @@ namespace Hrot.MuscleCharacter.Animation.Tests
         public unsafe void StanceStatus_LayoutSmall()
         {
             var size = sizeof(StanceStatus);
-            Assert.True(size <= 16, $"StanceStatus size {size} exceeds expected 16 B");
+            // ⭐ CE-11014 (R-11006) — 32 B: + the transition's start (8 B), origin and applied duration, so a reader computes progress with no per-frame replication
+            Assert.True(size <= 32, $"StanceStatus size {size} exceeds expected 32 B");
         }
 
         [Fact]

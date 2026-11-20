@@ -136,4 +136,24 @@ public static class FireStreams
         if (!Muzzle.TryOf(world, s.Shooter, s.WeaponIndex, out muzzle, out var forward)) { muzzle = Vector3.Zero; return 0f; }
         return Dashes(muzzle, s.Toward, forward, since, into);
     }
+
+    /// <summary>
+    /// ⭐ CE-11016 — the stream from STATE: a muzzle FLASH entity (the map spawns one per shot and a recording keeps it; <c>EffectAnchor</c> names the shooter,
+    /// the mount and where it aimed, <c>Lifespan</c> when) of an AUTOMATIC weapon is a stream fired at <paramref name="firedAt"/> — so a replay, and the first
+    /// frame after a seek, draw it with no fire events. ⚠ A flash lives 0.06–0.10 s, the stream <see cref="Window"/>: during a burst a new flash comes with
+    /// every round; after the LAST round a reader that wants the full tail keeps the newest <paramref name="firedAt"/> per shooter for <see cref="Window"/>.
+    /// </summary>
+    public static bool StreamOfFlash(EntityRepository world, Entity flash, out TracerStream stream, out double firedAt)
+    {
+        stream = default; firedAt = 0;
+        if (!world.IsAlive(flash) || !world.IsComponentTypeRegistered<Hrot.Map.Common.Components.EffectAnchor>()
+            || !world.HasComponent<Hrot.Map.Common.Components.EffectAnchor>(flash)) return false;
+        var a = world.GetComponentRO<Hrot.Map.Common.Components.EffectAnchor>(flash);
+        if (a.Kind != Hrot.Map.Common.Components.EffectAnchorKind.Muzzle || !world.IsAlive(a.Shooter)) return false;
+        if (!IsAutomatic(CombatTkb.MountOf(world, a.Shooter, a.WeaponIndex))) return false;
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Time.Lifespan>() || !world.HasComponent<Fdp.Toolkit.Time.Lifespan>(flash)) return false;
+        firedAt = world.GetComponentRO<Fdp.Toolkit.Time.Lifespan>(flash).BornAtSimSeconds.Seconds;
+        stream = new TracerStream { Shooter = a.Shooter, WeaponIndex = a.WeaponIndex, Toward = a.Toward };
+        return true;
+    }
 }
