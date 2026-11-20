@@ -923,11 +923,11 @@ public sealed partial class EffectTests
         foreach (var shape in Enum.GetValues<MunitionShape>())
         {
             var look = new MunitionVisualDto { Shape = shape, Length = 0.4f, Diameter = 0.1f, Tracer = shape == MunitionShape.Bullet };
-            var r = new ProjectileLayer.Round(look, new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, new Vector3(0, 0, 3), 1, Speed: 20f);
+            var r = new Hrot.Look.Effects.RoundState(look, new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, new Vector3(0, 0, 3), 1, Speed: 20f);
             if (shape == MunitionShape.Bullet) Assert.True(ProjectileLayer.TracerOf(r, out _, out _), "a tracer bullet draws its streak");
             else Assert.NotEmpty(ProjectileLayer.SolidsOf(r));
         }
-        var future = new ProjectileLayer.Round(new MunitionVisualDto { Shape = (MunitionShape)200, Length = 0.3f, Diameter = 0.08f },
+        var future = new Hrot.Look.Effects.RoundState(new MunitionVisualDto { Shape = (MunitionShape)200, Length = 0.3f, Diameter = 0.08f },
                                                new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, Vector3.Zero, 1);
         Assert.NotEmpty(ProjectileLayer.SolidsOf(future));                        // an unknown, future shape: a lump, not nothing
     }
@@ -949,12 +949,12 @@ public sealed partial class EffectTests
         Round(world, MunitionTkbCatalog.TkbThrowingStar, new Vector3(20, 10, 0.1f), Vector3.Zero, Landed);
         var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 0.5f };
 
-        List<ProjectileLayer.Round> At(double t)
+        List<Hrot.Look.Effects.RoundState> At(double t)
         {
             world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t });
             return layer.Resolve();
         }
-        ProjectileLayer.Round Of(List<ProjectileLayer.Round> rs, MunitionShape s, bool lying) => rs.Single(r => r.Look.Shape == s && r.Lying == lying);
+        Hrot.Look.Effects.RoundState Of(List<Hrot.Look.Effects.RoundState> rs, MunitionShape s, bool lying) => rs.Single(r => r.Look.Shape == s && r.Lying == lying);
 
         var t1 = At(0.1);
         var t2 = At(0.2);
@@ -1005,7 +1005,7 @@ public sealed partial class EffectTests
             Ammo = MunitionTkbCatalog.TkbArrow, Warhead = (byte)(Fdp.Toolkit.Combat.Components.WarheadRound.Landed | Fdp.Toolkit.Combat.Components.WarheadRound.Sticks), PreviousPosition = place,
         });
         var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 5f };
-        List<ProjectileLayer.Round> At(double t) { world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t }); return layer.Resolve(); }
+        List<Hrot.Look.Effects.RoundState> At(double t) { world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t }); return layer.Resolve(); }
 
         var vn = Vector3.Normalize(v);
         var t1 = At(0.1); var t2 = At(0.2);
@@ -1036,7 +1036,7 @@ public sealed partial class EffectTests
     public void P1_ARocketTrailsSmokeBackToItsMuzzle()
     {
         var look = new MunitionVisualDto { Shape = MunitionShape.Missile, Length = 1.2f, Diameter = 0.12f, SmokeTrail = true };
-        var r = new ProjectileLayer.Round(look, new Vector3(40, 0, 2), Vector3.UnitX, false, 0f, new Vector3(20, 0, 2), 1);
+        var r = new Hrot.Look.Effects.RoundState(look, new Vector3(40, 0, 2), Vector3.UnitX, false, 0f, new Vector3(20, 0, 2), 1);
         var trail = ProjectileLayer.TrailOf(r);
         Assert.Equal(22, trail.Count);                                          // 20 m back, one puff each 0.9 m
         Assert.All(trail, p => Assert.InRange(p.At.X, 20f, 40f));             // between the missile and its muzzle
@@ -1051,7 +1051,7 @@ public sealed partial class EffectTests
     public void P2_ATracerBulletBurnsAStreakAlongItsRealFlight_AnOrdinaryBulletDrawsNothing()
     {
         var tracerLook = new MunitionVisualDto { Shape = MunitionShape.Bullet, Tracer = true };
-        var r = new ProjectileLayer.Round(tracerLook, new Vector3(300, 40, 2), Vector3.Normalize(new Vector3(1, 0.1f, 0)), false, 0f,
+        var r = new Hrot.Look.Effects.RoundState(tracerLook, new Vector3(300, 40, 2), Vector3.Normalize(new Vector3(1, 0.1f, 0)), false, 0f,
                                           Vector3.Zero, 1, Speed: 850f);
         Assert.True(ProjectileLayer.TracerOf(r, out var head, out var tail));
         Assert.Equal(r.Centre, head);
