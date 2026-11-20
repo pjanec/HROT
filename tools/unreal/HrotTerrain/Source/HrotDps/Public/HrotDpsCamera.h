@@ -59,3 +59,42 @@ namespace HrotCamera
 	HROTDPS_API float WheelStepGrowth(int32 Streak);
 	HROTDPS_API float WheelStep(float HeightAboveGround, int32 Streak);
 }
+
+// CE-4651 (U-18m) — THE PLAYER (possessed) rules, ported 1:1 from HROT's FpsCameraDriver (PossessionStation.cs), FpsZoom, HitFeedback and
+// the station HUD (the DPS client guide, "What the station sends back" / "The player's HUD"). Same frame as above (m, ENU, yaw CCW).
+namespace HrotPlayer
+{
+	using HrotCamera::EScheme;
+	/** mouse look (rad per pixel), the zoom field of view and the look's turn per pixel scaled by it (FpsZoom.SensitivityFor) */
+	constexpr float LookSensitivity = 0.0025f, NormalFov = 45.f, IronSightsFov = 30.f, BinocularsFov = 10.f;
+	HROTDPS_API float SensitivityFor(float FovDegrees);
+	/** a person over the shoulder: the body lags the look — standing it is dragged past ShoulderLag, moving it turns at BodyTurnRate */
+	constexpr float ShoulderLagDeg = 45.f, BodyTurnRateDeg = 540.f, FreeLookTurnRateDeg = 120.f;
+	HROTDPS_API double Wrap(double A);
+	HROTDPS_API double TurnToward(double From, double To, double Step);
+	HROTDPS_API double DragBody(double Body, double Look, double Neck);
+	/** the body yaw this frame (a person over the shoulder): moving → toward the look at BodyTurnRate, else dragged past ShoulderLag */
+	HROTDPS_API double ShoulderBodyYaw(double BodyYaw, double LookYaw, bool bMoving, float Dt);
+	/** W/A/S/D relative to the CAMERA turned into the BODY's frame (forward, side = +left): Off = look − body */
+	HROTDPS_API void CameraRelative(float& Forward, float& Side, double Off);
+	/** a flyer's heading: A/D lead it off the hull by FlyerTurnLead */
+	constexpr float FlyerTurnLead = 0.8f;
+	HROTDPS_API double FlyerHeading(double HullYaw, float Side);
+	/** a vehicle driver's look left alone eases back behind the hull */
+	constexpr float RecentreAfter = 1.5f, RecentreRateDeg = 90.f;
+	/** the camera distance continuum while playing (the wheel): 0.5 m × scale a notch, from MaxAhead in front of the eyes (< 0) to
+	 *  MaxPlayDistance; returns the new distance (< 0 ahead of the eyes, 0 the eyes, > 0 over the shoulder) — WheelDistance */
+	constexpr float DistanceStep = 0.5f;
+	HROTDPS_API float WheelDistance(float Now, float Wheel, EScheme S);
+	/** eye heights over the position when there is no drawn eye (m) */
+	constexpr float VehicleEyeHeight = 2.5f, RotorcraftEyeHeight = 0.2f, FixedWingEyeHeight = 1.5f, PersonEyeHeight = 1.6f;
+	constexpr float CameraAboveGround = 0.4f, AimReach = 1000.f;
+	/** the hit marker's and the damage arc's lives (s), the arc's width (deg) and radius (share of the smaller screen side) */
+	constexpr float MarkerSeconds = 0.3f, ArcSeconds = 2.f, ArcHalfWidthDeg = 22.f, ArcRadiusShare = 0.38f;
+	/** HitFeedback.ScreenAngle: the screen angle (deg; −90 = up, clockwise) of a source seen from a view looking along Forward; false when level-degenerate */
+	HROTDPS_API bool ScreenAngle(const FVector3d& Forward, const FVector3d& ToSource, float& OutDeg);
+	/** the arc's thickness (px) from the damage (6 … 18) */
+	HROTDPS_API float ArcThickness(float Damage);
+	/** a spread cone's half-width (rad) as a circle's radius (px) on a screen Height px high seen through FovDegrees (vertical) */
+	HROTDPS_API float SpreadRadiusPx(float SpreadRad, float FovDegrees, float Height);
+}

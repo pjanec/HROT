@@ -8,6 +8,14 @@
 //                 at 0); the right button orbits (at his eyes it offsets the look, springing back); W/A/S/D or Esc hand back to free flight
 //                 at the same spot; the unit's end too
 //
+//   menu          a RIGHT-CLICK (press and release, no drag — a drag is the look / the orbit) on a unit opens its menu, as HROT's map:
+//                 "Follow with the camera" (F) · "Possess (FPS)" (P; greyed with the reason when this station may not play it)
+//   player (U-18m) possessed — HROT's FpsCameraDriver: over the shoulder by default (O: his eyes), the wheel the distance; the mouse turns
+//                 the view (his body lags 45° standing, turns at 540°/s moving; W/A/S/D relative to the camera); RMB zooms (45° → 30°);
+//                 LMB fires (a press locks the shot, held the trigger); 1-4 weapon, R round, L sight / lock, F use, C / Z crouch / prone,
+//                 Ctrl crouched while held, Shift run, Q / E lean (a flyer: Q / Space climb, Z / C descend), B binoculars; the crosshair's
+//                 ray is the aim; Esc lets him go (Leave) and the camera flies free where it is. The frames go out through UHrotDpsStation.
+//
 // Placed every frame from the unit's pose for THIS frame (UHrotDpsWorld::PoseNow — HROT's BeforeDraw, CE-1352: no lag behind a fast
 // vehicle). Works under a player controller (input) and without one (Simulate, a test, a render node driven by calls).
 #pragma once
@@ -20,7 +28,19 @@
 class UCameraComponent;
 
 UENUM(BlueprintType)
-enum class EHrotCameraMode : uint8 { Free, Follow };
+enum class EHrotCameraMode : uint8 { Free, Follow, Player };
+
+/** one row of the unit menu (right-click) */
+USTRUCT(BlueprintType)
+struct FHrotMenuRow
+{
+	GENERATED_BODY()
+	UPROPERTY(BlueprintReadOnly, Category = "HROT|Camera") FString Label;
+	UPROPERTY(BlueprintReadOnly, Category = "HROT|Camera") FString Shortcut;
+	UPROPERTY(BlueprintReadOnly, Category = "HROT|Camera") bool bEnabled = true;
+	UPROPERTY(BlueprintReadOnly, Category = "HROT|Camera") FString Reason;   // why it is greyed
+	int32 Action = 0;   // 1 follow, 2 possess
+};
 
 UCLASS()
 class HROTDPS_API AHrotDpsCamera : public APawn
@@ -55,6 +75,50 @@ public:
 	/** "free" or "follow <id> at <d> m (orbit|shoulder|eyes), arm <a> m" */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") FString Describe() const;
 
+	// ── U-18m: the unit menu, possession, the player ──
+	/** opens the unit menu for EntityId at a screen point (what a right-click does) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void OpenMenu(int32 EntityId, FVector2D ScreenAt);
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void CloseMenu() { MenuEntity = 0; }
+	/** runs a menu row (0-based) — a click on it */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void MenuChoose(int32 Row);
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") bool IsMenuOpen() const { return MenuEntity != 0; }
+	TArray<FHrotMenuRow> MenuRows() const;
+	FVector2D MenuOrigin() const { return MenuAt; }
+	int32 MenuEntityId() const { return MenuEntity; }
+	static constexpr float MenuRowHeight = 24.f;
+	static constexpr float MenuWidth = 300.f;
+	static constexpr float MenuHeader = 26.f;
+	/** a right click is a press and release within this time and travel (px); longer or further is the look / the orbit */
+	static constexpr float MenuClickSeconds = 0.35f;
+	static constexpr float MenuClickTravel = 6.f;
+	/** ⚠ Unreal's mouse delta is not pixels: ~10 px a unit at the default sensitivity */
+	static constexpr float MouseScale = 10.f;
+	/** asks the station to play EntityId; the camera becomes his when the slot says Playing */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void Possess(int32 EntityId);
+	/** lets him go (Esc) and flies free where the camera is */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void LetGo();
+	/** test / render-node input while playing (no player controller): degrees of look, the move keys, the fire press / trigger, zoom */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerLook(float YawDeg, float PitchDeg) { TestLookYaw += YawDeg; TestLookPitch += PitchDeg; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerMove(float Forward, float Side) { TestForward = Forward; TestSide = Side; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerFire(bool bHeld) { if (bHeld && !TestTrigger) TestFirePress = true; TestTrigger = bHeld; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void PlayerZoom(bool bOn) { TestZoom = bOn; }
+	/** the player's view distance (m; 0 = his eyes, < 0 ahead of them) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Camera") void SetPlayerDistance(float Distance) { PlayerDistance = Distance; }
+
+	// read by the HUD
+	int32 PlayedId() const { return PlayerUnit; }
+	int32 PendingPossess() const { return PossessWanted; }
+	bool IsZooming() const { return bZooming; }
+	float VerticalFov() const { return bZooming ? HrotPlayer::IronSightsFov : HrotPlayer::NormalFov; }
+	int32 AimTargetId() const { return AimTarget; }
+	FVector3d AimPointEnu() const { return AimPoint; }
+	FVector3d ViewForwardEnu() const { return HrotCamera::Forward(PlayerYaw, PlayerPitch); }
+	uint8 StanceWanted() const { return Stance; }
+	bool IsRunning() const { return bRunning; }
+	float PlayerViewDistance() const { return PlayerDistance; }
+	HrotCamera::EScheme PlayerScheme() const { return PScheme; }
+	int32 SelectedMount() const { return Mount; }
+
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Camera") TObjectPtr<USceneComponent> Root;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Camera") TObjectPtr<UCameraComponent> Cam;
 	/** the camera never goes below this over the ground (m) */
@@ -62,6 +126,9 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type Why) override;
+	/** draw the HUD onto the viewport when there is no player controller (the debug-draw path; on by default) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Camera") bool bDrawHud = true;
 
 private:
 	EHrotCameraMode Mode = EHrotCameraMode::Free;
@@ -77,6 +144,32 @@ private:
 	int32 WheelStreak = 0;
 
 	void TickInput(float Dt);
+	void TickPlayer(float Dt, class APlayerController* PC);
+	void EnterPlayer();
+	FDelegateHandle DebugHud;
+	void DrawDebugHud(class UCanvas* Canvas, class APlayerController* PC);
+	void LeavePlayerView();
+	void PlacePlayer(float Dt, const FVector3d& Position);
+	float FreeFov = 90.f;
+	bool bAnimal = false;
+	int32 ShoulderSide = 1;
+	TOptional<double> HeldHeading;
+	// the menu
+	int32 MenuEntity = 0;
+	FVector2D MenuAt = FVector2D::ZeroVector;
+	double RmbDownAt = -1; float RmbTravel = 0;
+	// the player
+	int32 PossessWanted = 0, PlayerUnit = 0;
+	double PlayerYaw = 0, PlayerPitch = 0, BodyYaw = 0;
+	float PlayerDistance = HrotCamera::PersonDefault, PlayerArm = 0, LookIdle = 0;
+	bool bPlayerArmPlaced = false, bZooming = false, bRunning = false, bCrouchHeld = false;
+	HrotCamera::EScheme PScheme = HrotCamera::EScheme::Person;
+	uint8 Stance = 0, ShotSeq = 0, CancelSeq = 0, AmmoSeq = 0, UseSeq = 0, FirePref = 0, Mount = 0;
+	int32 ShotTarget = 0, UseTarget = 0, AimTarget = 0;
+	FVector3d AimPoint = FVector3d::ZeroVector;
+	// test input (no player controller)
+	float TestLookYaw = 0, TestLookPitch = 0, TestForward = 0, TestSide = 0;
+	bool TestFirePress = false, TestTrigger = false, TestZoom = false;
 	void PlaceFollow(float Dt);
 	void FreeLook(float DYaw, float DPitch);
 	float HeightAboveGround(const FVector& At) const;

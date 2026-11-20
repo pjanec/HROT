@@ -1,5 +1,6 @@
 // CE-4651 (U-18b) — see HrotDpsWorld.h
 #include "HrotDpsWorld.h"
+#include "HrotDpsStation.h"
 #include "HrotDpsNative.h"
 #include "HrotDpsSubsystem.h"
 #include "HrotVehicle.h"
@@ -137,6 +138,8 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_GroundMarks"), &UHrotDpsWorld::OnGroundMarks);
 	Sub(TEXT("DPS_Mover"), &UHrotDpsWorld::OnMover);
 	Sub(TEXT("DPS_MoverTracks"), &UHrotDpsWorld::OnMoverTracks);
+	// U-18m — the player station's readers on this fresh client (the old client's went with it)
+	if (UHrotDpsStation* St = UHrotDpsStation::Get(this)) St->Reconnect();
 	UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: joined domain %d partition '%s'"), Domain, *Partition);
 	return true;
 }

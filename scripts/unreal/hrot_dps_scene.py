@@ -13,7 +13,7 @@ assembly, the gateway's send rule) starts when the ready file appears. Records, 
 frame) against the sim clock — the runner compares it with the publisher's truth — and renders the pictures at their times (real seconds
 after ready). The kit table here is the TEST's choice of models, not a product mapping.
 """
-import json, math, os, time, traceback
+import glob, json, math, os, shutil, time, traceback
 import unreal
 
 JOB = json.load(open(os.environ["HROT_DPS_SCENE_JOB"], encoding="utf-8-sig"))
@@ -48,7 +48,12 @@ def level():
         if not LES().load_level(JOB["map"]): raise RuntimeError("load_level failed: " + JOB["map"])
         for c in ("t.IdleWhenNotForeground 0", "t.MaxFPS 0", "r.VSync 0", "r.VSyncEditor 0", "r.DontLimitOnBattery 1"):
             unreal.SystemLibrary.execute_console_command(None, c)
-        LES().editor_set_viewport_realtime(True); LES().editor_play_simulate()
+        LES().editor_set_viewport_realtime(True)
+        if JOB.get("pie"):   # U-18m: PLAY (a player controller, AHrotDpsGameMode: the IG camera as the pawn, the HUD) instead of Simulate
+            ws = unreal.EditorLevelLibrary.get_editor_world().get_world_settings()
+            ws.set_editor_property("default_game_mode", unreal.HrotDpsGameMode.static_class())
+            LES().editor_request_begin_play()
+        else: LES().editor_play_simulate()
         S.update(phase="join", t=time.time() + 8); return
     if unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/DpsScene"): unreal.EditorAssetLibrary.delete_asset("/Game/Maps/DpsScene")
     if not LES().new_level("/Game/Maps/DpsScene"): raise RuntimeError("new_level failed")
@@ -88,10 +93,18 @@ def join():
     if not w.start(int(JOB["domain"]), JOB["partition"]): raise RuntimeError("DPS start failed")
     S.update(w=w, phase="run", t0=time.time(), next_rec=0.0, pics=list(JOB.get("pictures", [])))
     # U-18l: the IG camera (AHrotDpsCamera) — pictures with "rig" are taken THROUGH it (its camera copied into the viewport every frame)
-    if any(p.get("rig") for p in S["pics"]):
+    if JOB.get("pie"):   # U-18m: the game mode's pawn IS the IG camera
+        S["rig"] = unreal.GameplayStatics.get_player_pawn(gw, 0)
+        log(f"PIE: the player pawn is {S['rig'].get_class().get_name() if S['rig'] else None}")
+    elif any(p.get("rig") or p.get("player") for p in S["pics"]):
         S["rig"] = unreal.HrotDpsCamera.spawn_in(gw, unreal.Vector(0, 0, 5000), unreal.Rotator(pitch=-30, yaw=0, roll=0))
+        LES().editor_set_game_view(True)   # U-18m: the IG camera's HUD draws through the debug-draw service's "Game" flag (an editor viewport has it off)
     open(JOB["ready"], "w").write("ready")
     log("joined; ready")
+
+
+def gw_now():
+    return UES().get_game_world()
 
 
 def camera(look, back, up, side=0.45):
@@ -200,6 +213,21 @@ def run():
                 pic = dict(pic, look=[c.x, c.y, c.z])
                 camera(pic["look"], pic.get("back", 1500), c.z + pic.get("up", 500), pic.get("side", 0.45))
             else: log(f"picture {pic['name']}: nothing to follow for {pic['follow']!r}")
+        elif pic.get("player") and S.get("rig"):   # U-18m: {"possess": offer index | "letgo": true | "look": [yaw, pitch] deg, "move": [f, side], "fire", "zoom", "distance", "menu": offer index, "settle"}
+            rg, spec = S["rig"], pic["player"]
+            st = unreal.HrotDpsStation.for_world(UES().get_game_world())
+            offers = list(st.offer_ids()) if st else []
+            R.setdefault("offersAtPicture", {})[pic["name"]] = {str(i): st.offer_name(i) for i in offers} if st else None
+            if "menu" in spec and offers: rg.select(offers[int(spec["menu"])]); rg.open_menu(offers[int(spec["menu"])], unreal.Vector2D(700, 380))
+            if "possess" in spec and offers: rg.close_menu(); rg.possess(offers[int(spec["possess"])])
+            if "choose" in spec: rg.menu_choose(int(spec["choose"]))   # a click on a menu row
+            if spec.get("letgo"): rg.let_go()
+            if "distance" in spec: rg.set_player_distance(float(spec["distance"]))
+            if spec.get("look"): rg.player_look(float(spec["look"][0]), float(spec["look"][1]))
+            rg.player_move(*(float(v) for v in spec.get("move", [0, 0])))
+            rg.player_fire(bool(spec.get("fire", False))); rg.player_zoom(bool(spec.get("zoom", False)))
+            S["rig_on"] = True
+            log(f"player step {pic['name']}: {spec} -> {rg.describe()}; offers {R['offersAtPicture'][pic['name']]}")
         elif pic.get("rig") and S.get("rig"):   # U-18l: {"follow": name text, "distance", "orbit": [yaw, pitch] deg, "wheel": notches, "settle": s}
             rg, spec = S["rig"], pic["rig"]
             ids = [i for i in w.entity_ids() if spec.get("follow", "").lower() in w.describe(i).lower()]
@@ -213,16 +241,30 @@ def run():
         elif pic.get("top"):   # straight down, screen up = east (+X), screen right = south (+Y)
             UES().set_level_viewport_camera_info(unreal.Vector(pic["look"][0], pic["look"][1], pic.get("up", 5000)), unreal.Rotator(pitch=-90, yaw=0, roll=0))
         elif "look" in pic: camera(pic["look"], pic.get("back", 6000), pic.get("up", 3500), pic.get("side", 0.45))
-        S["pending_pic"] = pic["name"]; S["pic_at"] = time.time() + 0.3 + float((pic.get("rig") or {}).get("settle", 0)); S["pic_frames"] = 3   # the camera settles: 0.3 s AND 3 frames
+        S["pending_pic"] = pic["name"]; S["pic_at"] = time.time() + 0.3 + float((pic.get("rig") or pic.get("player") or {}).get("settle", 0)); S["pic_frames"] = 3   # the camera settles: 0.3 s AND 3 frames
     if S.get("rig_on") and S.get("rig"):   # U-18l: the viewport looks through the IG camera every frame (it follows the unit as it moves)
         t_ = S["rig"].camera_transform()
         UES().set_level_viewport_camera_info(t_.translation, t_.rotation.rotator())
+    if S.get("ui_req") and time.time() >= S["ui_req"][1] and not S.get("await_file") and not S.get("pending_pic"):   # one screenshot request at a time (Unreal keeps ONE global request)
+        nm, _, sd = S.pop("ui_req")
+        S["ui_shot"] = (nm, time.time(), set(glob.glob(os.path.join(sd, "**", "*.png"), recursive=True)), sd)
+        unreal.SystemLibrary.execute_console_command(gw_now(), "shot showui")
+    if S.get("ui_shot"):   # U-18m: the UI shot lands in Saved/Screenshots under its own name — copied beside the others
+        nm, t_ui, before, sd = S["ui_shot"]
+        new = [f for f in glob.glob(os.path.join(sd, "**", "*.png"), recursive=True) if f not in before]
+        if new:
+            shutil.copy(new[0], os.path.join(JOB["shots"], f"dps-{nm}-ui.png")); S.pop("ui_shot"); R["shots"].append(f"dps-{nm}-ui.png")
+        elif time.time() - t_ui > 10: log(f"ui shot {nm}: none appeared"); S.pop("ui_shot")
     if S.get("pending_pic"): S["pic_frames"] = S.get("pic_frames", 0) - 1
     if S.get("pending_pic") and time.time() >= S["pic_at"] and S["pic_frames"] <= 0:
         name = S.pop("pending_pic")
         path = os.path.join(JOB["shots"], f"dps-{name}.png").replace("\\", "/")
         if os.path.exists(path): os.remove(path)
-        unreal.AutomationLibrary.take_high_res_screenshot(1600, 900, path, None)
+        if JOB.get("pie"): unreal.SystemLibrary.execute_console_command(gw_now(), f'HighResShot 1600x900 filename="{path}"')
+        else: unreal.AutomationLibrary.take_high_res_screenshot(1600, 900, path, None)
+        if S.get("rig") and str(S["rig"].describe()).startswith(("player", "follow", "free")) and name.startswith("pl-"):   # U-18m: the HUD is canvas — only a UI shot has it
+            sd = unreal.Paths.screen_shot_dir()
+            S["ui_req"] = (name, time.time() + 1.5, sd)   # a second after the high-res one: two captures in one frame collide
         S["await_file"] = (path, time.time())
         R["shots"].append(path)
         R["describe"][name] = {str(i): w.describe(i) for i in w.entity_ids()}

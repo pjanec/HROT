@@ -1,6 +1,12 @@
 // CE-4651 (U-18l) — see HrotDpsCameraPawn.h
 #include "HrotDpsCameraPawn.h"
 #include "HrotDpsWorld.h"
+#include "HrotDpsStation.h"
+#include "HrotDpsHud.h"
+#include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "HAL/PlatformTime.h"
+#include "Debug/DebugDrawService.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/World.h"
@@ -38,7 +44,26 @@ AHrotDpsCamera* AHrotDpsCamera::SpawnIn(UObject* WorldContext, FVector At, FRota
 void AHrotDpsCamera::BeginPlay()
 {
 	Super::BeginPlay();
-	if (APlayerController* PC = Cast<APlayerController>(GetController())) { PC->bShowMouseCursor = true; PC->bEnableClickEvents = true; }
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->bShowMouseCursor = true; PC->bEnableClickEvents = true;
+		PC->ClientSetHUD(AHrotDpsHud::StaticClass());   // U-18m — the menu, the crosshair, the player's lines
+	}
+	FreeFov = Cam->FieldOfView;
+	// no controller (Simulate, a test, a render node): the same HUD through the debug-draw service, onto the viewport looking through us
+	if (!Cast<APlayerController>(GetController()))
+		DebugHud = UDebugDrawService::Register(TEXT("Game"), FDebugDrawDelegate::CreateUObject(this, &AHrotDpsCamera::DrawDebugHud));
+}
+
+void AHrotDpsCamera::EndPlay(const EEndPlayReason::Type Why)
+{
+	if (DebugHud.IsValid()) { UDebugDrawService::Unregister(DebugHud); DebugHud.Reset(); }
+	Super::EndPlay(Why);
+}
+
+void AHrotDpsCamera::DrawDebugHud(UCanvas* Canvas, APlayerController* PC)
+{
+	if (bDrawHud) HrotDpsHud::Draw(Canvas, this, PC);
 }
 
 void AHrotDpsCamera::HideBody(AActor* A, bool bHide)
@@ -86,7 +111,15 @@ FTransform AHrotDpsCamera::CameraTransform() const { return Cam->GetComponentTra
 
 FString AHrotDpsCamera::Describe() const
 {
-	if (Mode == EHrotCameraMode::Free) return TEXT("free");
+	if (Mode == EHrotCameraMode::Free) return PossessWanted ? FString::Printf(TEXT("free, possessing %d"), PossessWanted) : TEXT("free");
+	if (Mode == EHrotCameraMode::Player)
+	{
+		const UHrotDpsStation* St = UHrotDpsStation::Get(this);
+		return FString::Printf(TEXT("player %d (%s) at %.2f m, look %.0f/%.0f deg, body %.0f deg, aim %d, health %.0f/%.0f, slot %d, %d weapons, %d frames sent, %d hits on us"),
+			PlayerUnit, St ? *St->SlotState() : TEXT("-"), PlayerDistance, FMath::RadiansToDegrees(PlayerYaw), FMath::RadiansToDegrees(PlayerPitch),
+			FMath::RadiansToDegrees(BodyYaw), AimTarget, St ? St->Health() : 0.f, St ? St->MaxHealth() : 0.f, St ? St->ActiveSlot() : -1,
+			St ? St->Ammo().Num() : 0, St ? St->FramesSent() : 0, St ? St->HitsOnUs().Num() : 0);
+	}
 	const TCHAR* Band = FollowDistance < EyesBelow ? TEXT("eyes") : NearBlend(FollowDistance, EScheme::Person) >= 1.f ? TEXT("shoulder") : TEXT("orbit");
 	return FString::Printf(TEXT("follow %d at %.2f m (%s), arm %.2f m"), FollowId, FollowDistance, Band, Arm);
 }
@@ -94,6 +127,17 @@ FString AHrotDpsCamera::Describe() const
 void AHrotDpsCamera::Tick(float Dt)
 {
 	Super::Tick(Dt);
+	// U-18m — possession follows the SLOT (HROT: the view follows PossessedBy): Playing our unit -> his view; lost -> free flight
+	if (UHrotDpsStation* St = UHrotDpsStation::Get(this))
+	{
+		if (PossessWanted && St->IsPlaying() && St->PlayedUnit() == PossessWanted) EnterPlayer();
+		else if (Mode == EHrotCameraMode::Player && (!St->IsPlaying() || St->PlayedUnit() != PlayerUnit))
+		{
+			UE_LOG(LogTemp, Display, TEXT("HROT camera: the slot let unit %d go (%s) - free flight"), PlayerUnit, *St->SlotState());
+			LeavePlayerView();
+		}
+	}
+	if (Mode == EHrotCameraMode::Player) { TickPlayer(Dt, Cast<APlayerController>(GetController())); return; }
 	TickInput(Dt);
 	if (Mode == EHrotCameraMode::Follow) PlaceFollow(Dt);
 }
@@ -197,15 +241,39 @@ void AHrotDpsCamera::TickInput(float Dt)
 	APlayerController* PC = Cast<APlayerController>(GetController());
 	if (!PC) return;   // driven by calls (Simulate, a test, a render node)
 	float Mx = 0, My = 0; PC->GetInputMouseDelta(Mx, My);
-	const float MouseScale = 10.f;   // ⚠ Unreal's mouse delta is not pixels: ~10 px a unit at the default sensitivity
 	const bool bRmb = PC->IsInputKeyDown(EKeys::RightMouseButton);
 	const float WheelIn = PC->WasInputKeyJustPressed(EKeys::MouseScrollUp) ? 1.f : PC->WasInputKeyJustPressed(EKeys::MouseScrollDown) ? -1.f : 0.f;
 	const bool bShift = PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::RightShift);
 	const bool bCtrl = PC->IsInputKeyDown(EKeys::LeftControl) || PC->IsInputKeyDown(EKeys::RightControl);
 	const bool bW = PC->IsInputKeyDown(EKeys::W), bS = PC->IsInputKeyDown(EKeys::S), bA = PC->IsInputKeyDown(EKeys::A), bD = PC->IsInputKeyDown(EKeys::D);
 
-	if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bRmb) Selected = PickUnderCursor();
-	if (PC->WasInputKeyJustPressed(EKeys::F) && Selected) Follow(Selected);
+	// U-18m — the unit menu: a right CLICK (short, no drag) opens it; a click on a row runs it, elsewhere closes it
+	float MouseX = 0, MouseY = 0; PC->GetMousePosition(MouseX, MouseY);
+	if (PC->WasInputKeyJustPressed(EKeys::RightMouseButton)) { RmbDownAt = FPlatformTime::Seconds(); RmbTravel = 0; }
+	if (bRmb) RmbTravel += (FMath::Abs(Mx) + FMath::Abs(My)) * MouseScale;
+	if (PC->WasInputKeyJustReleased(EKeys::RightMouseButton) && RmbDownAt >= 0)
+	{
+		if (FPlatformTime::Seconds() - RmbDownAt < MenuClickSeconds && RmbTravel < MenuClickTravel)
+			if (const int32 Id = PickUnderCursor()) { Selected = Id; OpenMenu(Id, FVector2D(MouseX, MouseY)); }
+		RmbDownAt = -1;
+	}
+	if (MenuEntity)
+	{
+		if (PC->WasInputKeyJustPressed(EKeys::Escape)) { CloseMenu(); return; }
+		if (PC->WasInputKeyJustPressed(EKeys::F)) { const int32 Id = MenuEntity; CloseMenu(); Follow(Id); return; }
+		if (PC->WasInputKeyJustPressed(EKeys::P)) { const int32 Id = MenuEntity; CloseMenu(); Possess(Id); return; }
+		if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton))
+		{
+			const int32 Row = FMath::FloorToInt32((MouseY - MenuAt.Y - MenuHeader) / MenuRowHeight);
+			const bool bIn = MouseX >= MenuAt.X && MouseX <= MenuAt.X + MenuWidth && MouseY >= MenuAt.Y + MenuHeader && Row < MenuRows().Num();
+			if (bIn) MenuChoose(Row); else CloseMenu();
+			return;
+		}
+	}
+	else if (PC->WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bRmb) Selected = PickUnderCursor();
+	if (!MenuEntity && PC->WasInputKeyJustPressed(EKeys::F) && Selected) Follow(Selected);
+	if (!MenuEntity && PC->WasInputKeyJustPressed(EKeys::P) && Selected) Possess(Selected);
+	if (PossessWanted && PC->WasInputKeyJustPressed(EKeys::Escape)) { LetGo(); return; }   // a request not taken yet: withdrawn
 
 	if (Mode == EHrotCameraMode::Follow)
 	{
@@ -249,4 +317,252 @@ void AHrotDpsCamera::TickInput(float Dt)
 		Cam->SetWorldLocation(Cam->GetComponentLocation() + FlyVelocity * Dt);
 	}
 	else { FlyVelocity = FVector::ZeroVector; FlyHeld = 0; }
+}
+
+// ───────────────────────── U-18m: the unit menu ─────────────────────────
+
+TArray<FHrotMenuRow> AHrotDpsCamera::MenuRows() const
+{
+	TArray<FHrotMenuRow> Rows;
+	if (!MenuEntity) return Rows;
+	// HROT's map menu (MapMenuActions): "Follow with the camera" (View) and "Possess (FPS)" (Orders, P; greyed with the reason)
+	FHrotMenuRow F; F.Label = TEXT("Follow with the camera"); F.Shortcut = TEXT("F"); F.Action = 1;
+	Rows.Add(F);
+	FHrotMenuRow P; P.Label = TEXT("Possess (FPS)"); P.Shortcut = TEXT("P"); P.Action = 2;
+	if (UHrotDpsStation* St = UHrotDpsStation::Get(this)) P.bEnabled = St->CanPossess(MenuEntity, P.Reason);
+	else { P.bEnabled = false; P.Reason = TEXT("no player station"); }
+	Rows.Add(P);
+	return Rows;
+}
+
+void AHrotDpsCamera::OpenMenu(int32 EntityId, FVector2D ScreenAt)
+{
+	if (UHrotDpsStation* St = UHrotDpsStation::Get(this)) St->Connect();
+	MenuEntity = EntityId; MenuAt = ScreenAt;
+}
+
+void AHrotDpsCamera::MenuChoose(int32 Row)
+{
+	const TArray<FHrotMenuRow> Rows = MenuRows();
+	const int32 Id = MenuEntity;
+	if (!Rows.IsValidIndex(Row) || !Rows[Row].bEnabled) return;   // a greyed row does nothing (its line says why)
+	CloseMenu();
+	if (Rows[Row].Action == 1) Follow(Id);
+	else if (Rows[Row].Action == 2) Possess(Id);
+}
+
+// ───────────────────────── U-18m: possession ─────────────────────────
+
+void AHrotDpsCamera::Possess(int32 EntityId)
+{
+	UHrotDpsStation* St = UHrotDpsStation::Get(this);
+	if (!St || EntityId == 0) return;
+	St->Join(EntityId);
+	PossessWanted = EntityId;
+	if (Mode != EHrotCameraMode::Player) Follow(EntityId, HrotCamera::PersonDefault * 3.f);   // watch him while the slot takes him
+}
+
+void AHrotDpsCamera::LetGo()
+{
+	if (UHrotDpsStation* St = UHrotDpsStation::Get(this)) St->Leave();
+	LeavePlayerView();
+}
+
+void AHrotDpsCamera::LeavePlayerView()
+{
+	PossessWanted = 0;
+	if (AActor* H = HiddenBody.Get()) HideBody(H, false);
+	if (Mode == EHrotCameraMode::Player)
+	{
+		Cam->SetFieldOfView(FreeFov);
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			PC->SetShowMouseCursor(true);
+			FInputModeGameAndUI In; In.SetHideCursorDuringCapture(false); PC->SetInputMode(In);
+		}
+	}
+	PlayerUnit = 0;
+	Free();   // the camera flies on from where it is
+}
+
+void AHrotDpsCamera::EnterPlayer()
+{
+	PlayerUnit = PossessWanted; PossessWanted = 0;
+	if (AActor* H = HiddenBody.Get()) HideBody(H, false);
+	Mode = EHrotCameraMode::Player; FollowId = PlayerUnit;
+	UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
+	FVector PosM; FQuat Rot; int32 Domain = 0;
+	bAnimal = false;
+	if (W && W->PoseNow(PlayerUnit, PosM, Rot, Domain))
+	{
+		const FVector3d Fwd = FQuat4d(Rot).RotateVector(FVector3d(1, 0, 0));
+		PlayerYaw = BodyYaw = FMath::Atan2(Fwd.Y, Fwd.X);
+		PScheme = Domain == W->DomainAir() ? EScheme::Flyer : (Domain == W->DomainPerson() || Domain == W->DomainAnimal()) ? EScheme::Person : EScheme::Vehicle;
+		bAnimal = Domain == W->DomainAnimal();
+	}
+	PlayerPitch = 0; PlayerDistance = HrotCamera::DefaultDistance(PScheme); PlayerArm = 0; LookIdle = 0;
+	Stance = 0; Mount = 0; ShoulderSide = 1; HeldHeading.Reset();
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->SetShowMouseCursor(false);
+		PC->SetInputMode(FInputModeGameOnly());   // the mouse is the look now
+	}
+	UE_LOG(LogTemp, Display, TEXT("HROT camera: playing unit %d"), PlayerUnit);
+}
+
+// ───────────────────────── U-18m: the player (HROT's FpsCameraDriver.HandleInput) ─────────────────────────
+
+void AHrotDpsCamera::TickPlayer(float Dt, APlayerController* PC)
+{
+	using namespace HrotPlayer;
+	UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
+	UHrotDpsStation* St = UHrotDpsStation::Get(this);
+	if (!W || !St) return;
+	auto Down = [PC](const FKey& K) { return PC && PC->IsInputKeyDown(K); };
+	auto Pressed = [PC](const FKey& K) { return PC && PC->WasInputKeyJustPressed(K); };
+	if (Pressed(EKeys::Escape)) { LetGo(); return; }   // Esc: let him go, fly free
+
+	// ── the look: the mouse turns the view (pixels × the zoomed sensitivity, FpsZoom.SensitivityFor) ──
+	bZooming = Down(EKeys::RightMouseButton) || TestZoom;
+	const float Sens = SensitivityFor(VerticalFov());
+	float Mx = 0, My = 0; if (PC) PC->GetInputMouseDelta(Mx, My);
+	const double DYaw = -Mx * MouseScale * Sens + FMath::DegreesToRadians(TestLookYaw);
+	const double DPitch = My * MouseScale * Sens + FMath::DegreesToRadians(TestLookPitch);
+	TestLookYaw = TestLookPitch = 0;
+	PlayerYaw = Wrap(PlayerYaw + DYaw);
+	PlayerPitch = FMath::Clamp(PlayerPitch + DPitch, -1.4, 1.4);
+	LookIdle = (DYaw != 0 || DPitch != 0) ? 0.f : LookIdle + Dt;
+
+	FVector PosM; FQuat Rot; int32 Domain = 0;
+	if (!W->PoseNow(PlayerUnit, PosM, Rot, Domain)) return;   // not drawn yet; the slot decides when he is gone
+	const FVector3d P(PosM);
+	const FVector3d HullFwd = FQuat4d(Rot).RotateVector(FVector3d(1, 0, 0));
+	const double HullYaw = FMath::Atan2(HullFwd.Y, HullFwd.X);
+	const bool bVehicle = PScheme == EScheme::Vehicle, bFlyer = PScheme == EScheme::Flyer, bPerson = PScheme == EScheme::Person && !bAnimal;
+
+	// a vehicle's look left alone eases back behind the hull (RecentreAfter, RecentreRate)
+	if (bVehicle && LookIdle > RecentreAfter) PlayerYaw = TurnToward(PlayerYaw, HullYaw, FMath::DegreesToRadians(RecentreRateDeg) * Dt);
+
+	// ── the keys (HROT's EmbodiedKeys): W/S forward, A/D side (A = +1, left) ──
+	float Forward = FMath::Clamp((Down(EKeys::W) ? 1.f : 0.f) - (Down(EKeys::S) ? 1.f : 0.f) + TestForward, -1.f, 1.f);
+	float SideIn = FMath::Clamp((Down(EKeys::A) ? 1.f : 0.f) - (Down(EKeys::D) ? 1.f : 0.f) + TestSide, -1.f, 1.f);
+	if (bPerson && PlayerDistance > 0.f)
+	{
+		// over the shoulder: the body lags the look; W/A/S/D relative to the CAMERA, turned into the body's frame
+		BodyYaw = ShoulderBodyYaw(BodyYaw, PlayerYaw, Forward != 0.f || SideIn != 0.f, Dt);
+		CameraRelative(Forward, SideIn, Wrap(PlayerYaw - BodyYaw));
+	}
+	else BodyYaw = PlayerYaw;
+	const float Climb = (Down(EKeys::Q) || Down(EKeys::SpaceBar) ? 1.f : 0.f) - (Down(EKeys::Z) || Down(EKeys::C) ? 1.f : 0.f);
+	double FlyerYaw;
+	if (SideIn != 0.f) { FlyerYaw = FlyerHeading(HullYaw, SideIn); HeldHeading.Reset(); }
+	else { if (!HeldHeading.IsSet()) HeldHeading = HullYaw; FlyerYaw = HeldHeading.GetValue(); }   // held, never re-read (CE-1354)
+	bRunning = Down(EKeys::LeftShift) || Down(EKeys::RightShift);
+
+	// the wheel: the distance continuum (ahead / eyes / shoulder); O: the eyes <-> over the shoulder
+	const float WheelIn = Pressed(EKeys::MouseScrollUp) ? 1.f : Pressed(EKeys::MouseScrollDown) ? -1.f : 0.f;
+	if (WheelIn != 0.f) PlayerDistance = WheelDistance(PlayerDistance, WheelIn, PScheme);
+	if (Pressed(EKeys::O)) PlayerDistance = PlayerDistance > 0.f ? 0.f : HrotCamera::DefaultDistance(PScheme);
+	// 1-4 a weapon from the unit's slots (OwnUnit.Ammo), R its next round, L sight / lock, X drops a locked shot
+	const TArray<FHrotDpsAmmoLine> Slots = St->Ammo();
+	const FKey Num[4] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four };
+	for (int32 K = 0; K < 4; ++K) if (Pressed(Num[K]) && K < Slots.Num()) Mount = uint8(Slots[K].Slot);
+	if (Pressed(EKeys::R)) ++AmmoSeq;
+	if (Pressed(EKeys::L)) FirePref = St->FireMode() == TEXT("LOCK") ? 1 : 2;
+	if (Pressed(EKeys::X)) ++CancelSeq;
+	// lean (Q / E held; a person) — it also puts the camera over that shoulder (and it stays there)
+	const bool bL = Down(EKeys::Q), bR = Down(EKeys::E);
+	const uint8 Lean = !bPerson || bL == bR ? 0 : bL ? 1 : 2;
+	if (Lean == 1) ShoulderSide = -1; else if (Lean == 2) ShoulderSide = 1;
+	const bool bBinoculars = bPerson && Down(EKeys::B);
+	// stance: C toggles crouched, Z prone, Ctrl held crouches (a person only; on a flyer C / Z descend)
+	if (bPerson)
+	{
+		const uint8 Now = Stance == 0 ? 1 : Stance;
+		if (Pressed(EKeys::C)) Stance = Now == 2 ? 1 : 2;
+		if (Pressed(EKeys::Z)) Stance = Now == 3 ? 1 : 3;
+		bCrouchHeld = Down(EKeys::LeftControl) || Down(EKeys::RightControl);
+	}
+
+	PlacePlayer(Dt, P);
+
+	// the aim: the ray through the crosshair (the screen centre) against terrain and units, else AimReach along the view
+	const FVector From = Cam->GetComponentLocation(), Dir = Cam->GetForwardVector();
+	FCollisionQueryParams Q(SCENE_QUERY_STAT(HrotAim), true, this);
+	if (AActor* Me = W->ActorOf(PlayerUnit)) { Q.AddIgnoredActor(Me); TArray<AActor*> Att; Me->GetAttachedActors(Att, true, true); Q.AddIgnoredActors(Att); }
+	FHitResult Hit;
+	AimTarget = 0;
+	FVector AimUe = From + Dir * AimReach * 100.0;
+	if (GetWorld()->LineTraceSingleByChannel(Hit, From, AimUe, ECC_Visibility, Q))
+	{
+		AimUe = Hit.ImpactPoint;
+		for (AActor* X = Hit.GetActor(); X && !AimTarget; X = X->GetAttachParentActor()) AimTarget = W->EntityOfActor(X);
+	}
+	AimPoint = FVector3d(W->UnrealToEnuM(AimUe));
+	const bool bFirePress = Pressed(EKeys::LeftMouseButton) || TestFirePress;
+	TestFirePress = false;
+	if (bFirePress && !bBinoculars) { ++ShotSeq; ShotTarget = AimTarget; }
+	if (Pressed(EKeys::F)) ++UseSeq;
+
+	FHrotDpsControl C;
+	C.Forward = Forward;
+	C.Lateral = bVehicle || bAnimal || bFlyer ? 0.f : SideIn;
+	C.Steer = bVehicle || bAnimal ? SideIn : 0.f;
+	C.Yaw = float(bFlyer ? FlyerYaw : BodyYaw);
+	C.Vertical = bFlyer ? Climb : 0.f;
+	C.bRun = bRunning;
+	C.Stance = bPerson ? (bCrouchHeld ? 2 : Stance) : 0;
+	C.bTrigger = !bBinoculars && (Down(EKeys::LeftMouseButton) || TestTrigger);
+	C.Mount = Mount;
+	C.ShotSeq = ShotSeq; C.ShotTarget = ShotTarget; C.CancelSeq = CancelSeq; C.AmmoSeq = AmmoSeq; C.FirePref = FirePref;
+	C.UseSeq = UseSeq; C.UseTarget = AimTarget;
+	C.Lean = Lean; C.bBinoculars = bBinoculars;
+	C.AimPoint = FVector(AimPoint);
+	C.LookFrom = W->UnrealToEnuM(From);
+	C.LookDir = FVector(EnuDir(Dir));
+	St->Send(C);
+}
+
+void AHrotDpsCamera::PlacePlayer(float Dt, const FVector3d& P)
+{
+	using namespace HrotPlayer;
+	UHrotDpsWorld* W = UHrotDpsWorld::Get(this);
+	// the eye: a person's drawn head, else HROT's eye height for the kind
+	FVector3d Eye = P + FVector3d(0, 0, PScheme == EScheme::Person ? PersonEyeHeight : PScheme == EScheme::Flyer ? RotorcraftEyeHeight : VehicleEyeHeight);
+	AActor* Body = W->ActorOf(PlayerUnit);
+	if (Body && PScheme == EScheme::Person)
+	{
+		TArray<USkeletalMeshComponent*> Meshes; Body->GetComponents(Meshes);
+		for (USkeletalMeshComponent* M : Meshes)
+			if ((M->IsVisible() || HiddenParts.Contains(M)) && M->DoesSocketExist(TEXT("head"))) { Eye = FVector3d(W->UnrealToEnuM(M->GetSocketLocation(TEXT("head")))); break; }
+	}
+	const FVector3d Fwd = HrotCamera::Forward(PlayerYaw, PlayerPitch);
+	const bool bEyes = PlayerDistance <= 0.f;
+	if (bEyes != HiddenBody.IsValid()) HideBody(Body, bEyes);
+	// the zoom: HROT's VERTICAL field of view -> Unreal's horizontal one
+	FVector2D Vp(16, 9); if (GEngine && GEngine->GameViewport) GEngine->GameViewport->GetViewportSize(Vp);
+	const double Aspect = Vp.Y > 0 ? Vp.X / Vp.Y : 16.0 / 9.0;
+	Cam->SetFieldOfView(float(FMath::RadiansToDegrees(2.0 * FMath::Atan(FMath::Tan(FMath::DegreesToRadians(VerticalFov()) * 0.5) * Aspect))));
+	if (bEyes)
+	{
+		// his eyes, or ahead of them (< 0) along the level look
+		const FVector3d Level = FVector3d(Fwd.X, Fwd.Y, 0).GetSafeNormal();
+		Cam->SetWorldLocationAndRotation(W->EnuMToUnreal(FVector(Eye + Level * double(-PlayerDistance))), RotOf(Fwd));
+		PlayerArm = 0;
+		return;
+	}
+	// over the shoulder (the lean picks the side) / behind a vehicle: the rig's pivot, the spring arm against walls
+	const FVector3d Centre(Eye.X, Eye.Y, (P.Z + Eye.Z) * 0.5);
+	const FVector3d Piv = HrotCamera::Pivot(Centre, Eye, Fwd, PlayerDistance, PScheme, ShoulderSide);
+	const FVector3d Wanted = HrotCamera::Camera(Piv, Fwd, PlayerDistance, true);
+	const double T = FirstHit(W->EnuMToUnreal(FVector(Piv)), W->EnuMToUnreal(FVector(Wanted)));
+	const FVector3d FreeAt = HrotCamera::SpringArm(Piv, Wanted, T);
+	const float Want = float((FreeAt - Piv).Size());
+	PlayerArm = HrotCamera::EaseArm(PlayerArm == 0.f ? Want : PlayerArm, Want, Dt, HrotCamera::ScaleOf(PScheme));
+	FVector3d At = Piv + (Wanted - Piv).GetSafeNormal() * PlayerArm;
+	At = HrotCamera::AboveHeadWhenSqueezed(At, Eye, PlayerArm, float((Wanted - Piv).Size()));
+	FVector Ue = W->EnuMToUnreal(FVector(At));
+	const float H = HeightAboveGround(Ue + FVector(0, 0, 200));
+	if (H - 2.f < CameraAboveGround) Ue.Z += (CameraAboveGround - (H - 2.f)) * 100.0;
+	Cam->SetWorldLocationAndRotation(Ue, RotOf(Fwd));
 }

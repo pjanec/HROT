@@ -93,3 +93,69 @@ namespace HrotCamera
 	float WheelStepGrowth(int32 Streak) { return FMath::Min(WheelStreakMax, 1.f + WheelStreakGrowth * Streak); }
 	float WheelStep(float HeightAboveGround, int32 Streak) { return FlyBasisSpeed(HeightAboveGround) * WheelStepSeconds * WheelStepGrowth(Streak); }
 }
+
+namespace HrotPlayer
+{
+	float SensitivityFor(float FovDegrees) { return LookSensitivity * FovDegrees / NormalFov; }
+
+	double Wrap(double A)
+	{
+		A = FMath::Fmod(A + UE_DOUBLE_PI, 2.0 * UE_DOUBLE_PI);
+		if (A < 0) A += 2.0 * UE_DOUBLE_PI;
+		return A - UE_DOUBLE_PI;
+	}
+
+	double TurnToward(double From, double To, double Step)
+	{
+		const double Off = Wrap(To - From);
+		return FMath::Abs(Off) <= Step ? To : From + FMath::Sign(Off) * Step;
+	}
+
+	double DragBody(double Body, double Look, double Neck)
+	{
+		const double Off = Wrap(Look - Body);
+		return FMath::Abs(Off) <= Neck ? Body : Look - FMath::Sign(Off) * Neck;
+	}
+
+	double ShoulderBodyYaw(double BodyYaw, double LookYaw, bool bMoving, float Dt)
+	{
+		return bMoving ? TurnToward(BodyYaw, LookYaw, FMath::DegreesToRadians(BodyTurnRateDeg) * Dt)
+		               : DragBody(BodyYaw, LookYaw, FMath::DegreesToRadians(ShoulderLagDeg));
+	}
+
+	void CameraRelative(float& Forward, float& Side, double Off)
+	{
+		const float C = float(FMath::Cos(Off)), S = float(FMath::Sin(Off));
+		const float F = Forward * C - Side * S, L = Forward * S + Side * C;
+		Forward = F; Side = L;
+	}
+
+	double FlyerHeading(double HullYaw, float Side) { return HullYaw + FMath::Clamp(Side, -1.f, 1.f) * FlyerTurnLead; }
+
+	float WheelDistance(float Now, float Wheel, EScheme S)
+	{
+		const float Step = DistanceStep * HrotCamera::ScaleOf(S);
+		float Next = FMath::Clamp(Now - Wheel * Step, -HrotCamera::MaxAhead(S), HrotCamera::MaxPlayDistance(S));
+		if (Now < 0.f && Next > 0.f) Next = 0.f;   // out of "ahead", the eyes come first
+		if (FMath::Abs(Next) < DistanceStep * 0.5f) Next = 0.f;
+		return Next;
+	}
+
+	bool ScreenAngle(const FVector3d& Forward, const FVector3d& ToSource, float& OutDeg)
+	{
+		FVector2d F(Forward.X, Forward.Y), D(ToSource.X, ToSource.Y);
+		if (F.SizeSquared() < 1e-8 || D.SizeSquared() < 1e-8) return false;
+		F.Normalize();
+		const FVector2d Right(F.Y, -F.X);   // clockwise of forward, seen from above
+		const double Clockwise = FMath::RadiansToDegrees(FMath::Atan2(D.Dot(Right), D.Dot(F)));
+		OutDeg = float(-90.0 + Clockwise);
+		return true;
+	}
+
+	float ArcThickness(float Damage) { return Damage <= 0.f ? 6.f : FMath::Clamp(6.f + Damage * 0.2f, 6.f, 18.f); }
+
+	float SpreadRadiusPx(float SpreadRad, float FovDegrees, float Height)
+	{
+		return float(FMath::Tan(SpreadRad) / FMath::Tan(FMath::DegreesToRadians(FovDegrees) * 0.5) * Height * 0.5);
+	}
+}
