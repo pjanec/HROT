@@ -119,6 +119,7 @@ note: every quote is verified verbatim by scripts/rulings-check.py; a rotted quo
 | `exp/agg-ui` *(added `2026-11-16`, R-4276)* | **`R-8600` – `R-8999`** | `R-8604` |
 | `convoy` *(added `2026-11-16`, R-4282)* | **`R-9000` – `R-9999`** | `R-9014` *(R-9000…R-9013 the road convoy's lane decisions, for the user's review)* |
 | `air` *(added `2026-11-16`, R-4284; built by `ui` as the temporary air lane on `air-wip`)* | **`R-10000` – `R-10999`** | `R-10011` *(R-10010 GCAS watches a point order by its own flight first; R-10004 the steer saved with a scenario; R-10005 AC-1 descents late; R-10006 Steer3D gravity-first lift; R-10007 the Monte-Carlo bands as measured; R-10008 GCAS hysteresis + route rejoin; R-10009 the 2 km air-range; R-10000 the five component ids 128 · 160 · 277 · 278 · 279, the ONLY free ones on every lane; R-10001 the DDS ordinals 216–218 (+219 spare); R-10002 the MiG's DIS 1.2.222.1.200, class `TwinEngineFighter`, `WeaponCategory.AirToAir` 13; R-10003 `AirCombatSteer` also carries the pilot's `Lapse` and `AirCombatState` carries the authored `Skill` / `ForcedLapse` — `STATUS_Air_Combat.md`)* |
+| `ui` *(second block, added `2026-11-20` by ui)* | **`R-11000` – `R-11999`** | `R-11000` *(none yet)* |
 | *a new lane* | the next free thousand: the SAME thousand as its `CE-` block in the tracker's "ID blocks" table; **add its row here first** | |
 
 - ⭐ **The same thousands as the tracker's `CE-` blocks**, so a lane's ids are recognisable on sight (`CE-2130`, `R-2001`).

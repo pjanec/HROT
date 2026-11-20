@@ -486,11 +486,11 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
     {
         StreamsDrawn = 0;
         if (w == null || RecentShots.Of(w) is not { } shots) return;
-        foreach (var (shooter, mount, at, toward) in shots.Recent(now, FireStreams.Window))
+        foreach (var (shooter, mount, at, toward) in shots.Recent(now, Hrot.Look.Effects.FireStreams.Window))
         {
-            if (!w.IsAlive(shooter) || !FireStreams.IsAutomatic(Fdp.Toolkit.Combat.CombatTkb.MountOf(w, shooter, mount))) continue;
-            if (!Fdp.Toolkit.Combat.Muzzle.TryOf(w, shooter, mount, out var muzzle, out var forward)) continue;
-            float strength = FireStreams.Dashes(muzzle, toward, forward, now - at, _dashes);
+            // ⭐ CE-11001 (RR-1) — the dashes come from the SHARED rule, the same call an external renderer makes
+            var stream = new Hrot.Look.Effects.TracerStream { Shooter = shooter, WeaponIndex = mount, Toward = toward };
+            float strength = Hrot.Look.Effects.FireStreams.Dashes(w, in stream, now - at, _dashes, out var muzzle);
             if (_dashes.Count == 0) continue;
             float width = 0.03f;
             if (camera != null)

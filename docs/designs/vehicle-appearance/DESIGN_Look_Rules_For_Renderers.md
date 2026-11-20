@@ -1,0 +1,170 @@
+<!--STATUS
+state: LIVE
+updated: 2026-11-20
+build-state: BUILDING (RR-1 built; RR-2…RR-5 READY-TO-BUILD under R-4296; RR-6, RR-7, RR-8 wait on the decisions in §5)
+current-answer: §3 (what moves where, per item) and §5 (the decisions, with leans)
+stale-below: nothing yet
+known-rot: none
+known-conflict: none
+related-designs:
+  - DESIGN_Vehicle_Appearance_State.md — OWNS the look library itself (§7, LK-1…LK-7: Hrot.Look, no presentation reference, the map and a gateway call the same functions; R-4296). THIS design extends it with the rules that still live only in the map
+  - ../../DESIGN_Map_3D_Mode.md — OWNS how the 3-D map draws (§6u the burst stream B-1/B-2, §6n the bodies, the aimed upper body WL-6, the motion tracker S-4); the map keeps the drawing, the rules move out
+  - ../../DESIGN_Visual_Effects.md — OWNS the effect entities and the spawner (VE-A…VE-M, LR-E lightweight rounds); RR-4 and RR-7 move rules beside its spawner, never a second spawner
+  - ../films/DESIGN_Film_Director.md — OWNS the director, takes, shots and FilmStudio; RR-6 publishes its CURRENT camera, it does not change how it decides
+  - ../../DESIGN_Player_Join.md — OWNS the possession station and its HUD; RR-5 moves the HUD's WORDS, never its drawing
+  - ../weapons/DESIGN_Flame_Weapons.md — OWNS the flame jet and burning ground; RR-4 moves the flame look's rules
+-->
+
+# Look rules for renderers — HROT's presentation rules, outside the 3-D map
+
+> 🔒 **User, `2026-11-20`:** *"Please make HROT's presentation rules available outside the 3-D map, so that external renderers and node extensions …
+> show exactly what HROT's own map shows, without re-implementing HROT's rules from its source code."* · *"the map must draw from the same functions so
+> the two can never disagree."*
+
+⭐ **The pattern is not new — it is `Hrot.Look` (R-4296, [Vehicle Appearance §7](DESIGN_Vehicle_Appearance_State.md)).** A rule is a pure function of
+components, events, the TKB, sim time and an entity seed; it fills a caller's list (0 B steady); the map calls it; a node extension calls it. This design
+moves the rules the map still keeps to itself, item by item, in the user's priority order. ⛔ Nothing here draws.
+
+## 1. INVENTORY — the queries run (graph re-indexed `2026-11-20`)
+
+| query | result |
+|---|---|
+| `search_graph name_pattern="(EffectRules\|PersonLook\|VehicleLook\|…\|FireStreams)"` | 43 nodes; ⭐ `Hrot.Look` today: `EffectRules`, `EffectSpec`, `PersonLook`, `PersonParts`, `Outfits`, `OutfitPalettes`, `Wardrobe`, `VehicleLook`, `VehicleSockets`, `BrakeLights`, `FiringBlasts`, `VisualFamily`, `AirMissiles`, `Rgba` |
+| `search_graph name_pattern=".*Camera.*" label=Class` (total 27) | ⭐ engine-level only `MapCameraTkb` (the scenario camera ENTITY, type 7201) and the 2-D `MapCameraView`; ⛔ **no camera-suggestion type anywhere** |
+| `search_graph name_pattern=".*(FlightState\|Flock\|Airborne\|Flies).*"` (75) | ⭐ `FlightState.Airborne` (aircraft, `Flight.cs:58`); ⛔ no airborne state for a bird or a flock other than `FlockState.Mode` |
+| grep `FireStreams\.\|StreamToward` | the stream rule split over two files: `Hrot.Presentation/Effects/FireStreams.cs` + `EffectSpawnSystem.StreamToward` (`EffectSystems.cs:295`) |
+| a sweep of items 2–8 (file:line, inputs, state, blockers, rails) | §3 below; ⭐ **no rule is blocked by Raylib** — they are blocked by small Presentation types (`MotionPose`, `ShapeKits` radii, `BlockFigure` constants, `PostureBlend`) that move with them |
+
+⚠ `check_index_coverage` is not available through the CLI — the absence claims above (no camera suggestion, no bird airborne state) rest on the graph
+**and** grep, not on a coverage check.
+
+## 2. Diagrams
+
+```mermaid
+classDiagram
+    direction LR
+    class EffectRules { <<existing, Hrot.Look>> ForShot() ForImpact() ForDetonation() ForFrame() }
+    class FireStreams { <<RR-1 BUILT>> IsAutomatic() StreamOf() TowardOf() StreamToward() Dashes() }
+    class TracerStream { <<RR-1>> Shooter WeaponIndex Toward }
+    class AimRules { <<RR-2>> TryAim() AimInSeat() HeadTurnOf() Targets() }
+    class PostureBlend { <<RR-2 moves>> Seconds AimSeconds HeadSeconds }
+    class MotionRules { <<RR-3>> RotorRate() BankOf() WheelRoll() Spool() }
+    class RoundLook { <<RR-4>> TracerOf() TrailFactor() BurnOf() IsLying() }
+    class FlameLook { <<RR-4>> Jets() BurningSpots() BurningPeople() ScorchMarks() }
+    class AnimalMotion { <<RR-5>> QuadrupedGaits GaitBands FlockBirds Grazes() }
+    class Carriage { <<RR-5 moves>> Of() InSeat() OnShoulders() }
+    class MachineActivity { <<RR-5>> FlailOn() }
+    class HudWords { <<RR-5>> KindOf() RoundName() Label() TypeName() }
+    class CameraSuggestion { <<RR-6, D-1>> Source Mode Bound Distance Side Pose Fov Cut Take }
+    class Airborne { <<RR-8, D-3>> Of() }
+    class EffectSpawnSystem { <<map, Hrot.Presentation>> }
+    class ProjectileLayer { <<map>> DrawStreams() }
+    class EntityBodyLayer3D { <<map>> }
+    class NodeExtension { <<an external renderer's gateway>> }
+    FireStreams ..> TracerStream
+    EffectSpawnSystem ..> FireStreams : records TowardOf
+    ProjectileLayer ..> FireStreams : Dashes per frame
+    EntityBodyLayer3D ..> AimRules
+    EntityBodyLayer3D ..> MotionRules
+    EntityBodyLayer3D ..> Carriage
+    NodeExtension ..> FireStreams
+    NodeExtension ..> AimRules
+    NodeExtension ..> CameraSuggestion : reads
+    NodeExtension ..> EffectRules
+```
+*What the picture shows that prose hid: every arrow from the map and every arrow from a node extension lands on the SAME box — there is no second copy
+of a rule to drift.*
+
+```mermaid
+sequenceDiagram
+    participant Bus as world bus (WeaponFireNotification)
+    participant Spawn as EffectSpawnSystem (map)
+    participant Shots as RecentShots (beside the world)
+    participant Layer as ProjectileLayer (map, per frame)
+    participant Ext as node extension (per frame)
+    participant FS as Hrot.Look FireStreams
+    Bus->>Spawn: fire
+    Spawn->>FS: TowardOf(fire, world)
+    Spawn->>Shots: Record(shooter, mount, now, toward)
+    Layer->>FS: Dashes(world, stream, now - at, list, out muzzle)
+    Bus->>Ext: fire
+    Ext->>FS: StreamOf(fire, world, out stream)
+    Ext->>FS: Dashes(world, stream, now - firedAt, list)
+```
+*RR-1 as built: both sides make the same two calls; the map keeps only where it remembers the stream (`RecentShots`) and the colour it draws it in.*
+
+```mermaid
+graph TD
+    Look[Hrot.Look: the rules] --> Pres[Hrot.Presentation: the map draws]
+    Look --> Ext[a node extension / gateway]
+    Pres -.->|never| Look
+    Ext -.->|never references| Pres
+    Dir[FilmDirector / FollowCameraDriver / PossessionStation] -->|RR-6 writes each frame| Sugg[CameraSuggestion singleton on the node's world]
+    Sugg --> Ext
+    Replay[replay playback: injects recorded events] -->|RR-7| Rules2[EffectRules.ForFrame]
+    style Sugg stroke-dasharray: 5 5
+```
+*Who calls what each frame. Dashed: RR-6's singleton does not exist yet — it is written only on a node that runs a map (the director and the follow camera
+are map-side), so a node extension in that process reads it; a headless node has no camera to suggest (D-1).*
+
+## 3. Per item — what moves, where it lands, what stays
+
+| item | id | moves to `Hrot.Look` | stays in the map, and why | state |
+|---|---|---|---|---|
+| **RR-1** tracer streams | [CE-11001](../../blueprints/Blueprint_Issues_Tracker.md) | `Hrot.Look.Effects.FireStreams`: `Window` 0.35 s · `Spacing` 5 m · `DashLength` 1.8 m · `Speed` 900 m/s · `MaxLength` 500 m · `StreamConeCos` 0.7071 · `IsAutomatic(mount)` · `StreamOf(fire, world, out TracerStream)` · `TowardOf(fire, world)` · `StreamToward(…)` · `Dashes(…)` (geometry, and per stream from the live muzzle) | `RecentShots` (the map's memory of the last shot per shooter — a renderer keeps its own); the colour (255,154,48), additive, and the line width | ✅ BUILT |
+| **RR-2** aimed upper body | [CE-11002](../../blueprints/Blueprint_Issues_Tracker.md) | `TryAim` (twist ≤ 75° `HumanGait.MaxAimTwist`, pitch ≤ 35°, shoulder (crouched 0.98 : 1.41 − 0.10) / 1.8 × height), `AimInSeat` (shoulder 0.53 m, twist ≤ 160°), `HeadTurnOf` (LookOf.HeadYaw − drawn twist, ≤ TKB head limit, 70°), `PostureBlend`'s constants (0.3 / 0.12 / 0.15 s, exponential, a gap > 1 s snaps) and its per-entity easing as a caller-owned state | `FigureMotion` (it builds a `MotionPose` for the block figure — a drawing); the lean shear | ⏳ next |
+| **RR-3** spinning parts, leans | [CE-11003](../../blueprints/Blueprint_Issues_Tracker.md) | rotor 4.3 rev/s, run-on 20 s, spool 3 s; drone 7.3; antenna 0.6; flail 4 rev/s, spool 1 s; the bank `−atan(v·yawRate/g)` ≤ 35°, eased 0.15 s; wheel roll by distance over the wheel radius — as functions of replicated state on SIM time | the per-frame accumulator (`MotionTracker.State`) — a renderer keeps its own; ⚠ the map advances rotor angles by frame time × sim pace — the shared function takes sim seconds, the map's pacing stays its own | ⏳ |
+| **RR-4** rounds, flame | [CE-11004](../../blueprints/Blueprint_Issues_Tracker.md) | `TracerOf`, `TrailFactor`, `BurnOf`, the lying / stopped rule, the trail constants; the flame look: jets, burning spots (size clamp(r·0.7, 0.3, 8)), burning people, scorch marks — as specs | the `Color`s (an `Rgba` in Look where a colour IS the rule), the path ring buffer | ⏳ |
+| **RR-5** bodies, gaits, carriage, flail, HUD | [CE-11005](../../blueprints/Blueprint_Issues_Tracker.md) | `QuadrupedGaits`, `GaitBands`, `FlockBirds`, the grazing cycle; `Carriage.Of` + `CarriageKind` + placement; `FlailActivity.IsOn`; the HUD words (`KindOf`, `RoundName`, `Label`, `TypeName`) | `AnimalCoats` (colours of kits); the HUD's drawing and colours; `DismountDrop` (a per-entity timer of the map) | ⏳ |
+| **RR-6** the suggested camera | [CE-11006](../../blueprints/Blueprint_Issues_Tracker.md) | a NEW engine-level singleton (D-1) | the drivers themselves | ⏸ D-1 |
+| **RR-7** effects in replay | [CE-11007](../../blueprints/Blueprint_Issues_Tracker.md) | one path (D-2) | — | ⏸ D-2 (measure first) |
+| **RR-8** airborne | [CE-11008](../../blueprints/Blueprint_Issues_Tracker.md) | `Airborne.Of(world, e)` (D-3) | — | ⏸ D-3 |
+
+⭐ **Results the node extension's ports must match:** the motorcycle bank (RR-3), `Carriage.Of` (RR-5), `FlailActivity.IsOn` (RR-5), the HUD words (RR-5)
+move **verbatim** — same constants, same branches — and the map's existing rails stay the proof that the result did not change.
+
+### 3.1 RR-1 as built (`2026-11-20`)
+
+- ⭐ `Hrot.UI.Common.Effects.FireStreams` and `EffectSpawnSystem.StreamToward` / `StreamConeCos` / `AimPointOf` are **gone**; one class,
+  `Hrot.Look.Effects.FireStreams`. The spawner records `FireStreams.TowardOf(fire, world)`; `ProjectileLayer.DrawStreams` draws
+  `FireStreams.Dashes(world, stream, since, list, out muzzle)`.
+- ⭐ **Deviation from a frozen-muzzle struct, measured:** the map re-reads the muzzle EVERY FRAME (`Muzzle.TryOf` inside the draw loop) — a turning
+  turret carries its stream. ⇒ `TracerStream` holds the shooter and mount, not a muzzle; the per-instant `Dashes` reads the live muzzle. A renderer that
+  only has the notification gets the identical picture.
+- ⭐ **Result identical to before:** the same constants and branches; `TowardOf` reads the target, the aim posture and the launch exactly as the spawner
+  did (`view` there IS the world, `EffectSystems.cs:135`).
+- Rails: `Hrot.Look.Tests.FireStreamsTests` (`RR1_*`, the per-fire result, the point-shot fallback, 0 B per instant); the map's own
+  `EffectTests.CE1105_*` / `CE1357_*` now call the Look class.
+
+## 4. What this design does NOT move, and why
+
+| | |
+|---|---|
+| ⛔ any drawing — meshes, `MotionPose`-to-matrix, colours that are style rather than rule | ⭐ a renderer has its own models; it needs the NUMBERS (angles, rates, points, kinds) |
+| ⛔ per-frame accumulators (`MotionTracker.State`, `PostureBlend._states`, `RecentShots`) as shared state | ⭐ the RULE is shared (a pure step `next = f(prev, inputs, dt)`); each consumer owns its own state — two renderers must never share one easing state |
+| ⚠ `VisualFamily`'s namespace (`Hrot.UI.Common.Map3D`, already inside `Hrot.Look`) | a rename is a Roslyn rename across every caller — not part of this programme; filed as a note on CE-11000 |
+
+## 5. Decisions — for the user, each with a lean
+
+**D-1 (RR-6) — where the suggested camera lives.** Lean: ⭐ **an unmanaged singleton `CameraSuggestion` in `Fdp.Toolkits` (no presentation type in it:
+position, orientation quaternion, field of view, source enum {Operator, Follow, Director}, mode enum {Free, Orbit, Eyes, Shoulder, Chase, FixedKey},
+bound `Entity`, continuum distance, shoulder side ±1, a cut counter, the take/shot name as a `FixedString64`)**, written every frame by whichever driver
+holds the map camera on that node, ⛔ **not recorded, not replicated** (`DataPolicy.NoReplay | NoScenario`, node-local advice). Blast radius: one new
+component id; three writers (FilmDirector, FollowCameraDriver, the free operator camera). What would change the lean: if the external renderer runs on a
+node with NO map (a headless gateway node), the suggestion must cross nodes — then it becomes a small DDS topic, a separate step.
+
+**D-2 (RR-7) — effects in replay.** Measured: the recorder writes events and playback injects them (`RecorderSystem.cs:207`, `PlaybackSystem.cs:108`);
+the Replay Browser swaps the bus so they are readable (`ReplayBrowserSubsystem.cs:511`); the spawner stops only to avoid spawning effects a second time
+(`EffectSystems.cs:139` — the effect ENTITIES are recorded). Lean: ⭐ **the replay raises the recorded notifications (it already does on the Replay
+Browser) and `EffectRules.ForFrame` is the one path; the work is a rail that proves each replay host (Replay Browser, a cluster node in replay) raises all
+four, and fixing the hosts that do not.** ⛔ Not a second "from recorded data" entry point. What would change the lean: a replay host that cannot raise
+events (e.g. the cluster's replay drives components only) — then that host gets the injection, not the rules.
+
+**D-3 (RR-8) — airborne.** Lean: ⭐ **a pure `Hrot.Look.Airborne.Of(world, e)`**: `FlightState.Airborne` where present (aircraft, the dragon), else
+`FlockState.Mode == Flying` (a flock), else **a new bit `AnimalFlags.Flying` in the replicated `AnimalState.Flags`** written by the bird's own motion (the
+behaviors lane's animal system — today the map guesses it from speed). Blast radius: one flag bit, one writer. What would change it: if the behaviors lane
+already plans a flight state for animals.
+
+**D-4 — the small types RR-2…RR-5 need** (`MotionPose`, `ShapeKits` wheel radii, `BlockFigure` constants, `PostureBlend`): lean ⭐ **move them into
+`Hrot.Look` with the rules (namespace `Hrot.Look.Bodies`), the map using them from there** — the same move as `VisualFamily`; covered by R-4296, no
+approval needed unless you object.
