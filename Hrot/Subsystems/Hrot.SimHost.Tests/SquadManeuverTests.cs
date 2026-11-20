@@ -7358,6 +7358,56 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
         }
 
+        private static void Nav(Squad s, Entity m, Fdp.Toolkit.Navigation.NavigationResult result)
+        {
+            if (!s.Repo.IsComponentTypeRegistered<NavigationStatus>()) s.Repo.RegisterComponent<NavigationStatus>();
+            if (s.Repo.HasComponent<NavigationStatus>(m)) s.Repo.GetComponentRW<NavigationStatus>(m).Result = result;
+            else s.Repo.AddComponent(m, new NavigationStatus { Result = result });
+        }
+
+        /// <summary>⭐⭐ <c>CE-2461</c> (Urban Fight Suite U2) — a bound whose movers all STOPPED short (blocked, the point unreachable) is over
+        /// once they stopped (<see cref="SquadGates.MoverSettleSeconds"/> after the order), not at its timeout; a mover still under way keeps it
+        /// open. 📐 Live before: <c>uf-corner-fight</c>, a bound waited its whole 40 s for a man whose move had ended 6 m short.
+        /// ✅ Red-proof: <c>MoversStopped</c> ignored ⇒ the bound waits out its 60 s ⇒ red.</summary>
+        [Fact]
+        public void CE2461_BoundingOverwatch_MoversThatStoppedShort_EndTheBound_BeforeItsTimeout()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":20,\"BoundTimeoutSeconds\":60}");
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
+            Nav(s, s.Members[0], Fdp.Toolkit.Navigation.NavigationResult.FailedUnreachable);
+            Nav(s, s.Members[1], Fdp.Toolkit.Navigation.NavigationResult.InProgress);
+            for (int i = 0; i < 250; i++) s.Tick();   // ~4 s of ticks (⛔ not Pause: a gap re-issues every order, which restarts the settle)
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);   // one mover still under way: the bound goes on
+            Nav(s, s.Members[1], Fdp.Toolkit.Navigation.NavigationResult.Arrived);
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);   // both stopped short: the other element bounds now
+        }
+
+        /// <summary>⭐ <c>CE-2461</c> — a cover point on another storey or a ledge (more than <see cref="SquadCover.MaxClimbMetres"/> above the mover)
+        /// is never a bound's pick. 📐 Live before: <c>uf-corner-fight</c>, picks at Z = 3 beside a house left the movers standing under them.
+        /// ✅ Red-proof: the height test removed ⇒ the raised point is picked ⇒ red.</summary>
+        [Fact]
+        public void CE2461_BoundingOverwatch_ACoverPointUpOnABuilding_IsNoPick()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":60}");
+            s.Tick(); s.Tick(); s.Tick();
+            var query = BoQuery(s);
+            Assert.False(query.IsNull);
+            var raised = new Vector3(9, 26, 3); var ground = new Vector3(13, 25, 0);
+            AnswerAll(s, query, raised, ground);
+            s.Tick();
+            foreach (var m in s.Members.Take(2)) s.Teleport(m, s.LastObjectives()[m]);   // Alpha is set
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);
+            var t = SquadDrillTrace.Of(s.Repo, s.Commander);
+            Assert.NotEqual(raised, t.Orders[2].Point);
+            Assert.NotEqual(raised, t.Orders[3].Point);
+            Assert.True((t.Orders[2].Cover && t.Orders[2].Point == ground) || (t.Orders[3].Cover && t.Orders[3].Point == ground), "the ground point is still picked");
+        }
+
         // ── CE-2158 F-b — fire and movement (Squad Tactics §7.6.1) ──────────────────────────────────────────────────────────────
 
         private const string FmOrder = "{\"Objective\":[6,80,0],\"RushMetres\":15}";

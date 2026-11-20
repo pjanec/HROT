@@ -33,6 +33,9 @@ namespace Hrot.AI.Behaviors.Brains
         public const float MinProgressMetres = 3f;
         /// <summary>Two movers' picks at least this far apart (m).</summary>
         public const float PickSpacingMetres = 2f;
+        /// <summary>⭐ <c>CE-2461</c> (Urban Fight Suite U2) — a pick at most this far above or below the mover (m): a bound is a ground move, and a
+        /// cover point on a building's ledge or upper storey (📐 live: Z = 3 beside <c>res-bw-17</c>) left the mover standing under it.</summary>
+        public const float MaxClimbMetres = 1.5f;
         /// <summary>The query gives up after this long; the movers keep the play's geometric points (s).</summary>
         public const float PickTimeoutSeconds = 5f;
 
@@ -120,6 +123,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     var pt = new Vector2(answers[k].PositionX, answers[k].PositionY);
                     if (Vector2.Distance(pt, me) > reachMetres) continue;
+                    if (MathF.Abs(answers[k].PositionZ - me3.Z) > MaxClimbMetres) continue;   // ⭐ CE-2461 — never a point on another storey or a ledge
                     float progress = dist - Vector2.Distance(pt, obj);
                     if (progress < bestProgress || Near(taken[..takenCount], pt)) continue;
                     best = k; bestProgress = progress;

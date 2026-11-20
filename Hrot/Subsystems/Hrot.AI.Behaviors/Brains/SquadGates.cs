@@ -69,6 +69,29 @@ namespace Hrot.AI.Behaviors.Brains
             return true;
         }
 
+        /// <summary>⭐ <c>CE-2461</c> — a move order's navigation result is trusted only this long after the order (s): before it the member's
+        /// status may still be his PREVIOUS move's (an "Arrived" from the last bound).</summary>
+        public const float MoverSettleSeconds = 3f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2461</c> (Urban Fight Suite U2) — every live mover of <paramref name="movers"/> has STOPPED trying: his navigation is no
+        /// longer <see cref="Fdp.Toolkit.Navigation.NavigationResult.InProgress"/> (arrived short of his point, blocked, or the point is
+        /// unreachable), at least <see cref="MoverSettleSeconds"/> after the order. The hill attack's baseline wait (CE-2439) reads the same
+        /// status the same way; a member's <c>NavigationStatus</c> is a declared brain-phase read (<c>AiBrainReads</c>). 📐 Live before: a
+        /// bound waited its whole timeout (40 s) for a man whose move had ended 6 m short of an unreachable cover point, his element standing.
+        /// </summary>
+        public static bool MoversStopped(in SquadPlayContext ctx, ushort movers, double issuedAt)
+        {
+            if (ctx.Now - issuedAt < MoverSettleSeconds) return false;
+            for (int i = 0; i < ctx.Roster.Count && i < 16; i++)
+            {
+                if ((movers & (1 << i)) == 0 || !ctx.Live(i, out var m)) continue;
+                if (!ctx.World.HasComponent<Fdp.Toolkit.Navigation.NavigationStatus>(m)) return false;
+                if (ctx.World.GetComponentRO<Fdp.Toolkit.Navigation.NavigationStatus>(m).Result == Fdp.Toolkit.Navigation.NavigationResult.InProgress) return false;
+            }
+            return true;
+        }
+
         /// <summary>⭐ <c>CE-2158</c> F-b — a mover "is set" this close to the point his order sent him to (m).</summary>
         public const float SetMetres = 1.5f;
 

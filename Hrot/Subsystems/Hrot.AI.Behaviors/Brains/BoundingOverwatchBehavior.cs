@@ -200,9 +200,11 @@ namespace Hrot.AI.Behaviors.Brains
             evt = PhaseEventKind.DefiladeReached;
             if (!MoversSet(in p, in ws, in ctx, moving))
             {
-                if (ctx.Now - ws.IssuedAt < p.BoundTimeoutSeconds) return false;
+                // ⭐ CE-2461 — the movers all STOPPED short (blocked, the point unreachable): the bound is over now, not at its timeout
+                bool stopped = SquadGates.MoversStopped(in ctx, SquadGates.Element(in ctx, moving), ws.IssuedAt);
+                if (!stopped && ctx.Now - ws.IssuedAt < p.BoundTimeoutSeconds) return false;
                 evt = PhaseEventKind.BoundComplete;
-                ws.CompletedByTimeout = 1;   // ⭐ CE-2157 (O-a) — the trace shows a timed-out bound as Timeout
+                if (!stopped) ws.CompletedByTimeout = 1;   // ⭐ CE-2157 (O-a) — the trace shows a timed-out bound as Timeout
                 // ⭐ CE-2284 — a timed-out bound that gained (almost) nothing is a stall
                 var at = ctx.Centre(moving, out bool any);
                 var left = p.Objective - at; left.Z = 0f;
