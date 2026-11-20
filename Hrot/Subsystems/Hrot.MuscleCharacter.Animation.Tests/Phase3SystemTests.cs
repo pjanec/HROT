@@ -249,12 +249,15 @@ namespace Hrot.MuscleCharacter.Animation.Tests
             var system = new StanceTransitionSystem(backend);
 
             var entity = CreateStanceEntity(repo, ActorCapabilities.CanChangeStance);
+            repo.SetSingletonUnmanaged(new Fdp.Core.GlobalTime { TotalTime = 21.5 });   // ⭐ CE-11014 — the start is the sim clock's
 
             system.Execute(repo, 0.016f);
 
             var status = repo.GetComponent<StanceStatus>(entity);
             Assert.Equal(1u, status.AckVersion);
             Assert.Equal(StanceTransitionPhase.Transitioning, status.Phase);
+            // ⭐ CE-11014 — when it started, from where, for how long (the intent's 0.3 s): recorded on the replicated status
+            Assert.Equal((21.5, StanceId.Standing, 0.3f), (status.TransitionStartedAt.Seconds, status.FromStance, status.TransitionSeconds.Seconds));
         }
 
         [Fact]

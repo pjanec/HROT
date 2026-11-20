@@ -1996,13 +1996,12 @@ public static partial class BlockFigure
 public sealed class StanceBlend
 {
     /// <summary>Standing ↔ crouched (s, sim time).</summary>
-    public const float CrouchSeconds = 0.35f;
+    public const float CrouchSeconds = StanceTiming.CrouchSeconds;   // ⭐ CE-11014 — the ONE stance timing (the muscle applies it too)
 
     /// <summary>Into or out of prone (s, sim time).</summary>
-    public const float ProneSeconds = 0.8f;
+    public const float ProneSeconds = StanceTiming.ProneSeconds;
 
-    public static float SecondsBetween(StanceId a, StanceId b)
-        => a == b ? 0f : a == StanceId.Prone || b == StanceId.Prone ? ProneSeconds : CrouchSeconds;
+    public static float SecondsBetween(StanceId a, StanceId b) => StanceTiming.SecondsBetween(a, b);
 
     private struct State
     {
@@ -2036,7 +2035,7 @@ public sealed class StanceBlend
         }
         float t = Raw(st, simTime);
         if (muscle is { Phase: StanceTransitionPhase.Transitioning } m && m.CurrentStance == st.From && now == st.To)
-            t = MathF.Max(t, Math.Clamp(m.TransitionProgress, 0f, 1f));
+            t = MathF.Max(t, m.TransitionSeconds.Seconds > 0f ? StanceTiming.ProgressAt(in m, simTime) : Math.Clamp(m.TransitionProgress, 0f, 1f));   // ⭐ CE-11014 — the body's own start and duration
         t = MathF.Max(t, st.Floor);
         st.Floor = t;
         _states[e] = st;
