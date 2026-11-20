@@ -2,6 +2,10 @@ using Fdp.Core;
 
 namespace Hrot.UI.Common.Map3D;
 
+// ⭐ CE-11005 (RR-5, docs/designs/vehicle-appearance/DESIGN_Look_Rules_For_Renderers.md) — moved VERBATIM from Hrot.Presentation into the shared look
+//   library so an external renderer calls the same rule the map does; the namespace is kept (as VisualFamily's was) so no caller changed — the
+//   rename to Hrot.Look.* is one Roslyn rename, filed on CE-11000.
+
 /// <summary>
 /// ⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a, MS-U4) — the 3-D map's question "is this mine clearer's flail turning?" — it spins the flail drum
 /// (<see cref="PartRole.FlailDrum"/>, <see cref="MotionTracker"/>) and holds the flail loop (<c>SoundSources</c>). ⭐ ONE reader, so the drum and the sound cannot disagree and every host

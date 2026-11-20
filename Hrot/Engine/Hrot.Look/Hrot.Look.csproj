@@ -12,6 +12,11 @@
     <CycloneDdsDisableCodeGen>true</CycloneDdsDisableCodeGen>
   </PropertyGroup>
   <ItemGroup>
+    <!-- ⭐ CE-11005 (RR-5) — FlailActivity.Override, the map rails' seam, moved here with the rule -->
+    <InternalsVisibleTo Include="Hrot.Presentation.Tests" />
+    <InternalsVisibleTo Include="Hrot.Presentation" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits\Fdp.Toolkits.csproj" />
     <ProjectReference Include="..\Hrot.Core\Hrot.Core.csproj" />
   </ItemGroup>

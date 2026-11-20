@@ -92,32 +92,6 @@ public enum PartRole : byte
     Neck,
 }
 
-/// <summary>
-/// ⭐ CE-1033 S4 (docs/DESIGN_Map_3D_Mode.md §6, "things come alive") — the moving parts' pose for one frame: the main-rotor
-/// angle, the wheels' roll angle (radians) and the limb swing (radians, + = the left leg forward). Default: all still.
-/// </summary>
-/// <para>⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13e) — and the block figure's UPPER BODY (<see cref="KitPart.Upper"/> parts): <paramref name="Lean"/>
-/// tilts it forward about the hip (radians; a run, and an aim pitched down), <paramref name="Twist"/> turns it about the vertical
-/// (radians, counter-clockwise; an aim to the side), about a hip at <paramref name="HipZ"/> of the figure's height.</para>
-/// <para>⭐ WL-6c — the gait itself: <paramref name="Stride"/> (0..1, how much the figure is walking or running) and its
-/// <paramref name="GaitPhase"/> (radians; <c>Swing = amplitude · sin(phase)</c>); <paramref name="KneeFlexL"/> / <paramref name="KneeFlexR"/>
-/// bend each shin back about its knee (radians) — the foot lifting as the leg swings through.</para>
-/// <para>⭐ WL-6d — <paramref name="Moving"/> (0..1, from the speed alone — a crawl is too slow to read as a walk) and the
-/// <paramref name="CrawlPhase"/> (radians, one cycle per <c>MotionTracker.CrawlMetres</c>).</para>
-/// <para>⭐ CE-1204 (docs/DESIGN_Entity_Control.md §8l LK-5) — <paramref name="HeadTurn"/>: the HEAD (the <see cref="FaceOn.Front"/> part)
-/// turns about its own vertical axis by this much off the torso (radians, counter-clockwise), before the torso's <paramref name="Twist"/>
-/// carries it — so the head points where his eyes do (the replicated look's head yaw).</para>
-/// <para>⭐ CE-4623 (animals, AU-3) — <paramref name="Gait"/> + <paramref name="GaitPhase"/> + <paramref name="Swing"/> (the amplitude) give each quadruped leg its own swing
-/// (<see cref="QuadrupedGaits.LegAngle"/>); <paramref name="Tuck"/> (0..1) draws the legs folded up in a jump; <paramref name="Wing"/> is a bird's wing angle (radians);
-/// <paramref name="Head"/> an animal's head pitch about its withers (+ = down).</para>
-/// <para>⭐ CE-4624 — <paramref name="Flail"/>: the mine clearer's flail drum angle (radians) about its lateral axis (+ = the top turning forward, <see cref="PartRole.FlailDrum"/>).</para>
-public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing, float Lean = 0f, float Twist = 0f, float HipZ = 0.5f,
-                                         float Stride = 0f, float GaitPhase = 0f, float KneeFlexL = 0f, float KneeFlexR = 0f,
-                                         float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f, float Antenna = 0f, float Bank = 0f,
-                                         float Wing = 0f, float Head = 0f, float Tuck = 0f, QuadGait Gait = QuadGait.Stand, float Flail = 0f)
-{
-    public static readonly MotionPose Still = default;
-}
 
 /// <summary>
 /// ⭐ CE-1033 — the pose of a kit's articulated parts: turret azimuth RELATIVE TO THE HULL (radians, counter-clockwise seen from
