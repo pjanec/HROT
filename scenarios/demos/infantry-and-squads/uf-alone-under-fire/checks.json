@@ -12,7 +12,8 @@
         "who": "Hostile 1",
         "component": "WeaponState",
         "patch": {
-          "Ammo": 0
+          "Ammo": 0,
+          "MagazineRounds": 0
         }
       }
     },
@@ -23,7 +24,8 @@
         "who": "Hostile 2",
         "component": "WeaponState",
         "patch": {
-          "Ammo": 0
+          "Ammo": 0,
+          "MagazineRounds": 0
         }
       }
     }
