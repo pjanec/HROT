@@ -633,6 +633,43 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8311</c> (D-15, user-approved 2026-11-20) — a man SUPPRESSING a hidden enemy never does it standing in the open: with no cover in
+        /// reach he lies down (the decision's winner forced to Suppress); once his cover sensor answers a point he fights FROM it — the take-cover
+        /// cycle (PeekAndFire) runs, its own cover sensor up. 📐 live bt-window-duel: a lone attacker blind-fired standing for 12 s, Van 1 4.5 m
+        /// away, and was shot. 🔴 Red-proofs: Suppress without the prone stance ⇒ standing ⇒ red; the from-cover branch removed ⇒ PeekAndFire never
+        /// runs ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE8311_ASuppressingMan_LiesDownInTheOpen_AndFightsFromCoverInReach()
+        {
+            var w = new World();
+            w.Arm();
+            w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+            SeesNothing(w);
+            w.Contact(armed: true);
+            w.Order("CombatPosture", Objective);
+            Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+            void Suppressing(int ticks, Entity cover = default)
+            {
+                for (int i = 0; i < ticks; i++)
+                {
+                    if (w.TaskName == "CombatPosture") Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.Suppress;
+                    if (!cover.IsNull) w.AnswerScored(cover, 5, 3f, 3f, 0.8f);
+                    w.Tick();
+                }
+            }
+            Suppressing(10);
+            Assert.Equal("CombatPosture", w.TaskName);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Prone, Stance(w));
+            Assert.False(Block(w, hash)->PeekState.CoverSensor.IsValid, "no cover in reach: he suppresses where he lies");
+
+            var coverSensor = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
+            Assert.False(coverSensor.IsNull, "the posture's cover sensor is up");
+            Suppressing(10, coverSensor);
+            Assert.True(Block(w, hash)->PeekState.CoverSensor.IsValid, "cover in reach: he fights from it (the take-cover cycle runs)");
+        }
+
+        /// <summary>
         /// ⭐⭐ AQ89 B/C/D — a grenadier at a hidden enemy CLOSES TO THROW under his own blind fire only when WILLING: brave on his own
         /// (risk 0.8), or ordered to assault (an ordinary soldier's obedience 0.8). An ordinary grenadier left to himself (0.5), or a
         /// disobedient one ordered to assault (0.3), suppresses where he is.

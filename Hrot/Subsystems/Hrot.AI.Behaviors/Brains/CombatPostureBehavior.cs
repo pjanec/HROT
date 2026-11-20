@@ -242,6 +242,11 @@ namespace Hrot.AI.Behaviors.Brains
                                 .Sequence(close => close
                                     .StatefulCondition(bb => bb.Willing, bb => bb.SuppressThrowState, PostureNodes.WillingToClose)
                                     .StatefulAction(bb => bb.Throw, bb => bb.SuppressThrowState, EqsTacticsNodes.CloseToThrow))
+                                // ⭐⭐ CE-8311 (D-15, user-approved 2026-11-20) — cover in reach: suppress FROM it (the take-cover cycle's blind
+                                //   bursts); none: lie down and suppress. ⛔ Was: he suppressed standing wherever he was (bt-window-duel)
+                                .Sequence(fromCover => fromCover
+                                    .StatefulCondition(bb => bb.Sensors, bb => bb.SensorsState, PostureNodes.CoverInReach)
+                                    .StatefulAction(bb => bb.Peek, bb => bb.PeekState, PeekAndFireNodes.PeekAndFire))
                                 .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.Suppress)))
                         .Sequence(prone => prone
                             .StatefulCondition(bb => bb.IsHoldProne, bb => bb.Choice, UtilityNodes.IsOption)

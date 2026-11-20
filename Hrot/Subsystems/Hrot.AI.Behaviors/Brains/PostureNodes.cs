@@ -254,10 +254,16 @@ namespace Hrot.AI.Behaviors.Brains
         /// ⭐⭐ AQ89 A (R-269) — <see cref="Engage"/> that SUPPRESSES: aimed fire while the top threat is seen, and while it is hidden
         /// slow rounds at where the memory last placed it (the weapon brain's blind fire) instead of an idle hold — they strike his
         /// cover and spoil his aim (<c>UnderFire</c>, AQ85 E). Running; Failure when the unit has no weapon channel.
+        /// ⭐ <c>CE-8311</c> (D-15) — it runs only with no cover in reach (the branch fights from cover first, <see cref="CoverInReach"/>): he LIES DOWN
+        /// and suppresses from there, never standing in the open.
         /// </summary>
         [SharedAiAction]
         public static NodeStatus Suppress(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
-            => Fire(world, self, ref ws, p.CooldownSeconds, blind: true) ? NodeStatus.Running : NodeStatus.Failure;
+        {
+            if (!Fire(world, self, ref ws, p.CooldownSeconds, blind: true)) return NodeStatus.Failure;
+            StanceRequest.Set(world, self, StanceId.Prone, GoProneSeconds);
+            return NodeStatus.Running;
+        }
 
         /// <summary>
         /// ⭐⭐ AQ89 C (R-269) — may the Suppress branch CLOSE to throw? All of: the top threat identified, remembered live and HIDDEN
@@ -602,10 +608,30 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Engage(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
             => StopFiring(world, self, ref ws);
 
-        /// <summary>⭐ AQ89 A — leaving the suppression: the weapon stops.</summary>
+        /// <summary>⭐ AQ89 A — leaving the suppression: the weapon stops; ⭐ CE-8311 (D-15) — and he gets up (he suppressed prone).</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.Suppress")]
         public static void Deactivate_Suppress(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
-            => StopFiring(world, self, ref ws);
+        {
+            StopFiring(world, self, ref ws);
+            StanceRequest.Set(world, self, StanceId.Standing, GetUpSeconds);
+        }
+
+        /// <summary>⭐ <c>CE-8311</c> (D-15) — a cover answer this good is cover worth moving to before suppressing.</summary>
+        public const float SuppressCoverScore = 0.05f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8311</c> (D-15, user-approved 2026-11-20) — the posture's cover sensor (<see cref="PostureSensors"/>, within the TakeCover branch's
+        /// own reach, CE-4652) holds a cover point: the SUPPRESS branch then fights from it — the take-cover cycle (<see cref="PeekAndFireNodes.PeekAndFire"/>:
+        /// hide, expose, a blind burst at the freshest evidence, D13) — instead of standing where he is. 📐 live <c>bt-window-duel</c>: a lone attacker
+        /// blind-fired at a window for 12 s standing in the open, Van 1 4.5 m away, and was shot. The same buffer the decision's cover score reads.
+        /// </summary>
+        [SharedAiCondition]
+        public static bool CoverInReach(ref PostureSensorsParams p, ref PostureSensorsState ws, Entity self, EntityRepository world)
+        {
+            if (!ws.Cover.IsValid || !world.IsAlive(ws.Cover.ChildId) || !world.HasComponent<EqsCognitiveBuffer>(ws.Cover.ChildId)) return false;
+            ref readonly var buf = ref world.GetComponentRO<EqsCognitiveBuffer>(ws.Cover.ChildId);
+            return buf.IsReady && buf.Count > 0 && buf.GetTop().Score > SuppressCoverScore;
+        }
 
         /// <summary>⭐ <c>CE-3090</c> — leaving the prone hold: the weapon stops and the unit gets up (<c>CE-2121</c>).</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne")]

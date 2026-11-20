@@ -3049,6 +3049,33 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8312</c> (📐 <c>ia-area-defend</c>) — the all-round defence's COVERAGE fan looks from where each post WATCHES: a Regular's two window
+        /// posts are frame posts (0.5 m inside the wall, beside the opening), and the fan's origins are their OPENINGS on the wall (y 25), not the frame
+        /// points. ✅ Red-proof: the fan from the post point ⇒ origins at y 24.5 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8312_TheCoverageFan_LooksFromAFramePostsOpening_NotFromBehindTheWall()
+        {
+            var s = new Squad(members: 1);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            s.Repo.AddComponent(s.Members[0], new CombatProficiency { Authored = ProficiencyOf.Regular, Set = CombatProficiency.AuthoredSet });
+            s.FrameSurvey = NorthFace((2f, 1f), (12f, 1f));
+            s.CoverageSurvey = null;   // never answered: the request stays up to be read
+            s.Teleport(s.Members[0], new Vector3(7, 30, 0));
+            s.Order("{\"Position\":[7,32,0],\"SearchRadius\":10}", BehaviorNames.SquadDefend);   // all-round: no engagement area
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 24.5f, 0), new Vector3(12, 24.5f, 0));
+            for (int i = 0; i < 6; i++) s.Tick();
+            var fan = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, SquadDefendPlay.CoverageSite);
+            Assert.False(fan.IsNull, "the coverage fan was asked");
+            var origins = s.Repo.GetComponent<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(fan).Origins;
+            Assert.Equal(2, origins.Count);
+            Assert.All(origins, o => Assert.Equal(25f, o.Y, 2));   // on the wall, in the opening
+            Assert.Contains(origins, o => MathF.Abs(o.X - 2f) < 0.01f);
+            Assert.Contains(origins, o => MathF.Abs(o.X - 12f) < 0.01f);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-3463</c> (📐 <c>ia-area-defend</c>) — an ALL-ROUND frame post faces OUT THROUGH ITS WINDOW (DA-79): the defended centre lies
         /// in the open NORTH of a north-facing window, so "outward from the centre" would aim him SOUTH into his own house; his arc (where he
         /// looks and may fire) covers the north. ✅ Red-proof: the outward arc ⇒ the north point is outside it.
