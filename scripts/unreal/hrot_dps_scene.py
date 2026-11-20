@@ -1,6 +1,7 @@
 """hrot_dps_scene.py — CE-4651 (U-18b): the DPS WORLD proof, run in the full Unreal EDITOR (-ExecutePythonScript).
 
-    HROT_DPS_SCENE_JOB = { "domain", "partition", "seconds", "ready", "out", "shots", "pictures": [{"name", "at", "look", "back", "up"}] }
+    HROT_DPS_SCENE_JOB = { "domain", "partition", "seconds", "ready", "out", "shots", "simBase",
+                           "pictures": [{"name", "sim" (scene seconds: sim time - simBase), "look", "back", "up", "top"}] }
 
 A flat level played in Simulate; UHrotDpsWorld joins the station; the test's publisher (the stand-in for the gateway: same protocol
 assembly, the gateway's send rule) starts when the ready file appears. Records, every 50 ms, each entity's SHOWN position (contract
@@ -87,7 +88,13 @@ def run():
             loc = a.get_actor_location() if a else None
             R["track"].append([round(now, 4), i, round(p.x, 4), round(p.y, 4), round(p.z, 4),
                                [round(loc.x, 1), round(loc.y, 1), round(loc.z, 1), round(a.get_actor_rotation().yaw, 2)] if a else None])
-    if S["pics"] and t >= S["pics"][0]["at"]:
+    r = unreal.HrotShotRenderer.for_world(UES().get_game_world())   # what the shot renderer DREW this frame (U-18c)
+    if r:
+        lt, lf = r.get_editor_property("live_tracers"), r.get_editor_property("live_flashes")
+        R["maxLiveTracers"] = max(R.get("maxLiveTracers", 0), lt); R["maxLiveFlashes"] = max(R.get("maxLiveFlashes", 0), lf)
+        if lt or lf: R.setdefault("shotFrames", []).append([round(w.sim_now() - float(JOB.get("simBase", 0)), 2), lt, lf])
+    scene = w.sim_now() - float(JOB.get("simBase", 0)) if w.sim_now() > 0 else -1   # ⭐ pictures on the SIM clock: a burst is caught mid-burst
+    if S["pics"] and scene >= S["pics"][0]["sim"]:
         pic = S["pics"].pop(0)
         if pic.get("top"):   # straight down, screen up = east (+X), screen right = south (+Y)
             UES().set_level_viewport_camera_info(unreal.Vector(pic["look"][0], pic["look"][1], pic.get("up", 5000)), unreal.Rotator(pitch=-90, yaw=0, roll=0))
@@ -100,10 +107,11 @@ def run():
         unreal.AutomationLibrary.take_high_res_screenshot(1600, 900, path, None)
         R["shots"].append(path)
         R["describe"][name] = {str(i): w.describe(i) for i in w.entity_ids()}
-        log(f"picture {name} at sim {w.sim_now():.2f}")
+        log(f"picture {name} at scene {w.sim_now() - float(JOB.get('simBase', 0)):.2f} s")
     if t >= float(JOB["seconds"]):
         R["final"] = {str(i): w.describe(i) for i in w.entity_ids()}
         R["spawned"], R["removed"] = w.spawned_total(), w.removed_total()
+        R["events"] = dict(w.event_counts())
         LES().editor_request_end_play(); S.update(phase="end", t=time.time() + 3)
 
 

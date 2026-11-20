@@ -3,6 +3,8 @@
 #include "HrotDpsNative.h"
 #include "HrotDpsSubsystem.h"
 #include "HrotVehicle.h"
+#include "HrotShotRenderer.h"
+#include "HrotExplosionFx.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
@@ -20,6 +22,12 @@ namespace
 	using FSession = SimNetGateway_Protocol_DdsPlayer_Session;
 	using FEntity = SimNetGateway_Protocol_DdsPlayer_Entity;
 	using FState = SimNetGateway_Protocol_DdsPlayer_EntityState;
+	using FArt = SimNetGateway_Protocol_DdsPlayer_Articulation;
+	using FFire = SimNetGateway_Protocol_DdsPlayer_Fire;
+	using FDet = SimNetGateway_Protocol_DdsPlayer_Detonation;
+	using FEffect = SimNetGateway_Protocol_DdsPlayer_Effect;
+	/** a contract direction (ENU) → Unreal (no scale) */
+	FVector Dir(const SimNetGateway_Protocol_DdsPlayer_Vec3f& V) { return FVector(V.X, -V.Y, V.Z).GetSafeNormal(); }
 
 	const TCHAR* DomainName(uint8 D)
 	{
@@ -57,6 +65,8 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	for (const auto& K : KitsByDomain) if (UObject* O = K.Value.LoadSynchronous()) Preloaded.Add(O);
 	if (UObject* O = PersonMesh.LoadSynchronous()) Preloaded.Add(O);
 	if (UObject* O = PersonClip.LoadSynchronous()) Preloaded.Add(O);
+	MgFx = UHrotWeaponFx::HeavyMgFx(); RifleFx = UHrotWeaponFx::LyraRifleFx();
+	Events.Reset();
 	Dps->Stop();   // a fresh client: its new readers deliver the late-join history to THESE handlers
 	if (!Dps->Start(Domain, Partition)) return false;
 	FHrotDpsClient& C = Dps->Client();
@@ -67,6 +77,10 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_Session"), &UHrotDpsWorld::OnSession);
 	Sub(TEXT("DPS_Entity"), &UHrotDpsWorld::OnEntity);
 	Sub(TEXT("DPS_EntityState"), &UHrotDpsWorld::OnState);
+	Sub(TEXT("DPS_Articulation"), &UHrotDpsWorld::OnArticulation);
+	Sub(TEXT("DPS_Fire"), &UHrotDpsWorld::OnFire);
+	Sub(TEXT("DPS_Detonation"), &UHrotDpsWorld::OnDetonation);
+	Sub(TEXT("DPS_Effect"), &UHrotDpsWorld::OnEffect);
 	UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: joined domain %d partition '%s'"), Domain, *Partition);
 	return true;
 }
@@ -166,6 +180,112 @@ void UHrotDpsWorld::OnState(const FHrotDpsSample& S)
 	SpawnIfReady(D.EntityId, E);
 }
 
+// ── shots and blasts (U-18c) ──
+
+void UHrotDpsWorld::OnArticulation(const FHrotDpsSample& S)
+{
+	const FArt& D = *static_cast<const FArt*>(S.Data);
+	if (!S.bValid || D.PartKind != SimNetGateway_Protocol_DdsPlayer_ArticulationKindTurret || D.Index != 0) return;   // the kits have one turret
+	FEnt* E = Ents.Find(D.EntityId);
+	if (!E) return;
+	// Azimuth: rad, counter-clockwise from the hull's forward -> Unreal yaw (clockwise from above); Elevation: rad, up -> Unreal pitch
+	E->TurretYaw = -FMath::RadiansToDegrees(D.Azimuth);
+	E->GunPitch = FMath::RadiansToDegrees(D.Elevation);
+	if (AHrotVehicle* V = Cast<AHrotVehicle>(E->Actor.Get())) { V->SetAim(E->TurretYaw, E->GunPitch); Count(TEXT("turret")); }
+}
+
+void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
+{
+	if (!S.bValid) return;
+	const FFire& D = *static_cast<const FFire*>(S.Data);
+	Clock.OnSample(D.SimTime, RealNow());
+	UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld());
+	FEnt* Shooter = Ents.Find(D.ShooterId);
+	const FVector From = HrotDpsMotion::ToUnreal(FVector3d(D.Origin.X, D.Origin.Y, D.Origin.Z), OriginCm);
+	switch (D.WeaponCategory)
+	{
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryTankGun:
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryHowitzer:
+		if (AHrotVehicle* V = Shooter ? Cast<AHrotVehicle>(Shooter->Actor.Get()) : nullptr)
+		{
+			V->FireMainGun();   // the kit's tuned flash, blast and smoke at its own muzzle (the turret follows Articulation)
+			Shooter->MainGunAt = RealNow();
+			Count(TEXT("main gun"));
+		}
+		else Count(TEXT("not drawn: main gun without a vehicle"));
+		return;
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryMachineGun:
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAutocannon:
+		if (R)
+		{
+			// HROT's FireStreams: every shot of a machine gun or autocannon shows tracer dashes running out from the muzzle toward the aim,
+			// up to 500 m - here the shot renderer's one streak per shot (its speed and look); the dash spacing is not ported yet
+			R->AddTracer(From, From + Dir(D.Velocity) * 50000.0);
+			R->PlaySound(MgFx.Sound, From, MgFx.SoundAttenuation, MgFx.SoundConcurrency, MgFx.SoundVolume, MgFx.SoundPitch);
+		}
+		Count(TEXT("tracer"));
+		return;
+	case SimNetGateway_Protocol_DdsPlayer_WeaponCategorySmallArms:
+		if (R) R->PlaySound(RifleFx.Sound, From, RifleFx.SoundAttenuation, RifleFx.SoundConcurrency, RifleFx.SoundVolume, RifleFx.SoundPitch);
+		Count(TEXT("rifle shot"));
+		return;
+	default:
+		Count(TEXT("not drawn: fire of another category"));   // rockets, missiles, mortars: their rounds arrive as entities (later)
+	}
+}
+
+void UHrotDpsWorld::OnDetonation(const FHrotDpsSample& S)
+{
+	if (!S.bValid) return;
+	Clock.OnSample(static_cast<const FDet*>(S.Data)->SimTime, RealNow());
+	Count(TEXT("detonation"));   // its blast and ground mark arrive as Effect
+}
+
+void UHrotDpsWorld::OnEffect(const FHrotDpsSample& S)
+{
+	if (!S.bValid) return;
+	const FEffect& D = *static_cast<const FEffect*>(S.Data);
+	const double Real = RealNow();
+	Clock.OnSample(D.SimTime, Real);
+	const FVector At = HrotDpsMotion::ToUnreal(FVector3d(D.Position.X, D.Position.Y, D.Position.Z), OriginCm);
+	switch (D.Kind)
+	{
+	case SimNetGateway_Protocol_DdsPlayer_EffectKindMuzzleFlash:
+	{
+		FEnt* Anchor = D.AnchorId ? Ents.Find(D.AnchorId) : nullptr;
+		AHrotVehicle* V = Anchor ? Cast<AHrotVehicle>(Anchor->Actor.Get()) : nullptr;
+		if (V && Anchor->MainGunAt >= 0 && Real - Anchor->MainGunAt < 0.5) { Count(TEXT("flash (the main gun's own)")); return; }
+		UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld());
+		if (!R) return;
+		// at the anchor's muzzle when it is a vehicle the kit knows; else where the producer says, facing its rotation
+		FQuat4d Q(D.Rotation.X, D.Rotation.Y, D.Rotation.Z, D.Rotation.W);
+		if (Q.SizeSquared() < 0.5) Q = FQuat4d::Identity;
+		const FTransform M = V && V->Kit ? V->MuzzleTransform() : FTransform(HrotDpsMotion::ToUnreal(Q.GetNormalized()), At);
+		R->AddFlash(M, FMath::Clamp(D.Size * FlashPerMetre, 0.5f, 12.f));
+		Count(TEXT("flash"));
+		return;
+	}
+	case SimNetGateway_Protocol_DdsPlayer_EffectKindExplosion:
+	{
+		EHrotBlast Kind = EHrotBlast::Rocket;
+		switch (D.SizeClass)
+		{
+		case SimNetGateway_Protocol_DdsPlayer_EffectSizeSmall: Kind = EHrotBlast::Grenade; break;
+		case SimNetGateway_Protocol_DdsPlayer_EffectSizeMedium: Kind = EHrotBlast::Rocket; break;
+		case SimNetGateway_Protocol_DdsPlayer_EffectSizeLarge: Kind = EHrotBlast::TankHE; break;
+		default: Kind = D.Size < 3.f ? EHrotBlast::Grenade : D.Size < 8.f ? EHrotBlast::Rocket : EHrotBlast::TankHE;
+		}
+		UHrotExplosionFx::Explode(GetWorld(), At, FVector::UpVector, Kind);
+		Count(FString::Printf(TEXT("explosion %s"), *StaticEnum<EHrotBlast>()->GetNameStringByValue(int64(Kind))));
+		return;
+	}
+	case SimNetGateway_Protocol_DdsPlayer_EffectKindGroundMark: Count(TEXT("not drawn: ground mark")); return;
+	case SimNetGateway_Protocol_DdsPlayer_EffectKindWreckFlame:
+	case SimNetGateway_Protocol_DdsPlayer_EffectKindWreckSmoke: Count(TEXT("not drawn: wreck flame / smoke (the vehicle's own damage look)")); return;
+	default: Count(TEXT("not drawn: effect of another kind"));
+	}
+}
+
 // ── actors ──
 
 UHrotVehicleKit* UHrotDpsWorld::KitFor(const FEnt& E) const
@@ -209,6 +329,7 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 			ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 		V->Kit = Kit;
 		V->Damage = EHrotVehicleDamage(FMath::Min<uint8>(E.Damage, 2));
+		V->TurretYaw = E.TurretYaw; V->GunPitch = E.GunPitch;
 		V->FinishSpawning(At);
 		E.DrawnAs = Kit->GetName();
 		A = V;
