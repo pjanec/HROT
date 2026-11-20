@@ -1,0 +1,151 @@
+// CE-4651 (U-18a) — see HrotDpsClient.h
+#include "HrotDpsClient.h"
+#include "HrotDpsNative.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogHrotDps, Log, All);
+
+#include "DpsTopicTable.gen.inl"
+
+namespace
+{
+	const FHrotDpsTopicDef* FindDef(const FString& Name)
+	{
+		for (const FHrotDpsTopicDef& D : GHrotDpsTopics) if (Name == D.Name) return &D;
+		return nullptr;
+	}
+
+	/** the topic's QoS exactly as the gateway's [DdsQos] (reader and writer alike) */
+	dds_qos_t* QosOf(const FHrotDpsTopicDef& D)
+	{
+		dds_qos_t* Q = dds_create_qos();
+		dds_qset_reliability(Q, D.bReliable ? DDS_RELIABILITY_RELIABLE : DDS_RELIABILITY_BEST_EFFORT, DDS_SECS(1));
+		dds_qset_durability(Q, D.bTransientLocal ? DDS_DURABILITY_TRANSIENT_LOCAL : DDS_DURABILITY_VOLATILE);
+		dds_qset_history(Q, DDS_HISTORY_KEEP_LAST, D.Depth);
+		if (D.LeaseMs > 0) dds_qset_liveliness(Q, DDS_LIVELINESS_AUTOMATIC, DDS_MSECS(D.LeaseMs));
+		return Q;
+	}
+}
+
+FHrotDpsClient::FHrotDpsClient() {}
+FHrotDpsClient::~FHrotDpsClient() { Stop(); }
+
+TArray<FString> FHrotDpsClient::TopicNames()
+{
+	TArray<FString> Out;
+	for (const FHrotDpsTopicDef& D : GHrotDpsTopics) Out.Add(D.Name);
+	return Out;
+}
+
+FString FHrotDpsClient::Contract() { return HROT_DPS_CONTRACT; }
+
+bool FHrotDpsClient::Start(uint32 InDomain, const FString& InPartition, FString& OutError)
+{
+	Stop();
+	Participant = dds_create_participant(InDomain, nullptr, nullptr);
+	if (Participant < 0)
+	{
+		OutError = FString::Printf(TEXT("dds_create_participant(%u): %hs"), InDomain, dds_strretcode(Participant));
+		Participant = 0;
+		return false;
+	}
+	Domain = InDomain;
+	Partition = InPartition;
+	dds_qos_t* Q = dds_create_qos();
+	const FTCHARToUTF8 P(*InPartition);
+	const char* Parts[] = { P.Get() };
+	dds_qset_partition(Q, 1, Parts);
+	Subscriber = dds_create_subscriber(Participant, Q, nullptr);
+	Publisher = dds_create_publisher(Participant, Q, nullptr);
+	dds_delete_qos(Q);
+	if (Subscriber < 0 || Publisher < 0)
+	{
+		OutError = FString::Printf(TEXT("subscriber/publisher: %hs"), dds_strretcode(Subscriber < 0 ? Subscriber : Publisher));
+		Stop();
+		return false;
+	}
+	UE_LOG(LogHrotDps, Log, TEXT("DPS: domain %u, partition '%s', %s"), Domain, *Partition, HROT_DPS_CONTRACT);
+	return true;
+}
+
+void FHrotDpsClient::Stop()
+{
+	if (Participant) dds_delete(Participant);   // deletes every reader, writer and topic under it
+	Participant = Subscriber = Publisher = 0;
+	Topics.Reset(); Readers.Reset(); Writers.Reset(); Counts.Reset();
+}
+
+int32 FHrotDpsClient::TopicOf(const FString& Name, const FHrotDpsTopicDef*& OutDef)
+{
+	OutDef = FindDef(Name);
+	if (!OutDef || !Participant) return 0;
+	if (const int32* T = Topics.Find(Name)) return *T;
+	const int32 T = dds_create_topic(Participant, OutDef->Desc, TCHAR_TO_UTF8(OutDef->Name), nullptr, nullptr);
+	if (T < 0) { UE_LOG(LogHrotDps, Error, TEXT("topic %s: %hs"), *Name, dds_strretcode(T)); return 0; }
+	return Topics.Add(Name, T);
+}
+
+bool FHrotDpsClient::Subscribe(const FString& Topic, FHandler Handler)
+{
+	if (FReader* R = Readers.Find(Topic)) { R->Handlers.Add(MoveTemp(Handler)); return true; }
+	const FHrotDpsTopicDef* Def;
+	const int32 T = TopicOf(Topic, Def);
+	if (!T) return false;
+	dds_qos_t* Q = QosOf(*Def);
+	const int32 Rd = dds_create_reader(Subscriber, T, Q, nullptr);
+	dds_delete_qos(Q);
+	if (Rd < 0) { UE_LOG(LogHrotDps, Error, TEXT("reader %s: %hs"), *Topic, dds_strretcode(Rd)); return false; }
+	FReader& R = Readers.Add(Topic);
+	R.Handle = Rd;
+	R.Handlers.Add(MoveTemp(Handler));
+	Counts.FindOrAdd(Topic) = 0;
+	return true;
+}
+
+int32 FHrotDpsClient::Poll()
+{
+	constexpr int32 Batch = 64;
+	int32 Total = 0;
+	for (TPair<FString, FReader>& It : Readers)
+	{
+		for (;;)
+		{
+			void* Buf[Batch] = { nullptr };   // nullptr: DDS loans the samples
+			dds_sample_info_t Info[Batch];
+			const int32 N = dds_take(It.Value.Handle, Buf, Info, Batch, Batch);
+			if (N <= 0) break;
+			for (int32 I = 0; I < N; ++I)
+			{
+				FHrotDpsSample S;
+				S.Data = Buf[I];
+				S.bValid = Info[I].valid_data;
+				S.bAlive = Info[I].instance_state == DDS_IST_ALIVE;
+				S.bDisposed = Info[I].instance_state == DDS_IST_NOT_ALIVE_DISPOSED;
+				S.SourceTime = double(Info[I].source_timestamp) * 1e-9;
+				S.Instance = Info[I].instance_handle;
+				for (const FHandler& H : It.Value.Handlers) H(S);
+			}
+			dds_return_loan(It.Value.Handle, Buf, N);
+			Counts.FindOrAdd(It.Key) += N;
+			Total += N;
+			if (N < Batch) break;
+		}
+	}
+	return Total;
+}
+
+bool FHrotDpsClient::Write(const FString& Topic, const void* Sample)
+{
+	int32 W = Writers.FindRef(Topic);
+	if (!W)
+	{
+		const FHrotDpsTopicDef* Def;
+		const int32 T = TopicOf(Topic, Def);
+		if (!T) return false;
+		dds_qos_t* Q = QosOf(*Def);
+		W = dds_create_writer(Publisher, T, Q, nullptr);
+		dds_delete_qos(Q);
+		if (W < 0) { UE_LOG(LogHrotDps, Error, TEXT("writer %s: %hs"), *Topic, dds_strretcode(W)); return false; }
+		Writers.Add(Topic, W);
+	}
+	return dds_write(W, Sample) == DDS_RETCODE_OK;
+}

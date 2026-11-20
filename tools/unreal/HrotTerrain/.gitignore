@@ -1,2 +1,5 @@
-﻿Binaries/
+Binaries/
 Intermediate/
+# U-18a: made by scripts/unreal/dps_gen.py (the DPS contract is still changing)
+Source/ThirdParty/CycloneDDS/
+Source/HrotDps/Private/Generated/
