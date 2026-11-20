@@ -1273,6 +1273,33 @@ theirs" — no path spawns a danger sensor from a type (the soldier's `DangerCro
 | **X-d** | a live scenario (`ua-squad-danger-crossing` + `-contact`): a squad crosses a street; a variant with a hostile on the far side. ⚠ NOT `ua-danger-crossing` — that name is the BUILT single-soldier demo (`DESIGN_Utility_AI_Demo_Scenarios.md` §10.3) | §7.8.4, over HTTP |
 | later | wire `ManeuverSelectStarterDecision` (cross / bound / hold) | D3 |
 
+**⭐ `CE-2462` — BOUNDING OVERWATCH WATCHES ITS ROUTE TOO** *(behaviors, `2026-11-20`; user: "Together with danger area sensor, it might create more realistic
+movement of the squad in the urban areas"; build-state: BUILT)*
+
+```mermaid
+classDiagram
+  class DangerRouteWatch { <<NEW static, was SquadMarchPlay.WatchRoute>> +Site +Watch(ctx, objective, openGround, repoint) +Drop(world, commander) }
+  class SquadMarchPlay { <<exists>> DangerAreas opt-in ⇒ Watch }
+  class BoundingOverwatchPlay { <<exists, CHANGED>> Update ⇒ Watch (always) · Outcome ended ⇒ Drop }
+  class DangerAreaChildSensor { <<exists, toolkit>> }
+  class BasicSquadSop { <<exists>> row X-c: DangerAreaAhead ⇒ React SquadDangerCrossing (Alert) }
+  SquadMarchPlay ..> DangerRouteWatch
+  BoundingOverwatchPlay ..> DangerRouteWatch
+  DangerRouteWatch ..> DangerAreaChildSensor : Ensure / Configure / Destroy
+  BasicSquadSop ..> DangerAreaChildSensor : reads the commander's buffer (UnitSensors)
+```
+*What the picture shows that prose hid:* nothing new reacts — the crossing row reads the commander's danger-area BUFFER whoever made the sensor, so
+the bound only has to own the sensor; the one route watch now serves both tasks.
+
+| decision | as built | why |
+|---|---|---|
+| when the bound watches | ALWAYS (no opt-in, unlike the march's `DangerAreas`) | a bound is a contact movement: doctrine treats every junction and street crossing on it as a danger area; the kinds asked find nothing outside a town (open ground is NOT asked — D3 owns that) |
+| the reaction | the existing X-c row pauses the bound for `SquadDangerCrossing`; back from the pause the runner's re-issue re-points the sensor (as the march) | 📐 `uf-corner-fight`: the front element bounded into a junction's field of fire 26 m out with no halt, its overwatch 60 m back behind the houses — the point man died in 5 s |
+| when the sensor goes | the bound ENDED (`Outcome` not Running) ⇒ `DangerRouteWatch.Drop`; a pause keeps it (the crossing reads it) | an idle squad must not run a crossing drill for a route it no longer walks (CE-2457's hold) |
+
+Rejected: a crossing check inside the bound (a second crossing drill — ruling 9) · opt-in like the march (every existing bound would keep walking into junctions).
+Rails `SquadManeuverTests.CE2462_*` (2): the sensor rail is red-proved (no watch ⇒ red); the SOP rail feeds the buffer directly, so it proves the X-c row fires under a bound, not the sensor.
+
 #### 7.7.6 X-a … X-c in detail *(behaviors, `2026-10-13`, `CE-2159`; build-state: BUILT — within R-2014; the deviations are named; as-built at the end)*
 
 **Measured `2026-10-13`** (graph CLI + reads), with the design cell for each:
