@@ -1,7 +1,7 @@
 """hrot_vehicle_kit.py — runs in the Unreal editor COMMANDLET (CE-4651, U-17): a vehicle KIT (UHrotVehicleKit) from a vendor's parts.
 
     UnrealEditor-Cmd <project> -run=pythonscript -script=<this> -nullrhi      HROT_KIT_JOB = { "kit", "probe", "turret", "gun", "skip",
-                                                                                                "actor", "meshes": [{"mesh", "loc" | "ground": true, "rot", "scale"}],
+                                                                                                "actor", "meshes": [{"mesh", "loc" | "ground": true, "rot" (yaw: the nose onto +X), "scale"}],
                                                                                                 "turretParts", "gunParts", "muzzle",
                                                                                                 "engineDeck", "flashSize", "out" }
     probe        hrot_level_probe.py's result for the vendor's showcase map (every part placed: the hull frame = the map origin)
@@ -10,7 +10,7 @@
     turretParts / gunParts   regexes over the MESH names riding on the turret / the gun; skip = not built (interiors)
     muzzle       the bore's end in the gun's space (cm); engineDeck (hull space)
 """
-import json, os, re, traceback
+import json, math, os, re, traceback
 import unreal
 
 JOB = json.load(open(os.environ["HROT_KIT_JOB"], encoding="utf-8"))
@@ -57,7 +57,8 @@ def main(JOB):
         loc = m.get("loc", (0, 0, 0))
         if m.get("ground"):   # no measured offset: centre it over the origin, its lowest point on the ground (scale 1)
             b = sm.get_bounds(); o, x = b.origin, b.box_extent
-            loc = (-o.x, -o.y, x.z - o.z)
+            yaw = math.radians(m.get("rot", (0, 0, 0))[1])   # turned (the nose onto +X): the centring offset turns with it
+            loc = (-(o.x * math.cos(yaw) - o.y * math.sin(yaw)), -(o.x * math.sin(yaw) + o.y * math.cos(yaw)), x.z - o.z)
             log(f"{sm.get_name()}: grounded at {loc[0]:.1f}, {loc[1]:.1f}, {loc[2]:.1f} (size {2*x.x:.0f} x {2*x.y:.0f} x {2*x.z:.0f} cm)")
         t = T(loc, m.get("rot", (0, 0, 0)))
         if m.get("scale"): t.scale3d = unreal.Vector(m["scale"], m["scale"], m["scale"])

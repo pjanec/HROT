@@ -5,13 +5,14 @@
     a vehicle is a kit (its own or the job's) — or "mesh": a bare static mesh (a gallery of a pack as it comes, to judge its scale
     and which way it faces) — or "skeletal" + "anim" (+ "loop": false = hold the last frame): an animal playing its own clip;
     "heading" = the actor's yaw (default −60: three-quarter toward the camera); "at": [x, y, z] places it (a grid) and "rowAt"
-    aims the row picture at the grid's centre; "views": [{"name", "label" | "at", "back", "up", "lookZ"}] = more pictures, any framing
+    aims the row picture at the grid's centre; "animal": a UHrotAnimalKind + "state" (+ "then": {"state", "after"}
+    = a change in play, by game time) spawns an AHrotAnimal; "views": [{"name", "label" | "at", "back", "up", "lookZ", "az"}] = more pictures, any framing
 
 A row of AHrotVehicle (one kit) in a new level, each with its state (turret yaw / gun pitch / damage), played in Simulate (the
 damage effects and the shot renderer run in the game world); pictures timed by GAME time: the row at 3 s (smoke grown), the firing
 vehicle 0.03 s after its main gun fires, and a close look at each damaged one.
 """
-import json, os, time, traceback
+import json, math, os, time, traceback
 import unreal
 
 JOB = json.load(open(os.environ["HROT_VEHICLELAB_JOB"], encoding="utf-8"))
@@ -44,9 +45,10 @@ def spawn(cls, loc, rot=(0, 0, 0), label=None):
 def level():
     if unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/VehicleLab"): unreal.EditorAssetLibrary.delete_asset("/Game/Maps/VehicleLab")
     if not LES().new_level("/Game/Maps/VehicleLab"): raise RuntimeError("new_level failed")
-    floor = spawn(unreal.StaticMeshActor, (0, 0, 0), label="Floor")
+    n = len(JOB["vehicles"])   # ⚠ measured: a 400 m floor at the origin ended under the 7th aircraft (a black void behind it)
+    floor = spawn(unreal.StaticMeshActor, ((n - 1) * SPACING / 2, 0, 0), label="Floor")
     floor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Plane"))
-    floor.set_actor_scale3d(unreal.Vector(400, 400, 1))
+    floor.set_actor_scale3d(unreal.Vector(max(400.0, (n * SPACING + 40000) / 100.0), 1000, 1))
     sun = spawn(unreal.DirectionalLight, (0, 0, 1000), (-35, 60, 0), "Sun")
     sun.light_component.set_editor_property("atmosphere_sun_light", True); sun.light_component.set_editor_property("intensity", 8.0)
     spawn(unreal.SkyAtmosphere, (0, 0, 0), label="Sky")
@@ -56,6 +58,11 @@ def level():
     LES().editor_set_viewport_realtime(True)
     for i, v in enumerate(JOB["vehicles"]):
         at, rot = tuple(v.get("at") or (i * SPACING, 0, float(v.get("z", 0)))), (0, float(v.get("heading", -60)), 0)
+        if v.get("animal"):   # ⭐ an AHrotAnimal: its kind + its state, as HROT sets them ("then": {"state", "after"} = a change in play)
+            a = spawn(unreal.HrotAnimal, at, rot, v["label"])
+            setattr(a, "kind", unreal.load_asset(v["animal"]))
+            a.set_state(getattr(unreal.HrotAnimalState, v.get("state", "IDLE")))
+            continue
         if v.get("skeletal"):   # an animal (or any rigged body) playing one of its own clips — "loop": false holds the last frame (dead)
             a = spawn(unreal.SkeletalMeshActor, at, rot, v["label"])
             c = a.skeletal_mesh_component
@@ -89,9 +96,11 @@ def game_now():
     return unreal.GameplayStatics.get_time_seconds(w) if w else 0.0
 
 
-def camera(at, back, up=350.0, look_z=150.0):
-    """Looks at `at` (`look_z` cm high) from `back` cm toward −Y (three-quarter: a little from +X), `up` cm high."""
-    cam = unreal.Vector(at.x + back * 0.35, at.y - back, up)
+def camera(at, back, up=350.0, look_z=150.0, az=None):
+    """Looks at `at` (`look_z` cm high) from `back` cm toward −Y (three-quarter: a little from +X), `up` cm high — or, given `az`
+    (degrees, 0 = from +X = the vehicle's nose when its heading is 0, 90 = from +Y), from exactly that direction."""
+    if az is None: cam = unreal.Vector(at.x + back * 0.35, at.y - back, up)
+    else: cam = unreal.Vector(at.x + back * math.cos(math.radians(az)), at.y + back * math.sin(math.radians(az)), up)
     UES().set_level_viewport_camera_info(cam, unreal.MathLibrary.find_look_at_rotation(cam, unreal.Vector(at.x, at.y, look_z)))
 
 
@@ -120,6 +129,11 @@ def step():
         R["shots"].append(path); S["pending"] = None
     p = S["phase"]
     if p == "level": level(); return
+    for item in list(S.get("later") or []):   # state changes in play (an animal shot: alive -> dead), by game time
+        label, then = item
+        if game_now() >= S["t0"] + float(then.get("after", 1.0)):
+            S["v"][label].set_state(getattr(unreal.HrotAnimalState, then["state"])); S["later"].remove(item)
+            log(f"{label}: -> {then['state']}")
     if p == "find":
         if time.time() < S["t"]: return
         w = UES().get_game_world()
@@ -134,6 +148,8 @@ def step():
             c, anim, loop = S["v"][v["label"]].skeletal_mesh_component, unreal.load_asset(v["anim"]), bool(v.get("loop", True))
             c.set_animation_mode(unreal.AnimationMode.ANIMATION_SINGLE_NODE); c.play_animation(anim, loop)
             if not loop: c.set_position(anim.get_play_length() * 0.995, False); c.stop()
+        S["later"] = [(v["label"], v["then"]) for v in JOB["vehicles"] if v.get("then") and v["label"] in S["v"]]
+        if S["later"]: S["t0"] = game_now()
         S["queue"] = [("row", None)] + [("close", v["label"]) for v in JOB["vehicles"] if v.get("damage", "INTACT") != "INTACT"] + \
                      [("view", w) for w in JOB.get("views", [])] + ([("fire", JOB["fire"])] if JOB.get("fire") else [])
         S.update(phase="next", ready=game_now() + 3.0); return
@@ -153,7 +169,7 @@ def step():
         elif kind == "view":   # {"name", "label" | "at", "back", "up", "lookZ"}: any framing — one aircraft, one row of animals
             w = label
             at = S["v"][w["label"]].get_actor_location() if w.get("label") else unreal.Vector(*w["at"])
-            camera(at, float(w.get("back", 1100.0)), float(w.get("up", 450.0)), float(w.get("lookZ", 150.0)))
+            camera(at, float(w.get("back", 1100.0)), float(w.get("up", 450.0)), float(w.get("lookZ", 150.0)), w.get("az"))
             S.update(phase="shoot", name=w["name"], at=game_now() + 0.3)
         else:
             v = S["v"][label]; camera(v.get_actor_location(), 1300.0, 400.0)
