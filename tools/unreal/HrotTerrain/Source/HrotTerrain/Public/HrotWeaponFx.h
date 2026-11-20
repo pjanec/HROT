@@ -24,6 +24,18 @@ struct HROTTERRAIN_API FHrotShotFx
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") TObjectPtr<UNiagaraSystem> Impact;
 	/** the weapon mesh's socket at the barrel's end; without it the muzzle is the far end of the mesh's longest axis */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") FName MuzzleSocket = TEXT("Muzzle");
+	// ---- per weapon (U-17h): the look of a rifle vs a minigun vs a heavy MG -------------------------------------------------------
+	/** 1 round in N is a tracer (0 = the renderer's TracerEvery) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") int32 TracerEvery = 0;
+	/** the tracer streak (cm; 0 = the renderer's) — a minigun's are long, so at 50 rounds a second they join into a line */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float TracerLength = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float TracerWidth = 0.f;
+	/** the muzzle flash's size (1 = a rifle) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float FlashSize = 1.f;
+	/** a DUST PUFF where a round lands (cm across at birth, 0 = none) — instanced (UHrotShotRenderer::AddPuff), seen at any range */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float DustSize = 0.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float DustLife = 1.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float DustBrightness = 0.5f;
 };
 
 UCLASS()
@@ -41,6 +53,18 @@ public:
 	 *  (Hits / HitNormals in world space; no hits = a miss: flash, shell, a tracer out to 300 m, no impact). Returns the muzzle's world location. */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Weapon")
 	static FVector FireShot(USceneComponent* Weapon, const FHrotShotFx& Fx, const TArray<FVector>& Hits, const TArray<FVector>& HitNormals);
+
+	/** The same from an explicit MUZZLE transform (X = the barrel) — a vehicle's gun (AHrotVehicle::MuzzleTransform): `Weapon` is
+	 *  the component it rides on (its round count; the near extras attach to it when it has `Fx.MuzzleSocket`). */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Weapon")
+	static FVector FireShotAt(USceneComponent* Weapon, FTransform Muzzle, const FHrotShotFx& Fx, const TArray<FVector>& Hits, const TArray<FVector>& HitNormals);
+
+	/** A helicopter's MINIGUN (M134, ~50 rounds/s): every round a tracer, long streaks that join into an almost steady line, dust */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Weapon")
+	static FHrotShotFx MinigunFx();
+	/** A HEAVY MACHINE GUN (M2 / DShK, ~10 rounds/s): 1 in 5 a tracer, a few a second, thick and bright; a big flash, big dust */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Weapon")
+	static FHrotShotFx HeavyMgFx();
 
 	/** Where the muzzle is: the socket if the mesh has it, else the far end of the mesh's longest local axis (+ direction). */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Weapon")

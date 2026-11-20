@@ -147,6 +147,11 @@ FTransform AHrotVehicle::MuzzleTransform() const
 	return Kit ? FTransform(Kit->Muzzle) * Gun->GetComponentTransform() : Gun->GetComponentTransform();
 }
 
+void AHrotVehicle::FireGun(const FHrotShotFx& Fx, const TArray<FVector>& Hits, const TArray<FVector>& HitNormals)
+{
+	UHrotWeaponFx::FireShotAt(Gun, MuzzleTransform(), Fx, Hits, HitNormals);
+}
+
 void AHrotVehicle::FireMainGun()
 {
 	UHrotShotRenderer* R = UHrotShotRenderer::Get(this);

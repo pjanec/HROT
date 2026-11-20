@@ -8,7 +8,7 @@
     aims the row picture at the grid's centre; "animal": a UHrotAnimalKind + "state" (+ "then": {"state", "after"}
     = a change in play, by game time) spawns an AHrotAnimal; "views": [{"name", "label" | "at", "back", "up", "lookZ", "az"}] = more pictures, any framing; "person": a soldier
     (hrot_person); "groundFire": {"radius", "intensity"}; on any entry, in play: "burn": intensity (UHrotBurning), "flamethrower":
-    {"socket", "loc", "rot", "size", "firing"} (UHrotFlamethrower; a person's goes on its weapon)
+    {"socket", "loc", "rot", "size", "firing"} (UHrotFlamethrower; a person's goes on its weapon); "missile": a UHrotMissileKind ("fly" = a test flight in play); job "floor": [x, y, size]; job "guns": a vehicle's gun firing (fire_guns)
 
 A row of AHrotVehicle (one kit) in a new level, each with its state (turret yaw / gun pitch / damage), played in Simulate (the
 damage effects and the shot renderer run in the game world); pictures timed by GAME time: the row at 3 s (smoke grown), the firing
@@ -49,9 +49,10 @@ def level():
     if unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/VehicleLab"): unreal.EditorAssetLibrary.delete_asset("/Game/Maps/VehicleLab")
     if not LES().new_level("/Game/Maps/VehicleLab"): raise RuntimeError("new_level failed")
     n = len(JOB["vehicles"])   # ⚠ measured: a 400 m floor at the origin ended under the 7th aircraft (a black void behind it)
-    floor = spawn(unreal.StaticMeshActor, ((n - 1) * SPACING / 2, 0, 0), label="Floor")
+    fl = JOB.get("floor") or [(n - 1) * SPACING / 2, 0, max(40000.0, n * SPACING + 40000)]   # [centre x, centre y, size] (cm)
+    floor = spawn(unreal.StaticMeshActor, (fl[0], fl[1], 0), label="Floor")
     floor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Plane"))
-    floor.set_actor_scale3d(unreal.Vector(max(400.0, (n * SPACING + 40000) / 100.0), 1000, 1))
+    floor.set_actor_scale3d(unreal.Vector(fl[2] / 100.0, max(1000.0, fl[2] / 100.0), 1))
     sun = spawn(unreal.DirectionalLight, (0, 0, 1000), (-35, 60, 0), "Sun")
     sun.light_component.set_editor_property("atmosphere_sun_light", True); sun.light_component.set_editor_property("intensity", 8.0)
     spawn(unreal.SkyAtmosphere, (0, 0, 0), label="Sky")
@@ -84,6 +85,12 @@ def level():
                 import hrot_person; S["kit"] = hrot_person.PersonKit(log)
             made = S["kit"].make(v["person"].get("body") or None, at, float(v.get("heading", 0)), v["label"], v["person"].get("state"), always_tick=True)
             if made is None: raise RuntimeError("person clips missing: " + v["label"])
+            continue
+        if v.get("missile"):   # ⭐ an AHrotMissile: its kind; "rot" [pitch, yaw, roll]; "motor": false = shown still (in play "fly" moves it)
+            r = v.get("rot", (0, float(v.get("heading", 0)), 0))
+            a = spawn(unreal.HrotMissile, at, (r[0], r[1], r[2]), v["label"])
+            setattr(a, "kind", unreal.load_asset(v["missile"])); a.apply_kind()
+            setattr(a, "motor", bool(v.get("motor", True)))
             continue
         if v.get("groundFire"):   # ⭐ an AHrotGroundFire: {"radius", "intensity"}
             g = v["groundFire"]; a = spawn(unreal.HrotGroundFire, at, rot, v["label"])
@@ -135,6 +142,24 @@ def picture(name):
     S["pending"] = (path, time.time())
 
 
+def fire_guns():
+    """⭐ JOB "guns": [{"label", "fx": "MINIGUN" | "HMG", "rate", "target": [x, y, z], "spread", "aim": [yaw, pitch]}] — a vehicle's gun
+    firing at `rate` rounds a second onto a patch of ground (the lab's stand-in for HROT's shot events), by GAME time"""
+    now = game_now()
+    for g in S["guns"]:
+        a = S["v"].get(g["label"])
+        if a is None: continue
+        g["carry"] = g.get("carry", 0.0) + float(g.get("rate", 10)) * max(0.0, now - g.get("last", now)); g["last"] = now
+        if "fxs" not in g: g["fxs"] = unreal.HrotWeaponFx.minigun_fx() if g.get("fx", "HMG") == "MINIGUN" else unreal.HrotWeaponFx.heavy_mg_fx()
+        while g["carry"] >= 1.0:
+            g["carry"] -= 1.0
+            import random
+            t, sp = g["target"], float(g.get("spread", 300))
+            hit = unreal.Vector(t[0] + random.uniform(-sp, sp), t[1] + random.uniform(-sp, sp), t[2])
+            a.fire_gun(g["fxs"], [hit], [unreal.Vector(0, 0, 1)])
+            g["n"] = g.get("n", 0) + 1
+
+
 def tick(dt):
     if S["busy"]: return
     S["busy"] = True
@@ -153,6 +178,7 @@ def step():
         R["shots"].append(path); S["pending"] = None
     p = S["phase"]
     if p == "level": level(); return
+    if S.get("guns"): fire_guns()
     for item in list(S.get("later") or []):   # state changes in play (an animal shot: alive -> dead), by game time
         label, then = item
         if game_now() >= S["t0"] + float(then.get("after", 1.0)):
@@ -177,6 +203,10 @@ def step():
             if a is None: continue
             if v.get("burn") is not None:
                 b = unreal.HrotBurning.set_burning(a, float(v["burn"])); log(f"{v['label']}: burning {v['burn']} -> {b.num_fires() if b else 0} fires")
+            if v.get("fly"):   # the TEST flight (standing in for HROT): {"to", "speed", "arc", "motor", "delay", "detonate"}
+                f = v["fly"]
+                a.fly_test(unreal.Vector(*f["to"]), float(f.get("speed", 20000)), float(f.get("arc", 0)), float(f.get("motor", -1)),
+                           float(f.get("delay", 0)), bool(f.get("detonate", True)))
             if v.get("person") and v["person"].get("flame"):   # ⭐ a flamethrower soldier: the person state's own flamethrower (U-17f)
                 ps = a.get_component_by_class(unreal.HrotPersonState)
                 setattr(ps, "flamethrower", True); ps.set_flame_firing(True); log(f"{v['label']}: flame firing -> {ps.apply_flame() is not None}")
@@ -191,6 +221,9 @@ def step():
                 ft = unreal.HrotFlamethrower.attach(parent, unreal.Name(f.get("socket", "None")), off, float(f.get("size", 1)))
                 ft.set_firing(bool(f.get("firing", True))); S.setdefault("flames", {})[v["label"]] = ft
                 log(f"{v['label']}: flamethrower on {parent.get_name()} socket {f.get('socket', 'None')}")
+        S["guns"] = [dict(g) for g in JOB.get("guns", [])]
+        for g in S["guns"]:
+            if g.get("aim") and g["label"] in S["v"]: S["v"][g["label"]].set_aim(float(g["aim"][0]), float(g["aim"][1]))
         S["later"] = [(v["label"], v["then"]) for v in JOB["vehicles"] if v.get("then") and v["label"] in S["v"]]
         if S["later"]: S["t0"] = game_now()
         S["queue"] = [("row", None)] + [("close", v["label"]) for v in JOB["vehicles"] if v.get("damage", "INTACT") != "INTACT"] + \
@@ -199,6 +232,7 @@ def step():
     if p == "next":
         if game_now() < S["ready"]: return
         if not S["queue"]:
+            for g in S.get("guns") or []: log(f"gun {g['label']}: {g.get('n', 0)} rounds")
             LES().editor_request_end_play(); S.update(phase="end", t=time.time() + 3); return
         kind, label = S["queue"].pop(0)
         n = len(JOB["vehicles"])

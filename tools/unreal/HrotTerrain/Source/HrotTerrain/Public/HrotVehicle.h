@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameFramework/Actor.h"
+#include "HrotWeaponFx.h"
 #include "HrotVehicle.generated.h"
 
 class UStaticMesh;
@@ -85,6 +86,10 @@ public:
 	/** the main gun fires: a big muzzle flash (instanced, UHrotShotRenderer), a flash of light, a puff of smoke (budgeted) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void FireMainGun();
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") FTransform MuzzleTransform() const;
+	/** one round from the kit's gun (its Muzzle) with a weapon's look: a helicopter's minigun, a turret's heavy MG (U-17h) —
+	 *  HROT's shot events, as a soldier's (UHrotWeaponFx::FireShotAt) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle")
+	void FireGun(const FHrotShotFx& Fx, const TArray<FVector>& Hits, const TArray<FVector>& HitNormals);
 	/** (re)builds the part components from the kit */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void Build();
 

@@ -6,6 +6,7 @@
                             the frame chosen by the instance's AGE (per-instance custom data 0, 0..1), the mask by its CARD (data 1:
                             0 = the front card, blue; 1 = a side card, green), faded out over the flash's life
 /Game/Hrot/Fx/M_HrotTracer  additive, unlit: a hot core fading to the edges, along a short streak (data 0 = intensity)
+/Game/Hrot/Fx/M_HrotTrailSmoke  translucent, lit: a missile trail's puff (data 0 = opacity, 1 = brightness)
 Instanced (one draw call per material for every shot of the world): the renderer writes the custom data, no per-shot material state.
 """
 import os
@@ -137,8 +138,30 @@ def burnt():
     return m
 
 
+def trail():
+    """/Game/Hrot/Fx/M_HrotTrailSmoke — a missile's trail puff (UHrotShotRenderer::AddPuff, U-17g): translucent, LIT (the sun shades the
+    trail), a soft round blob on each of the puff's 3 crossed cards with a noisy edge; opacity = per-instance data 0, brightness = data 1."""
+    m = fresh("M_HrotTrailSmoke")
+    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    E, c1, c3, link, op, one, data = builder(m)
+    tc = E(unreal.MaterialExpressionTextureCoordinate, -1000, 0)
+    centred = op(unreal.MaterialExpressionMultiply, op(unreal.MaterialExpressionSubtract, tc, c1(0.5, -900, 100), -800, 0), c1(2.0, -800, 100), -650, 0)
+    r = one(unreal.MaterialExpressionLength, centred, -500, 0)
+    noise = E(unreal.MaterialExpressionNoise, -650, 250); noise.set_editor_property("scale", 0.01)   # ~1 m lumps (world position)
+    ragged = op(unreal.MaterialExpressionAdd, r, op(unreal.MaterialExpressionMultiply, noise, c1(0.3, -500, 350), -350, 250), -200, 100)
+    blob = op(unreal.MaterialExpressionPower, one(unreal.MaterialExpressionSaturate, op(unreal.MaterialExpressionSubtract, c1(1.0, -200, 250), ragged, -50, 150), 100, 150),
+              c1(1.8, 100, 300), 250, 150)
+    alpha = op(unreal.MaterialExpressionMultiply, op(unreal.MaterialExpressionMultiply, blob, data(0, 250, 400), 400, 200), c1(0.8, 400, 350), 550, 200)
+    MEL.connect_material_property(alpha, "", unreal.MaterialProperty.MP_OPACITY)
+    grey = op(unreal.MaterialExpressionMultiply, c3((0.9, 0.9, 0.88), 400, 0), data(1, 400, 80), 550, 0)
+    MEL.connect_material_property(grey, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    MEL.connect_material_property(c1(1.0, 550, 500), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    return m
+
+
 ONLY = [n for n in os.environ.get("HROT_SHOTFX_ONLY", "").split(",") if n]   # e.g. "burnt": build only these
-for mk in (flash, tracer, scorch, burnt):
+for mk in (flash, tracer, scorch, burnt, trail):
     if ONLY and mk.__name__ not in ONLY: continue
     m = mk()
     MEL.recompile_material(m)

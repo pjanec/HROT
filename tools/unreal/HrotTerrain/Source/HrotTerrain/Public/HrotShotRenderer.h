@@ -27,8 +27,12 @@ public:
 	void AddFlash(const FTransform& Muzzle, float Size = 1.f, float Life = 0.f);
 	/** A flash of light: a pooled point light for `Seconds` (a muzzle flash, an explosion). */
 	void Flash(const FVector& At, float Intensity, float Radius, float Seconds);
-	/** A tracer: a short glowing streak flying From → To at TracerSpeed. */
-	void AddTracer(const FVector& From, const FVector& To);
+	/** ⭐ A SMOKE PUFF of a trail (a missile's, U-17g): at `At`, `Size0` cm across at birth growing to `Size1`, fading over `Life`
+	 *  seconds; `Brightness` 0..1 (a rocket motor's white smoke 0.9, a dirty one 0.4). Every puff of the world: one instanced mesh. */
+	void AddPuff(const FVector& At, float Size0, float Size1, float Life, float Brightness = 0.8f);
+	/** A tracer: a short glowing streak flying From → To at TracerSpeed; `Length` / `Width` cm (0 = TracerLength / TracerWidth — a
+	 *  minigun's long streaks join into a line, a heavy MG's are fewer and thicker: per weapon, FHrotShotFx) */
+	void AddTracer(const FVector& From, const FVector& To, float Length = 0.f, float Width = 0.f);
 	/** This weapon's round count, for the 1-in-N tracer rule. */
 	int32 NextRound(const USceneComponent* Weapon);
 	/** Where the view is (the player camera in play, the editor viewport otherwise) — for the near-only extras. */
@@ -46,6 +50,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float TracerLength = 150.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float TracerWidth = 3.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") int32 TracerEvery = 5;
+	/** ⭐ a tracer is at least this wide ON SCREEN (radians: width ≥ distance × this) — it GLOWS, so it is seen far beyond its size;
+	 *  ⚠ measured (U-17h): a minigun's 4 cm tracers 70 m away drew under a tenth of a pixel — nothing */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float TracerMinAngle = 0.0025f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float NearRange = 4000.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float ImpactRange = 15000.f;
 	/** ⭐ measured (200 soldiers, ~970 rounds/s, near the view, 8 spawns a frame each): shell +0.1 ms, muzzle smoke +0.7 ms, IMPACT
@@ -57,6 +64,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float BlastPerSecond = 20.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float BlastRange = 150000.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") int32 MaxLights = 4;
+	/** trail puffs alive at most (the oldest go first) — each is 3 crossed cards */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") int32 MaxPuffs = 6000;
 	/** which near extras are drawn at all (measurement: what each costs) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") bool bNearSmoke = true;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") bool bNearShell = true;
@@ -65,6 +74,7 @@ public:
 	// ---- counters (the last frame) — read by the measurement -------------------------------------------------------------------
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 LiveFlashes = 0;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 LiveTracers = 0;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 LivePuffs = 0;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 NearSpawnedLastFrame = 0;
 	/** ⭐ the renderer's own cost last frame (ms, game thread): firing (the test driver's FireShot calls) and the instance rebuild */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") float FireMsLastFrame = 0.f;
@@ -87,9 +97,11 @@ public:
 
 private:
 	struct FFlash { FTransform Muzzle; float Born; float Seed; float Size; float Life; };
-	struct FTracer { FVector From, Dir; float Range, Born; };
+	struct FTracer { FVector From, Dir; float Range, Born, Length, Width; };
 	TArray<FFlash> Flashes;
 	TArray<FTracer> Tracers;
+	struct FPuff { FVector At; float Born, Life, Size0, Size1, Seed, Bright; };
+	TArray<FPuff> Puffs;
 	TMap<TWeakObjectPtr<const USceneComponent>, int32> Rounds;
 	struct FLight { TObjectPtr<UPointLightComponent> C; float Until = 0.f; };
 	TArray<FLight> Lights;
@@ -102,6 +114,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<AActor> Holder;
 	UPROPERTY(Transient) TObjectPtr<UInstancedStaticMeshComponent> FlashIsm;
 	UPROPERTY(Transient) TObjectPtr<UInstancedStaticMeshComponent> TracerIsm;
+	UPROPERTY(Transient) TObjectPtr<UInstancedStaticMeshComponent> PuffIsm;
 
 	bool EnsureComponents();
 	float Now() const;

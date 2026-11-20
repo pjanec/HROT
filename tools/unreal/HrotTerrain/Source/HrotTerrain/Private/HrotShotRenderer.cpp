@@ -21,6 +21,7 @@ namespace
 	const TCHAR* PlaneMesh = TEXT("/Engine/BasicShapes/Plane.Plane");             // 100 × 100 cm in XY, facing +Z
 	const TCHAR* FlashMaterial = TEXT("/Game/Hrot/Fx/M_HrotFlash.M_HrotFlash");    // scripts/unreal/hrot_shotfx_assets.py
 	const TCHAR* TracerMaterial = TEXT("/Game/Hrot/Fx/M_HrotTracer.M_HrotTracer");
+	const TCHAR* PuffMaterial = TEXT("/Game/Hrot/Fx/M_HrotTrailSmoke.M_HrotTrailSmoke");
 
 	/** A plane instance spanning `Len` along X (= AxisX) and `Wid` along Y (= AxisY), centred at `Centre`. */
 	FTransform Card(const FVector& Centre, const FVector& AxisX, const FVector& AxisY, float Len, float Wid)
@@ -42,7 +43,7 @@ float UHrotShotRenderer::Now() const { return GetWorld() ? GetWorld()->GetRealTi
 
 bool UHrotShotRenderer::EnsureComponents()
 {
-	if (FlashIsm && TracerIsm && Holder && IsValid(Holder)) return true;
+	if (FlashIsm && TracerIsm && PuffIsm && Holder && IsValid(Holder)) return true;
 	UWorld* W = GetWorld();
 	if (!W) return false;
 	FActorSpawnParameters P; P.ObjectFlags |= RF_Transient; P.Name = MakeUniqueObjectName(W, AActor::StaticClass(), TEXT("HrotShots"));
@@ -67,6 +68,8 @@ bool UHrotShotRenderer::EnsureComponents()
 	};
 	FlashIsm = Make(TEXT("Flashes"), FlashMaterial, 3);    // [0] age 0..1, [1] card (0 front, 1 side), [2] seed
 	TracerIsm = Make(TEXT("Tracers"), TracerMaterial, 1);  // [0] intensity
+	PuffIsm = Make(TEXT("Puffs"), PuffMaterial, 2);        // [0] opacity, [1] brightness
+	PuffIsm->SetTranslucentSortPriority(-1);               // smoke behind the flashes and tracers that fly through it
 	return true;
 }
 
@@ -102,11 +105,17 @@ void UHrotShotRenderer::AddFlash(const FTransform& Muzzle, float Size, float Lif
 	if (FVector::Dist(Muzzle.GetLocation(), ViewLocation()) < NearRange) FlashLight(Muzzle.GetLocation());
 }
 
-void UHrotShotRenderer::AddTracer(const FVector& From, const FVector& To)
+void UHrotShotRenderer::AddPuff(const FVector& At, float Size0, float Size1, float Life, float Brightness)
+{
+	if (Puffs.Num() >= MaxPuffs) Puffs.RemoveAt(0, Puffs.Num() - MaxPuffs + 1, EAllowShrinking::No);
+	Puffs.Add({ At, Now(), FMath::Max(Life, 0.1f), Size0, Size1, FMath::FRand(), Brightness });
+}
+
+void UHrotShotRenderer::AddTracer(const FVector& From, const FVector& To, float Length, float Width)
 {
 	const FVector D = To - From;
 	const float Range = D.Size();
-	if (Range > 1.f) Tracers.Add({ From, D / Range, Range, Now() });
+	if (Range > 1.f) Tracers.Add({ From, D / Range, Range, Now(), Length > 0.f ? Length : TracerLength, Width > 0.f ? Width : TracerWidth });
 }
 
 void UHrotShotRenderer::FlashLight(const FVector& At) { Flash(At, 20000.f, 600.f, FlashLife); }
@@ -177,10 +186,11 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 	for (int32 K = 0; K < 4; ++K) Tokens[K] = FMath::Min(Tokens[K] + Rates[K] * DeltaTime, FMath::Max(Rates[K] * 0.1f, 1.f));   // ≤ 0.1 s of burst
 	const float T = Now();
 	Flashes.RemoveAll([&](const FFlash& F) { return T - F.Born > F.Life; });
-	Tracers.RemoveAll([&](const FTracer& R) { return (T - R.Born) * TracerSpeed - TracerLength > R.Range; });
+	Tracers.RemoveAll([&](const FTracer& R) { return (T - R.Born) * TracerSpeed - R.Length > R.Range; });
 	for (FLight& L : Lights) if (L.C && L.Until <= T && L.C->IsVisible()) L.C->SetVisibility(false);
-	LiveFlashes = Flashes.Num(); LiveTracers = Tracers.Num();
-	if (!FlashIsm && Flashes.Num() == 0 && Tracers.Num() == 0) return;
+	Puffs.RemoveAll([&](const FPuff& P) { return T - P.Born > P.Life; });
+	LiveFlashes = Flashes.Num(); LiveTracers = Tracers.Num(); LivePuffs = Puffs.Num();
+	if (!FlashIsm && Flashes.Num() == 0 && Tracers.Num() == 0 && Puffs.Num() == 0) return;
 	if (!EnsureComponents()) return;
 
 	// ⭐ rebuilt every frame from the live lists: a few hundred instances, one draw call per mesh
@@ -209,18 +219,42 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 	FlashIsm->MarkRenderStateDirty();
 
 	X.Reset(); Data.Reset();
+	const FVector View = ViewLocation();
 	for (const FTracer& R : Tracers)
 	{
 		const float Head = FMath::Min((T - R.Born) * TracerSpeed, R.Range);
-		const float Tail = FMath::Max(Head - TracerLength, 0.f);
+		const float Tail = FMath::Max(Head - R.Length, 0.f);
 		if (Head - Tail < 1.f) continue;
 		const FVector Centre = R.From + R.Dir * ((Head + Tail) * 0.5f);
 		const FVector A = FVector::CrossProduct(R.Dir, FVector::UpVector).GetSafeNormal(KINDA_SMALL_NUMBER, FVector::RightVector);
 		const FVector B = FVector::CrossProduct(R.Dir, A);
-		X.Add(Card(Centre, R.Dir, A, Head - Tail, TracerWidth)); Data.Add(1.f);
-		X.Add(Card(Centre, R.Dir, B, Head - Tail, TracerWidth)); Data.Add(1.f);
+		const float Wd = FMath::Max(R.Width, float(FVector::Dist(Centre, View)) * TracerMinAngle);
+		X.Add(Card(Centre, R.Dir, A, Head - Tail, Wd)); Data.Add(1.f);
+		X.Add(Card(Centre, R.Dir, B, Head - Tail, Wd)); Data.Add(1.f);
 	}
 	TracerIsm->ClearInstances();
 	if (X.Num()) { TracerIsm->AddInstances(X, false, true); for (int32 I = 0; I < X.Num(); ++I) TracerIsm->SetCustomData(I, MakeArrayView(&Data[I], 1), false); }
 	TracerIsm->MarkRenderStateDirty();
+
+	// ⭐ trail smoke: each puff 3 crossed soft cards (a blob from any side, 6 triangles), growing and fading; it rises a little
+	X.Reset(); Data.Reset();
+	X.Reserve(Puffs.Num() * 3); Data.Reserve(Puffs.Num() * 6);
+	for (const FPuff& P : Puffs)
+	{
+		const float Age = T - P.Born, A = Age / P.Life;
+		const float Size = FMath::Lerp(P.Size0, P.Size1, FMath::Sqrt(A));
+		const float Opacity = FMath::Min(1.f, Age / 0.15f) * FMath::Pow(1.f - A, 1.5f);
+		const FVector At = P.At + FVector(0.f, 0.f, 25.f * Age);
+		const FQuat Spin = FQuat(FVector(P.Seed, 1.f - P.Seed, 0.5f).GetSafeNormal(), P.Seed * 2.f * PI);
+		const FVector Ax = Spin.RotateVector(FVector::XAxisVector), Ay = Spin.RotateVector(FVector::YAxisVector), Az = Spin.RotateVector(FVector::ZAxisVector);
+		X.Add(Card(At, Ax, Ay, Size, Size)); X.Add(Card(At, Ay, Az, Size, Size)); X.Add(Card(At, Az, Ax, Size, Size));
+		for (int32 K = 0; K < 3; ++K) Data.Append({ Opacity, P.Bright });
+	}
+	PuffIsm->ClearInstances();
+	if (X.Num())
+	{
+		PuffIsm->AddInstances(X, false, true);
+		PuffIsm->PerInstanceSMCustomData = Data;   // all at once (a SetCustomData per instance costs thousands of calls)
+	}
+	PuffIsm->MarkRenderStateDirty();
 }

@@ -41,20 +41,57 @@ FTransform UHrotWeaponFx::MuzzleTransform(USceneComponent* Weapon, FName Socket)
 	return FTransform(FRotationMatrix::MakeFromX(W.TransformVectorNoScale(Dir)).ToQuat(), W.TransformPosition(Tip));
 }
 
+FHrotShotFx UHrotWeaponFx::MinigunFx()
+{
+	FHrotShotFx Fx = LyraRifleFx();
+	Fx.MuzzleSocket = NAME_None;
+	Fx.TracerEvery = 1;          // every round: at 50 a second and 850 m/s the rounds fly ~17 m apart ...
+	Fx.TracerLength = 1500.f;    // ... ⚠ measured: 9 m streaks still read as a dashed line — 15 m nearly closes the gaps
+	Fx.TracerWidth = 4.f;
+	Fx.FlashSize = 1.6f;
+	Fx.DustSize = 70.f; Fx.DustLife = 2.0f; Fx.DustBrightness = 0.4f;
+	return Fx;
+}
+
+FHrotShotFx UHrotWeaponFx::HeavyMgFx()
+{
+	FHrotShotFx Fx = LyraRifleFx();
+	Fx.MuzzleSocket = NAME_None;
+	Fx.TracerEvery = 5;          // ~10 rounds a second: two tracers a second, each one seen
+	Fx.TracerLength = 350.f;
+	Fx.TracerWidth = 7.f;
+	Fx.FlashSize = 3.f;
+	Fx.DustSize = 120.f; Fx.DustLife = 2.5f; Fx.DustBrightness = 0.4f;
+	return Fx;
+}
+
 FVector UHrotWeaponFx::FireShot(USceneComponent* Weapon, const FHrotShotFx& Fx, const TArray<FVector>& Hits, const TArray<FVector>& HitNormals)
 {
 	if (!Weapon || !Weapon->GetWorld()) return FVector::ZeroVector;
+	return FireShotAt(Weapon, MuzzleTransform(Weapon, Fx.MuzzleSocket), Fx, Hits, HitNormals);
+}
+
+FVector UHrotWeaponFx::FireShotAt(USceneComponent* Weapon, FTransform Muzzle, const FHrotShotFx& Fx, const TArray<FVector>& Hits, const TArray<FVector>& HitNormals)
+{
+	if (!Weapon || !Weapon->GetWorld()) return FVector::ZeroVector;
 	UWorld* World = Weapon->GetWorld();
-	const FTransform Muzzle = MuzzleTransform(Weapon, Fx.MuzzleSocket);
 	const FVector At = Muzzle.GetLocation(), Dir = Muzzle.GetRotation().GetForwardVector();
 	UHrotShotRenderer* R = UHrotShotRenderer::Get(Weapon);
-	// ⭐ EVERY shot: the flash and (1 round in TracerEvery) the tracer — instanced, one draw call each for the whole world
+	// ⭐ EVERY shot: the flash and (1 round in N) the tracer — instanced, one draw call each for the whole world
 	const int32 Round = R ? R->NextRound(Weapon) : 0;
 	if (R)
 	{
-		R->AddFlash(Muzzle);
-		if (R->TracerEvery <= 1 || Round % R->TracerEvery == 0)
-			R->AddTracer(At, Hits.Num() > 0 ? Hits[0] : At + Dir * 30000.0);   // a miss: out to 300 m
+		R->AddFlash(Muzzle, Fx.FlashSize);
+		const int32 Every = Fx.TracerEvery > 0 ? Fx.TracerEvery : R->TracerEvery;
+		if (Every <= 1 || Round % Every == 0)
+			R->AddTracer(At, Hits.Num() > 0 ? Hits[0] : At + Dir * 30000.0, Fx.TracerLength, Fx.TracerWidth);   // a miss: out to 300 m
+		// ⭐ a dust puff where each round lands — instanced, no range limit (a burst walking across a field is seen from afar)
+		if (Fx.DustSize > 0.f)
+			for (int32 I = 0; I < Hits.Num(); ++I)
+			{
+				const FVector N = HitNormals.IsValidIndex(I) ? HitNormals[I] : FVector::UpVector;
+				R->AddPuff(Hits[I] + N * Fx.DustSize * 0.3f, Fx.DustSize * 0.5f, Fx.DustSize * 2.5f, Fx.DustLife, Fx.DustBrightness);
+			}
 	}
 	// NEAR the view only, under the per-frame budget: Lyra's Niagara extras (smoke and sparks at the muzzle, the shell) …
 	// ⭐ POOLED (AutoRelease): measured, a fresh Niagara component per spawn cost ~0.5 ms per spawn-per-frame (budget 24 ⇒ +14 ms at
