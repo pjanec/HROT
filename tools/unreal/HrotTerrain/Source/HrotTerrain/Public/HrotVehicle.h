@@ -80,6 +80,9 @@ public:
 	 *  veh_carPaint / BaseColor, measured); a kit without that slot is not repainted */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FName PaintSlot = TEXT("veh_carPaint");
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FName PaintParam = TEXT("BaseColor");
+	/** the material a paint colour is set on (null = the slot's own) — ⚠ measured: the City Sample paint takes its colour from a palette
+	 *  texture while its static switch "Paint Variation" is on, so BaseColor did nothing; this is a child with that switch off (hrot_car_paint.py) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TObjectPtr<UMaterialInterface> PaintMaterial;
 };
 
 UCLASS()

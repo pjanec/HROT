@@ -1276,6 +1276,19 @@ void UHrotDpsWorld::TickMovers(double Real)
 	const double T = NewestBatchSim + FMath::Clamp(Real - NewestBatchAt, 0.0, HrotDpsLife::MaxExtrapolation) - HrotDpsLife::PlaybackDelay;
 	const double PlaybackT = T;
 	int32 Drawn = 0, NewThisFrame = 0;
+	// U-18i — the traffic DRAW DISTANCE: where the views rendered last frame (an editor viewport, a PIE / game camera, every channel
+	// of a cluster), and a mover farther than TrafficDrawRadiusCm from all of them is neither spawned, moved nor animated.
+	// ⚠ measured LIVE: ~1050 cars, each an actor of 8 parts moved every frame, ran at ~9 fps (cars only; ~1.3 fps with 300 pedestrians)
+	// and Unreal took ~9 GB — most of them kilometres away (demo-city's SUMO net reaches 4.9 km round an 800 m town)
+	const TArray<FVector>& Views = GetWorld()->ViewLocationsRenderedLastFrame;
+	const double R2 = TrafficDrawRadiusCm > 0 ? double(TrafficDrawRadiusCm) * TrafficDrawRadiusCm : 0;
+	auto InRange = [&Views, R2](const FVector& At, bool bShown)
+	{
+		if (R2 <= 0 || Views.Num() == 0) return true;   // no limit, or no view yet: everything
+		const double Lim = bShown ? R2 * 1.1025 : R2;    // 5 % hysteresis: a car on the edge does not flicker
+		for (const FVector& V : Views) if (FVector::DistSquared(V, At) <= Lim) return true;
+		return false;
+	};
 	for (TPair<int32, FMover>& It : Movers)
 	{
 		FMover& M = It.Value;
@@ -1287,6 +1300,7 @@ void UHrotDpsWorld::TickMovers(double Real)
 		if (!bShow) { if (A) A->SetActorHiddenInGame(true); continue; }
 		const FVector At = ToUe(P.P, OriginCm);
 		const FRotator Rot(FMath::RadiansToDegrees(P.Pitch), -FMath::RadiansToDegrees(P.Heading), 0.f);
+		if (!InRange(At, A && !A->IsHidden())) { if (A && !A->IsHidden()) A->SetActorHiddenInGame(true); continue; }
 		if (!A && !M.bSkipped)
 		{
 			// U-18i: at most MaxMoverSpawnsPerFrame new bodies a frame — a join into a full town is spread over frames, not one hitch

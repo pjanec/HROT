@@ -285,7 +285,16 @@ int32 UHrotPersonState::QuietOwner()
 	for (USkeletalMeshComponent* M : Meshes)
 	{
 		if (M == Leader || M == WeaponComp) continue;
-		if (!M->GetSkinnedAsset() || !M->IsVisible()) { M->SetComponentTickEnabled(false); ++N; }
+		if (!M->GetSkinnedAsset() || !M->IsVisible()) { M->SetComponentTickEnabled(false); ++N; continue; }
+		// ⚠ measured LIVE (U-18i): a City Sample crowd person's FACE runs its own head Anim BP (RigLogic) every frame — 6 pedestrians on
+		// screen took the town from ~33 to ~17 fps. ⇒ a visible part that animates ON ITS OWN (not following the leader) follows the
+		// leader's pose instead and drops its Anim BP: the face takes the head's motion, with a neutral expression
+		if (Leader && !M->LeaderPoseComponent.IsValid() && M->GetAnimInstance())
+		{
+			M->SetAnimInstanceClass(nullptr);
+			M->SetLeaderPoseComponent(Leader);
+			++N;
+		}
 	}
 	return N;
 }

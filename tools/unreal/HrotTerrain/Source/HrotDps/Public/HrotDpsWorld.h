@@ -105,6 +105,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") int32 MaxMovers = 0;
 	/** U-18i — the most traffic bodies (cars, pedestrians) created in one frame; 0 = no limit */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") int32 MaxMoverSpawnsPerFrame = 16;
+	/** U-18i — the traffic draw distance (cm) from the nearest view: farther movers are not spawned, moved nor animated; 0 = all */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float TrafficDrawRadiusCm = 80000.f;
 	/** where the contract's origin (Session's UTM origin) is in this level, cm */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") FVector OriginCm = FVector::ZeroVector;
 

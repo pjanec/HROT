@@ -124,7 +124,7 @@ int32 AHrotVehicle::SetPaint(FLinearColor NewPaint)
 		const int32 I = C->GetMaterialIndex(Kit->PaintSlot);
 		if (I == INDEX_NONE) continue;
 		UMaterialInstanceDynamic* M = Cast<UMaterialInstanceDynamic>(C->GetMaterial(I));
-		if (!M) M = C->CreateDynamicMaterialInstance(I);
+		if (!M) M = C->CreateDynamicMaterialInstance(I, Kit->PaintMaterial ? Kit->PaintMaterial.Get() : nullptr);
 		if (!M) continue;
 		M->SetVectorParameterValue(Kit->PaintParam, Paint);
 		++N;
