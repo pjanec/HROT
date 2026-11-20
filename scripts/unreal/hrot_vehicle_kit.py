@@ -5,7 +5,8 @@
                                                                                                   "parent": HULL | WING_LEFT | WING_RIGHT}],
                                                                                                 "turretParts", "gunParts", "muzzle",
                                                                                                 "engineDeck", "flashSize", "flame": {"loc", "rot", "size"},
-                                                                                                "wingLeft", "wingRight" (pivots), "flapAmplitude", "flapRate", "out" }
+                                                                                                "wingLeft", "wingRight" (pivots), "flapAmplitude", "flapRate",
+                                                                                                "seats", "skinned": {"mesh", "loc", "rot", "scale"}, "out" }
     probe        hrot_level_probe.py's result for the vendor's showcase map (every part placed: the hull frame = the map origin)
     turret, gun  the pivots: the turret ring centre (hull space) and the trunnion (hull space) — here: where the vendor placed the
                  turret and the gun meshes (their pivots are the ring and the trunnion)
@@ -112,6 +113,12 @@ def main(JOB):
     if "flapRate" in JOB: kit.set_editor_property("flap_rate", float(JOB["flapRate"]))
     if "flapBob" in JOB: kit.set_editor_property("flap_bob", float(JOB["flapBob"]))
     if "seats" in JOB: kit.set_editor_property("seats", seats_of(JOB))
+    sk = JOB.get("skinned")   # a skinned body (U-17l: the motorcycle): {"mesh", "loc", "rot", "scale"}
+    if sk:
+        kit.set_editor_property("skinned_body", unreal.load_asset(sk["mesh"]))
+        t = T(sk.get("loc", (0, 0, 0)), sk.get("rot", (0, 0, 0)))
+        if sk.get("scale"): t.scale3d = unreal.Vector(sk["scale"], sk["scale"], sk["scale"])
+        kit.set_editor_property("skinned_transform", t)
     fl = JOB.get("flame")   # a flamethrower: {"loc", "rot", "size"} in hull space (X = the stream)
     kit.set_editor_property("flamethrower", bool(fl))
     if fl:

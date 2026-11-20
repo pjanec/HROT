@@ -1,7 +1,9 @@
 // CE-4651 (U-17) — see the header.
 #include "HrotVehicle.h"
 
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "HrotFire.h"
@@ -60,18 +62,30 @@ void AHrotVehicle::BeginPlay()
 	Super::BeginPlay();
 	// ⚠ measured: the part components are transient (rebuilt, never saved), so a play-mode COPY of the editor's vehicle arrives
 	// without them (only the pivots) — it builds its own
-	if (PartComps.Num() == 0) Build();
+	if (PartComps.Num() == 0 && !SkinnedComp) Build();
 }
 
 void AHrotVehicle::Build()
 {
 	for (UStaticMeshComponent* C : PartComps) if (C) C->DestroyComponent();
 	PartComps.Reset();
+	if (SkinnedComp) { SkinnedComp->DestroyComponent(); SkinnedComp = nullptr; }
 	ClearDamageFx();
 	if (Flame) { Flame->DestroyComponent(); Flame = nullptr; }
 	Shown = EHrotVehicleDamage::Intact;
 	if (!Kit) return;
 	if (Kit->bFlamethrower) Flame = UHrotFlamethrower::Attach(Lift, NAME_None, Kit->FlameMount, Kit->FlameSize);
+	if (Kit->SkinnedBody)   // the motorcycle: one skinned mesh in its rest pose
+	{
+		SkinnedComp = NewObject<USkeletalMeshComponent>(this, NAME_None, RF_Transient);
+		SkinnedComp->CreationMethod = EComponentCreationMethod::UserConstructionScript;
+		SkinnedComp->SetSkeletalMeshAsset(Kit->SkinnedBody);
+		SkinnedComp->SetupAttachment(Lift);
+		SkinnedComp->SetRelativeTransform(Kit->SkinnedTransform);
+		SkinnedComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		SkinnedComp->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+		SkinnedComp->RegisterComponent();
+	}
 	for (const FHrotVehiclePart& P : Kit->Parts)
 	{
 		if (!P.Mesh) continue;
@@ -169,6 +183,8 @@ void AHrotVehicle::ApplyState()
 		if (!C) continue;
 		for (int32 I = 0; I < C->GetNumMaterials(); ++I) C->SetMaterial(I, bWreck ? Burnt : nullptr);   // nullptr = the mesh's own
 	}
+	if (SkinnedComp)
+		for (int32 I = 0; I < SkinnedComp->GetNumMaterials(); ++I) SkinnedComp->SetMaterial(I, bWreck ? Burnt : nullptr);
 	auto Attach = [this](const TCHAR* Path, float Scale)
 	{
 		Scale *= Kit->DamageFxScale;

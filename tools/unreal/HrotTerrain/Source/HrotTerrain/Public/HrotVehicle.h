@@ -11,6 +11,8 @@
 #include "HrotVehicle.generated.h"
 
 class UStaticMesh;
+class USkeletalMesh;
+class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class UFXSystemComponent;
 
@@ -68,6 +70,10 @@ public:
 	/** the body's rise and fall with the beat (cm, on top of HROT's steady altitude): highest when the wings are lowest (the
 	 *  downstroke lifts) — U-17i, user: "synchronized up/down motion on top of HROT steady altitude" */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlapBob = 0.f;
+	/** ⭐ a SKINNED body (U-17l: the motorcycle — one skeletal mesh, its wheels and fork are bones), shown in its rest pose on Lift,
+	 *  beside or instead of the static parts; `SkinnedTransform` places it (hull space) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TObjectPtr<USkeletalMesh> SkinnedBody;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform SkinnedTransform;
 	/** ⭐ where riders sit (U-17j: the dragon's driver and passenger), UHrotRiding::SitOn */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TArray<FHrotSeat> Seats;
 };
@@ -123,6 +129,7 @@ public:
 
 private:
 	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> PartComps;
+	UPROPERTY(Transient) TObjectPtr<USkeletalMeshComponent> SkinnedComp;
 	UPROPERTY(Transient) TArray<TObjectPtr<UFXSystemComponent>> DamageFx;
 	UPROPERTY(Transient) TObjectPtr<class UHrotFlamethrower> Flame;
 	EHrotVehicleDamage Shown = EHrotVehicleDamage::Intact;
