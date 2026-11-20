@@ -680,5 +680,5 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
   clearer cuts a lane (▶ ✅ `mf-engineers-answer`; ⏳ `mf-clear-lane-and-cross` — the whole chain — and `mf-knowledge-survives`, waiting on the
   replay seek fix CE-5041)
 - 🎉 *(2026-11-19, the fun pack)* **The dragon** — it flies, lands, roars and breathes fire (the flame weapons' jet on a neck turret); its look is
-  built; its attack pattern (strafing passes, hovering at a building) awaits approval ([DESIGN_Dragon](designs/fun/DESIGN_Dragon.md), CE-4634)
+  built; it attacks on its own — strafing passes at men and soft vehicles, a hover at a burnable building (CE-3490); the same pattern flies the flame helicopter, TKB 412 "AH-64 (flame)" ([DESIGN_Dragon](designs/fun/DESIGN_Dragon.md), CE-4634; [DESIGN_Breath_Attack](designs/air-attack/DESIGN_Breath_Attack.md))
 
