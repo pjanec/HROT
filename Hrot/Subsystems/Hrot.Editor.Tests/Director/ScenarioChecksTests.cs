@@ -524,6 +524,64 @@ public sealed class ScenarioChecksTests
     }
 
     /// <summary>
+    /// ⭐ <c>CE-2455</c> (the urban fight suite, R-4277) — <c>still</c>, <c>for</c> and <c>fighting</c>: a man who stays within 1 m for 20 s holds "still for 15 s";
+    /// one who keeps moving never does; a DOWNED man lying still is not counted with <c>fighting</c> (📌 the stair "stand-off" of 2026-11-20 was a dead man);
+    /// <c>for</c> on <c>cover</c> counts a man only after HE has been in the open that long — a one-sample break starts his time again.
+    /// 🔴 Red-proofs: <c>Lasted</c> ignoring <c>For</c> ⇒ the walker's "still" and the broken "open 10 s" hold ⇒ red; <c>InTheFight</c> always true ⇒ the downed man counts ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE2455_StillForAndFighting_JudgeAManOverTime()
+    {
+        var checks = Parse("""
+            { "runFor": 30, "expect": [
+                {"name": "the sentry stood still 15 s", "on": "still", "who": "Sentry", "m": 1, "for": 15},
+                {"name": "the walker stood still 15 s", "on": "still", "who": "Walker", "m": 1, "for": 15},
+                {"name": "someone in the fight stood still 15 s", "on": "still", "who": "*Down", "m": 1, "for": 15, "fighting": true},
+                {"name": "the gappy man was in the open 10 s", "on": "cover", "who": "Gappy", "is": "open", "m": 2, "for": 10},
+                {"name": "the open man was in the open 10 s", "on": "cover", "who": "Open", "is": "open", "m": 2, "for": 10}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(new Fdp.Toolkit.Spatial.Eqs.ManualCoverProvider(new[]
+            { new Fdp.Toolkit.Spatial.Eqs.CoverPoint { PositionX = 500, PositionY = 0, PositionZ = 0, DirectionX = 1, Quality = 1 } }));
+        var w = new FakeWorld { World = world };
+        void Man(string name, int id, double hp, double x)
+        {
+            w.U.Ids[name] = id;
+            w.Comps[id] = new JsonObject
+            {
+                ["Health"] = new JsonObject { ["Current"] = hp, ["Max"] = 100 },
+                ["InjuryThresholds"] = new JsonObject { ["IncapacitatedBelow"] = 0.3 },
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, 0, 0) },
+            };
+        }
+        var book = new ConditionBook(checks, w, 0);
+        for (int t = 0; t <= 25; t++)
+        {
+            Man("Sentry", 1, 100, 10 + 0.02 * t);         // shuffles 0.5 m in 25 s: still
+            Man("Walker", 2, 100, 50 + 2.0 * t);          // 2 m every second: never still
+            Man("Man Down", 3, 10, 90);                   // incapacitated, lying still
+            Man("Gappy", 4, 100, t == 6 ? 500 : 130);     // in the open, but in cover for one sample at 6 s
+            Man("Open", 5, 100, 170);                     // in the open all the time
+            book.Observe(t);
+        }
+        book.Finish(26);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["the sentry stood still 15 s"].Ok);
+        Assert.Equal(15, v["the sentry stood still 15 s"].Time!.Value, 3);
+        Assert.False(v["the walker stood still 15 s"].Ok);
+        Assert.False(v["someone in the fight stood still 15 s"].Ok);   // the only one is down
+        Assert.True(v["the gappy man was in the open 10 s"].Ok);
+        Assert.Equal(17, v["the gappy man was in the open 10 s"].Time!.Value, 3);   // his time started again at 7 s
+        Assert.Equal(10, v["the open man was in the open 10 s"].Time!.Value, 3);
+
+        Parse("""{ "runFor": 1, "expect": [{"name": "a", "on": "still", "who": "A", "m": 1}, {"name": "b", "on": "shot", "by": "A", "for": 3}, {"name": "c", "on": "near", "who": "A", "point": [0,0], "fighting": true}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("a still cue needs for", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("for belongs to a state cue", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("fighting belongs to a cover, still, field or bunched cue", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2443</c> — <c>also</c> on a field cue: every extra condition holds on the SAME unit ("a man inside the field's x-span AND above the lane's band");
     /// a man who meets one condition and another man the other does not make it hold. 🔴 Red-proof: judge <c>also</c> on ANY unit ⇒ the split pair holds ⇒ red.
     /// </summary>

@@ -76,6 +76,9 @@ namespace Hrot.Editor.Director
         private Dictionary<int, string> _nameOf = new();
         private double _rel;
         private readonly Dictionary<int, JsonObject?> _comps = new();
+        // ⭐ CE-2455 — "for": since when each (cue, unit) has held without a break (unit -1 = the cue itself); "still": where each (cue, unit) settled
+        private readonly Dictionary<(CheckCue Cue, int Unit), double> _heldSince = new();
+        private readonly Dictionary<(CheckCue Cue, int Unit), System.Numerics.Vector2> _settledAt = new();
 
         /// <param name="t0">The sim time the run started at (rows carry absolute sim times).</param>
         public ConditionBook(ScenarioChecks checks, IVerifyWorld world, double t0)
@@ -177,9 +180,10 @@ namespace Hrot.Editor.Director
                 {
                     var units = UnitsNamed(a.Who!).ToList();
                     if (c.Dead) units = units.Where(id => HealthOf(id) is <= 0f).ToList();   // ⭐ CE-4672 — only the dead the name matches
+                    if (c.Fighting) units = units.Where(InTheFight).ToList();                // ⭐ CE-2455 — only the men still in the fight
                     var want = c.Value is JsonValue v && v.ToString() == "$now" ? JsonValue.Create(_rel + _t0) : c.Value;
-                    int held = units.Count(id => FieldHolds(Components(id), c.Path!, c.Op, want, c.Elements, c.Where)
-                                                 && c.Also.All(x => FieldHolds(Components(id), x.Path, x.Op, x.Value, 1)));   // ⭐ CE-2443 — the same unit meets every "also" too
+                    int held = units.Count(id => Lasted(c, id, FieldHolds(Components(id), c.Path!, c.Op, want, c.Elements, c.Where)
+                                                 && c.Also.All(x => FieldHolds(Components(id), x.Path, x.Op, x.Value, 1))));   // ⭐ CE-2443 — the same unit meets every "also" too · CE-2455 for
                     bool ok = c.Quantifier switch
                     {
                         "any" => held > 0,
@@ -189,28 +193,30 @@ namespace Hrot.Editor.Director
                     return ok ? _rel : null;
                 }
                 case "knowledge":
-                    return _w.World is { } kw && KnowledgeHolds(kw, c) ? _rel : null;
+                    return Lasted(c, -1, _w.World is { } kw && KnowledgeHolds(kw, c)) ? _rel : null;
                 case "window":
-                    return _w.World is { } ww && WindowHolds(ww, c) ? _rel : null;
+                    return Lasted(c, -1, _w.World is { } ww && WindowHolds(ww, c)) ? _rel : null;
                 case "far":
                 case "close":
-                    return DistanceHolds(c) ? _rel : null;
+                    return Lasted(c, -1, DistanceHolds(c)) ? _rel : null;
                 case "between":
-                    return BetweenHolds(c) ? _rel : null;
+                    return Lasted(c, -1, BetweenHolds(c)) ? _rel : null;
                 case "cover":
-                    return CoverHolds(c) ? _rel : null;
+                    return CoverHolds(c) ? _rel : null;      // per unit (CE-2455 for)
+                case "still":
+                    return StillHolds(c) ? _rel : null;      // ⭐ CE-2455 — per unit
                 case "bunched":
-                    return BunchedHolds(c) ? _rel : null;
+                    return Lasted(c, -1, BunchedHolds(c)) ? _rel : null;
                 default:
                 {
                     // a task cue may name several behaviours: any of them
                     var specs = a.Is is JsonArray many ? many.Select(x => a with { Is = x?.DeepClone() }) : new[] { a };
-                    if (_w.World is { } world) return specs.Any(s => AnchorBook.HoldsFor(s, world, _w.Units, _w.BehaviourName)) ? _rel : null;
+                    if (_w.World is { } world) return Lasted(c, -1, specs.Any(s => AnchorBook.HoldsFor(s, world, _w.Units, _w.BehaviourName))) ? _rel : null;
                     // ⭐ RT-5 (R-3094) — a world with no repository (the cluster tier reads a node over HTTP): the SAME value comparisons
                     //   (AnchorBook's TaskHolds / SideHolds / HealthHolds / EmbarkHolds / GestureHolds, CE-4117 N6) on the unit's dumped components.
                     //   ⛔ Before, every near / task / side / health / embark / gesture cue silently read false there.
                     var who = UnitsNamed(a.Who!).ToList();
-                    return specs.Any(s => who.Any(id => Components(id) is { } comps && StateHolds(s, comps))) ? _rel : null;
+                    return Lasted(c, -1, specs.Any(s => who.Any(id => Components(id) is { } comps && StateHolds(s, comps)))) ? _rel : null;
                 }
             }
         }
@@ -384,15 +390,67 @@ namespace Hrot.Editor.Director
             foreach (var id in UnitsNamed(who))
             {
                 if (HealthOf(id) is not > 0f || PositionOf(id) is not { } at) continue;
+                if (c.Fighting && !InTheFight(id)) continue;   // ⭐ CE-2455
                 units++;
                 int n = cover.GetCoverPointsInRadius(new System.Numerics.Vector2(at.X, at.Y), c.M, found);
                 bool near = false;
                 for (int i = 0; i < n && !near; i++) near = MathF.Abs(found[i].PositionZ - at.Z) <= 2f;
                 // ⭐ CE-8316 — "upright": a man lying prone uses the ground (never "standing in the open")
                 if (c.Upright && Components(id)?["StanceStatus"]?["CurrentStance"]?.ToString() == "Prone") near = true;
-                if (near != wantOpen) held++;
+                if (Lasted(c, id, near != wantOpen)) held++;   // ⭐ CE-2455 — "for": this man, that long
             }
             return Quantified(c.Quantifier, units, held);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2455</c> (the urban fight suite, R-4277) — <c>still</c>: for the LIVE units <see cref="AnchorSpec.Who"/> names, a unit holds once he has stayed within
+        /// <see cref="CheckCue.M"/> (horizontal) of where he settled for <see cref="CheckCue.For"/> s — he settles again wherever he ends up when he moves further.
+        /// <see cref="CheckCue.Quantifier"/> counts them. 📌 With <c>fighting</c> and a window after the first contact: "a man in the fight stood still 20 s".
+        /// Both tiers (<see cref="PositionOf"/>).
+        /// </summary>
+        private bool StillHolds(CheckCue c)
+        {
+            if (c.Spec.Who is not { } who) return false;
+            int units = 0, held = 0;
+            foreach (var id in UnitsNamed(who))
+            {
+                if (HealthOf(id) is not > 0f || PositionOf(id) is not { } p) continue;
+                if (c.Fighting && !InTheFight(id)) continue;
+                units++;
+                var at = new System.Numerics.Vector2(p.X, p.Y);
+                // first seen ⇒ he settles here; moved more than m ⇒ he settles where he is now and his time starts again (a break this sample)
+                bool settled = !_settledAt.TryGetValue((c, id), out var anchor) || System.Numerics.Vector2.Distance(anchor, at) <= c.M;
+                if (!_settledAt.ContainsKey((c, id)) || !settled) _settledAt[(c, id)] = at;
+                if (Lasted(c, id, settled)) held++;
+            }
+            return Quantified(c.Quantifier, units, held);
+        }
+
+        /// <summary>⭐ <c>CE-2455</c> — <paramref name="holds"/> for <paramref name="unit"/> (−1 = the cue itself) at this sample, and it has held at every sample
+        /// for <see cref="CheckCue.For"/> s; a break starts it again. 0 ⇒ at once.</summary>
+        private bool Lasted(CheckCue c, int unit, bool holds)
+        {
+            var key = (c, unit);
+            if (!holds) { _heldSince.Remove(key); return false; }
+            if (!_heldSince.TryGetValue(key, out var since)) _heldSince[key] = since = _rel;
+            return _rel - since >= c.For - 1e-9;
+        }
+
+        /// <summary>⭐ <c>CE-2455</c> — the unit is still in the fight: alive and not incapacitated — <c>Injury.IsInTheFight</c>
+        /// on a live repository; on dumped components (the cluster tier) the same rule read from <c>Health</c> and <c>InjuryThresholds</c> (the RT-5 precedent).</summary>
+        private bool InTheFight(int id)
+        {
+            if (_w.World is { } world)
+            {
+                var e = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
+                if (!e.IsNull && world.IsAlive(e)) return Fdp.Toolkit.Combat.Injury.IsInTheFight(world, e);
+            }
+            var comps = Components(id);
+            if (comps?["Health"] is not JsonObject hp || Num(hp["Current"]) is not { } cur) return true;   // no health: nothing takes it out of the fight
+            if (cur <= 0) return false;
+            double max = Num(hp["Max"]) ?? 0;
+            double below = Num(comps["InjuryThresholds"]?["IncapacitatedBelow"]) ?? 0;
+            return max <= 0 || cur / max >= below;
         }
 
         /// <summary>⭐ <c>CE-4672</c> — <c>bunched</c>: at least two LIVE units <see cref="AnchorSpec.Who"/> names, and EVERY one of them within <see cref="CheckCue.M"/> of
@@ -402,7 +460,7 @@ namespace Hrot.Editor.Director
             if (c.Spec.Who is not { } who) return false;
             var at = new List<System.Numerics.Vector2>();
             foreach (var id in UnitsNamed(who))
-                if (HealthOf(id) is > 0f && PositionOf(id) is { } p) at.Add(new System.Numerics.Vector2(p.X, p.Y));
+                if (HealthOf(id) is > 0f && (!c.Fighting || InTheFight(id)) && PositionOf(id) is { } p) at.Add(new System.Numerics.Vector2(p.X, p.Y));
             if (at.Count < 2) return false;
             var centre = System.Numerics.Vector2.Zero;
             foreach (var p in at) centre += p;

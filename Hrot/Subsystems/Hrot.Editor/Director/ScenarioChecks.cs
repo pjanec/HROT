@@ -51,13 +51,20 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ <c>CE-2443</c> (mf-clear-lane-and-cross) <c>field</c>: more conditions the SAME unit must meet too (<c>"also": [{"path", "op", "value"}, …]</c>) —
         /// e.g. "a man in the field's x-span AND outside the lane's band". All must hold, on the unit's own components.</summary>
         public IReadOnlyList<(string Path, string Op, JsonNode? Value)> Also { get; init; } = Array.Empty<(string, string, JsonNode?)>();
+        /// <summary>⭐ <c>CE-2455</c> (the urban fight suite, R-4277) — a STATE cue holds only once it has held at every sample for this long (s; 0 = at once).
+        /// On a cue over several units (<c>cover</c>, <c>still</c>, <c>field</c>) each unit counts only once IT has held it that long — "a man stood in the open
+        /// 15 s", never "the squad was open at 15 s of samples, a different man each time". On any other state cue: the cue itself.</summary>
+        public double For { get; init; }
+        /// <summary>⭐ <c>CE-2455</c> — <c>cover</c> / <c>still</c> / <c>field</c> / <c>bunched</c>: judge only the units still IN THE FIGHT (alive and not incapacitated —
+        /// <c>Injury.StateOf</c>'s rule). 📌 A downed man lies still in the open by definition: without it he reads as an idle man (`2026-11-20`, the stair "stand-off").</summary>
+        public bool Fighting { get; init; }
 
         public string On => Spec.On;
 
         /// <summary>The cues a check may use: the take's nine, <c>field</c> and ⭐ <c>knowledge</c> (CE-4624 — what a side knows of a minefield:
         /// <c>"is": "Marked"</c>, or a cell state — <c>Suspected</c> / <c>KnownClear</c> / <c>KnownMined</c> / <c>Unknown</c> — counted and compared by
         /// <c>op</c> / <c>value</c>, default <c>&gt;= 1</c>).</summary>
-        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched" }).ToArray();
+        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still" }).ToArray();
         /// <summary>⭐ <c>CE-4672</c> <c>cover</c>: <c>in</c> — a cover point (the terrain's cover database) within <see cref="M"/> of the unit; <c>open</c> — none.</summary>
         public static readonly IReadOnlyList<string> CoverStates = new[] { "in", "open" };
 
@@ -248,7 +255,8 @@ namespace Hrot.Editor.Director
             var spec = new JsonObject();
             var where_ = new List<(string, string, JsonNode?)>();
             string? hit = null, path = null, op = "==", quantifier = "any", side = null, from = null, to = null, building = null;
-            bool dead = false, upright = false;
+            bool dead = false, upright = false, fighting = false;
+            double forSeconds = 0d;
             var also = new List<(string, string, JsonNode?)>();
             int elements = 1;
             float m = 0f, margin = 3f;
@@ -271,6 +279,8 @@ namespace Hrot.Editor.Director
                     case "building": building = v?.ToString(); break;
                     case "dead": dead = v is JsonValue dv && dv.TryGetValue<bool>(out var db) && db; break;
                     case "upright": upright = v is JsonValue uv && uv.TryGetValue<bool>(out var ub) && ub; break;   // ⭐ CE-8316
+                    case "fighting": fighting = v is JsonValue fv && fv.TryGetValue<bool>(out var fb) && fb; break;   // ⭐ CE-2455
+                    case "for": forSeconds = v is JsonValue sv2 && sv2.TryGetValue<double>(out var sd) ? sd : -1d; break;   // ⭐ CE-2455
                     case "also":
                         if (v is not JsonArray conds) { problems.Add($"{where}: also is a list of {{path, op, value}}"); break; }
                         foreach (var c in conds)
@@ -298,7 +308,7 @@ namespace Hrot.Editor.Director
             // a take anchor's parser checks the take keys; "field" is the verifier's own, so it is checked here
             var anchorProblems = new List<string>();
             var parsed = TakeJson.ParseAnchor(spec, where, anchorProblems);
-            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched") || !p.Contains("is not one of", StringComparison.Ordinal)));
+            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still") || !p.Contains("is not one of", StringComparison.Ordinal)));
             if (on == "window")
             {
                 if (string.IsNullOrWhiteSpace(building)) problems.Add($"{where}: a window cue needs building (its terrain key or label)");
@@ -319,6 +329,16 @@ namespace Hrot.Editor.Director
                 if (parsed.Who == null) problems.Add($"{where}: a bunched cue needs who (the group, e.g. \"*Red Squad 1 \")");
                 if (m <= 0f) problems.Add($"{where}: a bunched cue needs m (metres from the group's centre, > 0)");
             }
+            // ⭐ CE-2455 (the urban fight suite) — "still" (a man who has not moved), "for" (held that long), "fighting" (only the men still in the fight)
+            if (on == "still")
+            {
+                if (parsed.Who == null) problems.Add($"{where}: a still cue needs who");
+                if (m <= 0f) problems.Add($"{where}: a still cue needs m (metres he may move and still be still, > 0)");
+                if (forSeconds <= 0d) problems.Add($"{where}: a still cue needs for (seconds he has not moved, > 0)");
+            }
+            if (forSeconds < 0d) problems.Add($"{where}: for is seconds (>= 0)");
+            if (forSeconds > 0d && on is "shot" or "blast" or "hit") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
+            if (fighting && on is not ("cover" or "still" or "field" or "bunched")) problems.Add($"{where}: fighting belongs to a cover, still, field or bunched cue");
             if (dead && on != "field") problems.Add($"{where}: dead belongs to a field cue");
             if (upright && on != "cover") problems.Add($"{where}: upright belongs to a cover cue");
             if (also.Count > 0 && on != "field") problems.Add($"{where}: also belongs to a field cue");
@@ -339,7 +359,7 @@ namespace Hrot.Editor.Director
                 value ??= JsonValue.Create(1);
             }
             else if (side != null) problems.Add($"{where}: side belongs to a knowledge cue");
-            if (on is "cover" or "bunched")
+            if (on is "cover" or "bunched" or "still")
             {
                 if (from != null) problems.Add($"{where}: from belongs to a far / close / between cue");
             }
@@ -365,7 +385,7 @@ namespace Hrot.Editor.Director
             if (where_.Count > 0 && on is not ("shot" or "blast" or "field")) problems.Add($"{where}: where filters a shot or a blast row (or, on a field cue, the elements of a * path)");
             if (where_.Count > 0 && on == "field" && !(path ?? "").Contains(".*.", StringComparison.Ordinal)) problems.Add($"{where}: where on a field cue filters the elements of a path with a * part");
             if (hit != null && on != "shot") problems.Add($"{where}: hit belongs to a shot cue");
-            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building, Dead = dead, Upright = upright, Also = also };
+            return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building, Dead = dead, Upright = upright, Also = also, For = forSeconds, Fighting = fighting };
         }
     }
 }
