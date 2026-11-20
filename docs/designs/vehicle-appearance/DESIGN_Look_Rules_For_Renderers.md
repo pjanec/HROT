@@ -112,7 +112,7 @@ are map-side), so a node extension in that process reads it; a headless node has
 | item | id | moves to `Hrot.Look` | stays in the map, and why | state |
 |---|---|---|---|---|
 | **RR-1** tracer streams | [CE-11001](../../blueprints/Blueprint_Issues_Tracker.md) | `Hrot.Look.Effects.FireStreams`: `Window` 0.35 s · `Spacing` 5 m · `DashLength` 1.8 m · `Speed` 900 m/s · `MaxLength` 500 m · `StreamConeCos` 0.7071 · `IsAutomatic(mount)` · `StreamOf(fire, world, out TracerStream)` · `TowardOf(fire, world)` · `StreamToward(…)` · `Dashes(…)` (geometry, and per stream from the live muzzle) | `RecentShots` (the map's memory of the last shot per shooter — a renderer keeps its own); the colour (255,154,48), additive, and the line width | ✅ BUILT |
-| **RR-2** aimed upper body | [CE-11002](../../blueprints/Blueprint_Issues_Tracker.md) | `TryAim` (twist ≤ 75° `HumanGait.MaxAimTwist`, pitch ≤ 35°, shoulder (crouched 0.98 : 1.41 − 0.10) / 1.8 × height), `AimInSeat` (shoulder 0.53 m, twist ≤ 160°), `HeadTurnOf` (LookOf.HeadYaw − drawn twist, ≤ TKB head limit, 70°), `PostureBlend`'s constants (0.3 / 0.12 / 0.15 s, exponential, a gap > 1 s snaps) and its per-entity easing as a caller-owned state | `FigureMotion` (it builds a `MotionPose` for the block figure — a drawing); the lean shear | ⏳ next |
+| **RR-2** aimed upper body | [CE-11002](../../blueprints/Blueprint_Issues_Tracker.md) | `TryAim` (twist ≤ 75° `HumanGait.MaxAimTwist`, pitch ≤ 35°, shoulder (crouched 0.98 : 1.41 − 0.10) / 1.8 × height), `AimInSeat` (shoulder 0.53 m, twist ≤ 160°), `HeadTurnOf` (LookOf.HeadYaw − drawn twist, ≤ TKB head limit, 70°), `PostureBlend`'s constants (0.3 / 0.12 / 0.15 s, exponential, a gap > 1 s snaps) and its per-entity easing as a caller-owned state | `FigureMotion` (it builds a `MotionPose` for the block figure — a drawing); the lean shear | ✅ BUILT — `Hrot.Look.People.UpperBody` (`Targets`, `TryAim`, `AimInSeat`, `HeadTurnOf`, `ShoulderHeight`, limits) + `Hrot.Look.People.PostureBlend`; the map forwards |
 | **RR-3** spinning parts, leans | [CE-11003](../../blueprints/Blueprint_Issues_Tracker.md) | rotor 4.3 rev/s, run-on 20 s, spool 3 s; drone 7.3; antenna 0.6; flail 4 rev/s, spool 1 s; the bank `−atan(v·yawRate/g)` ≤ 35°, eased 0.15 s; wheel roll by distance over the wheel radius — as functions of replicated state on SIM time | the per-frame accumulator (`MotionTracker.State`) — a renderer keeps its own; ⚠ the map advances rotor angles by frame time × sim pace — the shared function takes sim seconds, the map's pacing stays its own | ⏳ |
 | **RR-4** rounds, flame | [CE-11004](../../blueprints/Blueprint_Issues_Tracker.md) | `TracerOf`, `TrailFactor`, `BurnOf`, the lying / stopped rule, the trail constants; the flame look: jets, burning spots (size clamp(r·0.7, 0.3, 8)), burning people, scorch marks — as specs | the `Color`s (an `Rgba` in Look where a colour IS the rule), the path ring buffer | ⏳ |
 | **RR-5** bodies, gaits, carriage, flail, HUD | [CE-11005](../../blueprints/Blueprint_Issues_Tracker.md) | `QuadrupedGaits`, `GaitBands`, `FlockBirds`, the grazing cycle; `Carriage.Of` + `CarriageKind` + placement; `FlailActivity.IsOn`; the HUD words (`KindOf`, `RoundName`, `Label`, `TypeName`) | `AnimalCoats` (colours of kits); the HUD's drawing and colours; `DismountDrop` (a per-entity timer of the map) | ⏳ |
@@ -168,7 +168,7 @@ as HROT's 3d map"*. ⛔ **Superseded lean (kept for the record):** a rail per re
 behaviors lane's animal system — today the map guesses it from speed). Blast radius: one flag bit, one writer. What would change it: if the behaviors lane
 already plans a flight state for animals.
 
-**D-5 (RR-9) — the material an impact struck** *(gateway note, `2026-11-20`)*. Measured: `RoundImpactNotification` carries point, normal, travel,
+**D-5 (RR-9) — the material an impact struck** ✅ **APPROVED `2026-11-20` (R-11003).** *(gateway note, `2026-11-20`)*. Measured: `RoundImpactNotification` carries point, normal, travel,
 ammo, kind — no material (`RoundImpactNotification.cs:15-36`); `EffectRules.ForImpact` guesses only Ground vs Building from the height above the ground
 (`EffectRules.cs:155`); the ballistics DOES know the material at each crossing (`TerrainWorld.Crossing.Material`, a name). Lean: ⭐ **a byte
 `ImpactMaterial` class on the notification (Earth, Concrete, Brick, Wood, Metal, Glass, Water, Flesh, Vegetation, Unknown), mapped once from the terrain
@@ -176,14 +176,14 @@ material name, carried on the NED wire, and used by `ForImpact` for its own surf
 field, the impact IDL + translator (a wire change, the backend lane's area — said in the commit), the rule. What would change it: if the wire must stay
 frozen, the gateway can resolve the material locally from the point (TerrainWorld query) — a second copy of the lookup, so worse.
 
-**D-6 (RR-10) — what a recorded explosion hit** *(gateway note)*. Measured: `DetonationNotification` DOES carry `Target` and `Damage`, and events are
+**D-6 (RR-10) — what a recorded explosion hit** ✅ **APPROVED `2026-11-20` (R-11004).** *(gateway note)*. Measured: `DetonationNotification` DOES carry `Target` and `Damage`, and events are
 recorded (`RecorderSystem.cs:211`, only `NoReplay` types skipped — it has none) — but the effect ENTITY the map and a gateway read (R-11001) does not:
 the explosion's type is the same for a unit and the ground (`EffectRules.cs:176`); only a ground hit adds a decal. Lean: ⭐ **the spawner adds one small
 unmanaged, recorded, never-saved component to each effect it makes from a hit — `EffectCause { EffectSurface Surface; Entity Target; float Damage;
 long Ammo }`, straight from the spec the rule already computes** — so the entity alone says unit / person / ground / air, live and in replay. Blast
 radius: one new component id, one writer (the spawner), a few bytes per recorded effect. ⛔ Not "read the replayed event": that is a second path beside R-11001.
 
-**D-7 (RR-11) — a round's exact launch time** *(gateway note)*. Measured: a round carries only `BallisticProjectile.SpawnTick` (a tick,
+**D-7 (RR-11) — a round's exact launch time** ✅ **APPROVED `2026-11-20` (R-11005).** *(gateway note)*. Measured: a round carries only `BallisticProjectile.SpawnTick` (a tick,
 `CombatComponents.cs:125`); the replicated round (`LightweightRound`) is a bare tag. Lean: ⭐ **a `SimInstant LaunchedAt` on the round, set once by the
 shooter at creation and replicated with the round's creation (immutable after)** — sim time, so live and replay agree. Blast radius: one field on the round
 component and its creation sample (wire). What would change it: none known.

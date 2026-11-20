@@ -15,6 +15,7 @@ using Hrot.Map.Definitions.Tkb;
 using Hrot.UI.Common.AddEntity;
 using Hrot.UI.Common.Map3D;
 using Xunit;
+using PostureBlend = Hrot.Look.People.PostureBlend;
 
 namespace Hrot.Presentation.Tests.Map3D;
 
