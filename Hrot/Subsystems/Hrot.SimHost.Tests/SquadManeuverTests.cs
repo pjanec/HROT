@@ -1018,8 +1018,9 @@ namespace Hrot.SimHost.Tests
             Assert.False(s.FlankQuery().IsNull, "closed: the leader asks the terrain for a flank");
         }
 
-        /// <summary>⭐ S2-F — an outmatched squad BREAKS CONTACT: the leader asks for a point the enemy cannot see; element 0 goes there
-        /// while element 1 holds and fires, then element 1 goes; both there ⇒ Success.</summary>
+        /// <summary>⭐ S2-F — an outmatched squad BREAKS CONTACT: the leader asks for a point the enemy cannot see; element 0 goes toward it
+        /// while element 1 holds and fires, then element 1 goes; both there ⇒ Success. ⭐ CE-2460: with no cover on the way each bound is ONE
+        /// rush of <see cref="BreakContactPlay.BoundMetres"/> toward the point. ✅ Red-proof: the fallback back to the answer ⇒ red.</summary>
         [Fact]
         public void CE2123_ReactToContact_AnOutmatchedSquadBreaksContact_ElementByElement_ToTheLeadersRetreatPoint()
         {
@@ -1036,19 +1037,27 @@ namespace Hrot.SimHost.Tests
             var hidden = new Vector3(-40f, -30f, 0f);
             s.Answer(query, hidden);
             s.Tick(); s.Tick();
-            s.Answer(s.BreakCoverQuery(), null);   // ⭐ CE-2460 — no cover on the way: the bound goes straight to the answer (S2-F)
+            s.Answer(s.BreakCoverQuery(), null);   // ⭐ CE-2460 — no cover on the way: ONE rush (BoundMetres) toward the answer, not the whole way
             s.Orders.Clear();
             s.Tick(); s.Tick();
             var first = s.LastOrders();
-            Assert.Equal((BehaviorNames.AdvanceTo, hidden), first[s.Members[0]]);
+            var at0 = s.At(s.Members[0]);
+            var rush0 = SquadCover.OneRush(at0, hidden, BreakContactPlay.BoundMetres);
+            Assert.Equal(BehaviorNames.AdvanceTo, first[s.Members[0]].Intent);
+            Assert.True(Vector3.Distance(first[s.Members[0]].Objective, rush0) < 0.5f, $"one rush toward the answer {rush0}, not the answer: {first[s.Members[0]].Objective}");
             Assert.Equal(BehaviorNames.CombatPosture, first[s.Members[1]].Intent);   // covering
 
-            s.Teleport(s.Members[0], hidden);
+            s.Teleport(s.Members[0], rush0);
             s.Tick(); s.Tick();
             s.Answer(s.BreakCoverQuery(), null);
             s.Orders.Clear();
             s.Tick(); s.Tick();
-            Assert.Equal((BehaviorNames.AdvanceTo, hidden), s.LastOrders()[s.Members[1]]);
+            var at1 = s.At(s.Members[1]);
+            var second = s.LastOrders()[s.Members[1]];
+            Assert.Equal(BehaviorNames.AdvanceTo, second.Intent);
+            Assert.True(Vector3.Distance(second.Objective, SquadCover.OneRush(at1, hidden, BreakContactPlay.BoundMetres)) < 0.5f, $"element 1 rushes too: {second.Objective}");
+
+            s.Teleport(s.Members[0], hidden);
 
             s.Teleport(s.Members[1], hidden);
             bool done = false; Fbt.NodeStatus result = default;

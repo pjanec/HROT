@@ -1116,7 +1116,7 @@ sequenceDiagram
   SQ->>SQ: Greedy: each next post the one that sees most still unseen · Rank · round = the first ≤ 3 that each add ≥ 3 probes
   SQ->>M: Watch {post = rank 0 …}
   loop lone man, nothing known in the area, no hunt
-    SQ->>SQ: 12 s on this post ⇒ next = the round post whose probes were watched longest ago
+    SQ->>SQ: 30 s on this post ⇒ next = the round post whose probes were watched longest ago
     SQ->>M: Watch {post = next} (re-issue)
   end
   SQ->>SQ: an enemy known in the area ⇒ no round: he fights from where he is
@@ -1137,7 +1137,7 @@ graph TD
 | **DL-1** | **coverage only for the ALL-ROUND defence** — a squad with an engagement area keeps its sector-facing posts (D-2a…D-2l) | for every defence: an EA defence already faces the threat; coverage would turn men away from it |
 | **DL-2** | **the area is 32 probes**: 16 bearings round the centre at the search radius and 25 m beyond it (the approaches); a candidate SEES a probe when the fan ray nearest its bearing is free past it (−1 m) | a grid over the area: more probes, the same answer for a ring of approaches |
 | **DL-3** | **greedy union**: rank 0 sees the most probes, each next the most still unseen; ties by the ask's own rank (nearest) | best single view per man: two men watching the same street |
-| **DL-4** | **the round, for a LONE live man only**: the first ≤ 3 ranked posts that each add ≥ 3 probes; ≥ 2 of them ⇒ **12 s** on each *(⭐ user `2026-11-20`, CE-3463: "window rotation drop from 30 s per window to about 12 s" — 📐 at 30 s a ~27 s approach met the round on the wrong window two times in three; ⛔ was 30 s)*, the next the one whose probes were watched longest ago; never while the squad knows an identified enemy in the area (radius + 25 m) or during a hunt (CE-2359) | a squad short of men rotating: L2 (gap-only reassignment) · a random next post: leaves a sector unwatched twice in a row · a round under fire: the user's "erratic window to window" |
+| **DL-4** | **the round, for a LONE live man only**: the first ≤ 3 ranked posts that each add ≥ 3 probes; ≥ 2 of them ⇒ **30 s** on each *(📐 **12 s tried and reverted, `2026-11-20`** — user, CE-3463: "window rotation drop from 30 s per window to about 12 s"; measured worse: ia-area-clear 4/4 → 2/4, ia-area-defend 6/6 → 4/6 — a man moving every 12 s spends more time on the stairs than at a window)*, the next the one whose probes were watched longest ago; never while the squad knows an identified enemy in the area (radius + 25 m) or during a hunt (CE-2359) | a squad short of men rotating: L2 (gap-only reassignment) · a random next post: leaves a sector unwatched twice in a row · a round under fire: the user's "erratic window to window" |
 | **DL-5** | **no fan answer in 5 s** ⇒ the old nearest-first order, no round | waiting: a squad that never posts |
 
 📐 **As built — measured live (`ia-area-defend`, 2026-10-25):** the coverage pass picks an UPSTAIRS frame window when it sees most (the

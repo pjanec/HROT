@@ -283,10 +283,13 @@ namespace Hrot.AI.Behaviors.Brains
                 return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = BoundingOverwatchManeuver.RoleCovering };
             if (WaitingForPicks(in p, in ws, in ctx))   // ⭐ CE-2460 — a moment's hold while the cover picks are made
                 return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = BoundingOverwatchManeuver.RoleMoving };
-            bool cover = SquadCover.Has(in p.Cover, member, out var pick);   // ⭐ CE-2460 — cover to cover; else straight to the answer (S2-F)
+            // ⭐ CE-2460 — cover to cover; with no cover ahead ONE rush (BoundMetres) toward the answer, never the whole way at once (📐 U1, live:
+            //   the first element found no pick and ran ~55 m across the street). No threat (an ordered To) ⇒ straight to the answer (S2-F)
+            bool cover = SquadCover.Has(in p.Cover, member, out var pick);
+            var point = cover ? pick : ws.ThreatId != 0 ? SquadCover.OneRush(at, ws.Answer, BoundMetres) : ws.Answer;
             return new MemberOrder
             {
-                Kind = MemberOrderKind.AdvanceTo, Point = cover ? pick : ws.Answer, Speed = p.Speed, Cover = cover ? (byte)1 : (byte)0,
+                Kind = MemberOrderKind.AdvanceTo, Point = point, Speed = p.Speed, Cover = cover ? (byte)1 : (byte)0,
                 ArrivalRadius = SquadManeuverRunner.MoverArrivalMetres, RoleId = BoundingOverwatchManeuver.RoleMoving,
             };
         }

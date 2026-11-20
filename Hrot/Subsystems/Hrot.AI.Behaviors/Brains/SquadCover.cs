@@ -38,6 +38,16 @@ namespace Hrot.AI.Behaviors.Brains
 
         public static bool IsReady(in SquadCoverPicks picks, byte element) => (picks.Ready & (1 << element)) != 0;
 
+        /// <summary>A mover with no cover pick: ONE rush of at most <paramref name="metres"/> straight toward <paramref name="objective"/> —
+        /// never the whole way at once (fire and movement's rush; ⭐ <c>CE-2460</c> break contact's bound — the one rule both share).</summary>
+        public static Vector3 OneRush(Vector3 at, Vector3 objective, float metres)
+        {
+            var to = new Vector2(objective.X - at.X, objective.Y - at.Y);
+            float dist = to.Length();
+            float step = dist > 1e-3f ? MathF.Min(metres, dist) / dist : 0f;
+            return new Vector3(at.X + to.X * step, at.Y + to.Y * step, at.Z);
+        }
+
         public static unsafe bool Has(in SquadCoverPicks picks, int slot, out Vector3 point)
         {
             point = default;
