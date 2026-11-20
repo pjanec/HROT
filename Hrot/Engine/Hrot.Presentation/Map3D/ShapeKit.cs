@@ -329,7 +329,7 @@ public static class ShapeKits
     public const float TailRotorRatio = 4.7f;
 
     /// <summary>The wheels' radius on a wheeled kit, as a fraction of the type's height (the wheel cylinders' diameter is 0.42).</summary>
-    public const float WheelRadiusOfHeight = 0.21f;
+    public const float WheelRadiusOfHeight = Hrot.Look.Vehicles.MotionRules.WheelRadiusOfHeight;   // ⭐ CE-11003 (RR-3) — the shared value
 
     internal static KitPart Cone(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c)
         => new(PartShape.Cone, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, axis);
@@ -740,7 +740,7 @@ public static class ShapeKits
     // ── ⭐ CE-4618 (docs/designs/air-attack/DESIGN_Radar_SAM.md §5 U-1) — the RADAR SAM truck: an 8×8 carrier, a cab, a four-canister launcher on a turntable, a radar mast ─────
     private const float SaL = 9.1f, SaW = 2.8f, SaH = 4.2f;   // a short-range radar SAM on an 8×8 truck (Tor / Pantsir-like, generic): the TKB's own box (type 114: 9.1 × 2.8 × 4.2 m) — so the kit's metres ARE metres
     /// <summary>The SAM truck's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>; the car kits' radius is a fraction of THEIR height).</summary>
-    public const float SamWheelRadius = 0.6f;
+    public const float SamWheelRadius = Hrot.Look.Vehicles.MotionRules.SamWheelRadius;   // ⭐ CE-11003 (RR-3)
     // the turntable's axis, the cradle's hinge (x, z) — ⭐ the TKB's own TurretDto (NedTkbCatalog.RadarSam: PivotX −1.5, PivotZ 2.6, TrunnionX 0.4 ⇒ hinge x −1.1), so the kit
     // WITHOUT a TKB and the kit placed FROM the TKB (KitFromTkb) are the same picture — and the radar mast
     private const float SamAxisX = -1.5f, SamTrunnionX = -1.1f, SamTrunnionZ = 2.6f, SamMastX = 2.5f;
@@ -815,7 +815,7 @@ public static class ShapeKits
     // ── ⭐ CE-4621 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a, U-2) — the MOTORCYCLE: two wheels, a tank, a long seat, a rack; the riders are men drawn at the seats ─────
     private const float MoL = 2.1f, MoW = 0.8f, MoH = 1.2f;   // backend's type 115: 2.1 m long, 0.8 m across the bars, 1.2 m to the bars (the riders sit above)
     /// <summary>The motorcycle's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>), a 0.62 m tyre.</summary>
-    public const float MotoWheelRadius = 0.31f;
+    public const float MotoWheelRadius = Hrot.Look.Vehicles.MotionRules.MotoWheelRadius;   // ⭐ CE-11003 (RR-3)
 
     /// <summary>A motorcycle box from METRES (x forward, y left, z up from the ground).</summary>
     private static KitPart Mo(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c, float pitch = 0f)
