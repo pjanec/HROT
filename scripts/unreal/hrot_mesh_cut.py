@@ -36,6 +36,9 @@ def profile(sm, P):
     ax = int(P.get("axis", 0)); bins = int(P.get("bins", 40))
     co = [c for c in (0, 1, 2) if c != ax]
     vals = [(p.x, p.y, p.z) for p in pts]
+    if P.get("within"):   # only the vertices inside a box (mesh space) — e.g. a strip along the spine: the back's height, not a wing's
+        (x0, y0, z0), (x1, y1, z1) = P["within"]
+        vals = [v for v in vals if x0 <= v[0] <= x1 and y0 <= v[1] <= y1 and z0 <= v[2] <= z1]
     lo = min(v[ax] for v in vals); hi = max(v[ax] for v in vals)
     step = (hi - lo) / bins
     table = []
