@@ -40,8 +40,11 @@ public:
 	uint32 GetDomain() const { return Domain; }
 	const FString& GetPartition() const { return Partition; }
 
-	/** calls `Handler` for every sample of `Topic` ("DPS_EntityState") taken by Poll(); the reader is made now. False = unknown topic. */
-	bool Subscribe(const FString& Topic, FHandler Handler);
+	/** calls `Handler` for every sample of `Topic` ("DPS_EntityState") taken by Poll(); the reader is made now. ⚠ A TRANSIENT_LOCAL
+	 *  topic's late-join history goes to the handlers present when the reader takes it: a handler added later sees only newer samples
+	 *  (UHrotDpsWorld restarts the client for that reason). Returns the handler's id for Unsubscribe, 0 = unknown topic. Not from a handler. */
+	int32 Subscribe(const FString& Topic, FHandler Handler);
+	void Unsubscribe(const FString& Topic, int32 Id);
 	/** takes everything waiting on every subscribed reader and calls its handlers (game thread). Returns the number of samples. */
 	int32 Poll();
 	/** writes one sample (the generated C struct) of `Topic` (the player topics: JoinRequest, ControlFrame, Leave, GizmoView) */
@@ -55,7 +58,8 @@ public:
 	static FString Contract();
 
 private:
-	struct FReader { int32 Handle = 0; TArray<FHandler> Handlers; };
+	struct FReader { int32 Handle = 0; TArray<TPair<int32, FHandler>> Handlers; };
+	int32 LastHandlerId = 0;
 	int32 Participant = 0, Subscriber = 0, Publisher = 0;
 	uint32 Domain = 0;
 	FString Partition;

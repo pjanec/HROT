@@ -84,21 +84,26 @@ int32 FHrotDpsClient::TopicOf(const FString& Name, const FHrotDpsTopicDef*& OutD
 	return Topics.Add(Name, T);
 }
 
-bool FHrotDpsClient::Subscribe(const FString& Topic, FHandler Handler)
+int32 FHrotDpsClient::Subscribe(const FString& Topic, FHandler Handler)
 {
-	if (FReader* R = Readers.Find(Topic)) { R->Handlers.Add(MoveTemp(Handler)); return true; }
+	if (FReader* R = Readers.Find(Topic)) { R->Handlers.Add({ ++LastHandlerId, MoveTemp(Handler) }); return LastHandlerId; }
 	const FHrotDpsTopicDef* Def;
 	const int32 T = TopicOf(Topic, Def);
-	if (!T) return false;
+	if (!T) return 0;
 	dds_qos_t* Q = QosOf(*Def);
 	const int32 Rd = dds_create_reader(Subscriber, T, Q, nullptr);
 	dds_delete_qos(Q);
-	if (Rd < 0) { UE_LOG(LogHrotDps, Error, TEXT("reader %s: %hs"), *Topic, dds_strretcode(Rd)); return false; }
+	if (Rd < 0) { UE_LOG(LogHrotDps, Error, TEXT("reader %s: %hs"), *Topic, dds_strretcode(Rd)); return 0; }
 	FReader& R = Readers.Add(Topic);
 	R.Handle = Rd;
-	R.Handlers.Add(MoveTemp(Handler));
+	R.Handlers.Add({ ++LastHandlerId, MoveTemp(Handler) });
 	Counts.FindOrAdd(Topic) = 0;
-	return true;
+	return LastHandlerId;
+}
+
+void FHrotDpsClient::Unsubscribe(const FString& Topic, int32 Id)
+{
+	if (FReader* R = Readers.Find(Topic)) R->Handlers.RemoveAll([Id](const TPair<int32, FHandler>& H) { return H.Key == Id; });
 }
 
 int32 FHrotDpsClient::Poll()
@@ -122,7 +127,7 @@ int32 FHrotDpsClient::Poll()
 				S.bDisposed = Info[I].instance_state == DDS_IST_NOT_ALIVE_DISPOSED;
 				S.SourceTime = double(Info[I].source_timestamp) * 1e-9;
 				S.Instance = Info[I].instance_handle;
-				for (const FHandler& H : It.Value.Handlers) H(S);
+				for (const TPair<int32, FHandler>& H : It.Value.Handlers) H.Value(S);
 			}
 			dds_return_loan(It.Value.Handle, Buf, N);
 			Counts.FindOrAdd(It.Key) += N;
