@@ -66,7 +66,7 @@ shooting · ignoring cover · bunching · a stalemate that never ends · perfect
 
 | # | situation | exercises (attack · defend) | state |
 |---|---|---|---|
-| **U1** | **car shootout** — both squads behind parked cars on opposite kerbs, ~70 m apart down a 22 m street | cover use, peek and fire, suppression, moving to better cover, casualty care under fire | ⏳ building (§4) |
+| **U1** | **car shootout** *(11/12 `2026-11-20`; the last red is CE-2460)* — both squads behind parked cars on opposite kerbs, ~70 m apart down a 22 m street | cover use, peek and fire, suppression, moving to better cover, casualty care under fire | ⏳ building (§4) |
 | U2 | **corner fight** — one squad holds an intersection corner, the other comes down the cross street | leaning round a corner, slicing the pie, suppress and flank through a parallel street / building | DESIGN |
 | U3 | **house defence v clearing** — a squad defends a 2–3 storey house, the other clears it with a fire-support half outside | window posts, falling back upstairs, suppressing windows, the stack, room by room, the stair | DESIGN |
 | U4 | **meeting engagement** — two squads advancing down one street meet at ~80 m | the contact reaction, cover (cars, doorways), fire and movement, the side-street flank | DESIGN |
@@ -103,6 +103,7 @@ the first exchange takes to settle who is winning.
 | U1-2 | the "open" men were inside or behind buildings — safe, no cover point near | ⛔ JUDGE — distance from a marker is not exposure | ✅ `CE-2456`: the `exposed` cue (an enemy SEES him, `SightNow.Sees`); U1's L1 rows use it |
 | U1-2b | `exposed` broken by Red / Blue Rifleman 6: measured live — crouched, SUPPRESSING (the posture's D-15 "lowest stance that clears") behind or beside cover, seen while firing | ⛔ JUDGE — seen while firing from cover is a firing position | ✅ `CE-2459`: `exposed` with `m` counts only a man with no cover within m |
 | U1-3 | after both squads broke contact (~120 s) the survivors stood idle in the street 60–120 s, a wounded man among them | ⭐ BEHAVIOUR — no squad SOP row for "no task, enemy known" | ✅ `CE-2457`: the squad SOP's last row holds ([Squad Tactics §7.6.3](DESIGN_Squad_Tactics.md)) |
+| U1-6 | Blue's BREAK CONTACT: one ~50 m bound straight to the retreat answer, across the open in Red's sight (`exposed` broken by Blue Rifleman 6, 45–60 s) | ⭐ BEHAVIOUR — S2-F bounds straight; doctrine bounds cover to cover | ⏭ `CE-2460` (lean: fire-and-movement's cover rushes toward the answer) |
 | U1-4 | both squads went straight into drills (Blue suppress-and-flank, Red fire-and-movement) and lay prone to fire | ✅ realistic | — |
 | U1-5 | a squad member ~1 s with no task at the start | ✅ order latency (a frame), not a defect | — |
 
