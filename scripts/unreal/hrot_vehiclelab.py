@@ -8,7 +8,8 @@
     aims the row picture at the grid's centre; "animal": a UHrotAnimalKind + "state" (+ "then": {"state", "after"}
     = a change in play, by game time) spawns an AHrotAnimal; "views": [{"name", "label" | "at", "back", "up", "lookZ", "az"}] = more pictures, any framing; "person": a soldier
     (hrot_person); "groundFire": {"radius", "intensity"}; on any entry, in play: "burn": intensity (UHrotBurning), "flamethrower":
-    {"socket", "loc", "rot", "size", "firing"} (UHrotFlamethrower; a person's goes on its weapon); "missile": a UHrotMissileKind ("fly" = a test flight in play); job "floor": [x, y, size]; job "guns": a vehicle's gun firing (fire_guns)
+    {"socket", "loc", "rot", "size", "firing"} (UHrotFlamethrower; a person's goes on its weapon); "missile": a UHrotMissileKind ("fly" = a test flight in play); job "floor": [x, y, size]; job "guns": a vehicle's gun firing (fire_guns);
+    a soldier's "launcher" (shoulder_launcher) + "fireRpg" (fire_rpg)
 
 A row of AHrotVehicle (one kit) in a new level, each with its state (turret yaw / gun pitch / damage), played in Simulate (the
 damage effects and the shot renderer run in the game world); pictures timed by GAME time: the row at 3 s (smoke grown), the firing
@@ -142,6 +143,47 @@ def picture(name):
     S["pending"] = (path, time.time())
 
 
+def shoulder_launcher(a, L):
+    """⭐ "launcher": {"mesh", "scale", "back", "up", "frontAxis"} on a soldier holding the RIFLE aimed: the launcher takes the rifle's
+    place along the rifle's barrel line (its `frontAxis` mesh axis onto the barrel), its middle `back` cm behind the rifle's muzzle and
+    `up` cm above the barrel — on the shoulder, in the aimed pose (no RPG animation exists). Returns (weapon component, its mesh origin)."""
+    ps = a.get_component_by_class(unreal.HrotPersonState)
+    rifle = ps.get_weapon_component()
+    if rifle is None: raise RuntimeError("no rifle in the hand to replace")
+    W = rifle.get_world_transform()
+    M = unreal.HrotWeaponFx.muzzle_transform(rifle, "Muzzle")
+    ML = unreal.MathLibrary
+    fwd = ML.inverse_transform_direction(W, M.rotation.get_axis_x()); fwd.normalize()
+    up = ML.inverse_transform_direction(W, M.rotation.get_axis_z()); up.normalize()
+    muz = ML.inverse_transform_location(W, M.translation)
+    k = float(L.get("scale", 1.5))
+    sm = unreal.load_asset(L["mesh"]); b = sm.get_bounds()
+    rot = unreal.MathLibrary.make_rot_from_yz(fwd, up) if L.get("frontAxis", "Y") == "Y" else unreal.MathLibrary.make_rot_from_xz(fwd, up)
+    centre = muz - fwd * float(L.get("back", 70)) + up * float(L.get("up", 8))
+    loc = centre - rot.quaternion().rotate_vector(b.origin * k)   # the mesh's own centre onto that point
+    in_rifle = unreal.Transform(location=loc, rotation=rot, scale=unreal.Vector(k, k, k))
+    off = unreal.MathLibrary.compose_transforms(in_rifle, ps.get_editor_property("weapon_offset"))
+    setattr(ps, "weapon", sm); setattr(ps, "weapon_offset", off)
+    comp = ps.apply_weapon()
+    log(f"{a.get_actor_label()}: launcher on the shoulder (barrel local {fwd.x:.2f},{fwd.y:.2f},{fwd.z:.2f})")
+    return comp
+
+
+def fire_rpg(a, F):
+    """⭐ "fireRpg": {"after", "kind", "rocketAt" (mesh space), "dist", "speed"} — the loaded rocket hidden (M_HrotInvisible on its slot),
+    a flying AHrotMissile from the tube's front along the launcher's front axis, launched (its backblast) — by game time"""
+    comp = S["launchers"][a.get_actor_label()]
+    T = comp.get_world_transform()
+    fwd = unreal.MathLibrary.transform_direction(T, unreal.Vector(0, 1, 0)); fwd.normalize()
+    at = unreal.MathLibrary.transform_location(T, unreal.Vector(*F.get("rocketAt", (-8.2, 20.0, 1.9))))
+    comp.set_material(int(F.get("slot", 1)), unreal.load_asset("/Game/Hrot/Fx/M_HrotInvisible"))
+    w = UES().get_game_world()
+    xf = unreal.Transform(location=at, rotation=unreal.MathLibrary.make_rot_from_x(fwd))
+    m = unreal.HrotMissile.spawn_missile(w, unreal.load_asset(F["kind"]), xf)
+    m.fly_test(at + fwd * float(F.get("dist", 6000)), float(F.get("speed", 11500)), 0.0, -1.0, 0.0, True)
+    log(f"{a.get_actor_label()}: RPG fired from {at.x:.0f},{at.y:.0f},{at.z:.0f} along {fwd.x:.2f},{fwd.y:.2f},{fwd.z:.2f}")
+
+
 def fire_guns():
     """⭐ JOB "guns": [{"label", "fx": "MINIGUN" | "HMG", "rate", "target": [x, y, z], "spread", "aim": [yaw, pitch]}] — a vehicle's gun
     firing at `rate` rounds a second onto a patch of ground (the lab's stand-in for HROT's shot events), by GAME time"""
@@ -179,6 +221,9 @@ def step():
     p = S["phase"]
     if p == "level": level(); return
     if S.get("guns"): fire_guns()
+    for item in list(S.get("rpgs") or []):
+        if game_now() >= S["tfind"] + float(item[1].get("after", 3.6)):
+            fire_rpg(S["v"][item[0]], item[1]); S["rpgs"].remove(item)
     for item in list(S.get("later") or []):   # state changes in play (an animal shot: alive -> dead), by game time
         label, then = item
         if game_now() >= S["t0"] + float(then.get("after", 1.0)):
@@ -221,6 +266,11 @@ def step():
                 ft = unreal.HrotFlamethrower.attach(parent, unreal.Name(f.get("socket", "None")), off, float(f.get("size", 1)))
                 ft.set_firing(bool(f.get("firing", True))); S.setdefault("flames", {})[v["label"]] = ft
                 log(f"{v['label']}: flamethrower on {parent.get_name()} socket {f.get('socket', 'None')}")
+        S["launchers"] = {}
+        for v in JOB["vehicles"]:
+            if v.get("launcher") and v["label"] in S["v"]: S["launchers"][v["label"]] = shoulder_launcher(S["v"][v["label"]], v["launcher"])
+        S["rpgs"] = [(v["label"], v["fireRpg"]) for v in JOB["vehicles"] if v.get("fireRpg") and v["label"] in S["v"]]
+        S["tfind"] = game_now()
         S["guns"] = [dict(g) for g in JOB.get("guns", [])]
         for g in S["guns"]:
             if g.get("aim") and g["label"] in S["v"]: S["v"][g["label"]].set_aim(float(g["aim"][0]), float(g["aim"][1]))

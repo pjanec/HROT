@@ -37,6 +37,17 @@ void AHrotMissile::ApplyKind()
 	Body->SetRelativeTransform(Kind->MeshTransform);
 }
 
+AHrotMissile* AHrotMissile::SpawnMissile(UObject* WorldContext, UHrotMissileKind* NewKind, FTransform Where)
+{
+	UWorld* W = WorldContext ? WorldContext->GetWorld() : nullptr;
+	if (!W) return nullptr;
+	AHrotMissile* M = W->SpawnActorDeferred<AHrotMissile>(AHrotMissile::StaticClass(), Where);
+	if (!M) return nullptr;
+	M->Kind = NewKind;
+	M->FinishSpawning(Where);
+	return M;
+}
+
 void AHrotMissile::Launch()
 {
 	bLaunched = true;

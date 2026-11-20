@@ -160,8 +160,18 @@ def trail():
     return m
 
 
+def invisible():
+    """/Game/Hrot/Fx/M_HrotInvisible — draws nothing (masked, opacity mask 0): hides one material slot of a mesh — the RPG-7's loaded
+    rocket once it is fired (the launcher stays)."""
+    m = fresh("M_HrotInvisible")
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    E, c1, c3, link, op, one, data = builder(m)
+    MEL.connect_material_property(c1(0.0, -200, 0), "", unreal.MaterialProperty.MP_OPACITY_MASK)
+    return m
+
+
 ONLY = [n for n in os.environ.get("HROT_SHOTFX_ONLY", "").split(",") if n]   # e.g. "burnt": build only these
-for mk in (flash, tracer, scorch, burnt, trail):
+for mk in (flash, tracer, scorch, burnt, trail, invisible):
     if ONLY and mk.__name__ not in ONLY: continue
     m = mk()
     MEL.recompile_material(m)

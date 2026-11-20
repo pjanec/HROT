@@ -312,7 +312,13 @@ UMeshComponent* UHrotPersonState::ApplyWeapon()
 	const bool bWrongKind = C && ((SM && !C->IsA<UStaticMeshComponent>()) || (SK && !C->IsA<USkeletalMeshComponent>()));
 	if (bWrongKind || (!SM && !SK))
 	{
-		if (C) { Owner->RemoveInstanceComponent(C); C->DestroyComponent(); C = nullptr; }   // unarmed / holstered, or the kind changed
+		if (C)   // unarmed / holstered, or the kind changed
+		{
+			// ⚠ measured (U-17h, a rifle swapped for the RPG-7): the destroyed component kept the name "HrotWeapon" until collected, and
+			// the new one of the other class under that name was a FATAL error ("Cannot replace existing object of a different class")
+			C->Rename(*MakeUniqueObjectName(Owner, C->GetClass(), TEXT("HrotWeapon_Old")).ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional);
+			Owner->RemoveInstanceComponent(C); C->DestroyComponent(); C = nullptr;
+		}
 		if (!SM && !SK) return nullptr;
 	}
 	if (!C)

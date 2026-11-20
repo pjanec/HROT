@@ -52,6 +52,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Missile") bool bMotor = true;
 
 	UFUNCTION(BlueprintCallable, Category = "HROT|Missile") void ApplyKind();
+	/** ⭐ a missile appears in the world (HROT's launch: a new entity) — of `Kind`, at `Where` (X = the nose); call Launch() for its backblast */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Missile", meta = (WorldContext = "WorldContext"))
+	static AHrotMissile* SpawnMissile(UObject* WorldContext, UHrotMissileKind* NewKind, FTransform Where);
 	/** it is FIRED (HROT's launch event): the backblast at its tail and a flash; the test flight calls it when its delay ends */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Missile") void Launch();
 	/** it hits: an explosion of the kind's blast where it is, the body hidden (its trail stays and fades) */
