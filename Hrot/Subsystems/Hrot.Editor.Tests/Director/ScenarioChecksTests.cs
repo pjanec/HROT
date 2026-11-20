@@ -661,15 +661,19 @@ public sealed class ScenarioChecksTests
                 {"name": "unseen", "on": "exposed", "who": "Hidden Man", "by": "*Red "},
                 {"name": "prone, upright", "on": "exposed", "who": "Prone Man", "by": "*Red ", "upright": true},
                 {"name": "prone", "on": "exposed", "who": "Prone Man", "by": "*Red "},
-                {"name": "seen by the dead only", "on": "exposed", "who": "Watched By Dead", "by": "*Red "}] }
+                {"name": "seen by the dead only", "on": "exposed", "who": "Watched By Dead", "by": "*Red "},
+                {"name": "seen beside cover, cover counted", "on": "exposed", "who": "Seen Man", "by": "*Red ", "m": 2},
+                {"name": "seen in the open, cover counted", "on": "exposed", "who": "Open Man", "by": "*Red ", "m": 2}] }
             """, out var problems);
         Assert.Empty(problems);
         var world = new EntityRepository();
         world.RegisterComponent<NetworkIdentity>();
         world.RegisterComponent<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(new Fdp.Toolkit.Spatial.Eqs.ManualCoverProvider(new[]
+            { new Fdp.Toolkit.Spatial.Eqs.CoverPoint { PositionX = 10, PositionY = 0, PositionZ = 0, DirectionX = 1, Quality = 1 } }));   // beside the Seen Man
         var w = new FakeWorld { World = world };
-        Entity Unit(string name, int nid, string stance = "Standing", float hp = 100f)
+        Entity Unit(string name, int nid, string stance = "Standing", float hp = 100f, double x = 10)
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new NetworkIdentity { Value = nid });
@@ -679,12 +683,14 @@ public sealed class ScenarioChecksTests
             {
                 ["Health"] = new JsonObject { ["Current"] = hp, ["Max"] = 100 },
                 ["StanceStatus"] = new JsonObject { ["CurrentStance"] = stance },
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, 0, 0) },
             };
             return e;
         }
         var seen = Unit("Seen Man", 101); Unit("Hidden Man", 102);
         var prone = Unit("Prone Man", 103, "Prone"); var watched = Unit("Watched By Dead", 104);
-        var red = Unit("Red Eye", 201); var dead = Unit("Red Dead", 202, hp: 0f);
+        var open = Unit("Open Man", 105, x: 60);
+        var red = Unit("Red Eye", 201, x: 100); var dead = Unit("Red Dead", 202, hp: 0f, x: 100);
         void Track(Entity eye, params Entity[] targets)
         {
             var t = new Fdp.Toolkit.Perception.Components.ActiveSensorTracks { Count = targets.Length };
@@ -695,7 +701,7 @@ public sealed class ScenarioChecksTests
             }
             world.AddComponent(eye, t);
         }
-        Track(red, seen, prone);
+        Track(red, seen, prone, open);
         Track(dead, watched);
         var book = new ConditionBook(checks, w, 0);
         book.Observe(1);
@@ -705,6 +711,8 @@ public sealed class ScenarioChecksTests
         Assert.False(v["prone, upright"].Ok);
         Assert.True(v["prone"].Ok);
         Assert.False(v["seen by the dead only"].Ok);
+        Assert.False(v["seen beside cover, cover counted"].Ok);   // ⭐ CE-2459 — firing over cover is a firing position
+        Assert.True(v["seen in the open, cover counted"].Ok);
         Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "exposed", "who": "A"}] }""", out var bad);
         Assert.Contains(bad, p => p.Contains("an exposed cue needs by", StringComparison.Ordinal));
     }

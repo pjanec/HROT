@@ -409,20 +409,25 @@ namespace Hrot.Editor.Director
                 if (HealthOf(id) is not > 0f || PositionOf(id) is not { } at) continue;
                 if (c.Fighting && !InTheFight(id)) continue;   // ⭐ CE-2455
                 units++;
-                int n = cover.GetCoverPointsInRadius(new System.Numerics.Vector2(at.X, at.Y), c.M, found);
-                bool near = false;
-                for (int i = 0; i < n && !near; i++) near = MathF.Abs(found[i].PositionZ - at.Z) <= 2f;
-                // ⭐ CE-2456 — a STANDING vehicle is cover too, read live as the AI's cover search reads it (VehicleCover.StandingPoints, CE-3142):
-                //   it is never in the terrain's database. ⛔ Before: a man crouched behind a parked car read as "in the open" (📐 uf-car-shootout)
-                if (!near)
-                    foreach (var vp in VehiclePoints(world))
-                        if (System.Numerics.Vector2.Distance(new System.Numerics.Vector2(vp.PositionX, vp.PositionY), new System.Numerics.Vector2(at.X, at.Y)) <= c.M
-                            && MathF.Abs(vp.PositionZ - at.Z) <= 2f) { near = true; break; }
+                bool near = NearCover(world, cover, at, c.M, found);
                 // ⭐ CE-8316 — "upright": a man lying prone uses the ground (never "standing in the open")
                 if (c.Upright && Components(id)?["StanceStatus"]?["CurrentStance"]?.ToString() == "Prone") near = true;
                 if (Lasted(c, id, near != wantOpen)) held++;   // ⭐ CE-2455 — "for": this man, that long
             }
             return Quantified(c.Quantifier, units, held);
+        }
+
+        /// <summary>⭐ <c>CE-4672</c> / <c>CE-2456</c> — the ONE "is a cover point within <paramref name="m"/> of <paramref name="at"/>" of the judge (the <c>cover</c> and
+        /// <c>exposed</c> cues): the terrain's database (within 2 m in height), and a STANDING vehicle's sides read live as the AI's cover search reads them
+        /// (<c>VehicleCover.StandingPoints</c>, CE-3142 — never in the database. ⛔ Before: a man crouched behind a parked car read "in the open").</summary>
+        private bool NearCover(EntityRepository world, Fdp.Toolkit.Spatial.Eqs.ICoverProvider cover, System.Numerics.Vector3 at, float m, Span<Fdp.Toolkit.Spatial.Eqs.CoverPoint> found)
+        {
+            int n = cover.GetCoverPointsInRadius(new System.Numerics.Vector2(at.X, at.Y), m, found);
+            for (int i = 0; i < n; i++) if (MathF.Abs(found[i].PositionZ - at.Z) <= 2f) return true;
+            foreach (var vp in VehiclePoints(world))
+                if (System.Numerics.Vector2.Distance(new System.Numerics.Vector2(vp.PositionX, vp.PositionY), new System.Numerics.Vector2(at.X, at.Y)) <= m
+                    && MathF.Abs(vp.PositionZ - at.Z) <= 2f) return true;
+            return false;
         }
 
         /// <summary>
@@ -466,6 +471,9 @@ namespace Hrot.Editor.Director
                 var o = new Fdp.Toolkit.Replication.EntityRef(oid).Resolve(world);
                 if (!o.IsNull && world.IsAlive(o)) eyes.Add(o);
             }
+            // ⭐ CE-2459 — with m: only a man with NO cover within m counts (seen while firing over a car is a firing position, not the sin)
+            var cover = c.M > 0f && world.HasSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>() ? world.GetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>() : null;
+            Span<Fdp.Toolkit.Spatial.Eqs.CoverPoint> found = stackalloc Fdp.Toolkit.Spatial.Eqs.CoverPoint[32];
             int units = 0, held = 0;
             foreach (var id in UnitsNamed(who))
             {
@@ -476,7 +484,8 @@ namespace Hrot.Editor.Director
                 units++;
                 bool prone = Components(id)?["StanceStatus"]?["CurrentStance"]?.ToString() == "Prone";
                 bool seen = false;
-                if (!(c.Upright && prone))
+                bool sheltered = cover != null && PositionOf(id) is { } at && NearCover(world, cover, at, c.M, found);
+                if (!(c.Upright && prone) && !sheltered)
                     foreach (var o in eyes) if (Fdp.Toolkit.Perception.SightNow.Sees(world, o, me)) { seen = true; break; }
                 if (Lasted(c, id, seen)) held++;
             }

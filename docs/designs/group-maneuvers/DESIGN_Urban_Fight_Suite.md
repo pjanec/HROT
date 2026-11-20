@@ -85,7 +85,7 @@ each (leader, rifle and grenadier, mortal), no order: the default squad SOP figh
 | row | layer | cue |
 |---|---|---|
 | both sides fire; each within 10 s of the other's first round | 2 | `shot` by `*Blue ` / `*Red `, `before` the other's first + 10 |
-| nobody in the fight stands UPRIGHT in an enemy's sight 15 s once the shooting starts | 1 | `never` `exposed` `by` the other squad `upright` `fighting` `for` 15, after the first round — ⛔ was `cover` `open`: 📐 the first run's "open" men were inside or behind buildings (no cover point within 2.5 m, yet unseen); exposure is the sin, not distance from a marker |
+| nobody in the fight stands UPRIGHT in an enemy's sight 15 s once the shooting starts | 1 | `never` `exposed` `by` the other squad `upright` `fighting` `m` 2.5 `for` 15 (CE-2459: in the OPEN — no cover within 2.5 m), after the first round — ⛔ was `cover` `open`: 📐 the first run's "open" men were inside or behind buildings (no cover point within 2.5 m, yet unseen); exposure is the sin, not distance from a marker |
 | no knot of the squad (all within 3 m) held 10 s after the first half minute | 1 | `never` `bunched` `fighting` `for` 10 |
 | no friendly hits | 1 | `never` `shot` `by` `*Blue ` `hit` `*Blue ` (and Red) |
 | both sides take losses (the fight is real, not two walls) | 3 | `shot` `hit` each side |
@@ -101,6 +101,7 @@ the first exchange takes to settle who is winning.
 |---|---|---|---|
 | U1-1 | a man crouched behind a parked car read "in the open" | ⛔ JUDGE — the `cover` cue read only the terrain's database; a car's cover is read LIVE (`VehicleCover.StandingPoints`) | ✅ `CE-2456`: the cue reads the same live points |
 | U1-2 | the "open" men were inside or behind buildings — safe, no cover point near | ⛔ JUDGE — distance from a marker is not exposure | ✅ `CE-2456`: the `exposed` cue (an enemy SEES him, `SightNow.Sees`); U1's L1 rows use it |
+| U1-2b | `exposed` broken by Red / Blue Rifleman 6: measured live — crouched, SUPPRESSING (the posture's D-15 "lowest stance that clears") behind or beside cover, seen while firing | ⛔ JUDGE — seen while firing from cover is a firing position | ✅ `CE-2459`: `exposed` with `m` counts only a man with no cover within m |
 | U1-3 | after both squads broke contact (~120 s) the survivors stood idle in the street 60–120 s, a wounded man among them | ⭐ BEHAVIOUR — no squad SOP row for "no task, enemy known" | ✅ `CE-2457`: the squad SOP's last row holds ([Squad Tactics §7.6.3](DESIGN_Squad_Tactics.md)) |
 | U1-4 | both squads went straight into drills (Blue suppress-and-flank, Red fire-and-movement) and lay prone to fire | ✅ realistic | — |
 | U1-5 | a squad member ~1 s with no task at the start | ✅ order latency (a frame), not a defect | — |
