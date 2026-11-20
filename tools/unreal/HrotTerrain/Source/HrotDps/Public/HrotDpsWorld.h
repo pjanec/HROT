@@ -117,6 +117,7 @@ private:
 		FHrotDpsTrackPoint Track;
 		float Bank = 0, MeshYaw = 0, MeshZ = 0;
 		uint8 Side = 0;
+		int32 ParentId = 0;   // Entity.ParentId: mounted on / part of another entity
 		// a person (U-18d)
 		bool bHasPerson = false;
 		HrotDpsPeople::FIn Person;

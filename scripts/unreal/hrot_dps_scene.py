@@ -3,7 +3,10 @@
     HROT_DPS_SCENE_JOB = { "domain", "partition", "seconds", "ready", "out", "shots", "simBase",
                            "pictures": [{"name", "sim" (scene seconds: sim time - simBase), "look", "back", "up", "lookZ", "top"}],
                            "personKit": <a UHrotPersonKit path> (U-18d: people as that body, their looks recorded every 0.5 s),
-                           "missileKind": <a UHrotMissileKind path> (U-18e: rounds with a motor), "props": [{"mesh", "at" cm, "scale"}] }
+                           "missileKind": <a UHrotMissileKind path> (U-18e: rounds with a motor), "props": [{"mesh", "at" cm, "scale"}],
+                           "map": an existing level to open instead (U-18g), "floor": size in m (default 600), "groundToMedian": true (U-18g LIVE: shift the world down by the people's median
+                           height after 3 s — the flat test floor stands in for HROT's terrain), pictures may "follow": <name text> or
+                           "centroid" instead of "look" (a live scene has no scripted positions) }
 
 A flat level played in Simulate; UHrotDpsWorld joins the station; the test's publisher (the stand-in for the gateway: same protocol
 assembly, the gateway's send rule) starts when the ready file appears. Records, every 50 ms, each entity's SHOWN position (contract
@@ -41,11 +44,17 @@ def spawn(cls, loc, rot=(0, 0, 0), label=None):
 
 
 def level():
+    if JOB.get("map"):   # U-18g LIVE: an existing level (a terrain's look level, with its own sky and sun) instead of the flat test floor
+        if not LES().load_level(JOB["map"]): raise RuntimeError("load_level failed: " + JOB["map"])
+        for c in ("t.IdleWhenNotForeground 0", "t.MaxFPS 0", "r.VSync 0", "r.VSyncEditor 0", "r.DontLimitOnBattery 1"):
+            unreal.SystemLibrary.execute_console_command(None, c)
+        LES().editor_set_viewport_realtime(True); LES().editor_play_simulate()
+        S.update(phase="join", t=time.time() + 8); return
     if unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/DpsScene"): unreal.EditorAssetLibrary.delete_asset("/Game/Maps/DpsScene")
     if not LES().new_level("/Game/Maps/DpsScene"): raise RuntimeError("new_level failed")
     floor = spawn(unreal.StaticMeshActor, (0, 0, 0), label="Floor")
     floor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Plane"))
-    floor.set_actor_scale3d(unreal.Vector(600, 600, 1))
+    fs = float(JOB.get("floor", 600)); floor.set_actor_scale3d(unreal.Vector(fs, fs, 1))
     sun = spawn(unreal.DirectionalLight, (0, 0, 1000), (-40, 60, 0), "Sun")
     sun.light_component.set_editor_property("atmosphere_sun_light", True); sun.light_component.set_editor_property("intensity", 8.0)
     spawn(unreal.SkyAtmosphere, (0, 0, 0), label="Sky")
@@ -72,6 +81,7 @@ def join():
     w.set_editor_property("kits_by_type", {2001: L(KITS + "DA_ArmoredTruck")})                       # by the contract's type id
     w.set_editor_property("kits_by_dis", {"1.1.222": L(KITS + "DA_BTR60"), "1.1.225.1": L(KITS + "DA_Sherman")})   # by DIS prefix
     w.set_editor_property("kits_by_domain", {"Air": L(KITS + "DA_Air_Apache")})                     # by domain
+    if JOB.get("kitsByDis"): w.set_editor_property("kits_by_dis", {**{"1.1.222": L(KITS + "DA_BTR60"), "1.1.225.1": L(KITS + "DA_Sherman")}, **{k: L(v) for k, v in JOB["kitsByDis"].items()}})   # U-18g: a live scenario's types
     w.set_editor_property("person_mesh", L("/Game/Characters/Heroes/Mannequin/Meshes/SKM_Manny"))
     w.set_editor_property("person_clip", L("/Game/Characters/Heroes/Mannequin/Animations/Locomotion/Rifle/MF_Rifle_Walk_Fwd"))
     if not w.start(int(JOB["domain"]), JOB["partition"]): raise RuntimeError("DPS start failed")
@@ -106,6 +116,9 @@ def person_extras(w, i):
 
 def run():
     w, t = S["w"], time.time() - S["t0"]
+    if JOB.get("simBase") == "join":   # U-18g LIVE: scene time from the first sim time this world sees (a running exercise joined late)
+        if w.sim_now() <= 0: return
+        JOB["simBase"] = w.sim_now(); log(f"joined a running exercise at sim {JOB['simBase']:.1f} s")
     if t >= S["next_rec"]:
         S["next_rec"] += 0.05
         now = w.placed_at()   # the time the shown poses belong to (a stalled frame keeps its old time: not recorded twice)
@@ -132,9 +145,25 @@ def run():
         path, t0 = S["await_file"]  # changed the earlier picture (two close pictures came out the same)
         if not (os.path.exists(path) and os.path.getsize(path) > 0) and time.time() - t0 < 20: return
         S["await_file"] = None
+    if JOB.get("groundToMedian") and not S.get("grounded") and scene >= 3.0:   # U-18g: the flat floor under the people
+        zs = sorted(w.shown_position(i).z for i in w.entity_ids() if "Person" in w.describe(i))
+        if zs:
+            S["grounded"] = True; z = zs[len(zs) // 2]
+            w.set_editor_property("origin_cm", unreal.Vector(0, 0, -z * 100.0)); log(f"world shifted down {z:.1f} m (the people's median height)")
     if S["pics"] and not S.get("pending_pic") and scene >= S["pics"][0]["sim"]:   # one picture at a time (a second camera move lost the first)
         pic = S["pics"].pop(0)
-        if pic.get("top"):   # straight down, screen up = east (+X), screen right = south (+Y)
+        if pic.get("follow"):   # U-18g: frame a named entity (or the centre of all) where it is NOW
+            locs = []
+            for i in w.entity_ids():
+                a = w.actor_of(i)
+                if a and (pic["follow"] == "centroid" or pic["follow"].lower() in w.describe(i).lower()): locs.append(a.get_actor_location())
+            if locs:
+                n = len(locs) if pic["follow"] == "centroid" else 1
+                c = unreal.Vector(sum(l.x for l in locs[:n]) / n, sum(l.y for l in locs[:n]) / n, sum(l.z for l in locs[:n]) / n + pic.get("lookZ", 120))
+                pic = dict(pic, look=[c.x, c.y, c.z])
+                camera(pic["look"], pic.get("back", 1500), c.z + pic.get("up", 500), pic.get("side", 0.45))
+            else: log(f"picture {pic['name']}: nothing to follow for {pic['follow']!r}")
+        elif pic.get("top"):   # straight down, screen up = east (+X), screen right = south (+Y)
             UES().set_level_viewport_camera_info(unreal.Vector(pic["look"][0], pic["look"][1], pic.get("up", 5000)), unreal.Rotator(pitch=-90, yaw=0, roll=0))
         elif "look" in pic: camera(pic["look"], pic.get("back", 6000), pic.get("up", 3500), pic.get("side", 0.45))
         S["pending_pic"] = pic["name"]; S["pic_at"] = time.time() + 0.3; S["pic_frames"] = 3   # the camera settles: 0.3 s AND 3 frames

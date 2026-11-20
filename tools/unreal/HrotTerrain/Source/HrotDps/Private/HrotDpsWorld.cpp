@@ -180,6 +180,7 @@ void UHrotDpsWorld::OnEntity(const FHrotDpsSample& S)
 	E.Domain = uint8(D.Domain);
 	E.Name = UTF8_TO_TCHAR(D.Name);
 	E.Side = D.Side;
+	E.ParentId = D.ParentId;
 	E.Dis = FString::Printf(TEXT("%u.%u.%u.%u.%u.%u.%u"), D.Dis.Kind, D.Dis.Domain, D.Dis.Country, D.Dis.Category, D.Dis.Subcategory,
 		D.Dis.Specific, D.Dis.Extra);
 	if (bChanged && E.Actor.IsValid()) { E.Actor->Destroy(); E.Actor.Reset(); ++Removed; }   // another type: another model
@@ -683,6 +684,15 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	if (!K || !St) return;
 	HrotDpsPeople::FIn In = E.Person;
 	In.Now = SimNow;
+	// ⚠ measured LIVE (U-18g): HROT's WeaponPosture.HeldItem is the CIVILIANS' (CE-3234: a phone, binoculars, a stone; only HeldItems.Set
+	// writes it) — a soldier's stays None while HROT's map draws his rifle from his MOUNTS (BlockFigureWeapons: the active mount's look).
+	// ⇒ None + his type has a weapon on the selected mount (TkbType's WeaponSuiteDto) = the weapon in his hands
+	if (In.Held == HrotDpsPeople::HeldNone)
+		if (const TArray<FString>* M = MountCategories.Find(E.TypeId))
+		{
+			const int32 Slot = M->IsValidIndex(E.ActiveSlot) ? E.ActiveSlot : 0;
+			if (M->IsValidIndex(Slot) && (*M)[Slot] != TEXT("unknown")) In.Held = HrotDpsPeople::HeldWeapon;
+		}
 	In.Speed = float(FVector2D(E.Track.V.X, E.Track.V.Y).Size());
 	In.LastGait = E.LastGait;
 	const HrotDpsPeople::FLook L = HrotDpsPeople::Look(In);
@@ -775,6 +785,10 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 {
 	if (E.Actor.IsValid() || !E.bHasEntity || !E.bHasState) return;
 	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainAnimal) { E.DrawnAs = TEXT("not drawn yet"); return; }
+	// ⚠ measured LIVE (U-18g, showcases/player-station): 510 of 551 entities were Domain Other — HROT's doors (no door state yet, the
+	// guide's known gap), groups (teams, squads), score holders, a terrain's own buildings (already in the level). None is a body:
+	// counted, never a box (the "never invisible" box is for a vehicle or a person with no model)
+	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainOther) { if (E.DrawnAs.IsEmpty()) Count(TEXT("not drawn: domain Other")); E.DrawnAs = TEXT("not drawn: domain Other"); return; }
 	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainMunition && !E.bRound) { E.DrawnAs = TEXT("(waiting for its Round)"); return; }
 	UWorld* W = GetWorld();
 	FTransform At = HrotDpsMotion::ToUnreal(E.Shown, OriginCm);
@@ -809,15 +823,24 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 		E.DrawnAs = Kit->GetName();
 		A = V;
 	}
+	else if (E.ParentId != 0)   // ⚠ measured LIVE (U-18g): the M2 HMG mounted on the HMMWV, a vehicle-sized box over its carrier
+	{
+		E.DrawnAs = TEXT("not drawn: mounted on another entity"); Count(TEXT("not drawn: mounted, no model")); return;
+	}
 	else   // ⭐ never invisible: a box of the domain's rough size
 	{
 		AStaticMeshActor* B = W->SpawnActor<AStaticMeshActor>(At.GetLocation(), At.Rotator(), P);
 		B->SetMobility(EComponentMobility::Movable);
 		B->GetStaticMeshComponent()->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube")));
 		const bool bPerson = E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson;
-		B->GetStaticMeshComponent()->SetRelativeScale3D(bPerson ? FVector(0.4, 0.4, 1.8) : FVector(5, 2.5, 2));
-		B->GetStaticMeshComponent()->SetRelativeLocation(FVector(0, 0, bPerson ? 90 : 100));
-		E.DrawnAs = TEXT("box");
+		// ⚠ measured LIVE (U-18g): HROT's WEAPON SYSTEMS (DIS category 50: the M2 HMG, the M134, Kornet — NedTkbCatalog.WeaponSystemType,
+		// a pintle / tripod gun) are their own entities, the M2 standing at the HMMWV: a vehicle-sized box hid the HMMWV ⇒ a gun-sized one
+		TArray<FString> DisParts; E.Dis.ParseIntoArray(DisParts, TEXT("."));
+		const bool bWeaponSystem = DisParts.Num() > 3 && DisParts[3] == TEXT("50");
+		B->GetStaticMeshComponent()->SetRelativeScale3D(bPerson ? FVector(0.4, 0.4, 1.8) : bWeaponSystem ? FVector(1.6, 0.25, 0.35) : FVector(5, 2.5, 2));
+		B->GetStaticMeshComponent()->SetRelativeLocation(FVector(0, 0, bPerson ? 90 : bWeaponSystem ? 120 : 100));
+		if (bWeaponSystem) E.DrawnAs = TEXT("weapon-system box");
+		if (E.DrawnAs.IsEmpty() || E.DrawnAs.StartsWith(TEXT("("))) E.DrawnAs = TEXT("box");
 		A = B;
 	}
 #if WITH_EDITOR
