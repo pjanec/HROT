@@ -47,8 +47,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FVector Muzzle = FVector::ZeroVector;
 	/** the main gun's flash, in rifle flashes (UHrotShotRenderer::AddFlash) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlashSize = 8.f;
+	/** how long the main gun's flash lasts, seconds (a rifle's: 0.06) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlashLife = 0.15f;
 	/** where a damaged vehicle smokes from / a destroyed one burns (hull space: the engine deck) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FVector EngineDeck = FVector::ZeroVector;
+	/** the damage effects' size for this vehicle (1 = a tank; ⚠ measured: a tank-sized fire hid a whole car) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float DamageFxScale = 1.f;
 };
 
 UCLASS()

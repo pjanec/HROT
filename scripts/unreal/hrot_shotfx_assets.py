@@ -125,9 +125,10 @@ def burnt():
     m.set_editor_property("two_sided", False)
     E, c1, c3, link, op, one, data = builder(m)
     noise = E(unreal.MaterialExpressionNoise, -600, 0); noise.set_editor_property("scale", 0.02)   # ~50 cm patches (world position)
-    t = one(unreal.MaterialExpressionSaturate, op(unreal.MaterialExpressionAdd, op(unreal.MaterialExpressionMultiply, noise, c1(1.5, -450, 120), -300, 0),
-                                                 c1(0.45, -300, 150), -150, 50), 0, 50)
-    soot, rust = c3((0.012, 0.011, 0.010), -150, 250), c3((0.09, 0.045, 0.02), -150, 350)
+    # ⚠ measured (the vehicle lab): rust 0.09/0.045/0.02 over ~half the surface read rust-ORANGE in sunlight — darker, and mostly soot
+    t = one(unreal.MaterialExpressionSaturate, op(unreal.MaterialExpressionAdd, op(unreal.MaterialExpressionMultiply, noise, c1(1.2, -450, 120), -300, 0),
+                                                 c1(0.15, -300, 150), -150, 50), 0, 50)
+    soot, rust = c3((0.007, 0.0065, 0.006), -150, 250), c3((0.035, 0.02, 0.012), -150, 350)
     lerp = E(unreal.MaterialExpressionLinearInterpolate, 150, 150)
     link(soot, lerp, "A"); link(rust, lerp, "B"); link(t, lerp, "Alpha")
     MEL.connect_material_property(lerp, "", unreal.MaterialProperty.MP_BASE_COLOR)

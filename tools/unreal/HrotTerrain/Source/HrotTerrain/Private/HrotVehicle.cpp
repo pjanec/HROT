@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
 #include "Particles/ParticleSystem.h"
+#include "Particles/ParticleEmitter.h"
 #include "Particles/ParticleSystemComponent.h"
 
 namespace
@@ -16,6 +17,9 @@ namespace
 	const TCHAR* SmokeFx = TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Smoke/P_Smoke_A.P_Smoke_A");
 	const TCHAR* FireFx = TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Fire/P_Fire_Big.P_Fire_Big");
 	const TCHAR* MuzzleSmokeFx = TEXT("/Game/Realistic_Starter_VFX_Pack_Vol2/Particles/Explosion/P_Explosion_Smoke.P_Explosion_Smoke");
+	const float MuzzleSmokeScale = 1.5f;
+	// ⚠ measured (the vehicle lab): P_Smoke_A ×1 from the engine deck read as a faint wisp — ×3 for "damaged", the wreck's ×4
+	const float DamagedSmokeScale = 3.f, WreckSmokeScale = 4.f;
 	const TCHAR* BurntMaterial = TEXT("/Game/Hrot/Fx/M_HrotBurnt.M_HrotBurnt");
 	// a destroyed vehicle's turret: lifted and knocked askew (a fixed pose — the same on every IG channel)
 	const FVector KnockedLift(0.f, 0.f, 12.f);
@@ -110,13 +114,14 @@ void AHrotVehicle::ApplyState()
 	}
 	auto Attach = [this](const TCHAR* Path, float Scale)
 	{
+		Scale *= Kit->DamageFxScale;
 		if (UParticleSystem* PS = Load<UParticleSystem>(Path))
 			if (UParticleSystemComponent* C = UGameplayStatics::SpawnEmitterAttached(PS, Hull, NAME_None, Kit->EngineDeck, FRotator::ZeroRotator,
 			                                                                        FVector(Scale), EAttachLocation::KeepRelativeOffset, false))
 				DamageFx.Add(C);
 	};
-	if (Damage == EHrotVehicleDamage::Damaged) Attach(SmokeFx, 1.0f);
-	if (bWreck) { Attach(FireFx, 1.0f); Attach(SmokeFx, 1.5f); }
+	if (Damage == EHrotVehicleDamage::Damaged) Attach(SmokeFx, DamagedSmokeScale);
+	if (bWreck) { Attach(FireFx, 1.0f); Attach(SmokeFx, WreckSmokeScale); }
 	Shown = Damage;
 }
 
@@ -136,9 +141,24 @@ void AHrotVehicle::FireMainGun()
 	UHrotShotRenderer* R = UHrotShotRenderer::Get(this);
 	if (!R || !Kit) return;
 	const FTransform M = MuzzleTransform();
-	R->AddFlash(M, Kit->FlashSize);
-	R->Flash(M.GetLocation(), 300000.f, 3000.f, 0.1f);   // seen from afar too
+	R->AddFlash(M, Kit->FlashSize, Kit->FlashLife);   // a big gun's flash lasts longer than a rifle's (0.06 s)
+	R->Flash(M.GetLocation(), 400000.f, 4000.f, Kit->FlashLife);   // seen from afar too
 	if (FVector::Dist(M.GetLocation(), R->ViewLocation()) < R->BlastRange && R->TakeBudget(UHrotShotRenderer::EExtra::Blast))
+	{
+		// ⭐ the muzzle BLAST: a small fireball ahead of the muzzle + the smoke cloud that hangs in front of a tank after a shot
+		// ⚠ measured: P_Explosion_Big_A at the muzzle threw firework sparks (its debris) — the flash cards + the smoke only
+		const FVector Ahead = M.GetLocation() + M.GetRotation().GetForwardVector() * 150.f;
 		if (UParticleSystem* PS = Load<UParticleSystem>(MuzzleSmokeFx))
-			UGameplayStatics::SpawnEmitterAtLocation(this, PS, M.GetLocation(), M.Rotator(), FVector(0.6f), true, EPSCPoolMethod::AutoRelease);
+			if (UParticleSystemComponent* C = UGameplayStatics::SpawnEmitterAtLocation(this, PS, Ahead, FRotator::ZeroRotator, FVector(MuzzleSmokeScale),
+			                                                                         true, EPSCPoolMethod::AutoRelease))
+				// ⚠ measured: P_Explosion_Smoke threw firework sparks too (its own spark / ember emitters) — the smoke only
+				for (const UParticleEmitter* Em : PS->Emitters)
+				{
+					const FString N = Em ? Em->EmitterName.ToString() : FString();
+					static TSet<FString> Logged;
+					if (!Logged.Contains(N)) { Logged.Add(N); UE_LOG(LogTemp, Warning, TEXT("[HROT-VEHICLE] muzzle smoke emitter '%s'"), *N); }
+					if (N.Contains(TEXT("Spark")) || N.Contains(TEXT("Ember")) || N.Contains(TEXT("Debris")) || N.Contains(TEXT("Flare")))
+						C->SetEmitterEnable(Em->EmitterName, false);
+				}
+	}
 }

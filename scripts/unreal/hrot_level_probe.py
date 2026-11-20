@@ -1,7 +1,9 @@
 """hrot_level_probe.py — runs in the Unreal editor COMMANDLET (CE-4651, U-17): what a map holds — every actor's static / skeletal
 mesh components with their world transforms (how a vendor's showcase map assembles a vehicle from its parts).
 
-    UnrealEditor-Cmd <project> -run=pythonscript -script=<this> -nullrhi      HROT_PROBE_JOB = { "map", "out" }
+    UnrealEditor-Cmd <project> -run=pythonscript -script=<this> -nullrhi      HROT_PROBE_JOB = { "map", "blueprints"?, "out" }
+    blueprints: Blueprint paths — each spawned at the origin (label = its name) and only those reported: where a vendor's
+    vehicle Blueprint puts its body, wheels and glass
 """
 import json, os, traceback
 import unreal
@@ -19,7 +21,16 @@ def xf(t):
 def main():
     unreal.EditorLoadingAndSavingUtils.load_map(JOB["map"])
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
-    for a in unreal.GameplayStatics.get_all_actors_of_class(world, unreal.Actor):
+    actors = unreal.GameplayStatics.get_all_actors_of_class(world, unreal.Actor)
+    if JOB.get("blueprints"):
+        eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
+        actors = []
+        for bp in JOB["blueprints"]:
+            cls = unreal.EditorAssetLibrary.load_blueprint_class(bp)
+            a = eas.spawn_actor_from_class(cls, unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0)) if cls else None
+            if a: a.set_actor_label(bp.rsplit("/", 1)[-1]); actors.append(a)
+            else: R.setdefault("missing", []).append(bp)
+    for a in actors:
         comps = []
         for c in a.get_components_by_class(unreal.MeshComponent):
             mesh = None

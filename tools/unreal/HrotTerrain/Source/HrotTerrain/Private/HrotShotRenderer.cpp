@@ -96,9 +96,9 @@ bool UHrotShotRenderer::TakeBudget(EExtra Kind)
 	return true;
 }
 
-void UHrotShotRenderer::AddFlash(const FTransform& Muzzle, float Size)
+void UHrotShotRenderer::AddFlash(const FTransform& Muzzle, float Size, float Life)
 {
-	Flashes.Add({ Muzzle, Now(), FMath::FRand(), Size });
+	Flashes.Add({ Muzzle, Now(), FMath::FRand(), Size, Life > 0.f ? Life : FlashLife });
 	if (FVector::Dist(Muzzle.GetLocation(), ViewLocation()) < NearRange) FlashLight(Muzzle.GetLocation());
 }
 
@@ -176,7 +176,7 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 	const float Rates[4] = { SmokePerSecond, ShellPerSecond, ImpactPerSecond, BlastPerSecond };
 	for (int32 K = 0; K < 4; ++K) Tokens[K] = FMath::Min(Tokens[K] + Rates[K] * DeltaTime, FMath::Max(Rates[K] * 0.1f, 1.f));   // ≤ 0.1 s of burst
 	const float T = Now();
-	Flashes.RemoveAll([&](const FFlash& F) { return T - F.Born > FlashLife; });
+	Flashes.RemoveAll([&](const FFlash& F) { return T - F.Born > F.Life; });
 	Tracers.RemoveAll([&](const FTracer& R) { return (T - R.Born) * TracerSpeed - TracerLength > R.Range; });
 	for (FLight& L : Lights) if (L.C && L.Until <= T && L.C->IsVisible()) L.C->SetVisibility(false);
 	LiveFlashes = Flashes.Num(); LiveTracers = Tracers.Num();
@@ -192,7 +192,7 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 		const FVector Fwd = F.Muzzle.GetRotation().GetForwardVector();
 		const FVector Up = F.Muzzle.GetRotation().GetUpVector();
 		const FVector Side = FVector::CrossProduct(Fwd, Up).GetSafeNormal();
-		const float Age = FMath::Clamp((T - F.Born) / FlashLife, 0.f, 1.f);
+		const float Age = FMath::Clamp((T - F.Born) / F.Life, 0.f, 1.f);
 		// the front card faces along the barrel (its plane ⟂ Fwd), spun by the seed so repeated flashes differ
 		const FQuat Spin(Fwd, F.Seed * 2.f * PI);
 		const float Len = FlashLength * F.Size, Wid = FlashWidth * F.Size;

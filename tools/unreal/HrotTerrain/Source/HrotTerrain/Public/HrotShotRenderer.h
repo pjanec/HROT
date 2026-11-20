@@ -23,8 +23,8 @@ public:
 	static UHrotShotRenderer* ForWorld(UObject* WorldContext) { return Get(WorldContext); }
 
 	/** A muzzle flash at the muzzle (X = the barrel's direction): 3 cards — one facing along the barrel, two along its sides.
-	 *  `Size` scales the cards (1 = a rifle; a tank's main gun ~8) */
-	void AddFlash(const FTransform& Muzzle, float Size = 1.f);
+	 *  `Size` scales the cards (1 = a rifle; a tank's main gun ~8); `Life` seconds (0 = FlashLife, a rifle's) */
+	void AddFlash(const FTransform& Muzzle, float Size = 1.f, float Life = 0.f);
 	/** A flash of light: a pooled point light for `Seconds` (a muzzle flash, an explosion). */
 	void Flash(const FVector& At, float Intensity, float Radius, float Seconds);
 	/** A tracer: a short glowing streak flying From → To at TracerSpeed. */
@@ -86,7 +86,7 @@ public:
 	virtual bool DoesSupportWorldType(const EWorldType::Type T) const override { return T == EWorldType::Game || T == EWorldType::PIE || T == EWorldType::Editor; }
 
 private:
-	struct FFlash { FTransform Muzzle; float Born; float Seed; float Size; };
+	struct FFlash { FTransform Muzzle; float Born; float Seed; float Size; float Life; };
 	struct FTracer { FVector From, Dir; float Range, Born; };
 	TArray<FFlash> Flashes;
 	TArray<FTracer> Tracers;
