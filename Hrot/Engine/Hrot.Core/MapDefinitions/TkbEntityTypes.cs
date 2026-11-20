@@ -274,6 +274,12 @@ namespace Hrot.Map.Common
         /// <c>FunTkbCatalog</c>, R-4281).</summary>
         public const long Dragon = 411;
 
+        /// <summary>⭐⭐ <c>CE-3490</c> BA-9 (docs/designs/air-attack/DESIGN_Breath_Attack.md §7, user 2026-11-19: "Sure i want flame heli") — the FLAME HELICOPTER:
+        /// the AH-64 airframe with a flame projector on its chin turret (the flame tank's fuel, 60 m) in place of the M134, its Hydra-70 pod kept — it breathes on
+        /// what burns (the breath attack) and rockets what does not. DIS 1.2.225.20.0.1 (the AH-64's, specific 1). ⛔ A permanent wire value (412 measured
+        /// free on every lane 2026-11-19).</summary>
+        public const long Heli_AH64Flame = 412;
+
         // Composite Units
         public const long Unit_TankPlatoon = 301;
         public const long Unit_InfantrySquad = 302;

@@ -1,0 +1,57 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-3490 (docs/designs/air-attack/DESIGN_Breath_Attack.md \u00a75): a civilian in the flame holds the breath; the control row burns; an ROE forbidding incendiaries never breathes.",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the control dragon breathes",
+      "on": "field",
+      "who": "Control Dragon",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 600,
+      "before": 60
+    },
+    {
+      "name": "Control Man 1 dies",
+      "on": "field",
+      "who": "Control Man 1",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 140
+    },
+    {
+      "name": "the civilian is never hurt",
+      "never": {
+        "on": "field",
+        "who": "Civilian",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "the forbidden dragon never breathes",
+      "never": {
+        "on": "field",
+        "who": "Forbidden Dragon",
+        "path": "WeaponAmmo.Ammo0",
+        "op": "<",
+        "value": 600
+      }
+    },
+    {
+      "name": "the forbidden men are never hurt",
+      "never": {
+        "on": "field",
+        "who": "*Forbidden Man ",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    }
+  ]
+}
