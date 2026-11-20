@@ -9,6 +9,11 @@
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
+#include "HrotFire.h"
+#include "Engine/StaticMesh.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "HrotPersonKit.h"
 #include "HrotPersonAnimInstance.h"
 #include "HrotTerrainLibrary.h"
@@ -42,6 +47,8 @@ namespace
 	using FManDowned = SimNetGateway_Protocol_DdsPlayer_ManDowned;
 	using FRound = SimNetGateway_Protocol_DdsPlayer_Round;
 	using FMunitionLook = SimNetGateway_Protocol_DdsPlayer_MunitionLook;
+	using FVehicleLook = SimNetGateway_Protocol_DdsPlayer_VehicleLook;
+	using FTkbType = SimNetGateway_Protocol_DdsPlayer_TkbType;
 	/** a contract direction (ENU) → Unreal (no scale) */
 	FVector Dir(const SimNetGateway_Protocol_DdsPlayer_Vec3f& V) { return FVector(V.X, -V.Y, V.Z).GetSafeNormal(); }
 
@@ -106,6 +113,8 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_ManDowned"), &UHrotDpsWorld::OnManDowned);
 	Sub(TEXT("DPS_MunitionLook"), &UHrotDpsWorld::OnMunitionLook);
 	Sub(TEXT("DPS_Round"), &UHrotDpsWorld::OnRound);
+	Sub(TEXT("DPS_VehicleLook"), &UHrotDpsWorld::OnVehicleLook);
+	Sub(TEXT("DPS_TkbType"), &UHrotDpsWorld::OnTkbType);
 	UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: joined domain %d partition '%s'"), Domain, *Partition);
 	return true;
 }
@@ -197,12 +206,8 @@ void UHrotDpsWorld::OnState(const FHrotDpsSample& S)
 	E.Track = K;
 	E.Bank = D.Bank;
 	E.bHasState = true;
-	const uint8 Damage = uint8(D.Damage);
-	if (Damage != E.Damage)
-	{
-		E.Damage = Damage;
-		if (AHrotVehicle* V = Cast<AHrotVehicle>(E.Actor.Get())) V->SetDamage(EHrotVehicleDamage(FMath::Min<uint8>(Damage, 2)));
-	}
+	E.StateDamage = uint8(D.Damage);
+	ApplyDamage(E);
 	SpawnIfReady(D.EntityId, E);
 }
 
@@ -268,6 +273,10 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 	FVector From = HrotDpsMotion::ToUnreal(FVector3d(D.Origin.X, D.Origin.Y, D.Origin.Z), OriginCm);
 	FTransform Muzzle;
 	if (bPerson && MuzzleOfPerson(Shooter->Actor.Get(), Muzzle)) From = Muzzle.GetLocation();   // the round leaves HIS rifle on screen
+	AHrotVehicle* ShooterVehicle = Shooter ? Cast<AHrotVehicle>(Shooter->Actor.Get()) : nullptr;
+	const bool bKitGun = ShooterVehicle && ShooterVehicle->Kit && !ShooterVehicle->Kit->Muzzle.IsNearlyZero();
+	if (bPerson && (D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryRocket || D.WeaponCategory == SimNetGateway_Protocol_DdsPlayer_WeaponCategoryAtgm))
+		Shooter->RocketFiredAt = Real;
 	switch (D.WeaponCategory)
 	{
 	case SimNetGateway_Protocol_DdsPlayer_WeaponCategoryTankGun:
@@ -286,7 +295,12 @@ void UHrotDpsWorld::OnFire(const FHrotDpsSample& S)
 		{
 			// HROT's FireStreams: every shot of a machine gun or autocannon shows tracer dashes running out from the muzzle toward the aim,
 			// up to 500 m - here the shot renderer's one streak per shot (its speed and look); the dash spacing is not ported yet
-			R->AddTracer(From, From + Dir(D.Velocity) * 50000.0);
+			if (bKitGun) { From = ShooterVehicle->MuzzleTransform().GetLocation(); Count(TEXT("tracer from a vehicle gun")); }   // U-18f
+			// HROT's FireStreams (U-18f): a STREAM of dashes toward the target (its chest when a person), else along the shot for 300 m
+			FStream St; St.Shooter = D.ShooterId; St.Origin = From; St.Along = Dir(D.Velocity); St.Born = D.SimTime; St.Toward = FVector::ZeroVector;
+			if (const FEnt* T = D.TargetId ? Ents.Find(D.TargetId) : nullptr)
+				if (T->bHasState) St.Toward = HrotDpsMotion::ToUnreal(T->Shown.P + FVector3d(0, 0, T->bHasPerson ? 1.0 : 0.0), OriginCm);
+			Streams.Add(St);
 			R->PlaySound(MgFx.Sound, From, MgFx.SoundAttenuation, MgFx.SoundConcurrency, MgFx.SoundVolume, MgFx.SoundPitch);
 		}
 		Count(TEXT("tracer"));
@@ -369,7 +383,7 @@ void UHrotDpsWorld::OnEffect(const FHrotDpsSample& S)
 		FQuat4d Q(D.Rotation.X, D.Rotation.Y, D.Rotation.Z, D.Rotation.W);
 		if (Q.SizeSquared() < 0.5) Q = FQuat4d::Identity;
 		FTransform M(HrotDpsMotion::ToUnreal(Q.GetNormalized()), At);
-		if (V && V->Kit) M = V->MuzzleTransform();
+		if (V && V->Kit && !V->Kit->Muzzle.IsNearlyZero()) M = V->MuzzleTransform();   // a kit with no gun (the Apache): where the producer says
 		else if (Anchor && Anchor->bHasPerson && MuzzleOfPerson(Anchor->Actor.Get(), M)) Count(TEXT("flash at a rifle"));
 		R->AddFlash(M, FMath::Clamp(D.Size * FlashPerMetre, 0.5f, 12.f));
 		Count(TEXT("flash"));
@@ -390,9 +404,9 @@ void UHrotDpsWorld::OnEffect(const FHrotDpsSample& S)
 				return;
 			}
 			// HROT's puff: Size m across, the effect's own lifetime (a dust cloud lingers longer than a bullet's puff)
-			const float Cm = D.Size * 100.f;
-			const float Life = Look == EBlastLook::Dust ? FMath::Max(D.LifetimeSeconds, 2.f) : FMath::Max(D.LifetimeSeconds * 3.f, 0.8f);
-			const float Bright = D.Surface == SimNetGateway_Protocol_DdsPlayer_EffectSurfaceBuilding ? 0.75f : 0.55f;   // concrete dust lighter than soil
+			const float Cm = D.Size * 100.f * (Look == EBlastLook::Puff ? PuffSizeScale : 1.f);
+			const float Life = Look == EBlastLook::Dust ? FMath::Max(D.LifetimeSeconds, 2.f) : FMath::Max(D.LifetimeSeconds * PuffLifeScale, PuffMinLife);
+			const float Bright = D.Surface == SimNetGateway_Protocol_DdsPlayer_EffectSurfaceBuilding ? PuffBrightnessBuilding : PuffBrightnessGround;
 			R->AddPuff(At + FVector(0, 0, Cm * 0.2f), Cm * 0.35f, Cm, Life, Bright);
 			Count(Look == EBlastLook::Dust ? TEXT("dust cloud") : TEXT("impact puff"));
 			return;
@@ -404,7 +418,26 @@ void UHrotDpsWorld::OnEffect(const FHrotDpsSample& S)
 	}
 	case SimNetGateway_Protocol_DdsPlayer_EffectKindGroundMark: Count(TEXT("not drawn: ground mark")); return;
 	case SimNetGateway_Protocol_DdsPlayer_EffectKindWreckFlame:
-	case SimNetGateway_Protocol_DdsPlayer_EffectKindWreckSmoke: Count(TEXT("not drawn: wreck flame / smoke (the vehicle's own damage look)")); return;
+	case SimNetGateway_Protocol_DdsPlayer_EffectKindWreckSmoke:
+	{
+		// on a vehicle: its own destroyed look (fire, then smoke); anywhere else: a ground fire for the effect's lifetime (U-18f)
+		if (Anchor && Cast<AHrotVehicle>(Anchor->Actor.Get())) { Anchor->LookDamage = 2; ApplyDamage(*Anchor); Count(TEXT("wreck fire on a vehicle")); return; }
+		if (D.Kind == SimNetGateway_Protocol_DdsPlayer_EffectKindWreckSmoke)
+		{
+			if (R) R->AddPuff(At + FVector(0, 0, 200), D.Size * 50.f, D.Size * 200.f, FMath::Max(D.LifetimeSeconds, 5.f), 0.25f);
+			Count(TEXT("wreck smoke"));
+			return;
+		}
+		FActorSpawnParameters P;
+		P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (AHrotGroundFire* F = GetWorld()->SpawnActor<AHrotGroundFire>(At, FRotator::ZeroRotator, P))
+		{
+			F->Radius = FMath::Max(D.Size * 50.f, 100.f);
+			F->SetLifeSpan(D.LifetimeSeconds > 0 ? D.LifetimeSeconds : 30.f);
+		}
+		Count(TEXT("ground fire"));
+		return;
+	}
 	default: Count(TEXT("not drawn: effect of another kind"));
 	}
 }
@@ -463,6 +496,112 @@ AActor* UHrotDpsWorld::SpawnRound(FEnt& E, const FTransform& At)
 	return B;
 }
 
+// ── the vehicle look, type data, the launcher (U-18f) ──
+
+void UHrotDpsWorld::ApplyDamage(FEnt& E)
+{
+	// the worse of EntityState.Damage and VehicleLook (a kill or a fire = destroyed: fire, then smoke; smoking = damaged)
+	const uint8 Want = FMath::Min<uint8>(FMath::Max(E.StateDamage, E.LookDamage), 2);
+	if (Want == E.Damage) return;
+	E.Damage = Want;
+	if (AHrotVehicle* V = Cast<AHrotVehicle>(E.Actor.Get())) V->SetDamage(EHrotVehicleDamage(Want));
+	Count(Want == 2 ? TEXT("vehicle destroyed / burning") : Want == 1 ? TEXT("vehicle damaged / smoking") : TEXT("vehicle intact"));
+}
+
+void UHrotDpsWorld::OnVehicleLook(const FHrotDpsSample& S)
+{
+	const FVehicleLook& D = *static_cast<const FVehicleLook*>(S.Data);
+	if (!S.bValid) return;
+	FEnt& E = Ents.FindOrAdd(D.EntityId);
+	const bool bKilled = D.KillKind != SimNetGateway_Protocol_DdsPlayer_KillKindNone;
+	bool bPartHurt = false;
+	for (uint32 I = 0; I < D.Parts._length; ++I) bPartHurt |= D.Parts._buffer[I].State != SimNetGateway_Protocol_DdsPlayer_PartConditionIntact;
+	E.LookDamage = (bKilled || D.Burning) ? 2 : (D.Smoking || bPartHurt) ? 1 : 0;
+	if (D.Burning && !E.bBurning) Count(TEXT("burning started"));
+	E.bBurning = D.Burning;
+	ApplyDamage(E);
+}
+
+void UHrotDpsWorld::OnTkbType(const FHrotDpsSample& S)
+{
+	const FTkbType& D = *static_cast<const FTkbType*>(S.Data);
+	if (!S.bValid || !D.Json) return;
+	// HROT's own serialization ({tkbType, name, descriptors: [{type, partId, data}]}, PascalCase, enums as names) — only what is used:
+	// the weapon mounts' categories, so PersonState.ActiveSlot says which weapon a man holds. Keys read case-insensitively (HROT adds
+	// fields over time; read only what you use — the guide)
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(UTF8_TO_TCHAR(D.Json));
+	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid()) { Count(TEXT("tkb type: unreadable")); return; }
+	auto Field = [](const TSharedPtr<FJsonObject>& O, const TCHAR* Name) -> TSharedPtr<FJsonValue>
+	{
+		for (const auto& It : O->Values) if (FCString::Stricmp(*It.Key, Name) == 0) return It.Value;   // UE 5.8: the keys are TSharedString
+		return nullptr;
+	};
+	static const TCHAR* Categories[] = { TEXT("unknown"), TEXT("smallarms"), TEXT("machinegun"), TEXT("autocannon"), TEXT("tankgun"), TEXT("atgm"),
+		TEXT("mortar"), TEXT("grenade"), TEXT("bomb"), TEXT("rocket"), TEXT("howitzer"), TEXT("sam") };
+	TArray<FString> Mounts;
+	const TSharedPtr<FJsonValue> Ds = Field(Root, TEXT("descriptors"));
+	if (Ds.IsValid() && Ds->Type == EJson::Array)
+		for (const TSharedPtr<FJsonValue>& V : Ds->AsArray())
+		{
+			const TSharedPtr<FJsonObject> O = V->AsObject();
+			const TSharedPtr<FJsonValue> T = O.IsValid() ? Field(O, TEXT("type")) : nullptr;
+			if (!T.IsValid() || T->AsString() != TEXT("WeaponSuiteDto")) continue;
+			const TSharedPtr<FJsonValue> Data = Field(O, TEXT("data"));
+			const TSharedPtr<FJsonValue> Ms = Data.IsValid() && Data->Type == EJson::Object ? Field(Data->AsObject(), TEXT("mounts")) : nullptr;
+			if (!Ms.IsValid() || Ms->Type != EJson::Array) continue;
+			for (const TSharedPtr<FJsonValue>& M : Ms->AsArray())
+			{
+				const TSharedPtr<FJsonValue> C = M->Type == EJson::Object ? Field(M->AsObject(), TEXT("category")) : nullptr;
+				FString Cat = TEXT("unknown");
+				if (C.IsValid() && C->Type == EJson::String) Cat = C->AsString().ToLower();
+				else if (C.IsValid() && C->Type == EJson::Number) { const int32 N = int32(C->AsNumber()); if (N >= 0 && N < UE_ARRAY_COUNT(Categories)) Cat = Categories[N]; }
+				Mounts.Add(Cat);
+			}
+		}
+	MountCategories.Add(D.TypeId, Mounts);
+	Count(TEXT("tkb type"));
+}
+
+void UHrotDpsWorld::DrawStreams(double SimNow)
+{
+	// HROT's FireStreams.Dashes, ported 1:1 (Hrot.Look/Effects/FireStreams.cs): for Window s after the shot, dashes DashLength long every
+	// Spacing, from the gun's muzzle NOW toward where it aimed, the head running out at Speed, reach ≤ MaxLength, fading 1 → 0
+	constexpr double Window = 0.35, Spacing = 500, DashLength = 180, Speed = 90000, MaxLength = 50000, Along = 30000;   // cm
+	UHrotShotRenderer* R = UHrotShotRenderer::Get(GetWorld());
+	for (int32 I = Streams.Num() - 1; I >= 0; --I)
+	{
+		const FStream& S = Streams[I];
+		const double Since = SimNow - S.Born;
+		if (Since > Window) { Streams.RemoveAtSwap(I); continue; }
+		if (Since < 0 || !R) continue;
+		FVector Muzzle = S.Origin, Forward = S.Along;
+		if (const FEnt* E = Ents.Find(S.Shooter))   // a turning turret carries its stream with it
+		{
+			FTransform M;
+			if (AHrotVehicle* V = Cast<AHrotVehicle>(E->Actor.Get()); V && V->Kit && !V->Kit->Muzzle.IsNearlyZero()) { M = V->MuzzleTransform(); Muzzle = M.GetLocation(); }
+			else if (E->bHasPerson && MuzzleOfPerson(E->Actor.Get(), M)) Muzzle = M.GetLocation();
+		}
+		const FVector Line = S.Toward.IsZero() ? FVector::ZeroVector : S.Toward - Muzzle;
+		double Reach = Line.Size();
+		const FVector D = Reach > 50 ? Line / Reach : Forward;
+		Reach = Reach > 50 ? FMath::Min(Reach, MaxLength) : Along;
+		const double Front = FMath::Min(Reach, Since * Speed + Spacing);
+		const double Phase = FMath::Fmod(Since * Speed, Spacing);
+		const float Strength = float(1.0 - Since / Window);
+		for (double Dd = Phase; Dd < Front; Dd += Spacing)
+			R->AddDash(Muzzle + D * Dd, Muzzle + D * FMath::Min(Dd + DashLength, Front), Strength);
+	}
+}
+
+bool UHrotDpsWorld::HoldsTube(const FEnt& E, double Real) const
+{
+	// the mount his ActiveSlot selects is a rocket or an ATGM (the type's WeaponSuiteDto) — or, with no type data, he fired one just now
+	if (const TArray<FString>* M = MountCategories.Find(E.TypeId))
+		if (M->IsValidIndex(E.ActiveSlot)) return (*M)[E.ActiveSlot] == TEXT("rocket") || (*M)[E.ActiveSlot] == TEXT("atgm");
+	return E.RocketFiredAt >= 0 && Real - E.RocketFiredAt < 1.5;
+}
+
 // ── people (U-18d) ──
 
 void UHrotDpsWorld::OnPersonState(const FHrotDpsSample& S)
@@ -476,6 +615,7 @@ void UHrotDpsWorld::OnPersonState(const FHrotDpsSample& S)
 	P.StanceChangedAt = D.StanceChangedAt; P.StanceSeconds = D.StanceSeconds;
 	P.Posture = uint8(D.Posture); P.Held = uint8(D.Held); P.Injury = uint8(D.Injury); P.Gesture = uint8(D.Gesture);
 	P.bInSeat = D.SeatVehicleId != 0; P.bSeatExposed = D.SeatExposed;
+	E.ActiveSlot = D.ActiveSlot;
 	E.bHasPerson = true;
 }
 
@@ -584,8 +724,16 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	St->PlayRate = Rate * float(Clock.GetScale());
 	St->UpperAnim = L.Upper.IsNone() ? nullptr : K->Clip(L.Upper);
 
-	UStreamableRenderAsset* Weapon = L.bWeapon ? K->Rifle.Get() : nullptr;
-	if (St->Weapon != Weapon) { St->Weapon = Weapon; St->ApplyWeapon(); }
+	const bool bTube = L.bWeapon && K->Launcher && HoldsTube(E, Real);   // U-18f: the RPG on his shoulder
+	UStreamableRenderAsset* Weapon = bTube ? static_cast<UStreamableRenderAsset*>(K->Launcher.Get()) : L.bWeapon ? K->Rifle.Get() : nullptr;
+	if (St->Weapon != Weapon)
+	{
+		St->Weapon = Weapon;
+		St->WeaponOffset = bTube ? K->LauncherOffset : K->WeaponOffset;
+		St->ApplyWeapon();
+		if (bTube) Count(TEXT("drawn: tube on the shoulder"));
+	}
+	if (bTube && L.Stance != HrotDpsPeople::Prone) St->UpperAnim = K->Clip(TEXT("Upper.Aimed"));   // the tube is held in the aimed pose (the lab's)
 	if (A->IsHidden() != L.bHidden) A->SetActorHiddenInGame(L.bHidden);
 
 	// the aim (HROT's rule): the target's chest (its shown position + 1 m) or the stated point; eased on sim time
@@ -604,6 +752,7 @@ void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
 	E.Look = FString::Printf(TEXT("%s=%s%s upper %s weapon %d hidden %d rate %.2f aim %.1f/%.1f%s"), *Role.ToString(),
 		Base ? *Base->GetName() : TEXT("(none)"), L.bLoops ? TEXT("") : TEXT(" once"), L.Upper.IsNone() ? TEXT("-") : *L.Upper.ToString(),
 		L.bWeapon, L.bHidden, St->PlayRate, E.AimTwist, E.AimPitchNow, bFlinch ? TEXT(" flinch") : bKick ? TEXT(" kick") : TEXT(""));
+	if (bTube) E.Look += TEXT(" tube");
 }
 
 FString UHrotDpsWorld::PersonLook(int32 EntityId) const { const FEnt* E = Ents.Find(EntityId); return E ? E->Look : FString(); }
@@ -714,6 +863,7 @@ void UHrotDpsWorld::Tick(float)
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R);
 	const double Dt = FMath::Clamp(Placed - Prev, 0.0, 0.5);
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) ApplyPerson(It.Value, Placed, Dt);   // after every pose: an aim reads its target's
+	DrawStreams(Placed);
 }
 
 // ── read back ──

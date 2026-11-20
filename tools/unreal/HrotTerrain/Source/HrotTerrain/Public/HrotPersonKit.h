@@ -11,6 +11,7 @@ class UAnimSequence;
 class USkeletalMesh;
 class UStreamableRenderAsset;
 class UMaterialInterface;
+class UStaticMesh;
 
 UCLASS(BlueprintType)
 class HROTTERRAIN_API UHrotPersonKit : public UPrimaryDataAsset
@@ -33,6 +34,11 @@ public:
 	TObjectPtr<UStreamableRenderAsset> Rifle;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") FName WeaponSocket = TEXT("hand_r");
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") FTransform WeaponOffset;
+
+	/** U-18f — the shoulder-fired TUBE (an RPG-7): its mesh and its transform relative to WeaponSocket, on the shoulder in the aimed pose
+	 *  (measured by hrot_person_kit.py the way the vehicle lab's shoulder_launcher puts it: along the rifle's barrel, behind its muzzle) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") TObjectPtr<UStaticMesh> Launcher;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") FTransform LauncherOffset;
 
 	/** the side's uniform: side ("A", "B") → material, put on SideSlots */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Person") TMap<FString, TObjectPtr<UMaterialInterface>> SideMaterials;

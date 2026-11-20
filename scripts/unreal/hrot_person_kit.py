@@ -18,6 +18,8 @@ import hrot_person
 JOB = json.load(open(os.environ["HROT_PERSON_KIT_JOB"], encoding="utf-8-sig"))
 R = {"log": []}
 
+# the shoulder tube (the vehicle lab's, scratchpad unreal/rpg/job.json "launcher": the Fab RPG-7, measured there by eye on a soldier)
+LAUNCHER = {"mesh": "/Game/Fab/RPG7/rpg7/StaticMeshes/rpg7.rpg7", "scale": 1.5, "back": 70, "up": 8}
 # role → clip name (regex, full match, in the body's clip folder) — the body's clips are retargeted copies (retarget.py)
 ROLES = {
     "Rifle.Stand.Idle": "MM_Rifle_Idle_Hipfire", "Rifle.Stand.Walk": "MF_Rifle_Walk_Fwd", "Rifle.Stand.Run": "MF_Rifle_Jog_Fwd",
@@ -71,6 +73,21 @@ def build():
     probe.destroy_actor()
     kit.set_editor_property("rifle", unreal.load_asset(hrot_person.HELD["rifle"]))
     kit.set_editor_property("weapon_socket", unreal.Name(sock)); kit.set_editor_property("weapon_offset", off)
+    # U-18f — the shoulder TUBE: the vehicle lab's shoulder_launcher rule, measured once here instead of on a posed soldier — the tube along
+    # the rifle's barrel line (its Y axis onto the barrel), its middle `back` cm behind the rifle's muzzle and `up` cm above the barrel, in
+    # the RIFLE's frame (the muzzle socket is the rifle mesh's own: independent of the pose), then composed with the rifle's grip
+    L = LAUNCHER
+    probe = hrot_person.spawn(unreal.SkeletalMeshActor, (0, 0, -45000)); rc = probe.skeletal_mesh_component
+    rc.set_skeletal_mesh_asset(unreal.load_asset(hrot_person.HELD["rifle"]))
+    M = rc.get_socket_transform("Muzzle", unreal.RelativeTransformSpace.RTS_COMPONENT); probe.destroy_actor()
+    fwd = M.rotation.get_axis_x(); up = M.rotation.get_axis_z(); fwd.normalize(); up.normalize()
+    k = float(L["scale"]); sm = unreal.load_asset(L["mesh"]); b = sm.get_bounds()
+    rot = unreal.MathLibrary.make_rot_from_yz(fwd, up)
+    centre = M.translation - fwd * float(L["back"]) + up * float(L["up"])
+    loc = centre - rot.quaternion().rotate_vector(b.origin * k)
+    in_rifle = unreal.Transform(location=loc, rotation=rot, scale=unreal.Vector(k, k, k))
+    kit.set_editor_property("launcher", sm); kit.set_editor_property("launcher_offset", unreal.MathLibrary.compose_transforms(in_rifle, off))
+    log(f"tube {sm.get_name()} on the shoulder: {L['back']} cm behind the rifle's muzzle, {L['up']} cm above, x{k}")
     log(f"{body}: yaw offset {yaw_off:.1f}, z offset {dz:.1f}, rifle at {sock}")
 
     # the sides' camouflage

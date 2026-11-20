@@ -68,6 +68,7 @@ def join():
     L = unreal.load_asset
     if JOB.get("personKit"): w.set_editor_property("person_kit", L(JOB["personKit"]))
     if JOB.get("missileKind"): w.set_editor_property("default_missile_kind", L(JOB["missileKind"]))
+    if JOB.get("missileKinds"): w.set_editor_property("missile_kinds_by_type", {int(k): L(v) for k, v in JOB["missileKinds"].items()})   # U-18f: a munition type -> its kind
     w.set_editor_property("kits_by_type", {2001: L(KITS + "DA_ArmoredTruck")})                       # by the contract's type id
     w.set_editor_property("kits_by_dis", {"1.1.222": L(KITS + "DA_BTR60"), "1.1.225.1": L(KITS + "DA_Sherman")})   # by DIS prefix
     w.set_editor_property("kits_by_domain", {"Air": L(KITS + "DA_Air_Apache")})                     # by domain
@@ -147,7 +148,7 @@ def run():
         R["shots"].append(path)
         R["describe"][name] = {str(i): w.describe(i) for i in w.entity_ids()}
         rr = unreal.HrotShotRenderer.for_world(UES().get_game_world())
-        R.setdefault("rendererAtPicture", {})[name] = {k: rr.get_editor_property(k) for k in ("live_puffs", "live_tracers", "live_flashes")} if rr else None
+        R.setdefault("rendererAtPicture", {})[name] = {k: rr.get_editor_property(k) for k in ("live_puffs", "live_tracers", "live_dashes", "live_flashes")} if rr else None
         R.setdefault("atPicture", {})[name] = {"scene": round(w.sim_now() - float(JOB.get("simBase", 0)), 2),
                                                 "people": {str(i): [w.person_look(i), person_extras(w, i)] for i in w.entity_ids() if w.person_look(i)}}
         log(f"picture {name} at scene {w.sim_now() - float(JOB.get('simBase', 0)):.2f} s")

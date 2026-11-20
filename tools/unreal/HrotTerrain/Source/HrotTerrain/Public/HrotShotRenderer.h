@@ -45,6 +45,9 @@ public:
 	/** A tracer: a short glowing streak flying From → To at TracerSpeed; `Length` / `Width` cm (0 = TracerLength / TracerWidth — a
 	 *  minigun's long streaks join into a line, a heavy MG's are fewer and thicker: per weapon, FHrotShotFx) */
 	void AddTracer(const FVector& From, const FVector& To, float Length = 0.f, float Width = 0.f);
+	/** U-18f — one tracer DASH for the next drawn frame only (a caller that computes its dashes per instant, as HROT's FireStreams does,
+	 *  adds them every frame); `Strength` 0..1 fades it; drawn with the tracers (the same glowing cards, at least TracerMinAngle wide) */
+	void AddDash(const FVector& From, const FVector& To, float Strength = 1.f);
 	/** This weapon's round count, for the 1-in-N tracer rule. */
 	int32 NextRound(const USceneComponent* Weapon);
 	/** Where the view is (the player camera in play, the editor viewport otherwise) — for the near-only extras. */
@@ -94,6 +97,7 @@ public:
 	// ---- counters (the last frame) — read by the measurement -------------------------------------------------------------------
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 LiveFlashes = 0;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 LiveTracers = 0;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 LiveDashes = 0;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 LivePuffs = 0;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 NearSpawnedLastFrame = 0;
 	/** ⭐ the renderer's own cost last frame (ms, game thread): firing (the test driver's FireShot calls) and the instance rebuild */
@@ -120,6 +124,8 @@ private:
 	struct FTracer { FVector From, Dir; float Range, Born, Length, Width; };
 	TArray<FFlash> Flashes;
 	TArray<FTracer> Tracers;
+	struct FDash { FVector From, To; float Strength; };
+	TArray<FDash> Dashes;
 	struct FPuff { FVector At; float Born, Life, Size0, Size1, Seed, Bright; };
 	TArray<FPuff> Puffs;
 	struct FPendingSound { TWeakObjectPtr<USoundBase> Sound; TWeakObjectPtr<USoundAttenuation> Att; TWeakObjectPtr<USoundConcurrency> Con; FVector At; float When, Volume, Pitch, Asked; };

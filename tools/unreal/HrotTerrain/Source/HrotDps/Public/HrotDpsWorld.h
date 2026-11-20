@@ -13,6 +13,9 @@
 // machine gun / autocannon → a tracer + the gun's sound (FireStreams: tracers are the client's rule, not on the wire) · Fire from a tank
 // gun → the vehicle's own main-gun blast (its flash replaces the Effect's) · Articulation turret 0 → AHrotVehicle::SetAim.
 // Detonation is counted only (its blast and mark arrive as Effect). What is drawn is counted per kind (EventCounts) for a test.
+// ⭐ U-18f — VEHICLES AND AIR FIGHTING: a vehicle's machine-gun tracer and flash at ITS kit's gun (it follows the turret); helicopter
+// rockets as missiles of their type's kind; the RPG TUBE on a soldier's shoulder while his ActiveSlot selects a rocket mount (TkbType's
+// WeaponSuiteDto); VehicleLook (kill / burning = destroyed, smoking = damaged); a wreck fire off a vehicle = a ground fire; puffs tunable.
 // ⭐ U-18e — THE FIREFIGHT: a soldier's shot (his flash at his rifle, the kick), impacts (HROT's puff by its effect type; the surface's
 // sound and chips), hits on people (a flinch), rounds in flight (a rocket = the U-17g missile with its motor and trail; a grenade or a
 // shell = a small body).
@@ -63,6 +66,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UAnimationAsset> PersonClip;
 	/** the person mesh's yaw offset (deg): a UE character mesh faces +Y, the contract's body faces +x */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float PersonMeshYaw = -90.f;
+	/** U-18f — the impact puff, EXAGGERATED a little over HROT's (0.8 m, 0.35 s, sand-coloured: faithful but hard to see on sand —
+	 *  user: "exaggerate a little bit to make it better visible"): its size and life factors, the shortest life, and its brightness */
+	// ⚠ measured: ×1.6 and a darker 0.4 came out as faint bluish dots (a dark puff renders more transparent, not more visible)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float PuffSizeScale = 2.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float PuffLifeScale = 3.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float PuffMinLife = 1.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float PuffBrightnessGround = 0.8f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float PuffBrightnessBuilding = 0.85f;
 	/** a muzzle flash's size for the shot renderer per metre of Effect.Size (⚠ a first guess: rifle 1 ≈ 0.3 m, a tank kit's 8 ≈ 2.7 m) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") float FlashPerMetre = 3.f;
 	/** where the contract's origin (Session's UTM origin) is in this level, cm */
@@ -116,7 +127,11 @@ private:
 		FString Look;
 		bool bFlinching = false, bKicking = false;
 		FName LastRole;
-		double ShotAt = -1, HitAt = -1;   // real seconds of his last shot (the kick) and of the last hit on him (the flinch)
+		double ShotAt = -1, HitAt = -1;
+		uint8 ActiveSlot = 0;                // PersonState.ActiveSlot: his selected weapon mount (U-18f)
+		double RocketFiredAt = -1;           // real seconds of his last rocket / ATGM shot (the tube, when no type data says)
+		uint8 StateDamage = 0, LookDamage = 0;   // EntityState.Damage and VehicleLook's verdict; the shown damage is the worse
+		bool bBurning = false;   // real seconds of his last shot (the kick) and of the last hit on him (the flinch)
 		// a round in flight (U-18e)
 		bool bRound = false, bLying = false;
 		int64 MunitionType = 0;
@@ -139,6 +154,12 @@ private:
 	TMap<FString, int32> Events;
 	struct FRoundLook { float Length = 0, Diameter = 0; bool bSmokeTrail = false; };
 	TMap<int64, FRoundLook> RoundLooks;   // MunitionLook, by munition type
+	TMap<int64, TArray<FString>> MountCategories;
+	/** U-18f — an automatic weapon's tracer STREAM (HROT's FireStreams): who fired (his gun's muzzle NOW starts the dashes), where it ran
+	 *  to (Unreal cm; zero = along the shot), the shot's line as fallback, and when (sim s) */
+	struct FStream { int32 Shooter = 0; FVector Origin, Along, Toward; double Born = 0; };
+	TArray<FStream> Streams;
+	void DrawStreams(double SimNow);   // TkbType: a type's weapon mounts' categories, lower case ("smallarms", "rocket" …)
 	UPROPERTY(Transient) FHrotShotFx MgFx;
 	UPROPERTY(Transient) FHrotShotFx RifleFx;
 	UPROPERTY(Transient) TArray<TObjectPtr<UObject>> Preloaded;
@@ -157,6 +178,10 @@ private:
 	void OnRound(const struct FHrotDpsSample& S);
 	void OnMunitionLook(const struct FHrotDpsSample& S);
 	AActor* SpawnRound(FEnt& E, const FTransform& At);
+	void OnVehicleLook(const struct FHrotDpsSample& S);
+	void OnTkbType(const struct FHrotDpsSample& S);
+	void ApplyDamage(FEnt& E);
+	bool HoldsTube(const FEnt& E, double Real) const;
 	AActor* SpawnPerson(FEnt& E, const FTransform& At);
 	void ApplyPerson(FEnt& E, double SimNow, double Dt);
 	void Count(const FString& Kind) { ++Events.FindOrAdd(Kind); }

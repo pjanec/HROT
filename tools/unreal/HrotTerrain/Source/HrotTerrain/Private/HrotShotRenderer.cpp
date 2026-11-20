@@ -159,6 +159,11 @@ void UHrotShotRenderer::AddTracer(const FVector& From, const FVector& To, float 
 	if (Range > 1.f) Tracers.Add({ From, D / Range, Range, Now(), Length > 0.f ? Length : TracerLength, Width > 0.f ? Width : TracerWidth });
 }
 
+void UHrotShotRenderer::AddDash(const FVector& From, const FVector& To, float Strength)
+{
+	if (FVector::DistSquared(From, To) > 1.f) Dashes.Add({ From, To, FMath::Clamp(Strength, 0.f, 1.f) });
+}
+
 void UHrotShotRenderer::FlashLight(const FVector& At) { Flash(At, 20000.f, 600.f, FlashLife); }
 
 void UHrotShotRenderer::Flash(const FVector& At, float Intensity, float Radius, float Seconds)
@@ -232,8 +237,8 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 	Puffs.RemoveAll([&](const FPuff& P) { return T - P.Born > P.Life; });
 	for (int32 I = PendingSounds.Num() - 1; I >= 0; --I)   // the bangs whose sound has now reached the view
 		if (PendingSounds[I].When <= T) { PlayNow(PendingSounds[I]); PendingSounds.RemoveAtSwap(I); }
-	LiveFlashes = Flashes.Num(); LiveTracers = Tracers.Num(); LivePuffs = Puffs.Num();
-	if (!FlashIsm && Flashes.Num() == 0 && Tracers.Num() == 0 && Puffs.Num() == 0) return;
+	LiveFlashes = Flashes.Num(); LiveTracers = Tracers.Num(); LivePuffs = Puffs.Num(); LiveDashes = Dashes.Num();
+	if (!FlashIsm && Flashes.Num() == 0 && Tracers.Num() == 0 && Puffs.Num() == 0 && Dashes.Num() == 0) return;
 	if (!EnsureComponents()) return;
 
 	// ⭐ rebuilt every frame from the live lists: a few hundred instances, one draw call per mesh
@@ -275,6 +280,17 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 		X.Add(Card(Centre, R.Dir, A, Head - Tail, Wd)); Data.Add(1.f);
 		X.Add(Card(Centre, R.Dir, B, Head - Tail, Wd)); Data.Add(1.f);
 	}
+	for (const FDash& Ds : Dashes)   // U-18f: the dashes added for this frame (then cleared: their owner adds them again next frame)
+	{
+		const FVector D = Ds.To - Ds.From; const float Len = D.Size();
+		const FVector Dir = D / Len, Centre = (Ds.From + Ds.To) * 0.5f;
+		const FVector A = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal(KINDA_SMALL_NUMBER, FVector::RightVector);
+		const FVector B = FVector::CrossProduct(Dir, A);
+		const float Wd = FMath::Max(TracerWidth, float(FVector::Dist(Centre, View)) * TracerMinAngle);
+		X.Add(Card(Centre, Dir, A, Len, Wd)); Data.Add(Ds.Strength);
+		X.Add(Card(Centre, Dir, B, Len, Wd)); Data.Add(Ds.Strength);
+	}
+	Dashes.Reset();
 	TracerIsm->ClearInstances();
 	if (X.Num()) { TracerIsm->AddInstances(X, false, true); for (int32 I = 0; I < X.Num(); ++I) TracerIsm->SetCustomData(I, MakeArrayView(&Data[I], 1), false); }
 	TracerIsm->MarkRenderStateDirty();
