@@ -257,7 +257,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.HasAnswer != 1 || ws.Reissue != 0) return false;
             byte moving = Moving(in ctx);
             if (WaitingForPicks(in p, in ws, in ctx)) return false;   // ⭐ CE-2460 — the movers hold on the spot meanwhile: that is no bound
-            bool done = ctx.Now - ws.IssuedAt >= p.BoundTimeoutSeconds || SquadManeuverRunner.ElementArrived(in ws, in ctx, moving);
+            // ⭐ CE-2461 — or the movers all stopped short (bounding's rule, one helper): 📐 uf-corner-fight, the element stood 60 s with no task
+            bool done = ctx.Now - ws.IssuedAt >= p.BoundTimeoutSeconds || SquadManeuverRunner.ElementArrived(in ws, in ctx, moving)
+                        || SquadGates.MoversStopped(in ctx, SquadGates.Element(in ctx, moving), ws.IssuedAt);
             if (done) SquadCover.Spend(ref p.Cover, in ctx, moving);   // the next bound picks afresh
             return done;
         }

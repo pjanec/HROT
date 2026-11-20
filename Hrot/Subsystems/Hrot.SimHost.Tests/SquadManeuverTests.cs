@@ -7385,6 +7385,31 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);   // both stopped short: the other element bounds now
         }
 
+        /// <summary>⭐ <c>CE-2461</c> — BREAK CONTACT's bound ends the same way: its movers all stopped short ⇒ the other element goes, not at the
+        /// bound's timeout. 📐 Live before: <c>uf-corner-fight</c> (deterministic), Blue's element stood 60 s with no task after its bound.
+        /// ✅ Red-proof: the stopped test removed from <c>BreakContactPlay.PhaseComplete</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2461_BreakContact_MoversThatStoppedShort_EndTheBound_BeforeItsTimeout()
+        {
+            var s = new Squad(members: 2);
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            s.Answer(s.RetreatQuery(), new Vector3(-40f, -30f, 0f));
+            s.Tick(); s.Tick();
+            s.Answer(s.BreakCoverQuery(), null);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.AdvanceTo, s.LastOrders()[s.Members[0]].Intent);   // element 0 bounds
+            Nav(s, s.Members[0], Fdp.Toolkit.Navigation.NavigationResult.FailedBlocked);
+            s.Orders.Clear();
+            for (int i = 0; i < 250; i++) s.Tick();   // ~4 s, far short of the 60 s timeout
+            s.Answer(s.BreakCoverQuery(), null);
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.AdvanceTo, s.LastOrders()[s.Members[1]].Intent);   // he stopped short: element 1 goes now
+        }
+
         /// <summary>⭐ <c>CE-2461</c> — a cover point on another storey or a ledge (more than <see cref="SquadCover.MaxClimbMetres"/> above the mover)
         /// is never a bound's pick. 📐 Live before: <c>uf-corner-fight</c>, picks at Z = 3 beside a house left the movers standing under them.
         /// ✅ Red-proof: the height test removed ⇒ the raised point is picked ⇒ red.</summary>
