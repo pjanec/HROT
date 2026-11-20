@@ -134,10 +134,11 @@ adds the corner's geometry, not new rows.
 middle of the street in a column · ③ once Red is found, is the corner suppressed while a team moves · ④ does Blue flank (through the shop street
 or a building) or only trade fire · ⑤ does the bound stop at the mouth, or does a team bound into the junction under Red's guns.
 
-### 5.1 U2 — what the first run found *(2026-11-20, 10/12)*
+### 5.1 U2 — what the runs found *(2026-11-20: 10/12, then 11/12 after CE-2461)*
 
 | # | finding | kind | outcome |
 |---|---|---|---|
-| U2-1 | Red fires first at 107 s (Blue's bounding reached the junction then); Blue's first round 5.3 s later — 0.3 s outside the 5 s window | ⏳ to measure — the reaction time, or a window too tight for the first man round a corner | ⏳ |
+| U2-3 | Blue's rear element advanced ~10 m per 40 s bound (live probe): a mover's move ended 6 m short of an unreachable cover point and the bound waited out its timeout, the element standing; picks at Z = 3 on a ledge | ⭐ BEHAVIOUR | ✅ `CE-2461`: a bound ends once its movers stopped; no picks off the mover's level ([Squad Tactics §7.6.2](DESIGN_Squad_Tactics.md)) |
+| U2-1 | Red fires first at 107 s (Blue's bounding reached the junction then); Blue's first round 5.3 s later — 0.3 s outside the 5 s window | ✅ gone with U2-3: contact at 92 s, Blue fires at 92.0, Red at 92.8 | — |
 | U2-2 | Blue never hits a Red man in 130 s of fight; Red hits Blue at once | ⏳ to measure — Blue's men may not see round the corner (fire at the corner, not at men), or lose the exchange outright | ⏳ |
 
