@@ -1050,6 +1050,18 @@ entry after the bang · no grenade into an unsuspected room or where it would st
 first two pie on frame posts, 3 s quiet resumes · a man down before the entry, the next takes his place); the nine BC-1 / BC-3 rails pass on the
 gate unchanged.
 
+#### 7.3b ⭐ CE-2453 — the SOP leaves contact INSIDE the building to the drill *(behaviors, `2026-11-20`, realism)*
+
+📐 **Measured** (`ia-area-defend`, live, the commander's `/squad` dump): a one-man `ClearArea` at House A's door (`StackAndRoomEntry` Entering) HEARD the
+guard upstairs ⇒ `BasicSquadSop`'s contact row paused the clear with `ReactToContact`, whose choice was `SquadHold` ⇒ the clearer stood at the entry
+60 s+ (other runs: walked back out; idled below the guard). CB-66 / CB-72 / CB-73 above were meant to answer exactly this, and the SOP pre-empted them.
+
+| ⭐ as built | why |
+|---|---|
+| a 5th condition on the SOP's four contact rows, beside `NotDefending`: **`RoomSuspicion.NotClearingItsContact`** — false (the row is skipped) when the squad's ORDER kind is `ClearBuilding` (`CurrentOrders`, CE-4612; `ClearArea` declares `Fulfils = ClearBuilding`) and EVERY pooled contact is indoors (`GrenadeRules.Indoors`) in a building one of its men is in, or within 12 m of (the stack at its door) | the precedent: a play that answers contact is spared by the SOP (CE-2359 `NotDefending`, DA-55); the drill's gate is CB-72, its suspicion CB-66 |
+| ⛔ a contact in the STREET, or in ANOTHER building, still pauses the clear | between buildings the clear only walks — nothing in the play answers fire there |
+| rail `SquadManeuverTests.CE2453_AClearingSquad_KeepsClearing…` (inside ⇒ no reaction, the condition false; street ⇒ `ReactToContact`), red-proved | — |
+
 ### 7.4 `ClearArea` — a squad clears an AREA, building after building *(`CE-2374`, behaviors — AQ104 B ✅ approved 2026-10-25, R-2079; build-state: BUILDING)*
 
 🔒 User, `2026-10-25`: *"the house is not the only place, i would like we could have also behaviors for … 'attack /clear given area'"*.
