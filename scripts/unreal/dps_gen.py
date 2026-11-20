@@ -66,6 +66,11 @@ def main():
 
     # ③ the topic table
     tops = topics_of(cs)
+    want = set(re.findall(r'public const string \w+ = "(DPS_\w+)";',
+                          open(os.path.join(os.path.dirname(cs), "DpsProtocol.cs"), encoding="utf-8").read()))
+    missed = want - {t[0] for t in tops}
+    if missed:   # a topic whose attributes the pattern did not match would silently vanish from the table
+        sys.exit(f"topics named in DpsProtocol.cs but not parsed from DpsTopics.cs: {sorted(missed)}")
     header = open(os.path.join(GEN, "DpsTopics.h"), encoding="utf-8").read()
     rows = []
     for name, struct, dur, rel, depth, lease in tops:
