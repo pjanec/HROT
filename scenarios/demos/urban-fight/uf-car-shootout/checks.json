@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/designs/group-maneuvers/DESIGN_Urban_Fight_Suite.md §4 (U1, the car shootout) — the realism rubric's layers 1-3 (§1): L1 never rows (doctrine), L2 the timeline, L3 losses on both sides. The cover cue reads the terrain's cover database (editor tier). Layer 4 (the review checklist) is in the design. ⚠ 'Blue fires' anchors the first-contact window (whoever fires first, the other side's row is judged from it).",
+  "$doc": "docs/designs/group-maneuvers/DESIGN_Urban_Fight_Suite.md §4 (U1, the car shootout) — the realism rubric's layers 1-3 (§1): L1 never rows (doctrine), L2 the timeline, L3 losses on both sides. ⭐ L1 'exposed' (CE-2456): seen by an enemy in the fight (the AI's own sight) — a town has safe places with no cover point near (inside or behind a building); the first run's 'cover' rows judged distance from a marker, not exposure. Layer 4 (the review checklist) is in the design. ⚠ 'Blue fires' anchors the first-contact window (whoever fires first, the other side's row is judged from it).",
   "runFor": 240,
   "golden": false,
   "expect": [
@@ -26,12 +26,11 @@
       "before": "Blue fires+10"
     },
     {
-      "name": "L1 nobody of Blue in the fight stands upright in the open 15 s once the shooting starts",
+      "name": "L1 nobody of Blue in the fight stands upright in a Red man's sight 15 s once the shooting starts",
       "never": {
-        "on": "cover",
+        "on": "exposed",
         "who": "*Blue Squad ",
-        "is": "open",
-        "m": 2.5,
+        "by": "*Red Squad ",
         "upright": true,
         "fighting": true,
         "for": 15
@@ -64,12 +63,11 @@
       "hit": "*Red Squad "
     },
     {
-      "name": "L1 nobody of Red in the fight stands upright in the open 15 s once the shooting starts",
+      "name": "L1 nobody of Red in the fight stands upright in a Blue man's sight 15 s once the shooting starts",
       "never": {
-        "on": "cover",
+        "on": "exposed",
         "who": "*Red Squad ",
-        "is": "open",
-        "m": 2.5,
+        "by": "*Blue Squad ",
         "upright": true,
         "fighting": true,
         "for": 15

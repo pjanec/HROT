@@ -64,7 +64,7 @@ namespace Hrot.Editor.Director
         /// <summary>The cues a check may use: the take's nine, <c>field</c> and ⭐ <c>knowledge</c> (CE-4624 — what a side knows of a minefield:
         /// <c>"is": "Marked"</c>, or a cell state — <c>Suspected</c> / <c>KnownClear</c> / <c>KnownMined</c> / <c>Unknown</c> — counted and compared by
         /// <c>op</c> / <c>value</c>, default <c>&gt;= 1</c>).</summary>
-        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still" }).ToArray();
+        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still", "exposed" }).ToArray();
         /// <summary>⭐ <c>CE-4672</c> <c>cover</c>: <c>in</c> — a cover point (the terrain's cover database) within <see cref="M"/> of the unit; <c>open</c> — none.</summary>
         public static readonly IReadOnlyList<string> CoverStates = new[] { "in", "open" };
 
@@ -308,7 +308,7 @@ namespace Hrot.Editor.Director
             // a take anchor's parser checks the take keys; "field" is the verifier's own, so it is checked here
             var anchorProblems = new List<string>();
             var parsed = TakeJson.ParseAnchor(spec, where, anchorProblems);
-            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still") || !p.Contains("is not one of", StringComparison.Ordinal)));
+            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still" or "exposed") || !p.Contains("is not one of", StringComparison.Ordinal)));
             if (on == "window")
             {
                 if (string.IsNullOrWhiteSpace(building)) problems.Add($"{where}: a window cue needs building (its terrain key or label)");
@@ -336,11 +336,16 @@ namespace Hrot.Editor.Director
                 if (m <= 0f) problems.Add($"{where}: a still cue needs m (metres he may move and still be still, > 0)");
                 if (forSeconds <= 0d) problems.Add($"{where}: a still cue needs for (seconds he has not moved, > 0)");
             }
+            if (on == "exposed")
+            {
+                if (parsed.Who == null) problems.Add($"{where}: an exposed cue needs who (the men judged)");
+                if (parsed.By == null) problems.Add($"{where}: an exposed cue needs by (the enemies whose eyes count)");
+            }
             if (forSeconds < 0d) problems.Add($"{where}: for is seconds (>= 0)");
             if (forSeconds > 0d && on is "shot" or "blast" or "hit") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
-            if (fighting && on is not ("cover" or "still" or "field" or "bunched")) problems.Add($"{where}: fighting belongs to a cover, still, field or bunched cue");
+            if (fighting && on is not ("cover" or "still" or "field" or "bunched" or "exposed")) problems.Add($"{where}: fighting belongs to a cover, still, field, bunched or exposed cue");
             if (dead && on != "field") problems.Add($"{where}: dead belongs to a field cue");
-            if (upright && on != "cover") problems.Add($"{where}: upright belongs to a cover cue");
+            if (upright && on is not ("cover" or "exposed")) problems.Add($"{where}: upright belongs to a cover or exposed cue");
             if (also.Count > 0 && on != "field") problems.Add($"{where}: also belongs to a field cue");
             parsed = parsed with { On = on };
             if (on == "field")
@@ -359,7 +364,7 @@ namespace Hrot.Editor.Director
                 value ??= JsonValue.Create(1);
             }
             else if (side != null) problems.Add($"{where}: side belongs to a knowledge cue");
-            if (on is "cover" or "bunched" or "still")
+            if (on is "cover" or "bunched" or "still" or "exposed")
             {
                 if (from != null) problems.Add($"{where}: from belongs to a far / close / between cue");
             }

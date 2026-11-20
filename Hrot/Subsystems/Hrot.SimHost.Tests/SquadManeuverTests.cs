@@ -1132,6 +1132,28 @@ namespace Hrot.SimHost.Tests
             if (!pressesOn) Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
         }
 
+        /// <summary>⭐ <c>CE-2457</c> (Urban Fight Suite U1) — a squad with NO task that still knows an enemy HOLDS (the SOP's last row, do-when-idle
+        /// <c>SquadHold</c>: every man <c>CombatPosture</c> where he is) instead of its men standing about; with no enemy known it stays idle; a squad
+        /// with an order keeps it. 📐 Live before: <c>uf-car-shootout</c>, both squads broke contact and the survivors stood in the street 60–120 s.
+        /// ✅ Red-proof: <c>KnowsAnEnemy</c> always false ⇒ the squad stays idle ⇒ red.</summary>
+        [Theory]
+        [InlineData(null, true, true)]
+        [InlineData(null, false, false)]
+        [InlineData("SquadMarch", true, false)]
+        public void CE2457_ASquadWithNoTask_HoldsWhileItKnowsAnEnemy(string? task, bool enemy, bool holds)
+        {
+            var s = new Squad(members: 2);
+            if (task != null) s.Order("{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", task);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 4; i++) s.Tick();
+            var far = new Vector3(0f, 200f, 0f);
+            if (enemy) s.Pool(Enemy(s, far), far, reporters: 0b0001);   // known, far off: no fresh contact edge, nothing to react to
+            for (int i = 0; i < SopReactionFrames + 30; i++) s.Tick();
+            Assert.Equal(holds, s.TaskName == BehaviorNames.SquadHold);
+            if (holds) Assert.All(s.Members, m => Assert.Equal(BehaviorNames.CombatPosture, s.LastOrders()[m].Intent));
+            if (task != null) Assert.Equal(task, s.TaskName);
+        }
+
         /// <summary>⭐⭐ <c>CE-4612</c> (R-2088…R-2090; DESIGN_Orders_Params_Entity_Classes.md §15) — the squad's ORDER, typed and derived: a
         /// superior's <c>SquadHold</c> reads as a Hold with a request id; a reaction PAUSES it and the order is the same order (kind, request
         /// id), marked paused; the SOP's own task is no order. ✅ Red-proofs: the paused arm of <c>CurrentOrders.Of</c> dropped ⇒ None under the

@@ -520,7 +520,7 @@ public sealed class ScenarioChecksTests
         Assert.True(v["the squad is all in the open"].Ok);
         Assert.False(v["the squad all STANDS in the open"].Ok);
         Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "near", "who": "A", "point": [0,0], "upright": true}] }""", out var bad);
-        Assert.Contains(bad, p => p.Contains("upright belongs to a cover cue", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("upright belongs to a cover or exposed cue", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -578,7 +578,7 @@ public sealed class ScenarioChecksTests
         Parse("""{ "runFor": 1, "expect": [{"name": "a", "on": "still", "who": "A", "m": 1}, {"name": "b", "on": "shot", "by": "A", "for": 3}, {"name": "c", "on": "near", "who": "A", "point": [0,0], "fighting": true}] }""", out var bad);
         Assert.Contains(bad, p => p.Contains("a still cue needs for", StringComparison.Ordinal));
         Assert.Contains(bad, p => p.Contains("for belongs to a state cue", StringComparison.Ordinal));
-        Assert.Contains(bad, p => p.Contains("fighting belongs to a cover, still, field or bunched cue", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("fighting belongs to a cover, still, field, bunched or exposed cue", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -629,6 +629,68 @@ public sealed class ScenarioChecksTests
         var moving = new ConditionBook(checks, w, 0);
         moving.Observe(1);
         Assert.True(moving.Verdicts().Single(x => x.Name == "the man by the car is in the open").Ok);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2456</c> (U1) — <c>exposed</c>: a man an enemy SEES now (the AI's own sight, <c>SightNow.Sees</c> — the observer's visual track) holds; a man no
+    /// enemy tracks does not (behind or inside a building, whatever cover points lie near); with <c>upright</c> a prone man does not; a DOWN enemy's eyes do not
+    /// count. 🔴 Red-proof: <c>ExposedHolds</c> ignoring the observers (always seen) ⇒ the unseen man holds ⇒ red.
+    /// </summary>
+    [Fact]
+    public unsafe void CE2456_Exposed_IsWhatAnEnemySeesNow()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "seen", "on": "exposed", "who": "Seen Man", "by": "*Red "},
+                {"name": "unseen", "on": "exposed", "who": "Hidden Man", "by": "*Red "},
+                {"name": "prone, upright", "on": "exposed", "who": "Prone Man", "by": "*Red ", "upright": true},
+                {"name": "prone", "on": "exposed", "who": "Prone Man", "by": "*Red "},
+                {"name": "seen by the dead only", "on": "exposed", "who": "Watched By Dead", "by": "*Red "}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        var w = new FakeWorld { World = world };
+        Entity Unit(string name, int nid, string stance = "Standing", float hp = 100f)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new NetworkIdentity { Value = nid });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 100f });
+            w.U.Ids[name] = nid;
+            w.Comps[nid] = new JsonObject
+            {
+                ["Health"] = new JsonObject { ["Current"] = hp, ["Max"] = 100 },
+                ["StanceStatus"] = new JsonObject { ["CurrentStance"] = stance },
+            };
+            return e;
+        }
+        var seen = Unit("Seen Man", 101); Unit("Hidden Man", 102);
+        var prone = Unit("Prone Man", 103, "Prone"); var watched = Unit("Watched By Dead", 104);
+        var red = Unit("Red Eye", 201); var dead = Unit("Red Dead", 202, hp: 0f);
+        void Track(Entity eye, params Entity[] targets)
+        {
+            var t = new Fdp.Toolkit.Perception.Components.ActiveSensorTracks { Count = targets.Length };
+            for (int i = 0; i < targets.Length; i++)
+            {
+                t.EntityIds[i] = (long)targets[i].PackedValue;
+                t.Modalities[i] = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual;
+            }
+            world.AddComponent(eye, t);
+        }
+        Track(red, seen, prone);
+        Track(dead, watched);
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["seen"].Ok);
+        Assert.False(v["unseen"].Ok);
+        Assert.False(v["prone, upright"].Ok);
+        Assert.True(v["prone"].Ok);
+        Assert.False(v["seen by the dead only"].Ok);
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "exposed", "who": "A"}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("an exposed cue needs by", StringComparison.Ordinal));
     }
 
     /// <summary>

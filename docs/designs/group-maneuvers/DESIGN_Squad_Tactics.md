@@ -1100,6 +1100,16 @@ Squad §5's note) — for a real lone man that IS the measured 46 s stall · **b
 assault goes straight to the flank, which still fails · **end every lone man's reaction** — a lone man on a march would walk on under fire.
 Rail `SquadManeuverTests.CE2454_ALoneClearer_PressesOn_WhenHeCannotAssault` (three cases).
 
+**⭐ `CE-2457` (behaviors, `2026-11-20`; build-state: BUILT) — the squad SOP's LAST row: no task, an enemy still known ⇒ HOLD.** 📐 Live
+`uf-car-shootout` ([Urban Fight Suite](DESIGN_Urban_Fight_Suite.md) U1): both squads broke contact at ~120 s; with no order to resume, the
+reaction ended into nothing — a man under command never reacts for himself (`BasicInfantrySop` "Under command → his unit reacts for him"), so every
+survivor fell to his "Idle" row and STOOD in the street 60–120 s, a wounded man among them. ⭐ Now `BasicSquadSop` ends with
+`SquadSopConditions.KnowsAnEnemy` (the pool holds an enemy — `SquadContacts.AnyEnemy`, the rule the reaction's "nothing to fight" reads) →
+**do-when-idle `SquadHold`**: every man `CombatPosture` where he is (cover, eyes out); the lull row above still brings a casualty in. Do-when-idle
+(origin Sop), so any order or contact row replaces it at once (`BehaviorIngressSystem` admits an order over it). Rejected: **a reaction at
+`Alert`** — it would pause an order that arrives meanwhile · **in each man's SOP** — the man under command never reacts for himself; the squad is
+the one that decides (CE-2123 S2). Rail `SquadManeuverTests.CE2457_ASquadWithNoTask_HoldsWhileItKnowsAnEnemy` (3 cases), red-proved.
+
 Rail `SquadManeuverTests.CE2158_ReactToContact_AFarContact_IsClosedByFireAndMovement_ThenFlanked` (one man left behind); the cluster rail
 `SquadTacticsScenarioTests.CE2123_ABoundingSquadMeetsTheEnemy_…` now expects kinds 2 → 7 → 12 → 3 → 2; the near case stays
 `CE2123_ReactToContact_HoldsAndReturnsFire_ThenAStrongSquadAssaults` (60 m ⇒ the flank at once).

@@ -208,6 +208,8 @@ namespace Hrot.Editor.Director
                     return CoverHolds(c) ? _rel : null;      // per unit (CE-2455 for)
                 case "still":
                     return StillHolds(c) ? _rel : null;      // ⭐ CE-2455 — per unit
+                case "exposed":
+                    return ExposedHolds(c) ? _rel : null;    // ⭐ CE-2456 — per unit
                 case "bunched":
                     return Lasted(c, -1, BunchedHolds(c)) ? _rel : null;
                 default:
@@ -431,6 +433,40 @@ namespace Hrot.Editor.Director
                 bool settled = !_settledAt.TryGetValue((c, id), out var anchor) || System.Numerics.Vector2.Distance(anchor, at) <= c.M;
                 if (!_settledAt.ContainsKey((c, id)) || !settled) _settledAt[(c, id)] = at;
                 if (Lasted(c, id, settled)) held++;
+            }
+            return Quantified(c.Quantifier, units, held);
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2456</c> (the urban fight suite, R-4277) — <c>exposed</c>: for the LIVE units <see cref="AnchorSpec.Who"/> names, a unit holds when some live
+        /// enemy <see cref="AnchorSpec.By"/> names, still in the fight, SEES him now — by the AI's own rule (<c>SightNow.Sees</c>, the one the weapon brain fires
+        /// on). <c>upright</c>: a man lying prone is not counted. <see cref="CheckCue.Quantifier"/> counts them; <c>for</c> per unit. 📐 Why not <c>cover</c>: in a town
+        /// a man inside a building or behind one is safe with no cover point near him (uf-car-shootout) — exposure is the doctrine's sin, not distance
+        /// from a marker. ⚠ The editor tier only (it reads the observers' live sensor tracks).
+        /// </summary>
+        private bool ExposedHolds(CheckCue c)
+        {
+            if (c.Spec.Who is not { } who || c.Spec.By is not { } by || _w.World is not { } world) return false;
+            var eyes = new List<Entity>();
+            foreach (var oid in UnitsNamed(by))
+            {
+                if (!InTheFight(oid)) continue;
+                var o = new Fdp.Toolkit.Replication.EntityRef(oid).Resolve(world);
+                if (!o.IsNull && world.IsAlive(o)) eyes.Add(o);
+            }
+            int units = 0, held = 0;
+            foreach (var id in UnitsNamed(who))
+            {
+                if (HealthOf(id) is not > 0f) continue;
+                if (c.Fighting && !InTheFight(id)) continue;
+                var me = new Fdp.Toolkit.Replication.EntityRef(id).Resolve(world);
+                if (me.IsNull || !world.IsAlive(me)) continue;
+                units++;
+                bool prone = Components(id)?["StanceStatus"]?["CurrentStance"]?.ToString() == "Prone";
+                bool seen = false;
+                if (!(c.Upright && prone))
+                    foreach (var o in eyes) if (Fdp.Toolkit.Perception.SightNow.Sees(world, o, me)) { seen = true; break; }
+                if (Lasted(c, id, seen)) held++;
             }
             return Quantified(c.Quantifier, units, held);
         }
