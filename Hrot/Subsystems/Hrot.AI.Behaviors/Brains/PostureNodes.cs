@@ -85,10 +85,26 @@ namespace Hrot.AI.Behaviors.Brains
     {
         /// <summary>The threat the weapon is aimed at (Null = not firing).</summary>
         public Entity Threat;
-        /// <summary>⭐ <c>CE-8311</c> (D-15) — <see cref="PostureNodes.Suppress"/>'s cover spot (where he suppresses from) and its state:
-        /// 0 = none chosen, 1 = moving there, 2 = there, 3 = the move failed (he suppresses prone where he is).</summary>
-        public Vector3 CoverSpot;
-        public byte CoverPhase;
+    }
+
+    /// <summary>⭐⭐ <c>CE-8311</c> (D-15) — <see cref="PostureNodes.Suppress"/>'s values: its fire, and the move to a firing position on the
+    /// hidden threat's last-known spot (<see cref="EqsTacticsNodes.SuppressFromSite"/>; its own fire off — Suppress fires).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SuppressParams
+    {
+        public EngageParams Engage;
+        public EqsTacticsParams From;
+    }
+
+    /// <summary>⭐⭐ <c>CE-8311</c> (D-15) — <see cref="PostureNodes.Suppress"/>'s memory: its fire, its firing-position move, the phase
+    /// (0 = seeking a firing position · 1 = moving there · 2 = holding where he is) and when it sought / last chose a stance.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SuppressRunState
+    {
+        public EngageState Fire;
+        public EqsTacticsState From;
+        public byte Phase;
+        public double SeekSince, StanceAt;
     }
 
     /// <summary>⭐ AQ89 C/D (R-269) — the Suppress branch's closing gate (<see cref="PostureNodes.WillingToClose"/>).</summary>
@@ -258,32 +274,63 @@ namespace Hrot.AI.Behaviors.Brains
         /// ⭐⭐ AQ89 A (R-269) — <see cref="Engage"/> that SUPPRESSES: aimed fire while the top threat is seen, and while it is hidden
         /// slow rounds at where the memory last placed it (the weapon brain's blind fire) instead of an idle hold — they strike his
         /// cover and spoil his aim (<c>UnderFire</c>, AQ85 E). Running; Failure when the unit has no weapon channel.
-        /// ⭐ <c>CE-8311</c> (D-15) — it runs only with no cover in reach (the branch fights from cover first, <see cref="CoverInReach"/>): he LIES DOWN
-        /// and suppresses from there, never standing in the open.
+        /// ⭐⭐ <c>CE-8311</c> (D-15, user-approved 2026-11-20) — and it PLACES him where his rounds can reach the spot: a FIRING POSITION in reach
+        /// (<see cref="EqsTacticsNodes.FiringPositionOnRemembered"/>: a nearby point that sees the last-known spot) — he runs there crouched,
+        /// firing — then, there or where he stands when none answers in <see cref="SuppressSeekSeconds"/>, the LOWEST stance whose line to
+        /// the spot is clear (<see cref="SuppressStance"/>: prone, else crouched, else standing over the car's bonnet). He never stops firing.
+        /// ⛔ Was (the same day): cover in reach, crouched — the cover hid him from the spot, so his rounds struck his own cover (📐 bt-window-duel:
+        /// 0 rounds from 2 s to 37 s behind Van 1); before that the take-cover cycle, which fires blind only on evidence ≤ 5 s old.
         /// </summary>
         [SharedAiAction]
-        public static NodeStatus Suppress(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+        public static NodeStatus Suppress(ref SuppressParams p, ref SuppressRunState ws, Entity self, EntityRepository world)
         {
-            if (!Fire(world, self, ref ws, p.CooldownSeconds, blind: true)) return NodeStatus.Failure;
-            // ⭐⭐ CE-8311 (D-15) — cover in reach (the posture's own cover sensor): run there crouched, firing, and suppress from it crouched;
-            //   none (or the move failed): lie down and suppress. He keeps FIRING throughout — the take-cover cycle (PeekAndFire) fires blind
-            //   only on evidence ≤ 5 s old, so it silenced every suppressor (📐 the 24-scenario run: the Fanatic, uf-squad-under-fire's hostiles).
-            if (ws.CoverPhase == 0 && world.HasComponent<SimTransform>(self) && CoverInReach(world, self, out var spot))
+            if (!Fire(world, self, ref ws.Fire, p.Engage.CooldownSeconds, blind: true)) return NodeStatus.Failure;
+            double now = world.SimulationTime;
+            if (ws.Phase == 0 && ws.SeekSince == 0) ws.SeekSince = now > 0 ? now : 1e-6;
+            if (ws.Phase < 2)
             {
-                var at = world.GetComponentRO<SimTransform>(self).Position;
-                if (Flat(spot - at) <= SuppressCoverArrive) { ws.CoverSpot = spot; ws.CoverPhase = 2; }
-                else if (LocomotionMoveTo.Issue(world, self, spot, SuppressCoverSpeed, SuppressCoverArrive, source: MoveSource.CoverSearch)) { ws.CoverSpot = spot; ws.CoverPhase = 1; }
-                else ws.CoverPhase = 3;
+                var from = EqsTacticsNodes.FiringPositionOnRemembered(ref p.From, ref ws.From, self, world);
+                if (from == NodeStatus.Running && ws.From.Moving == 1) ws.Phase = 1;   // on his way, crouched (the move's gait)
+                else if (from != NodeStatus.Running || (ws.Phase == 0 && now - ws.SeekSince >= SuppressSeekSeconds))
+                {
+                    EqsTacticsNodes.ReleaseSensor(ref ws.From, self, world);   // there, no answer, or nothing to aim at: he holds here
+                    ws.Phase = 2;
+                }
             }
-            if (ws.CoverPhase == 1)
+            if (ws.Phase != 1 && (ws.StanceAt == 0 || now - ws.StanceAt >= SuppressStanceSeconds))
             {
-                var status = LocomotionMoveTo.Status(world, self);
-                if (status == NodeStatus.Success) ws.CoverPhase = 2;
-                else if (status == NodeStatus.Failure) ws.CoverPhase = 3;
+                ws.StanceAt = now > 0 ? now : 1e-6;
+                var stance = SuppressStance(world, self, ws.Fire.Threat);
+                StanceRequest.Set(world, self, stance, stance == StanceId.Prone ? GoProneSeconds : PeekAndFireNodes.StanceBlendSeconds);
             }
-            StanceRequest.Set(world, self, ws.CoverPhase is 1 or 2 ? StanceId.Crouched : StanceId.Prone,
-                              ws.CoverPhase is 1 or 2 ? PeekAndFireNodes.StanceBlendSeconds : GoProneSeconds);
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>CE-8311</c> — how long a suppressor waits for a firing position to answer before he suppresses from where he is (s); how
+        /// often he re-picks his stance while holding (s).</summary>
+        public const double SuppressSeekSeconds = 2.0, SuppressStanceSeconds = 1.0;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8311</c> (D-15) — the LOWEST stance from which the man's round reaches <paramref name="threat"/>'s last-known spot: the line from
+        /// his eye for that stance (<c>TerrainWorldLosStrategy.EyeHeightFor</c> — the fire chain raises the muzzle by the same rule) to the spot raised by
+        /// the blind aim height (<see cref="AimAndFireExecutor.BlindAimHeightMetres"/>, where his blind rounds go) is not blocked by the terrain
+        /// or a solid (<c>TerrainWorld.SegmentBlocked</c>). Prone, else crouched, else standing; none clear (or no spot) ⇒ prone (his rounds
+        /// cannot reach it from here, so he does not stand in it). No terrain loaded ⇒ every line is clear ⇒ prone.
+        /// </summary>
+        public static StanceId SuppressStance(EntityRepository world, Entity self, Entity threat)
+        {
+            if (threat.IsNull || !world.HasComponent<SimTransform>(self)
+                || !EqsTacticsNodes.ThreatPosition(world, self, new ThreatAim(threat, 0, default), out var spot)) return StanceId.Prone;
+            var terrain = world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
+            if (terrain == null) return StanceId.Prone;
+            var feet = world.GetComponentRO<SimTransform>(self).Position;
+            var aim = spot + new Vector3(0f, 0f, AimAndFireExecutor.BlindAimHeightMetres);
+            for (var stance = StanceId.Prone; ; stance = stance == StanceId.Prone ? StanceId.Crouched : StanceId.Standing)
+            {
+                var eye = feet + new Vector3(0f, 0f, Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(world, self, stance));
+                if (!terrain.SegmentBlocked(eye, aim)) return stance;
+                if (stance == StanceId.Standing) return StanceId.Prone;
+            }
         }
 
         /// <summary>
@@ -306,11 +353,6 @@ namespace Hrot.AI.Behaviors.Brains
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.SuppressFromPost")]
         public static void Deactivate_SuppressFromPost(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
             => StopFiring(world, self, ref ws);
-
-        /// <summary>⭐ <c>CE-8311</c> — a suppressor this close to his cover spot is on it (m); the speed he runs there (m/s, crouched).</summary>
-        public const float SuppressCoverArrive = 1.5f, SuppressCoverSpeed = 3f;
-
-        private static float Flat(Vector3 d) { d.Z = 0f; return d.Length(); }
 
         /// <summary>
         /// ⭐⭐ AQ89 C (R-269) — may the Suppress branch CLOSE to throw? All of: the top threat identified, remembered live and HIDDEN
@@ -655,33 +697,15 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Engage(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
             => StopFiring(world, self, ref ws);
 
-        /// <summary>⭐ AQ89 A — leaving the suppression: the weapon stops; ⭐ CE-8311 (D-15) — and he gets up (he suppressed prone).</summary>
+        /// <summary>⭐ AQ89 A — leaving the suppression: the weapon stops; ⭐ CE-8311 (D-15) — the firing-position search and its move stop,
+        /// and he gets up (he may have suppressed prone).</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.Suppress")]
-        public static void Deactivate_Suppress(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+        public static void Deactivate_Suppress(ref SuppressParams p, ref SuppressRunState ws, Entity self, EntityRepository world)
         {
-            StopFiring(world, self, ref ws);
-            if (ws.CoverPhase == 1) StopMoving(world, self);
+            StopFiring(world, self, ref ws.Fire);
+            EqsTacticsNodes.Deactivate_FiringPosition(ref p.From, ref ws.From, self, world);
             StanceRequest.Set(world, self, StanceId.Standing, GetUpSeconds);
-            ws.CoverPhase = 0;
-        }
-
-        /// <summary>⭐ <c>CE-8311</c> (D-15) — a cover answer this good is cover worth moving to before suppressing.</summary>
-        public const float SuppressCoverScore = 0.05f;
-
-        /// <summary>
-        /// ⭐⭐ <c>CE-8311</c> (D-15, user-approved 2026-11-20) — the posture's cover sensor (<see cref="PostureSensors"/>, within the TakeCover branch's
-        /// own reach, CE-4652) holds a cover point worth moving to: <see cref="Suppress"/> runs there crouched, firing, and suppresses from it.
-        /// </summary>
-        public static bool CoverInReach(EntityRepository world, Entity self, out Vector3 spot)
-        {
-            spot = default;
-            var child = EqsChildSensor.Find(world, self, CoverSite);
-            if (child.IsNull || !world.IsAlive(child) || !world.HasComponent<EqsCognitiveBuffer>(child)) return false;
-            ref readonly var buf = ref world.GetComponentRO<EqsCognitiveBuffer>(child);
-            if (!buf.IsReady || buf.Count == 0 || buf.GetTop().Score <= SuppressCoverScore) return false;
-            var top = buf.GetTop();
-            spot = new Vector3(top.PositionX, top.PositionY, top.PositionZ);
-            return true;
+            ws = default;
         }
 
         /// <summary>⭐ <c>CE-3090</c> — leaving the prone hold: the weapon stops and the unit gets up (<c>CE-2121</c>).</summary>

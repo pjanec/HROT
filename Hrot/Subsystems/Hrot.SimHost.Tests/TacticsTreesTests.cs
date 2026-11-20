@@ -634,13 +634,13 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐⭐ <c>CE-8311</c> (D-15, user-approved 2026-11-20) — a man SUPPRESSING a hidden enemy never does it standing in the open, and never stops
-        /// FIRING: with no cover in reach he lies down (the decision's winner forced to Suppress); once his cover sensor answers a point 4 m off he
-        /// runs there crouched, still suppressing blind. 📐 live bt-window-duel: a lone attacker blind-fired standing for 12 s, Van 1 4.5 m away, and
-        /// was shot; ⛔ a first cut ran the take-cover cycle instead, which fires blind only on evidence ≤ 5 s old and silenced every suppressor.
-        /// 🔴 Red-proofs: no prone ⇒ standing ⇒ red; no move to cover ⇒ no MoveTo ⇒ red.
+        /// FIRING: while his firing-position search on the enemy's last-known spot has no answer he suppresses from the lowest stance whose line
+        /// clears (no terrain here ⇒ prone); once it answers a point 4 m off he runs there crouched, still suppressing blind.
+        /// 📐 live bt-window-duel: a lone attacker blind-fired standing for 12 s, Van 1 4.5 m away, and was shot; ⛔ a cut that ran to COVER
+        /// crouched fired into the van (0 rounds out in 35 s). 🔴 Red-proofs: no stance ⇒ standing ⇒ red; no move ⇒ no MoveTo ⇒ red.
         /// </summary>
         [Fact]
-        public unsafe void CE8311_ASuppressingMan_LiesDownInTheOpen_AndFightsFromCoverInReach()
+        public unsafe void CE8311_ASuppressingMan_LiesDownInTheOpen_AndRunsToAFiringPositionOnTheSpot()
         {
             var w = new World();
             w.Arm();
@@ -649,12 +649,12 @@ namespace Hrot.SimHost.Tests
             w.Contact(armed: true);
             w.Order("CombatPosture", Objective);
             Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
-            void Suppressing(int ticks, Entity cover = default)
+            void Suppressing(int ticks, Entity firing = default)
             {
                 for (int i = 0; i < ticks; i++)
                 {
                     if (w.TaskName == "CombatPosture") Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.Suppress;
-                    if (!cover.IsNull) w.AnswerScored(cover, 5, 3f, 3f, 0.8f);
+                    if (!firing.IsNull) w.AnswerScored(firing, 5, 3f, 3f, 0.8f);
                     w.Tick();
                 }
             }
@@ -665,12 +665,40 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, BlindFireAsked(w));   // suppressing, lying down
             Assert.NotEqual(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
 
-            var coverSensor = EqsChildSensor.Find(w.Repo, w.Unit, PostureNodes.CoverSite);
-            Assert.False(coverSensor.IsNull, "the posture's cover sensor is up");
-            Suppressing(3, coverSensor);
+            var firingSensor = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.SuppressFromSite);
+            Assert.False(firingSensor.IsNull, "the firing-position search on the spot is up");
+            Suppressing(3, firingSensor);
             Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Stance(w));
             Assert.Equal(1, BlindFireAsked(w));   // still suppressing on the way
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8311</c> (D-15) — a suppressor takes the LOWEST stance whose round reaches the hidden enemy's last-known spot: a wall 2 m in
+        /// front of him, 20 m from the spot — none ⇒ prone; knee-high (0.6 m) ⇒ crouched over it; chest-high (1.2 m, a car) ⇒ standing over it;
+        /// 3 m ⇒ nothing clears ⇒ prone (his rounds cannot reach it, so he does not stand in it). 📐 live bt-window-duel: crouched behind Van 1
+        /// he fired into the van. 🔴 Red-proof: always crouched ⇒ the 0 / 1.2 / 3 rows red.
+        /// </summary>
+        [Theory]
+        [InlineData(0f, Fdp.Toolkit.Tkb.Domain.StanceId.Prone)]
+        [InlineData(0.6f, Fdp.Toolkit.Tkb.Domain.StanceId.Crouched)]
+        [InlineData(1.2f, Fdp.Toolkit.Tkb.Domain.StanceId.Standing)]
+        [InlineData(3f, Fdp.Toolkit.Tkb.Domain.StanceId.Prone)]
+        public unsafe void CE8311_ASuppressor_TakesTheLowestStanceThatClearsTheLineToTheSpot(float wall, Fdp.Toolkit.Tkb.Domain.StanceId expected)
+        {
+            var w = new World();
+            string feature = wall <= 0f ? "" : $$"""
+                { "type": "Feature", "properties": { "kind": "wall", "height": {{wall.ToString(System.Globalization.CultureInfo.InvariantCulture)}}, "material": "concrete", "thickness": 0.3 },
+                  "geometry": { "type": "LineString", "coordinates": [[82, 95], [82, 105]] } }
+                """;
+            w.Repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse($$"""
+                { "type": "FeatureCollection", "hrot": { "schemaVersion": 1, "bounds": [0, 0, 200, 200], "groundZ": 0 }, "features": [ {{feature}} ] }
+                """, "stance-range"));
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = new Vector3(80f, 100f, 0f), Rotation = Quaternion.Identity });
+            var enemy = w.Contact(armed: true);
+            ref var mem = ref w.Repo.GetComponentRW<TargetMemory>(w.Unit);
+            mem.PositionsX[0] = 100f; mem.PositionsY[0] = 100f; mem.PositionsZ[0] = 0f;
+            Assert.Equal(expected, PostureNodes.SuppressStance(w.Repo, w.Unit, enemy));
         }
 
         /// <summary>
