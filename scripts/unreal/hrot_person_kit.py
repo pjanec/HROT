@@ -7,7 +7,7 @@ The kit holds: the body (Blueprint or mesh), its leader mesh's yaw and height on
 hide (its own gun), the rifle and where the hand holds it (PersonKit.weapon_at_hand — the grip through the shared aim pose), the two
 sides' camouflage, and the CLIP TABLE by role (the role names are HrotDpsPeople's: "<Rifle|Unarmed>.<Stand|Crouch|Prone>.<Idle|Walk|Run>",
 "Upper.Ready", "Upper.Aimed", "Death.<Stand|Crouch|Prone>", "Dying", "Transition.CrouchToProne", "Phone", "Gesture.Wave",
-"Gesture.Throw"). A role whose clip the body lacks is left out — the run time falls back (HrotDpsPeople::Fallback).
+"Gesture.Throw", "Action.Fire" (additive), "Hit.Front"). A role whose clip the body lacks is left out — the run time falls back (HrotDpsPeople::Fallback).
 """
 import json, os, sys, time, traceback
 import unreal
@@ -30,6 +30,7 @@ ROLES = {
     "Death.Stand": "RTG_Death_From_The_Front.*", "Death.Crouch": "RTG_Crouch_Death.*", "Death.Prone": "RTG_Prone_Death.*",
     "Dying": "RTG_Dying.*", "Transition.CrouchToProne": "RTG_Crouch_To_Prone.*",
     "Phone": "RTG_Talking_On_Phone.*", "Gesture.Wave": "RTG_Waving.*", "Gesture.Throw": "RTG_Throw.*",
+    "Action.Fire": "MM_Rifle_Fire", "Hit.Front": "MM_HitReact_Front_Hvy_01",   # U-18e: the kick (an ADDITIVE clip) and the flinch
 }
 
 
@@ -42,8 +43,11 @@ def build():
     kit_tools = hrot_person.PersonKit(log)
     EAL = unreal.EditorAssetLibrary
     path = JOB["asset"]; folder, name = path.rsplit("/", 1)
-    if EAL.does_asset_exist(path): EAL.delete_asset(path)   # rebuilt whole: the kit is defined HERE, never by a stale asset
-    kit = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, folder, unreal.HrotPersonKit, unreal.DataAssetFactory())
+    # every property is set below, so the kit is defined HERE, never by a stale value. ⚠ measured: deleting the existing asset failed
+    # silently (it is loaded) and create_asset then returned None — so an existing kit is updated in place
+    kit = unreal.load_asset(path) if EAL.does_asset_exist(path) else \
+        unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, folder, unreal.HrotPersonKit, unreal.DataAssetFactory())
+    if kit is None: raise RuntimeError("cannot create or load " + path)
 
     # the body and its placement on the actor
     if body in hrot_person.BODY_MESHES:

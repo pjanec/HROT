@@ -13,6 +13,9 @@
 // machine gun / autocannon → a tracer + the gun's sound (FireStreams: tracers are the client's rule, not on the wire) · Fire from a tank
 // gun → the vehicle's own main-gun blast (its flash replaces the Effect's) · Articulation turret 0 → AHrotVehicle::SetAim.
 // Detonation is counted only (its blast and mark arrive as Effect). What is drawn is counted per kind (EventCounts) for a test.
+// ⭐ U-18e — THE FIREFIGHT: a soldier's shot (his flash at his rifle, the kick), impacts (HROT's puff by its effect type; the surface's
+// sound and chips), hits on people (a flinch), rounds in flight (a rocket = the U-17g missile with its motor and trail; a grenade or a
+// shell = a small body).
 // ⭐ U-18d — PEOPLE: with a PersonKit, a Person entity is the kit's body driven by PersonState + PersonAim through HrotDpsPeople
 // (stance and its timed transition, gait from speed, posture on the upper body, HROT's aim twist, death, hidden inside a vehicle);
 // without one, the stand-in mesh. ⏳ not yet: seats and carrying in place, gestures beyond wave / throw, the head turn, VehicleLook, ground marks and wreck flame / smoke effects, rounds and animals
@@ -28,6 +31,7 @@
 
 class UHrotVehicleKit;
 class UHrotPersonKit;
+class UHrotMissileKind;
 class USkeletalMesh;
 class UAnimationAsset;
 
@@ -50,6 +54,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TMap<FString, TSoftObjectPtr<UHrotVehicleKit>> KitsByDomain;
 	/** ⭐ the body every person gets (U-18d): its clips by role, driven from PersonState / PersonAim */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UHrotPersonKit> PersonKit;
+	/** rounds in flight (U-18e): a munition type (Round.MunitionTypeId) → its missile kind; a round with a motor or a smoke trail and no
+	 *  entry gets DefaultMissileKind; every other round is a small body of its MunitionLook size */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TMap<int64, TSoftObjectPtr<UHrotMissileKind>> MissileKindsByType;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UHrotMissileKind> DefaultMissileKind;
 	/** without a PersonKit: this mesh, playing this clip (looped) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<USkeletalMesh> PersonMesh;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UAnimationAsset> PersonClip;
@@ -106,6 +114,14 @@ private:
 		FVector3d AimPoint = FVector3d::ZeroVector;
 		double AimTwist = 0, AimPitchNow = 0;   // eased, degrees
 		FString Look;
+		bool bFlinching = false, bKicking = false;
+		FName LastRole;
+		double ShotAt = -1, HitAt = -1;   // real seconds of his last shot (the kick) and of the last hit on him (the flinch)
+		// a round in flight (U-18e)
+		bool bRound = false, bLying = false;
+		int64 MunitionType = 0;
+		double LaunchedAt = 0;
+		float BurnSeconds = 0;
 		float TurretYaw = 0, GunPitch = 0;   // Unreal degrees (Articulation turret 0)
 		double MainGunAt = -1;               // real seconds of its last main-gun shot (its flash stands for the Effect's)
 		FHrotDpsPose Shown;
@@ -121,6 +137,8 @@ private:
 	int32 Spawned = 0, Removed = 0, Resets = 0;
 	double Placed = 0;
 	TMap<FString, int32> Events;
+	struct FRoundLook { float Length = 0, Diameter = 0; bool bSmokeTrail = false; };
+	TMap<int64, FRoundLook> RoundLooks;   // MunitionLook, by munition type
 	UPROPERTY(Transient) FHrotShotFx MgFx;
 	UPROPERTY(Transient) FHrotShotFx RifleFx;
 	UPROPERTY(Transient) TArray<TObjectPtr<UObject>> Preloaded;
@@ -134,6 +152,11 @@ private:
 	void OnEffect(const struct FHrotDpsSample& S);
 	void OnPersonState(const struct FHrotDpsSample& S);
 	void OnPersonAim(const struct FHrotDpsSample& S);
+	void OnImpact(const struct FHrotDpsSample& S);
+	void OnManDowned(const struct FHrotDpsSample& S);
+	void OnRound(const struct FHrotDpsSample& S);
+	void OnMunitionLook(const struct FHrotDpsSample& S);
+	AActor* SpawnRound(FEnt& E, const FTransform& At);
 	AActor* SpawnPerson(FEnt& E, const FTransform& At);
 	void ApplyPerson(FEnt& E, double SimNow, double Dt);
 	void Count(const FString& Kind) { ++Events.FindOrAdd(Kind); }

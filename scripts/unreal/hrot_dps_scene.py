@@ -2,7 +2,8 @@
 
     HROT_DPS_SCENE_JOB = { "domain", "partition", "seconds", "ready", "out", "shots", "simBase",
                            "pictures": [{"name", "sim" (scene seconds: sim time - simBase), "look", "back", "up", "lookZ", "top"}],
-                           "personKit": <a UHrotPersonKit path> (U-18d: people as that body, their looks recorded every 0.5 s) }
+                           "personKit": <a UHrotPersonKit path> (U-18d: people as that body, their looks recorded every 0.5 s),
+                           "missileKind": <a UHrotMissileKind path> (U-18e: rounds with a motor), "props": [{"mesh", "at" cm, "scale"}] }
 
 A flat level played in Simulate; UHrotDpsWorld joins the station; the test's publisher (the stand-in for the gateway: same protocol
 assembly, the gateway's send rule) starts when the ready file appears. Records, every 50 ms, each entity's SHOWN position (contract
@@ -51,6 +52,9 @@ def level():
     sky = spawn(unreal.SkyLight, (0, 0, 500), label="SkyLight"); sky.light_component.set_editor_property("real_time_capture", True)
     for c in ("t.IdleWhenNotForeground 0", "t.MaxFPS 0", "r.VSync 0", "r.VSyncEditor 0", "r.DontLimitOnBattery 1"):
         unreal.SystemLibrary.execute_console_command(None, c)
+    for i, pr in enumerate(JOB.get("props", [])):   # U-18e: the level's static world the scene shoots at (a wall)
+        a = spawn(unreal.StaticMeshActor, tuple(pr["at"]), label=f"Prop{i}")
+        a.static_mesh_component.set_static_mesh(unreal.load_asset(pr["mesh"])); a.set_actor_scale3d(unreal.Vector(*pr["scale"]))
     LES().editor_set_viewport_realtime(True)
     LES().editor_play_simulate()
     S.update(phase="join", t=time.time() + 5)
@@ -63,6 +67,7 @@ def join():
     if w is None: raise RuntimeError("no UHrotDpsWorld in the game world")
     L = unreal.load_asset
     if JOB.get("personKit"): w.set_editor_property("person_kit", L(JOB["personKit"]))
+    if JOB.get("missileKind"): w.set_editor_property("default_missile_kind", L(JOB["missileKind"]))
     w.set_editor_property("kits_by_type", {2001: L(KITS + "DA_ArmoredTruck")})                       # by the contract's type id
     w.set_editor_property("kits_by_dis", {"1.1.222": L(KITS + "DA_BTR60"), "1.1.225.1": L(KITS + "DA_Sherman")})   # by DIS prefix
     w.set_editor_property("kits_by_domain", {"Air": L(KITS + "DA_Air_Apache")})                     # by domain
@@ -122,6 +127,10 @@ def run():
             if not look: continue
             person_extras(w, i)   # (sets the test-only always-refresh on its body)
             R.setdefault("looks", []).append([round(scene, 2), i, look])
+    if S.get("await_file"):   # ⚠ measured (U-18e): the screenshot is taken at a LATER render — the next camera move before its file exists
+        path, t0 = S["await_file"]  # changed the earlier picture (two close pictures came out the same)
+        if not (os.path.exists(path) and os.path.getsize(path) > 0) and time.time() - t0 < 20: return
+        S["await_file"] = None
     if S["pics"] and not S.get("pending_pic") and scene >= S["pics"][0]["sim"]:   # one picture at a time (a second camera move lost the first)
         pic = S["pics"].pop(0)
         if pic.get("top"):   # straight down, screen up = east (+X), screen right = south (+Y)
@@ -134,8 +143,11 @@ def run():
         path = os.path.join(JOB["shots"], f"dps-{name}.png").replace("\\", "/")
         if os.path.exists(path): os.remove(path)
         unreal.AutomationLibrary.take_high_res_screenshot(1600, 900, path, None)
+        S["await_file"] = (path, time.time())
         R["shots"].append(path)
         R["describe"][name] = {str(i): w.describe(i) for i in w.entity_ids()}
+        rr = unreal.HrotShotRenderer.for_world(UES().get_game_world())
+        R.setdefault("rendererAtPicture", {})[name] = {k: rr.get_editor_property(k) for k in ("live_puffs", "live_tracers", "live_flashes")} if rr else None
         R.setdefault("atPicture", {})[name] = {"scene": round(w.sim_now() - float(JOB.get("simBase", 0)), 2),
                                                 "people": {str(i): [w.person_look(i), person_extras(w, i)] for i in w.entity_ids() if w.person_look(i)}}
         log(f"picture {name} at scene {w.sim_now() - float(JOB.get('simBase', 0)):.2f} s")
