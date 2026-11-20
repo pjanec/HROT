@@ -40,6 +40,9 @@ public struct EffectSpec
     public float Lifetime;
     /// <summary>Metres across (the type's <c>Size</c>).</summary>
     public float Size;
+    /// <summary>⭐ CE-11010 (RR-10) — for an effect a HIT made (an impact's puff and mark, a detonation's blast and mark): what it struck. Null for a shot's
+    /// flash or blast. The map writes it on the effect entity, so a replay keeps it.</summary>
+    public EffectCause? Cause;
 }
 
 /// <summary>
@@ -145,6 +148,19 @@ public static class EffectRules
     /// </summary>
     public static int ForImpact(in RoundImpactNotification hit, EntityRepository world, ITkbDatabase? tkb, List<EffectSpec> into)
     {
+        int start = into.Count, n = ImpactCore(in hit, world, tkb, into);
+        float damage = n > 0 ? ImpactDamage(world, tkb, in hit) : 0f;
+        for (int i = start; i < into.Count; i++)   // ⭐ CE-11010 (RR-10) — what it struck, on every effect it made
+        {
+            var spec = into[i];
+            spec.Cause = new EffectCause { Surface = (byte)spec.Surface, Material = hit.Material, Target = Entity.Null, Damage = damage, Ammo = hit.Ammo };
+            into[i] = spec;
+        }
+        return n;
+    }
+
+    private static int ImpactCore(in RoundImpactNotification hit, EntityRepository world, ITkbDatabase? tkb, List<EffectSpec> into)
+    {
         float damage = ImpactDamage(world, tkb, hit);
         var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, damage);
         var size = SizeOf(tkb, hit.Ammo, damage);
@@ -162,6 +178,18 @@ public static class EffectRules
     /// a person (VE-M), none for a burst in the air (CE-1113); a thrown inert item only LANDS: a little dust (CE-1194).
     /// </summary>
     public static int ForDetonation(in DetonationNotification hit, EntityRepository world, ITkbDatabase? tkb, List<EffectSpec> into)
+    {
+        int start = into.Count, n = DetonationCore(in hit, world, tkb, into);
+        for (int i = start; i < into.Count; i++)   // ⭐ CE-11010 (RR-10, D-6) — a replayed explosion tells a unit from the ground
+        {
+            var spec = into[i];
+            spec.Cause = new EffectCause { Surface = (byte)spec.Surface, Target = hit.Target, Damage = hit.Damage, Ammo = hit.Ammo };
+            into[i] = spec;
+        }
+        return n;
+    }
+
+    private static int DetonationCore(in DetonationNotification hit, EntityRepository world, ITkbDatabase? tkb, List<EffectSpec> into)
     {
         var point = new Vector3(hit.HitX, hit.HitY, hit.HitZ);
         var dis = DisOf(tkb, hit.Ammo);

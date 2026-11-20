@@ -1066,7 +1066,7 @@ namespace Hrot.UI.Common.Map3D.Director
             var keys = CameraKeys.OnScreenIn(_keys, Segment?.Id, anchors);
             var frame = TakeTimeline.ProgramAt(keys, anchors, at);
             if (frame != null && !ReferenceEquals(frame.Key, _cutKey)) { _cutKey = frame.Key; FilmStudio.NextCut(); }   // ⭐ Seats H4 — a new key on screen is the director's next shot
-            if (frame != null && ShotEvaluator.Evaluate(frame, _units) is { } fs) FilmStudio.Direct(fs);
+            if (frame != null && ShotEvaluator.Evaluate(frame, _units) is { } fs) { FilmStudio.Direct(fs); FilmStudio.ShotName = Segment?.Id; }   // ⭐ CE-11006 (RR-6) — its name
             FilmStudio.Fade = (at == rel ? frame : TakeTimeline.ProgramAt(keys, anchors, rel))?.Fade ?? 0f;   // the black is of NOW, the camera may be the next shot's
         }
 

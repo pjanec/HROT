@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-20
-build-state: BUILDING (RR-1 built; RR-2…RR-6, RR-8 READY-TO-BUILD — D-1, D-3 approved; RR-7 needs no engine change, D-2)
+build-state: BUILT (RR-1…RR-6, RR-8…RR-11; RR-7 needs no engine change, D-2)
 current-answer: §3 (what moves where, per item) and §5 (the decisions, with leans)
 stale-below: nothing yet
 known-rot: none
@@ -116,7 +116,7 @@ are map-side), so a node extension in that process reads it; a headless node has
 | **RR-3** spinning parts, leans | [CE-11003](../../blueprints/Blueprint_Issues_Tracker.md) | rotor 4.3 rev/s, run-on 20 s, spool 3 s; drone 7.3; antenna 0.6; flail 4 rev/s, spool 1 s; the bank `−atan(v·yawRate/g)` ≤ 35°, eased 0.15 s; wheel roll by distance over the wheel radius — as functions of replicated state on SIM time | the per-frame accumulator (`MotionTracker.State`) — a renderer keeps its own; ⚠ the map advances rotor angles by frame time × sim pace — the shared function takes sim seconds, the map's pacing stays its own | ✅ BUILT — `Hrot.Look.Vehicles.MotionRules` (`Spool`, `Spin`, `RotorRuns`, `DroneProp`, `BankTarget`, `EaseBank`, `Roll`, `CarWheelRadius` + constants); `MotionTracker` calls it |
 | **RR-4** rounds, flame | [CE-11004](../../blueprints/Blueprint_Issues_Tracker.md) | `TracerOf`, `TrailFactor`, `BurnOf`, the lying / stopped rule, the trail constants; the flame look: jets, burning spots (size clamp(r·0.7, 0.3, 8)), burning people, scorch marks — as specs | the `Color`s (an `Rgba` in Look where a colour IS the rule), the path ring buffer | ✅ BUILT — `Hrot.Look.Effects.RoundLook` (+ `RoundState`) and `FlameLook` (+ `FlameSpec`, `FlameKind`); the map calls them |
 | **RR-5** bodies, gaits, carriage, flail, HUD | [CE-11005](../../blueprints/Blueprint_Issues_Tracker.md) | `QuadrupedGaits`, `GaitBands`, `FlockBirds`, the grazing cycle; `Carriage.Of` + `CarriageKind` + placement; `FlailActivity.IsOn`; the HUD words (`KindOf`, `RoundName`, `Label`, `TypeName`) | `AnimalCoats` (colours of kits); the HUD's drawing and colours; `DismountDrop` (a per-entity timer of the map) | ✅ BUILT — moved verbatim (namespace `Hrot.UI.Common.Map3D` kept, as `VisualFamily`): `Hrot.Look/Animals/AnimalMotion.cs`, `People/Carriage.cs`, `Vehicles/FlailActivity.cs`; new `Hrot.Look.Hud.HudWords` (the station forwards) |
-| **RR-6** the suggested camera | [CE-11006](../../blueprints/Blueprint_Issues_Tracker.md) | a NEW engine-level singleton (D-1) | the drivers themselves | ⏳ approved (D-1) |
+| **RR-6** the suggested camera | [CE-11006](../../blueprints/Blueprint_Issues_Tracker.md) | a NEW engine-level singleton (D-1) | the drivers themselves | ✅ BUILT — `Hrot.Map.Common.Components.CameraSuggestion` (Hrot.Core, id 86, NoReplay), read with `Hrot.Look.CameraAdvice.TryGet`; drivers implement `ICameraSuggests`, the ONE writer is `CameraSuggestions.Write` from `MapViewModeLayer.Update` while 3-D is on |
 | **RR-7** effects in replay | [CE-11007](../../blueprints/Blueprint_Issues_Tracker.md) | one path (D-2) | — | ✅ no engine change (D-2) |
 | **RR-8** airborne | [CE-11008](../../blueprints/Blueprint_Issues_Tracker.md) | `Airborne.Of(world, e)` (D-3) | the map's lone-bird flap (reads its speed) | ✅ BUILT — `Hrot.Look.Airborne.Of`; the flag is `AnimalFlags.InFlight`, set by the bird's brain (not `FlightState`: sensors would hear it; not "Flying": the IDL scope) |
 
@@ -135,6 +135,17 @@ move **verbatim** — same constants, same branches — and the map's existing r
   did (`view` there IS the world, `EffectSystems.cs:135`).
 - Rails: `Hrot.Look.Tests.FireStreamsTests` (`RR1_*`, the per-fire result, the point-shot fallback, 0 B per instant); the map's own
   `EffectTests.CE1105_*` / `CE1357_*` now call the Look class.
+
+### 3.2 RR-6, RR-9, RR-10, RR-11 as built (`2026-11-20`)
+
+| item | as built | ⚠ deviation / note |
+|---|---|---|
+| **RR-6** ([CE-11006](../../blueprints/Blueprint_Issues_Tracker.md)) | `CameraSuggestion` { Source (Operator / Follow / Director), Mode (Free / Orbit / Eyes / Shoulder / Chase / FixedKey), ShoulderSide, Bound, BoundNetId, Distance, Position, LookAt, Orientation (+X forward, +Y left, +Z up), FovyDegrees, Cut, Take } — a world singleton in **Hrot.Core** (not Fdp.Toolkits as D-1 leaned: the follow / director / possession drivers and the map are Hrot, and a node extension references Hrot.Core anyway). Each driver says what it is (`ICameraSuggests.Describe`); the pose is the camera's own | the director names its follow unit by NETWORK id (`BoundNetId`), the others by `Bound`; `Take` = the director's segment on screen (`FilmStudio.ShotName`) |
+| **RR-9** ([CE-11009](../../blueprints/Blueprint_Issues_Tracker.md)) | `Fdp.Toolkit.Combat.ImpactMaterial` (Unknown, Asphalt, Concrete, Brick, Metal, Glass, Wood, Soil, Sand, Vegetation, Water, Snow) = the crossing's terrain material folded through its THERMAL CLASS (the fixed list); on `RoundImpact` (the record), `RoundImpactNotification.Material` and the wire's `RoundImpact.Material` (a byte each); a ground stop is Soil | a byte on the wire, not the enum: the IDL puts enum members in one scope |
+| **RR-10** ([CE-11010](../../blueprints/Blueprint_Issues_Tracker.md)) | `EffectCause` { Surface, Material, Target, Damage, Ammo } (Hrot.Core, id 72, recorded, never saved) on every effect a HIT made — stamped by `EffectRules.ForImpact` / `ForDetonation` on `EffectSpec.Cause`, added by the spawner | — |
+| **RR-11** ([CE-11011](../../blueprints/Blueprint_Issues_Tracker.md)) | `LightweightRound.LaunchedAt` (the marker WIDENED — user: *"old recordings not important; rather widen the marker"*), set by `FireProcessingSystem.MarkIfVisible` from the sim clock, sent as `EntityMaster.LaunchedAt` (0 for every other entity), stamped by the master's ingress | ⛔ recordings made before this replay the round marker with the old size |
+
+⚠ **Component ids:** the ui block (460–475) is full; 72 and 86 were the production-free ids whose only other use is a test struct in a project that never registers Hrot types. Finding them took a measurement the catalogue rail should give for free — [CE-11013](../../blueprints/Blueprint_Issues_Tracker.md).
 
 ## 4. What this design does NOT move, and why
 

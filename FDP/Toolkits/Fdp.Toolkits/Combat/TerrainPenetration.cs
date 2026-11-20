@@ -58,7 +58,7 @@ namespace Fdp.Toolkit.Combat
                 if (!passed)
                 {
                     stopT = Math.Clamp(c.T, 0f, 1f);
-                    impacts?.Add(new RoundImpact(entry, c.EntryNormal, ImpactKind.Stop));
+                    impacts?.Add(new RoundImpact(entry, c.EntryNormal, ImpactKind.Stop, ImpactMaterials.Of(c.Material)));
                     return true;
                 }
                 if (panes != null && c.Kind == Fdp.Toolkit.Terrain.TerrainWorld.PaneKind && c.Piece >= 0) panes.Add(new PaneHit(c.Piece, entry));   // ⭐ CE-5033
@@ -66,9 +66,9 @@ namespace Fdp.Toolkit.Combat
                 // the far face lies on the same straight line, past that segment's end)
                 if (impacts != null && c.T > 1e-5f && c.Stop <= 0f && c.Kind != Fdp.Toolkit.Terrain.TerrainWorld.PaneKind)   // ⭐ CE-5032 — no decal on glass: its cracks are its window's state (GW-2/3)   // ⭐ CE-4369 — a wood is no surface: no entry / exit mark
                 {
-                    impacts.Add(new RoundImpact(entry, c.EntryNormal, ImpactKind.Entry));
+                    impacts.Add(new RoundImpact(entry, c.EntryNormal, ImpactKind.Entry, ImpactMaterials.Of(c.Material)));
                     float exitT = length > 0f ? c.T + c.PathMetres / length : c.T;
-                    impacts.Add(new RoundImpact(from + (to - from) * exitT, c.ExitNormal, ImpactKind.Exit));
+                    impacts.Add(new RoundImpact(from + (to - from) * exitT, c.ExitNormal, ImpactKind.Exit, ImpactMaterials.Of(c.Material)));
                 }
             }
             return false;
@@ -102,7 +102,7 @@ namespace Fdp.Toolkit.Combat
     }
 
     /// <summary>⭐ <c>CE-1128</c> — one surface a round marked: where, the face's outward normal (zero = unknown), and what it did.</summary>
-    public readonly record struct RoundImpact(Vector3 At, Vector3 Normal, ImpactKind Kind);
+    public readonly record struct RoundImpact(Vector3 At, Vector3 Normal, ImpactKind Kind, ImpactMaterial Material = ImpactMaterial.Unknown);   // ⭐ CE-11009 (RR-9) — what it struck
 
     /// <summary>⭐ <c>CE-5033</c> GW-2 — a window pane a round passed: the terrain query piece (<see cref="Fdp.Toolkit.Terrain.TerrainWorld.PaneOf"/> after the prisms) and where.</summary>
     public readonly record struct PaneHit(int Piece, Vector3 At);

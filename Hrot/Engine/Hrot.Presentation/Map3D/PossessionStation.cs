@@ -1269,8 +1269,19 @@ namespace Hrot.UI.Common.Map3D
     /// V (a vehicle's hull-locked view, where the mouse steers) and Esc (release), and sends ONE control frame per frame. It consumes
     /// the input, so no click or menu reaches the map's layers while the operator is in the unit.
     /// </summary>
-    public sealed class FpsCameraDriver : ICameraDriver
+    public sealed class FpsCameraDriver : ICameraDriver, ICameraSuggests
     {
+        /// <summary>⭐ CE-11006 (RR-6) — the operator in a unit: over its shoulder (the side and distance he set) or at its eyes.</summary>
+        public void Describe(EntityRepository world, ref Hrot.Map.Common.Components.CameraSuggestion s)
+        {
+            s.Source = Hrot.Map.Common.Components.CameraSource.Operator;
+            bool shoulder = ShoulderViewOn;
+            s.Mode = shoulder ? Hrot.Map.Common.Components.CameraMode.Shoulder : Hrot.Map.Common.Components.CameraMode.Eyes;
+            s.Bound = Unit;
+            s.Distance = shoulder ? _station.ShoulderDistance(Scheme) : 0f;
+            s.ShoulderSide = shoulder ? (sbyte)Math.Sign(_station.ShoulderSide) : (sbyte)0;
+        }
+
         /// <summary>Radians of look per pixel of mouse movement.</summary>
         public const float LookSensitivity = 0.0025f;
         /// <summary>⭐ <c>CE-1351</c> — how far ahead of a flyer's nose A/D put the heading it turns to (rad): held, it turns at its own rate

@@ -206,6 +206,9 @@ namespace Hrot.NED.Messages
         /// <summary>0 entered, 1 left, 2 stopped (<c>ImpactKind</c>).</summary>
         public byte Kind;
 
+        /// <summary>⭐ CE-11009 (RR-9, R-11003) — what it struck (<c>Fdp.Toolkit.Combat.ImpactMaterial</c>; 0 = unknown).</summary>
+        public byte Material;
+
         /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
         public int SourceNodeId;
     }

@@ -122,6 +122,7 @@ namespace Hrot.Map.Common.Replication.Egress
                         Extra       = dis.Extra,
                     },
                     Flags = flags,
+                    LaunchedAt = view.HasComponent<LightweightRound>(entity) ? view.GetComponentRO<LightweightRound>(entity).LaunchedAt.Seconds : 0.0,   // ⭐ CE-11011 (RR-11)
                 });
 
                 SentSampleCount++;

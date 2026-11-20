@@ -133,6 +133,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     {
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()) return;
+        _causeRegistered = world.IsComponentTypeRegistered<EffectCause>();   // ⭐ CE-11010 (RR-10)
         double now = SimClock.Of(world).TotalTime;
         // ⭐ CE-4671 LK-S1 — the player messages and the kill feed moved to HudFeedSystem (they are not effects)
         TrackStrikes(view, world, now, RecordsHits);   // ⭐ CE-4062 — BEFORE the replay gate: a replay's blows are drawn too
@@ -283,6 +284,8 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 
     [Fdp.Core.FrameScratch("effect specs list: cleared before each rule output (103,172,195,212)")]
     private readonly List<Hrot.Look.Effects.EffectSpec> _specs = new();   // ⭐ CE-4671 LK-S1 — the rule's output, reused (0 B steady)
+    [Fdp.Core.FrameScratch("re-read from the world at the top of every Execute")]
+    private bool _causeRegistered;   // ⭐ CE-11010 (RR-10) — the world knows EffectCause
 
     /// <summary>⭐ CE-4671 LK-S1 — an effect entity for every spec the shared rule gave, in its order (the order effects were always made).</summary>
     private void SpawnAll(IEntityCommandBuffer cmd, double now)
@@ -295,6 +298,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(spec.EffectType) });
             cmd.AddComponent(e, Lifespan.Starting(now, spec.Lifetime));
             if (spec.Anchor is { } a) cmd.AddComponent(e, a);
+            if (spec.Cause is { } c && _causeRegistered) cmd.AddComponent(e, c);   // ⭐ CE-11010 (RR-10) — what the hit struck, recorded with the effect
             cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario
             Spawned++;
         }

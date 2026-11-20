@@ -206,7 +206,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (lightRepo.GetLifecycleState(entity) != EntityLifecycle.Active) lightRepo.SetLifecycleState(entity, EntityLifecycle.Active);
                 if (lightRepo.HasComponent<GhostStateTracker>(entity)) lightRepo.RemoveComponent<GhostStateTracker>(entity);
                 if (lightRepo.IsComponentTypeRegistered<LightweightRound>() && !lightRepo.HasComponent<LightweightRound>(entity))
-                    lightRepo.AddComponent(entity, default(LightweightRound));
+                    lightRepo.AddComponent(entity, new LightweightRound { LaunchedAt = (Fdp.Core.SimInstant)master.LaunchedAt });   // ⭐ CE-11011 (RR-11) — the sender's launch time
                 if (lightRepo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>()
                     && !lightRepo.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(entity))
                     lightRepo.AddComponent(entity, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());
