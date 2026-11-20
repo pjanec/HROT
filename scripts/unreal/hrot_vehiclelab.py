@@ -244,8 +244,13 @@ def step():
     for item in list(S.get("later") or []):   # state changes in play (an animal shot: alive -> dead), by game time
         label, then = item
         if game_now() >= S["t0"] + float(then.get("after", 1.0)):
-            S["v"][label].set_state(getattr(unreal.HrotAnimalState, then["state"])); S["later"].remove(item)
-            log(f"{label}: -> {then['state']}")
+            if then.get("embark"):   # ⭐ into a vehicle (U-17m): hidden, travels with it
+                log(f"{label}: embark into {then['embark']} -> {unreal.HrotRiding.embark(S['v'][label], S['v'][then['embark']])}")
+            elif then.get("disembark"):
+                unreal.HrotRiding.disembark(S["v"][label]); log(f"{label}: disembarked")
+            else: S["v"][label].set_state(getattr(unreal.HrotAnimalState, then["state"]))
+            S["later"].remove(item)
+            log(f"{label}: -> {then}")
     if p == "find":
         if time.time() < S["t"]: return
         w = UES().get_game_world()
@@ -310,6 +315,7 @@ def step():
             if g.get("aim") and g["label"] in S["v"]: S["v"][g["label"]].set_aim(float(g["aim"][0]), float(g["aim"][1]))
         S["later"] = [(v["label"], v["then"]) for v in JOB["vehicles"] if v.get("then") and v["label"] in S["v"]]
         if S["later"]: S["t0"] = game_now()
+        S["later"] = [(l, t) for l, t in S["later"]]   # (label, {"state" | "embark": <vehicle> | "disembark", "after"})
         S["queue"] = [("row", None)] + [("close", v["label"]) for v in JOB["vehicles"] if v.get("damage", "INTACT") != "INTACT"] + \
                      [("view", w) for w in JOB.get("views", [])] + ([("fire", JOB["fire"])] if JOB.get("fire") else [])
         S.update(phase="next", ready=game_now() + 3.0); return
@@ -335,6 +341,8 @@ def step():
             S.update(phase="shoot", name=f"close-{label}", at=game_now() + 0.3)
         elif kind == "view":   # {"name", "label" | "at", "back", "up", "lookZ"}: any framing — one aircraft, one row of animals
             w = label
+            if w.get("waitUntil") and game_now() < S["tfind"] + float(w["waitUntil"]):   # not before game time T after the start
+                S["queue"].insert(0, (kind, label)); S.update(phase="next", ready=S["tfind"] + float(w["waitUntil"])); return
             at = S["v"][w["label"]].get_actor_location() if w.get("label") else unreal.Vector(*w["at"])
             camera(at, float(w.get("back", 1100.0)), float(w.get("up", 450.0)), float(w.get("lookZ", 150.0)), w.get("az"))
             S.update(phase="shoot", name=w["name"], at=game_now() + 0.3)

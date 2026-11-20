@@ -46,6 +46,27 @@ bool UHrotRiding::SitOn(AActor* Rider, AActor* Mount, int32 Seat)
 	return true;
 }
 
+bool UHrotRiding::Embark(AActor* Person, AActor* Vehicle)
+{
+	if (!Person || !Vehicle || !Vehicle->GetRootComponent()) return false;
+	Person->AttachToComponent(Vehicle->GetRootComponent(), FAttachmentTransformRules::KeepWorldTransform);
+	Person->SetActorHiddenInGame(true);
+	TArray<USkeletalMeshComponent*> Bodies;
+	Person->GetComponents<USkeletalMeshComponent>(Bodies);
+	for (USkeletalMeshComponent* B : Bodies) { B->SetComponentTickEnabled(false); B->bNoSkeletonUpdate = true; }   // no pose while unseen
+	return true;
+}
+
+void UHrotRiding::Disembark(AActor* Person)
+{
+	if (!Person) return;
+	Person->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+	TArray<USkeletalMeshComponent*> Bodies;
+	Person->GetComponents<USkeletalMeshComponent>(Bodies);
+	for (USkeletalMeshComponent* B : Bodies) { B->bNoSkeletonUpdate = false; B->SetComponentTickEnabled(true); }
+	Person->SetActorHiddenInGame(false);
+}
+
 void UHrotRiding::GetOff(AActor* Rider)
 {
 	if (Rider) Rider->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);

@@ -40,6 +40,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|Riding")
 	static bool SitOn(AActor* Rider, AActor* Mount, int32 Seat);
 
+	/** ⭐ EMBARKED (U-17m: troops INSIDE an APC — unlike a rider, not seen): attached to the vehicle (it travels with it) and HIDDEN,
+	 *  its animation stopped — an embarked soldier costs nothing to draw. How HROT describes embarkation is still to come; this is
+	 *  the IG's half. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Riding")
+	static bool Embark(AActor* Person, AActor* Vehicle);
+	/** out again: detached where it is and shown (HROT places it next) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Riding")
+	static void Disembark(AActor* Person);
+
 	/** the rider gets off: detached where it is (HROT places it next) */
 	UFUNCTION(BlueprintCallable, Category = "HROT|Riding")
 	static void GetOff(AActor* Rider);
