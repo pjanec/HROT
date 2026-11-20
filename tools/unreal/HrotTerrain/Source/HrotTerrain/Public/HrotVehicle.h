@@ -7,6 +7,7 @@
 #include "Engine/DataAsset.h"
 #include "GameFramework/Actor.h"
 #include "HrotWeaponFx.h"
+#include "HrotRiding.h"
 #include "HrotVehicle.generated.h"
 
 class UStaticMesh;
@@ -14,7 +15,7 @@ class UStaticMeshComponent;
 class UFXSystemComponent;
 
 UENUM(BlueprintType)
-enum class EHrotVehicleParent : uint8 { Hull, Turret, Gun };
+enum class EHrotVehicleParent : uint8 { Hull, Turret, Gun, WingLeft, WingRight };
 
 UENUM(BlueprintType)
 enum class EHrotVehicleDamage : uint8
@@ -58,6 +59,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bFlamethrower = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform FlameMount;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlameSize = 1.f;
+	/** ⭐ WINGS that beat (U-17i, the dragon: its wings cut out of the static mesh): each wing's parts ride on its pivot (hull space, at
+	 *  the shoulder); flying, a wing rolls about the hull's X axis by ±FlapAmplitude degrees, FlapRate beats a second (both up together) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform WingLeftPivot;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform WingRightPivot;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlapAmplitude = 30.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") float FlapRate = 0.8f;
+	/** ⭐ where riders sit (U-17j: the dragon's driver and passenger), UHrotRiding::SitOn */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TArray<FHrotSeat> Seats;
 };
 
 UCLASS()
@@ -79,6 +88,10 @@ public:
 	/** the kit's flamethrower streams (HROT's state; a destroyed vehicle never fires) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bFlaming = false;
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void SetFlaming(bool bNewFlaming);
+	/** flying: the kit's wings beat (the actor ticks only then) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") bool bFlying = false;
+	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void SetFlying(bool bNewFlying);
+	virtual void Tick(float DeltaTime) override;
 
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void ApplyState();
 	UFUNCTION(BlueprintCallable, Category = "HROT|Vehicle") void SetAim(float Yaw, float Pitch);
@@ -99,11 +112,15 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Hull;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Turret;
 	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> Gun;
+	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> WingLeft;
+	UPROPERTY(VisibleAnywhere, Category = "HROT|Vehicle") TObjectPtr<USceneComponent> WingRight;
 
 private:
 	UPROPERTY(Transient) TArray<TObjectPtr<UStaticMeshComponent>> PartComps;
 	UPROPERTY(Transient) TArray<TObjectPtr<UFXSystemComponent>> DamageFx;
 	UPROPERTY(Transient) TObjectPtr<class UHrotFlamethrower> Flame;
 	EHrotVehicleDamage Shown = EHrotVehicleDamage::Intact;
+	float FlapClock = 0.f;
+	void ApplyWings(float Angle);
 	void ClearDamageFx();
 };

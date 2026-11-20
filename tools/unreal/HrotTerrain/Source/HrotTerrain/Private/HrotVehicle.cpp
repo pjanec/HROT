@@ -33,13 +33,18 @@ namespace
 
 AHrotVehicle::AHrotVehicle()
 {
-	PrimaryActorTick.bCanEverTick = false;   // ⭐ nothing per frame: the state moves two pivots when it changes
+	PrimaryActorTick.bCanEverTick = true;    // ⭐ but OFF unless flying with wings (U-17i): the state moves the pivots when it changes
+	PrimaryActorTick.bStartWithTickEnabled = false;
 	Hull = CreateDefaultSubobject<USceneComponent>(TEXT("Hull"));
 	RootComponent = Hull;
 	Turret = CreateDefaultSubobject<USceneComponent>(TEXT("Turret"));
 	Turret->SetupAttachment(Hull);
 	Gun = CreateDefaultSubobject<USceneComponent>(TEXT("Gun"));
 	Gun->SetupAttachment(Turret);
+	WingLeft = CreateDefaultSubobject<USceneComponent>(TEXT("WingLeft"));
+	WingLeft->SetupAttachment(Hull);
+	WingRight = CreateDefaultSubobject<USceneComponent>(TEXT("WingRight"));
+	WingRight->SetupAttachment(Hull);
 }
 
 void AHrotVehicle::OnConstruction(const FTransform& Transform)
@@ -72,7 +77,16 @@ void AHrotVehicle::Build()
 		C->CreationMethod = EComponentCreationMethod::UserConstructionScript;   // rebuilt with the actor, never saved
 		C->SetMobility(EComponentMobility::Movable);
 		C->SetStaticMesh(P.Mesh);
-		C->SetupAttachment(P.Parent == EHrotVehicleParent::Turret ? Turret.Get() : P.Parent == EHrotVehicleParent::Gun ? Gun.Get() : Hull.Get());
+		USceneComponent* On = Hull.Get();
+		switch (P.Parent)
+		{
+		case EHrotVehicleParent::Turret: On = Turret.Get(); break;
+		case EHrotVehicleParent::Gun: On = Gun.Get(); break;
+		case EHrotVehicleParent::WingLeft: On = WingLeft.Get(); break;
+		case EHrotVehicleParent::WingRight: On = WingRight.Get(); break;
+		default: break;
+		}
+		C->SetupAttachment(On);
 		C->SetRelativeTransform(P.Transform);
 		C->SetCollisionEnabled(ECollisionEnabled::QueryOnly);   // a hit test may need it; no physics
 		C->RegisterComponent();
@@ -85,6 +99,31 @@ void AHrotVehicle::SetAim(float Yaw, float Pitch)
 {
 	TurretYaw = Yaw; GunPitch = Pitch;
 	ApplyState();
+}
+
+void AHrotVehicle::SetFlying(bool bNewFlying)
+{
+	bFlying = bNewFlying;
+	ApplyState();
+}
+
+void AHrotVehicle::ApplyWings(float Angle)
+{
+	if (!Kit) return;
+	// both wings UP together: the left wing (−Y) rolls −Angle, the right (+Y) +Angle, about the hull's X through each shoulder
+	FTransform L = Kit->WingLeftPivot, R = Kit->WingRightPivot;
+	L.SetRotation(FRotator(0.f, 0.f, -Angle).Quaternion() * L.GetRotation());
+	R.SetRotation(FRotator(0.f, 0.f, Angle).Quaternion() * R.GetRotation());
+	WingLeft->SetRelativeTransform(L);
+	WingRight->SetRelativeTransform(R);
+}
+
+void AHrotVehicle::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	if (!Kit) return;
+	FlapClock += DeltaTime;
+	ApplyWings(Kit->FlapAmplitude * FMath::Sin(2.f * PI * Kit->FlapRate * FlapClock));
 }
 
 void AHrotVehicle::SetFlaming(bool bNewFlaming)
@@ -111,6 +150,9 @@ void AHrotVehicle::ApplyState()
 	G.SetRotation(G.GetRotation() * FRotator(GunPitch, 0.f, 0.f).Quaternion());
 	Gun->SetRelativeTransform(G);
 	if (Flame) Flame->SetFiring(bFlaming && !bWreck);
+	const bool bFlap = bFlying && !bWreck && Kit->FlapAmplitude > 0.f;
+	if (!bFlap) ApplyWings(0.f);   // folded at rest (the pose the mesh was modelled in)
+	SetActorTickEnabled(bFlap);
 	if (Damage == Shown) return;
 
 	// ---- the damage look, only when it changes ----------------------------------------------------------------------------------

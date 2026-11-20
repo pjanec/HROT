@@ -1,9 +1,11 @@
 """hrot_vehicle_kit.py — runs in the Unreal editor COMMANDLET (CE-4651, U-17): a vehicle KIT (UHrotVehicleKit) from a vendor's parts.
 
     UnrealEditor-Cmd <project> -run=pythonscript -script=<this> -nullrhi      HROT_KIT_JOB = { "kit", "probe", "turret", "gun", "skip",
-                                                                                                "actor", "meshes": [{"mesh", "loc" | "ground": true, "rot" (yaw: the nose onto +X), "scale"}],
+                                                                                                "actor", "meshes": [{"mesh", "loc" | "ground": true, "rot" (yaw: the nose onto +X), "scale",
+                                                                                                  "parent": HULL | WING_LEFT | WING_RIGHT}],
                                                                                                 "turretParts", "gunParts", "muzzle",
-                                                                                                "engineDeck", "flashSize", "flame": {"loc", "rot", "size"}, "out" }
+                                                                                                "engineDeck", "flashSize", "flame": {"loc", "rot", "size"},
+                                                                                                "wingLeft", "wingRight" (pivots), "flapAmplitude", "flapRate", "out" }
     probe        hrot_level_probe.py's result for the vendor's showcase map (every part placed: the hull frame = the map origin)
     turret, gun  the pivots: the turret ring centre (hull space) and the trunnion (hull space) — here: where the vendor placed the
                  turret and the gun meshes (their pivots are the ring and the trunnion)
@@ -24,6 +26,23 @@ def log(m):
 
 def T(loc, rot=(0, 0, 0)):
     return unreal.Transform(location=unreal.Vector(*loc), rotation=unreal.Rotator(pitch=rot[0], yaw=rot[1], roll=rot[2]))
+
+
+def seats_of(J):
+    """JOB "seats": [{"name", "bone", "loc", "rot", "pose"}] -> FHrotSeat list (U-17j: riders)"""
+    out = []
+    for d in J.get("seats") or []:
+        s = unreal.HrotSeat()
+        s.set_editor_property("name", d.get("name", "seat"))
+        if d.get("bone"): s.set_editor_property("bone", d["bone"])
+        r = d.get("rot", (0, 0, 0))
+        s.set_editor_property("offset", unreal.Transform(location=unreal.Vector(*d.get("loc", (0, 0, 0))), rotation=unreal.Rotator(pitch=r[0], yaw=r[1], roll=r[2])))
+        if d.get("pose"):
+            a = unreal.load_asset(d["pose"])
+            if a is None: raise RuntimeError("no seat pose " + d["pose"])
+            s.set_editor_property("pose", a)
+        out.append(s)
+    return out
 
 
 def main(JOB):
@@ -61,6 +80,11 @@ def main(JOB):
             k = float(m.get("scale", 1))   # scaled (the dragon ×6): so is the offset
             loc = (-k * (o.x * math.cos(yaw) - o.y * math.sin(yaw)), -k * (o.x * math.sin(yaw) + o.y * math.cos(yaw)), k * (x.z - o.z))
             log(f"{sm.get_name()}: grounded at {loc[0]:.1f}, {loc[1]:.1f}, {loc[2]:.1f} (size {2*x.x:.0f} x {2*x.y:.0f} x {2*x.z:.0f} cm)")
+        par = m.get("parent", "HULL")   # a wing's part rides on its pivot: its place relative to that pivot (U-17i)
+        if par in ("WING_LEFT", "WING_RIGHT"):
+            pv = JOB["wingLeft" if par == "WING_LEFT" else "wingRight"]
+            loc = (loc[0] - pv[0], loc[1] - pv[1], loc[2] - pv[2])
+        p.set_editor_property("parent", getattr(unreal.HrotVehicleParent, par))
         t = T(loc, m.get("rot", (0, 0, 0)))
         if m.get("scale"): t.scale3d = unreal.Vector(m["scale"], m["scale"], m["scale"])
         p.set_editor_property("transform", t)
@@ -82,6 +106,11 @@ def main(JOB):
     kit.set_editor_property("flash_size", float(JOB.get("flashSize", 8)))
     kit.set_editor_property("damage_fx_scale", float(JOB.get("damageFxScale", 1)))
     kit.set_editor_property("flash_life", float(JOB.get("flashLife", 0.15)))
+    for side in ("wingLeft", "wingRight"):   # wings that beat (the dragon): the shoulder pivots (hull space), the beat
+        if JOB.get(side): kit.set_editor_property("wing_left_pivot" if side == "wingLeft" else "wing_right_pivot", T(JOB[side]))
+    if "flapAmplitude" in JOB: kit.set_editor_property("flap_amplitude", float(JOB["flapAmplitude"]))
+    if "flapRate" in JOB: kit.set_editor_property("flap_rate", float(JOB["flapRate"]))
+    if "seats" in JOB: kit.set_editor_property("seats", seats_of(JOB))
     fl = JOB.get("flame")   # a flamethrower: {"loc", "rot", "size"} in hull space (X = the stream)
     kit.set_editor_property("flamethrower", bool(fl))
     if fl:

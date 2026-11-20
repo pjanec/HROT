@@ -143,6 +143,10 @@ GROUPS = [
         {"label": "overhand 1.0 s", "base": "RTG_Throw_mixamo.*", "loop": False, "pose": 1.0, "body": "US_Soldier", "side": "A"},
         {"label": "overhand 1.4 s", "base": "RTG_Throw_mixamo.*", "loop": False, "pose": 1.4, "body": "US_Soldier", "side": "A"},
         {"label": "hit heavy", "base": "MM_HitReact_Front_Hvy_01", "loop": False, "pose": 0.35, "weapon": "rifle", "body": "US_Soldier", "side": "A"}]},
+    # ⭐ SEATED (U-17j): the user's Mixamo "Driving" clip — the rider's pose on a deer / the dragon (a car seat, close enough)
+    {"name": "seated", "anims": [
+        {"label": "seated (driving)", "base": "RTG_Driving_mixamo.*", "body": "US_Soldier", "side": "A"},
+        {"label": "seated, rifle", "base": "RTG_Driving_mixamo.*", "weapon": "rifle", "body": "US_Soldier", "side": "A"}]},
     # the aim pitch seen from the SIDE (facing 90: the barrel crosses the picture) — to judge the angle, not foreshortened
     {"name": "pitch-side", "anims": [
         {"label": "pitch 0", "base": "MM_Rifle_Idle_Hipfire", "upper": "MM_Rifle_Idle_ADS", "pitch": 0, "facing": 90, "weapon": "rifle"},

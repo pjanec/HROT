@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameFramework/Actor.h"
+#include "HrotRiding.h"
 #include "HrotAnimal.generated.h"
 
 class UAnimSequence;
@@ -44,6 +45,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Animal") TMap<EHrotAnimalState, FHrotAnimalClip> Clips;
 	/** the mesh's yaw inside the actor so the actor's +X is the animal's nose (the Animal Variety Pack faces +Y: −90) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Animal") float MeshYaw = -90.f;
+	/** ⭐ where riders sit (U-17j: the deer as a horse — a driver and a passenger), UHrotRiding::SitOn */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Animal") TArray<FHrotSeat> Seats;
 };
 
 UCLASS()

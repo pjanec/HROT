@@ -117,6 +117,7 @@ def level():
         setattr(a, "turret_yaw", float(v.get("yaw", 0))); setattr(a, "gun_pitch", float(v.get("pitch", 0)))
         setattr(a, "damage", getattr(unreal.HrotVehicleDamage, v.get("damage", "INTACT")))
         setattr(a, "flaming", bool(v.get("flaming", False)))   # the kit's flamethrower (HROT's state)
+        setattr(a, "flying", bool(v.get("flying", False)))     # the kit's wings beat (U-17i)
         a.build()
     log(f"{len(JOB['vehicles'])} vehicles")
     LES().editor_play_simulate()
@@ -266,6 +267,14 @@ def step():
                 ft = unreal.HrotFlamethrower.attach(parent, unreal.Name(f.get("socket", "None")), off, float(f.get("size", 1)))
                 ft.set_firing(bool(f.get("firing", True))); S.setdefault("flames", {})[v["label"]] = ft
                 log(f"{v['label']}: flamethrower on {parent.get_name()} socket {f.get('socket', 'None')}")
+        for v in JOB["vehicles"]:   # ⭐ riders (U-17j): "ride": {"mount": <label>, "seat": n} — seated in play, as HROT would
+            if v.get("ride") and v["label"] in S["v"]:
+                ok = unreal.HrotRiding.sit_on(S["v"][v["label"]], S["v"][v["ride"]["mount"]], int(v["ride"].get("seat", 0)))
+                log(f"{v['label']}: seat {v['ride'].get('seat', 0)} on {v['ride']['mount']} -> {ok}")
+            if v.get("logBones") and v["label"] in S["v"]:
+                c = S["v"][v["label"]].get_component_by_class(unreal.SkeletalMeshComponent)
+                names = [str(c.get_bone_name(i)) for i in range(c.get_num_bones())]
+                log(f"{v['label']} bones: " + ", ".join(f"{n}@{c.get_socket_location(n).z - S['v'][v['label']].get_actor_location().z:.0f}" for n in names))
         S["launchers"] = {}
         for v in JOB["vehicles"]:
             if v.get("launcher") and v["label"] in S["v"]: S["launchers"][v["label"]] = shoulder_launcher(S["v"][v["label"]], v["launcher"])
