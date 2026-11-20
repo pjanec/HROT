@@ -1013,7 +1013,7 @@ sequenceDiagram
     C->>W: Hold (watch) · on a LIVE pooled contact ⇒ Suppress(it)
     C->>Q: FindCoverFromTarget(slot0 = the WATCHERS' lead, slot1 = threat · before contact the objective as a point)
     Q-->>C: up to 16 points ⇒ SquadCover.Pick for the next bound
-    Note over C: set — every mover within 1.5 m of his point ⇒ DefiladeReached · else BoundTimeoutSeconds ⇒ BoundComplete (Timeout)
+    Note over C: set — every mover within 1.5 m of his point ⇒ DefiladeReached · every mover STOPPED short (CE-2461) ⇒ BoundComplete · else BoundTimeoutSeconds ⇒ BoundComplete (Timeout)
     C->>W: AdvanceTo(their picks) — they bound next
 ```
 
@@ -1022,6 +1022,8 @@ sequenceDiagram
 | when the next bound's cover is asked | while the current element bounds, around the WATCHERS' lead | the picks are ready when the swap comes; no stop between bounds |
 | what the cover hides from before contact | the objective, as a context POINT (`EqsSensor.ContextPoint1`, `Point1Bit`) | the enemy is expected there; there is no entity to aim at |
 | the swap event | *set* ⇒ `DefiladeReached` (new rows in the table), the clock ⇒ `BoundComplete` | the trace says which; `BoundComplete` on a timeout is O-a's "Timeout" |
+| ⭐ a bound whose movers all STOPPED short *(`CE-2461`, `2026-11-20`, Urban Fight Suite U2)* | over now (`BoundComplete`, not Timeout): `SquadGates.MoversStopped` — every live mover's `NavigationStatus.Result` is no longer `InProgress` (arrived short, blocked, unreachable), ≥ `MoverSettleSeconds` 3 s after the order; the CE-2284 stall test still counts it | 📐 `uf-corner-fight` live: a bound waited its whole 40 s for a man whose move had ended 6 m short — the element advanced ~10 m per 40 s. The hill attack's baseline wait (CE-2439) reads the same status the same way; it is a declared brain-phase read (`AiBrainReads`) |
+| ⭐ a cover point on another storey or a ledge *(`CE-2461`)* | never picked: `SquadCover.Pick` skips a point more than `MaxClimbMetres` 1.5 m above or below the mover (fire and movement and break contact share it) | 📐 live: picks at Z = 3 beside a house left the movers standing under them |
 | a pooled contact that is DEAD | skipped (`TopContact(…, liveOnly: true)`); when the threat goes, the watchers go back to `Hold` | the pool remembers the dead until they age out — 📌 measured: the resumed bound suppressed a body (`CE2123` red) |
 
 Rejected: a cover pick per play — two copies of one rule · asking at swap time — the movers would stand while the query runs ·
