@@ -89,6 +89,8 @@ def main(JOB):
         t = T(loc, m.get("rot", (0, 0, 0)))
         if m.get("scale"): t.scale3d = unreal.Vector(m["scale"], m["scale"], m["scale"])
         p.set_editor_property("transform", t)
+        if m.get("materials"):   # U-18k: a livery — material overrides by slot index (null = the mesh's own)
+            p.set_editor_property("materials", [unreal.load_asset(x) if x else None for x in m["materials"]])
         parts.append(p)
     path = JOB["kit"]
     folder, name = path.rsplit("/", 1)

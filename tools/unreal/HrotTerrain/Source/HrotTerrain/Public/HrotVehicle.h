@@ -35,6 +35,8 @@ struct FHrotVehiclePart
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") EHrotVehicleParent Parent = EHrotVehicleParent::Hull;
 	/** relative to its parent's pivot (the hull = the actor: X forward, Z up, z 0 = the ground under the tracks) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") FTransform Transform;
+	/** U-18k — material overrides by slot index (null = the mesh's own): one mesh, several liveries (the French pack's desert and green) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Vehicle") TArray<TObjectPtr<UMaterialInterface>> Materials;
 };
 
 UCLASS(BlueprintType)

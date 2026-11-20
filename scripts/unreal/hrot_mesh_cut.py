@@ -89,9 +89,11 @@ def cut(sm, P):
 
 
 try:
-    sm = unreal.load_asset(JOB["mesh"])
-    if JOB.get("profile"): profile(sm, JOB["profile"])
-    for P in JOB.get("parts", []): cut(sm, P)
+    for J in (JOB.get("jobs") or [JOB]):   # U-18k: several meshes in one run ({"jobs": [{"mesh", "profile", "parts"}], "out"})
+        sm = unreal.load_asset(J["mesh"])
+        log(f"mesh {J['mesh']}")
+        if J.get("profile"): profile(sm, J["profile"])
+        for P in J.get("parts", []): cut(sm, P)
     R["ok"] = True
 except Exception:
     R["ok"] = False; R["why"] = traceback.format_exc()

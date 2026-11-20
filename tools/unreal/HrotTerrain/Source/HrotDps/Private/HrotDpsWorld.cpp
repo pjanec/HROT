@@ -997,6 +997,15 @@ void UHrotDpsWorld::DefaultLife()
 		K(TEXT("Poultry"), TEXT("DA_Animal_Crow"), 1.6f);
 	}
 	auto Kit = [](const TCHAR* Name) { return TSoftObjectPtr<UHrotVehicleKit>(FSoftObjectPath(FString::Printf(TEXT("/Game/Hrot/Vehicles/%s.%s"), Name, Name))); };
+	// U-18k — HROT's military vehicle types on the French pack (user: "use them, replace stand-ins"), by DIS prefix; a job's own entry
+	// wins. Green = HROT's own side's look; the desert Leclerc stands for the opposing tank (the T-72) so the two sides differ.
+	auto AddDis = [this, &Kit](const TCHAR* Dis, const TCHAR* Name) { if (!KitsByDis.Contains(Dis)) KitsByDis.Add(Dis, Kit(Name)); };
+	AddDis(TEXT("1.1.225.1"), TEXT("DA_FR_Leclerc_Green"));   // M1 Abrams, M67 flame tank (was the Sherman)
+	AddDis(TEXT("1.1.222.1"), TEXT("DA_FR_Leclerc"));         // T-72 (was the BTR-60, the Russian catch-all)
+	AddDis(TEXT("1.1.225.2"), TEXT("DA_FR_VBCI_Green"));      // M2 Bradley IFV (was a box)
+	AddDis(TEXT("1.1.225.6"), TEXT("DA_FR_VBL_Green"));       // HMMWV (was the armoured truck)
+	AddDis(TEXT("1.1.225.6.9"), TEXT("DA_FR_Serval_Green"));  // HMMWV drone jammer
+	AddDis(TEXT("1.1.222"), TEXT("DA_BTR60"));                // any other Russian ground vehicle
 	if (CarKits.Num() == 0)
 		for (const TCHAR* N : { TEXT("DA_City_vehicle02_Car"), TEXT("DA_City_vehicle03_Car"), TEXT("DA_City_vehicle05_Car"), TEXT("DA_City_vehicle06_Car") })
 			CarKits.Add(Kit(N));

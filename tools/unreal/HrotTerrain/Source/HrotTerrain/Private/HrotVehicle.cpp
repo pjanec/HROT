@@ -94,6 +94,7 @@ void AHrotVehicle::Build()
 		C->CreationMethod = EComponentCreationMethod::UserConstructionScript;   // rebuilt with the actor, never saved
 		C->SetMobility(EComponentMobility::Movable);
 		C->SetStaticMesh(P.Mesh);
+		for (int32 I = 0; I < P.Materials.Num(); ++I) if (P.Materials[I]) C->SetMaterial(I, P.Materials[I]);   // a livery (U-18k)
 		USceneComponent* On = Lift.Get();
 		switch (P.Parent)
 		{

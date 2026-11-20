@@ -80,9 +80,9 @@ def join():
     if JOB.get("civilianKits"): w.set_editor_property("civilian_kits", [L(k) for k in JOB["civilianKits"]])   # U-18i: civilians and pedestrians
     if JOB.get("missileKinds"): w.set_editor_property("missile_kinds_by_type", {int(k): L(v) for k, v in JOB["missileKinds"].items()})   # U-18f: a munition type -> its kind
     w.set_editor_property("kits_by_type", {2001: L(KITS + "DA_ArmoredTruck")})                       # by the contract's type id
-    w.set_editor_property("kits_by_dis", {"1.1.222": L(KITS + "DA_BTR60"), "1.1.225.1": L(KITS + "DA_Sherman")})   # by DIS prefix
+    # U-18k: the product maps HROT's vehicle types itself (UHrotDpsWorld::DefaultLife — the French pack); a job may add / override
     w.set_editor_property("kits_by_domain", {"Air": L(KITS + "DA_Air_Apache")})                     # by domain
-    if JOB.get("kitsByDis"): w.set_editor_property("kits_by_dis", {**{"1.1.222": L(KITS + "DA_BTR60"), "1.1.225.1": L(KITS + "DA_Sherman")}, **{k: L(v) for k, v in JOB["kitsByDis"].items()}})   # U-18g: a live scenario's types
+    if JOB.get("kitsByDis"): w.set_editor_property("kits_by_dis", {k: L(v) for k, v in JOB["kitsByDis"].items()})   # U-18g: a job's own types
     w.set_editor_property("person_mesh", L("/Game/Characters/Heroes/Mannequin/Meshes/SKM_Manny"))
     w.set_editor_property("person_clip", L("/Game/Characters/Heroes/Mannequin/Animations/Locomotion/Rifle/MF_Rifle_Walk_Fwd"))
     if not w.start(int(JOB["domain"]), JOB["partition"]): raise RuntimeError("DPS start failed")

@@ -48,8 +48,17 @@ def spawn(cls, loc, rot=(0, 0, 0), label=None):
 
 
 def level():
-    if unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/VehicleLab"): unreal.EditorAssetLibrary.delete_asset("/Game/Maps/VehicleLab")
-    if not LES().new_level("/Game/Maps/VehicleLab"): raise RuntimeError("new_level failed")
+    # job "level": the lab's map (⚠ measured: when the editor last had /Game/Maps/VehicleLab open it starts loaded, cannot be deleted,
+    # and new_level fails — a job may name another)
+    # ⚠ measured: the editor opens on the map it last had — the lab's own — and deleting a loaded map only drops it in memory (the
+    # .umap stays, so new_level finds the path taken). ⇒ a FRESH map name per run; earlier runs' maps (not loaded) are deleted
+    base_lv = JOB.get("level", "/Game/Maps/VehicleLab")
+    for old in unreal.EditorAssetLibrary.list_assets("/Game/Maps", recursive=False):
+        if old.split(".")[0].startswith(base_lv + "_R"):
+            try: unreal.EditorAssetLibrary.delete_asset(old.split(".")[0])
+            except Exception: pass
+    lv = f"{base_lv}_R{int(time.time())}"
+    if not LES().new_level(lv): raise RuntimeError(f"new_level failed ({lv})")
     n = len(JOB["vehicles"])   # ⚠ measured: a 400 m floor at the origin ended under the 7th aircraft (a black void behind it)
     fl = JOB.get("floor") or [(n - 1) * SPACING / 2, 0, max(40000.0, n * SPACING + 40000)]   # [centre x, centre y, size] (cm)
     floor = spawn(unreal.StaticMeshActor, (fl[0], fl[1], 0), label="Floor")
