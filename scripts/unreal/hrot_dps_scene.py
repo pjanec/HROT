@@ -1,14 +1,15 @@
 """hrot_dps_scene.py — CE-4651 (U-18b): the DPS WORLD proof, run in the full Unreal EDITOR (-ExecutePythonScript).
 
     HROT_DPS_SCENE_JOB = { "domain", "partition", "seconds", "ready", "out", "shots", "simBase",
-                           "pictures": [{"name", "sim" (scene seconds: sim time - simBase), "look", "back", "up", "top"}] }
+                           "pictures": [{"name", "sim" (scene seconds: sim time - simBase), "look", "back", "up", "lookZ", "top"}],
+                           "personKit": <a UHrotPersonKit path> (U-18d: people as that body, their looks recorded every 0.5 s) }
 
 A flat level played in Simulate; UHrotDpsWorld joins the station; the test's publisher (the stand-in for the gateway: same protocol
 assembly, the gateway's send rule) starts when the ready file appears. Records, every 50 ms, each entity's SHOWN position (contract
 frame) against the sim clock — the runner compares it with the publisher's truth — and renders the pictures at their times (real seconds
 after ready). The kit table here is the TEST's choice of models, not a product mapping.
 """
-import json, os, time, traceback
+import json, math, os, time, traceback
 import unreal
 
 JOB = json.load(open(os.environ["HROT_DPS_SCENE_JOB"], encoding="utf-8-sig"))
@@ -61,6 +62,7 @@ def join():
     w = unreal.HrotDpsWorld.for_world(gw)
     if w is None: raise RuntimeError("no UHrotDpsWorld in the game world")
     L = unreal.load_asset
+    if JOB.get("personKit"): w.set_editor_property("person_kit", L(JOB["personKit"]))
     w.set_editor_property("kits_by_type", {2001: L(KITS + "DA_ArmoredTruck")})                       # by the contract's type id
     w.set_editor_property("kits_by_dis", {"1.1.222": L(KITS + "DA_BTR60"), "1.1.225.1": L(KITS + "DA_Sherman")})   # by DIS prefix
     w.set_editor_property("kits_by_domain", {"Air": L(KITS + "DA_Air_Apache")})                     # by domain
@@ -72,9 +74,28 @@ def join():
     log("joined; ready")
 
 
-def camera(look, back, up):
-    cam = unreal.Vector(look[0] + back * 0.45, look[1] + back, up)   # from the south-east (Unreal +Y = south)
+def camera(look, back, up, side=0.45):
+    cam = unreal.Vector(look[0] + back * side, look[1] + back, up)   # from the south-east (Unreal +Y = south)
     UES().set_level_viewport_camera_info(cam, unreal.MathLibrary.find_look_at_rotation(cam, unreal.Vector(*look)))
+
+
+def person_extras(w, i):
+    """the rifle's world direction (grip -> muzzle) and the actor's yaw. ⚠ only TRUE while the person is on screen: people animate
+    only when rendered (the product default, UHrotPersonState::ApplyAnimation) — off screen the bones are the last drawn pose"""
+    a = w.actor_of(i); extra = {}
+    ps = a.get_component_by_class(unreal.HrotPersonState) if a else None
+    wc = ps.get_weapon_component() if ps else None
+    if wc and wc.does_socket_exist("Muzzle"):
+        m = wc.get_socket_location("Muzzle"); g = wc.get_world_location(); d = m - g
+        extra["rifleYaw"] = round(math.degrees(math.atan2(d.y, d.x)), 1); extra["riflePitch"] = round(math.degrees(math.atan2(d.z, math.hypot(d.x, d.y))), 1)
+    leader = ps.find_leader() if ps else None
+    if leader and not getattr(leader, "_hrot_always", False):   # TEST ONLY: bones refreshed every frame, so a reading is the current pose
+        leader.set_editor_property("visibility_based_anim_tick_option", unreal.VisibilityBasedAnimTickOption.ALWAYS_TICK_POSE_AND_REFRESH_BONES)
+    # the SHOULDER line (clavicle_l -> clavicle_r): the twist itself, not the held weapon
+    if leader and leader.does_socket_exist("clavicle_r"):
+        d = leader.get_socket_location("clavicle_r") - leader.get_socket_location("clavicle_l"); extra["shoulderYaw"] = round(math.degrees(math.atan2(d.y, d.x)), 1)
+    if a: extra["actorYaw"] = round(a.get_actor_rotation().yaw, 1)
+    return extra
 
 
 def run():
@@ -94,19 +115,29 @@ def run():
         R["maxLiveTracers"] = max(R.get("maxLiveTracers", 0), lt); R["maxLiveFlashes"] = max(R.get("maxLiveFlashes", 0), lf)
         if lt or lf: R.setdefault("shotFrames", []).append([round(w.sim_now() - float(JOB.get("simBase", 0)), 2), lt, lf])
     scene = w.sim_now() - float(JOB.get("simBase", 0)) if w.sim_now() > 0 else -1   # ⭐ pictures on the SIM clock: a burst is caught mid-burst
-    if S["pics"] and scene >= S["pics"][0]["sim"]:
+    if JOB.get("personKit") and scene >= S.get("next_look", 0):   # U-18d: every person's look, every 0.5 s of sim
+        S["next_look"] = (int(scene * 2) + 1) / 2.0
+        for i in w.entity_ids():
+            look = w.person_look(i)
+            if not look: continue
+            person_extras(w, i)   # (sets the test-only always-refresh on its body)
+            R.setdefault("looks", []).append([round(scene, 2), i, look])
+    if S["pics"] and not S.get("pending_pic") and scene >= S["pics"][0]["sim"]:   # one picture at a time (a second camera move lost the first)
         pic = S["pics"].pop(0)
         if pic.get("top"):   # straight down, screen up = east (+X), screen right = south (+Y)
             UES().set_level_viewport_camera_info(unreal.Vector(pic["look"][0], pic["look"][1], pic.get("up", 5000)), unreal.Rotator(pitch=-90, yaw=0, roll=0))
-        elif "look" in pic: camera(pic["look"], pic.get("back", 6000), pic.get("up", 3500))
-        S["pending_pic"] = pic["name"]; S["pic_at"] = time.time() + 0.3   # the camera settles one frame
-    if S.get("pending_pic") and time.time() >= S["pic_at"]:
+        elif "look" in pic: camera(pic["look"], pic.get("back", 6000), pic.get("up", 3500), pic.get("side", 0.45))
+        S["pending_pic"] = pic["name"]; S["pic_at"] = time.time() + 0.3; S["pic_frames"] = 3   # the camera settles: 0.3 s AND 3 frames
+    if S.get("pending_pic"): S["pic_frames"] = S.get("pic_frames", 0) - 1
+    if S.get("pending_pic") and time.time() >= S["pic_at"] and S["pic_frames"] <= 0:
         name = S.pop("pending_pic")
         path = os.path.join(JOB["shots"], f"dps-{name}.png").replace("\\", "/")
         if os.path.exists(path): os.remove(path)
         unreal.AutomationLibrary.take_high_res_screenshot(1600, 900, path, None)
         R["shots"].append(path)
         R["describe"][name] = {str(i): w.describe(i) for i in w.entity_ids()}
+        R.setdefault("atPicture", {})[name] = {"scene": round(w.sim_now() - float(JOB.get("simBase", 0)), 2),
+                                                "people": {str(i): [w.person_look(i), person_extras(w, i)] for i in w.entity_ids() if w.person_look(i)}}
         log(f"picture {name} at scene {w.sim_now() - float(JOB.get('simBase', 0)):.2f} s")
     if t >= float(JOB["seconds"]):
         R["final"] = {str(i): w.describe(i) for i in w.entity_ids()}

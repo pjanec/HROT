@@ -5,6 +5,12 @@
 #include "HrotVehicle.h"
 #include "HrotShotRenderer.h"
 #include "HrotExplosionFx.h"
+#include "HrotPersonKit.h"
+#include "HrotPersonAnimInstance.h"
+#include "HrotTerrainLibrary.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Animation/AnimSequence.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
@@ -26,6 +32,8 @@ namespace
 	using FFire = SimNetGateway_Protocol_DdsPlayer_Fire;
 	using FDet = SimNetGateway_Protocol_DdsPlayer_Detonation;
 	using FEffect = SimNetGateway_Protocol_DdsPlayer_Effect;
+	using FPerson = SimNetGateway_Protocol_DdsPlayer_PersonState;
+	using FPersonAim = SimNetGateway_Protocol_DdsPlayer_PersonAim;
 	/** a contract direction (ENU) → Unreal (no scale) */
 	FVector Dir(const SimNetGateway_Protocol_DdsPlayer_Vec3f& V) { return FVector(V.X, -V.Y, V.Z).GetSafeNormal(); }
 
@@ -65,6 +73,7 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	for (const auto& K : KitsByDomain) if (UObject* O = K.Value.LoadSynchronous()) Preloaded.Add(O);
 	if (UObject* O = PersonMesh.LoadSynchronous()) Preloaded.Add(O);
 	if (UObject* O = PersonClip.LoadSynchronous()) Preloaded.Add(O);
+	if (UObject* O = PersonKit.LoadSynchronous()) Preloaded.Add(O);
 	MgFx = UHrotWeaponFx::HeavyMgFx(); RifleFx = UHrotWeaponFx::LyraRifleFx();
 	Events.Reset();
 	Dps->Stop();   // a fresh client: its new readers deliver the late-join history to THESE handlers
@@ -81,6 +90,8 @@ bool UHrotDpsWorld::Start(int32 Domain, const FString& Partition)
 	Sub(TEXT("DPS_Fire"), &UHrotDpsWorld::OnFire);
 	Sub(TEXT("DPS_Detonation"), &UHrotDpsWorld::OnDetonation);
 	Sub(TEXT("DPS_Effect"), &UHrotDpsWorld::OnEffect);
+	Sub(TEXT("DPS_PersonState"), &UHrotDpsWorld::OnPersonState);
+	Sub(TEXT("DPS_PersonAim"), &UHrotDpsWorld::OnPersonAim);
 	UE_LOG(LogHrotDpsWorld, Display, TEXT("DPS world: joined domain %d partition '%s'"), Domain, *Partition);
 	return true;
 }
@@ -145,6 +156,7 @@ void UHrotDpsWorld::OnEntity(const FHrotDpsSample& S)
 	E.TypeId = D.TypeId;
 	E.Domain = uint8(D.Domain);
 	E.Name = UTF8_TO_TCHAR(D.Name);
+	E.Side = D.Side;
 	E.Dis = FString::Printf(TEXT("%u.%u.%u.%u.%u.%u.%u"), D.Dis.Kind, D.Dis.Domain, D.Dis.Country, D.Dis.Category, D.Dis.Subcategory,
 		D.Dis.Specific, D.Dis.Extra);
 	if (bChanged && E.Actor.IsValid()) { E.Actor->Destroy(); E.Actor.Reset(); ++Removed; }   // another type: another model
@@ -286,6 +298,134 @@ void UHrotDpsWorld::OnEffect(const FHrotDpsSample& S)
 	}
 }
 
+// ── people (U-18d) ──
+
+void UHrotDpsWorld::OnPersonState(const FHrotDpsSample& S)
+{
+	const FPerson& D = *static_cast<const FPerson*>(S.Data);
+	if (!S.bValid) return;   // a person that is gone goes with its Entity / EntityState
+	Clock.OnSample(D.SimTime, RealNow());
+	FEnt& E = Ents.FindOrAdd(D.EntityId);
+	HrotDpsPeople::FIn& P = E.Person;
+	P.Stance = uint8(D.Stance); P.TargetStance = uint8(D.TargetStance); P.StanceFrom = uint8(D.StanceFrom);
+	P.StanceChangedAt = D.StanceChangedAt; P.StanceSeconds = D.StanceSeconds;
+	P.Posture = uint8(D.Posture); P.Held = uint8(D.Held); P.Injury = uint8(D.Injury); P.Gesture = uint8(D.Gesture);
+	P.bInSeat = D.SeatVehicleId != 0; P.bSeatExposed = D.SeatExposed;
+	E.bHasPerson = true;
+}
+
+void UHrotDpsWorld::OnPersonAim(const FHrotDpsSample& S)
+{
+	const FPersonAim& D = *static_cast<const FPersonAim*>(S.Data);
+	if (!S.bValid) return;
+	FEnt& E = Ents.FindOrAdd(D.EntityId);
+	E.AimTargetId = D.AimTargetId;
+	E.AimPoint = FVector3d(D.AimPoint.X, D.AimPoint.Y, D.AimPoint.Z);
+}
+
+AActor* UHrotDpsWorld::SpawnPerson(FEnt& E, const FTransform& At)
+{
+	UHrotPersonKit* K = PersonKit.Get();
+	UWorld* W = GetWorld();
+	AActor* A = nullptr;
+	// the kit's measured offsets: the actor goes at feet − ZOffset, turned so the mesh (+Y forward, turned YawOffset on its actor) faces
+	// the heading — kept on the entity, applied by Place every frame
+	E.MeshYaw = -90.f - K->YawOffset;
+	E.MeshZ = -K->ZOffset;
+	FTransform T = At;
+	T.SetRotation(T.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(E.MeshYaw)));
+	T.AddToTranslation(FVector(0, 0, E.MeshZ));
+	if (UClass* Cls = K->BodyClass.LoadSynchronous())
+	{
+		A = W->SpawnActorDeferred<AActor>(Cls, T, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		if (APawn* Pawn = Cast<APawn>(A)) { Pawn->AutoPossessAI = EAutoPossessAI::Disabled; Pawn->AutoPossessPlayer = EAutoReceiveInput::Disabled; }
+		A->FinishSpawning(T);
+	}
+	else if (K->BodyMesh)
+	{
+		ASkeletalMeshActor* M = W->SpawnActor<ASkeletalMeshActor>(T.GetLocation(), T.Rotator());
+		M->GetSkeletalMeshComponent()->SetSkeletalMeshAsset(K->BodyMesh);
+		A = M;
+	}
+	if (!A) return nullptr;
+	// HROT moves the person: a Character's own movement must not (it falls), nor an AI controller possess it (hrot_person.hold_still)
+	for (UActorComponent* C : A->GetComponents())
+	{
+		if (UCharacterMovementComponent* CM = Cast<UCharacterMovementComponent>(C)) { CM->GravityScale = 0.f; CM->SetComponentTickEnabled(false); CM->Deactivate(); }
+		if (USceneComponent* SC = Cast<USceneComponent>(C); SC && K->HideComponents.Contains(SC->GetFName())) { SC->SetVisibility(false, true); SC->SetHiddenInGame(true, true); }
+	}
+	UHrotPersonState* St = UHrotTerrainLibrary::AddPersonState(A);
+	St->AimTurnRate = 0.f;   // the aim is eased here, on SIM time (HROT's 0.12 s), not by the anim instance's own rate
+	St->WeaponSocket = K->WeaponSocket;
+	St->WeaponOffset = K->WeaponOffset;
+	if (const TObjectPtr<UMaterialInterface>* Mat = K->SideMaterials.Find(E.Side == 2 ? TEXT("B") : TEXT("A")))
+	{
+		for (const FName& Slot : K->SideSlots) St->MaterialOverrides.Add(Slot, *Mat);
+		St->ApplyMaterials();
+	}
+	E.DrawnAs = FString::Printf(TEXT("person %s"), *K->GetName());
+	E.Actor = A;   // ApplyPerson reads it
+	ApplyPerson(E, Clock.Now(RealNow()), 0.0);
+	St->ApplyAnimation();
+	return A;
+}
+
+void UHrotDpsWorld::ApplyPerson(FEnt& E, double SimNow, double Dt)
+{
+	UHrotPersonKit* K = PersonKit.Get();
+	AActor* A = E.Actor.Get();
+	UHrotPersonState* St = A ? A->FindComponentByClass<UHrotPersonState>() : nullptr;
+	if (!K || !St) return;
+	HrotDpsPeople::FIn In = E.Person;
+	In.Now = SimNow;
+	In.Speed = float(FVector2D(E.Track.V.X, E.Track.V.Y).Size());
+	In.LastGait = E.LastGait;
+	const HrotDpsPeople::FLook L = HrotDpsPeople::Look(In);
+	E.LastGait = L.Gait;
+
+	// the body clip: the role, or its fallback chain when the kit has none
+	FName Role = L.Base;
+	UAnimSequence* Base = K->Clip(Role);
+	for (int32 I = 0; !Base && !Role.IsNone() && I < 6; ++I) { Role = HrotDpsPeople::Fallback(Role); Base = K->Clip(Role); }
+	St->BaseAnim = Base;
+	St->bBaseLoops = L.bLoops;
+	St->BlendTime = L.BlendTime;
+	// the play rate: a once-clip of a transition over its stated seconds; a gait by the speed over the clip's own; frozen while paused
+	float Rate = 1.f;
+	if (L.bTransition && !L.bLoops && Base && E.Person.StanceSeconds > 0) Rate = float(Base->GetPlayLength()) / E.Person.StanceSeconds;
+	else if (L.Gait != HrotDpsPeople::EGait::Idle && L.bLoops)
+	{
+		const float Native = L.Stance == HrotDpsPeople::Prone ? K->CrawlSpeed : L.Stance == HrotDpsPeople::Crouched ? K->CrouchSpeed
+		                   : L.Gait == HrotDpsPeople::EGait::Run ? K->RunSpeed : K->WalkSpeed;
+		Rate = FMath::Clamp(In.Speed / FMath::Max(Native, 0.1f), 0.6f, 1.8f);
+	}
+	St->PlayRate = Rate * float(Clock.GetScale());
+	St->UpperAnim = L.Upper.IsNone() ? nullptr : K->Clip(L.Upper);
+
+	UStreamableRenderAsset* Weapon = L.bWeapon ? K->Rifle.Get() : nullptr;
+	if (St->Weapon != Weapon) { St->Weapon = Weapon; St->ApplyWeapon(); }
+	if (A->IsHidden() != L.bHidden) A->SetActorHiddenInGame(L.bHidden);
+
+	// the aim (HROT's rule): the target's chest (its shown position + 1 m) or the stated point; eased on sim time
+	double Twist = 0, Pitch = 0;
+	if (L.bCanAim)
+	{
+		const FEnt* T = E.AimTargetId ? Ents.Find(E.AimTargetId) : nullptr;
+		const bool bPoint = !E.AimPoint.IsNearlyZero();
+		if ((T && T->bHasState) || bPoint)
+			HrotDpsPeople::Aim(E.Shown.P, E.Shown.Q, L.Stance, T && T->bHasState ? T->Shown.P + FVector3d(0, 0, 1) : E.AimPoint, Twist, Pitch);
+	}
+	E.AimTwist = Dt > 0 ? HrotDpsPeople::Ease(E.AimTwist, Twist, Dt) : Twist;
+	E.AimPitchNow = Dt > 0 ? HrotDpsPeople::Ease(E.AimPitchNow, Pitch, Dt) : Pitch;
+	St->AimYaw = -float(E.AimTwist);   // the contract's twist is to the LEFT; the spine's yaw turns to the right
+	St->AimPitch = float(E.AimPitchNow);
+	E.Look = FString::Printf(TEXT("%s=%s%s upper %s weapon %d hidden %d rate %.2f aim %.1f/%.1f"), *L.Base.ToString(),
+		Base ? *Base->GetName() : TEXT("(none)"), L.bLoops ? TEXT("") : TEXT(" once"), L.Upper.IsNone() ? TEXT("-") : *L.Upper.ToString(),
+		L.bWeapon, L.bHidden, St->PlayRate, E.AimTwist, E.AimPitchNow);
+}
+
+FString UHrotDpsWorld::PersonLook(int32 EntityId) const { const FEnt* E = Ents.Find(EntityId); return E ? E->Look : FString(); }
+
 // ── actors ──
 
 UHrotVehicleKit* UHrotDpsWorld::KitFor(const FEnt& E) const
@@ -313,7 +453,12 @@ void UHrotDpsWorld::SpawnIfReady(int32 Id, FEnt& E)
 	FActorSpawnParameters P;
 	P.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	AActor* A = nullptr;
-	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson && !PersonMesh.IsNull())
+	if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson && PersonKit.Get())
+	{
+		A = SpawnPerson(E, At);
+		if (!A) { E.DrawnAs = TEXT("person kit without a body"); return; }
+	}
+	else if (E.Domain == SimNetGateway_Protocol_DdsPlayer_DomainPerson && !PersonMesh.IsNull())
 	{
 		ASkeletalMeshActor* M = W->SpawnActor<ASkeletalMeshActor>(At.GetLocation(), At.Rotator(), P);
 		USkeletalMeshComponent* C = M->GetSkeletalMeshComponent();
@@ -371,6 +516,7 @@ void UHrotDpsWorld::Place(FEnt& E, double Real)
 		Drawn.Q = HrotDpsMotion::WithBank(Pose.Q, E.Bank);
 		FTransform T = HrotDpsMotion::ToUnreal(Drawn, OriginCm);
 		if (E.MeshYaw != 0) T.SetRotation(T.GetRotation() * FQuat(FVector::UpVector, FMath::DegreesToRadians(E.MeshYaw)));   // the model's own facing
+		if (E.MeshZ != 0) T.AddToTranslation(FVector(0, 0, E.MeshZ));                                                          // and its origin
 		A->SetActorTransform(T);
 	}
 }
@@ -378,8 +524,11 @@ void UHrotDpsWorld::Place(FEnt& E, double Real)
 void UHrotDpsWorld::Tick(float)
 {
 	const double R = RealNow();
+	const double Prev = Placed;
 	Placed = Clock.Now(R);
 	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasState) Place(It.Value, R);
+	const double Dt = FMath::Clamp(Placed - Prev, 0.0, 0.5);
+	for (TPair<int32, FEnt>& It : Ents) if (It.Value.bHasPerson && It.Value.Actor.IsValid()) ApplyPerson(It.Value, Placed, Dt);   // after every pose: an aim reads its target's
 }
 
 // ── read back ──

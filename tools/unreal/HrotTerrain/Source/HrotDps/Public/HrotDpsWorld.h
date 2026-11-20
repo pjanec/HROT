@@ -13,17 +13,21 @@
 // machine gun / autocannon → a tracer + the gun's sound (FireStreams: tracers are the client's rule, not on the wire) · Fire from a tank
 // gun → the vehicle's own main-gun blast (its flash replaces the Effect's) · Articulation turret 0 → AHrotVehicle::SetAim.
 // Detonation is counted only (its blast and mark arrive as Effect). What is drawn is counted per kind (EventCounts) for a test.
-// ⏳ not yet: people's animation (stance, aim, seats), VehicleLook, ground marks and wreck flame / smoke effects, rounds and animals
+// ⭐ U-18d — PEOPLE: with a PersonKit, a Person entity is the kit's body driven by PersonState + PersonAim through HrotDpsPeople
+// (stance and its timed transition, gait from speed, posture on the upper body, HROT's aim twist, death, hidden inside a vehicle);
+// without one, the stand-in mesh. ⏳ not yet: seats and carrying in place, gestures beyond wave / throw, the head turn, VehicleLook, ground marks and wreck flame / smoke effects, rounds and animals
 // (Domain Munition / Animal are counted, not drawn), the delayed mode for traffic.
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "HrotDpsMotion.h"
+#include "HrotDpsPeople.h"
 #include "HrotWeaponFx.h"
 #include "HrotDpsWorld.generated.h"
 
 class UHrotVehicleKit;
+class UHrotPersonKit;
 class USkeletalMesh;
 class UAnimationAsset;
 
@@ -44,7 +48,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TMap<FString, TSoftObjectPtr<UHrotVehicleKit>> KitsByDis;
 	/** the contract's domain ("Ground", "Air", "Surface", "Subsurface", "Other") → the kit when nothing more specific matches */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TMap<FString, TSoftObjectPtr<UHrotVehicleKit>> KitsByDomain;
-	/** people until their animation is mapped: this mesh, playing this clip (looped) */
+	/** ⭐ the body every person gets (U-18d): its clips by role, driven from PersonState / PersonAim */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UHrotPersonKit> PersonKit;
+	/** without a PersonKit: this mesh, playing this clip (looped) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<USkeletalMesh> PersonMesh;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|DPS") TSoftObjectPtr<UAnimationAsset> PersonClip;
 	/** the person mesh's yaw offset (deg): a UE character mesh faces +Y, the contract's body faces +x */
@@ -74,6 +80,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") int32 EpochResets() const { return Resets; }
 	/** what the event topics drew, per kind ("flash", "tracer", "main gun", "explosion Rocket", "detonation", "turret", "not drawn: …") */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") TMap<FString, int32> EventCounts() const { return Events; }
+	/** a person's look this frame: "<role>=<clip> upper <role> weapon <0|1> hidden <0|1> rate <r> aim <twist>/<pitch>" */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS") FString PersonLook(int32 EntityId) const;
 
 	virtual bool DoesSupportWorldType(const EWorldType::Type T) const override { return T == EWorldType::Game || T == EWorldType::PIE; }
 	virtual void Deinitialize() override;
@@ -88,7 +96,16 @@ private:
 		uint8 Domain = 0, Damage = 0;
 		FString Name, Dis, DrawnAs;
 		FHrotDpsTrackPoint Track;
-		float Bank = 0, MeshYaw = 0;
+		float Bank = 0, MeshYaw = 0, MeshZ = 0;
+		uint8 Side = 0;
+		// a person (U-18d)
+		bool bHasPerson = false;
+		HrotDpsPeople::FIn Person;
+		HrotDpsPeople::EGait LastGait = HrotDpsPeople::EGait::Idle;
+		int32 AimTargetId = 0;
+		FVector3d AimPoint = FVector3d::ZeroVector;
+		double AimTwist = 0, AimPitchNow = 0;   // eased, degrees
+		FString Look;
 		float TurretYaw = 0, GunPitch = 0;   // Unreal degrees (Articulation turret 0)
 		double MainGunAt = -1;               // real seconds of its last main-gun shot (its flash stands for the Effect's)
 		FHrotDpsPose Shown;
@@ -115,6 +132,10 @@ private:
 	void OnFire(const struct FHrotDpsSample& S);
 	void OnDetonation(const struct FHrotDpsSample& S);
 	void OnEffect(const struct FHrotDpsSample& S);
+	void OnPersonState(const struct FHrotDpsSample& S);
+	void OnPersonAim(const struct FHrotDpsSample& S);
+	AActor* SpawnPerson(FEnt& E, const FTransform& At);
+	void ApplyPerson(FEnt& E, double SimNow, double Dt);
 	void Count(const FString& Kind) { ++Events.FindOrAdd(Kind); }
 	void Forget(int32 Id);
 	void Clear();
