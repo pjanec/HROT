@@ -96,13 +96,22 @@ public sealed class TrafficLayer3D : ISceneLayer, IMeshLayer3D, IDisposable   //
         {
             var lit = LitShader.Shared;
             Rlgl.DisableBackfaceCulling();
-            if (_hasGround) Raylib.DrawMesh(_ground, lit.Tinted(Color.White), Matrix4x4.Identity);
+            // ⭐ CE-1985 (DESIGN_Sensor_View §5c) — in the thermal pass a lit draw reads by its class uniform: the ambient ground is grass, the roads asphalt
+            //   (sidewalks, markings and crosswalks ride the same mesh — asphalt too, accepted); the default class put back after. Ignored in the other views.
+            bool thermal = ctx.Sensor == SceneSensor.Thermal;
+            if (_hasGround)
+            {
+                if (thermal) lit.SetThermalSource(0, (int)Fdp.Toolkit.Perception.Signatures.ThermalClassId.Grass);
+                Raylib.DrawMesh(_ground, lit.Tinted(Color.White), Matrix4x4.Identity);
+            }
             if (_hasMesh)
             {
+                if (thermal) lit.SetThermalSource(0, (int)Fdp.Toolkit.Perception.Signatures.ThermalClassId.Asphalt);
                 lit.SetDepthBias(MapCamera3D.GroundBiasNdc);   // ⭐ CE-1196 — the roads over the ground they lie on, at every distance
                 Raylib.DrawMesh(_mesh, lit.Tinted(Color.White), Matrix4x4.Identity);
                 lit.SetDepthBias(0f);
             }
+            if (thermal) lit.SetThermalSource(0, EntityBodyLayer3D.ThermalDefaultClass);
             Rlgl.EnableBackfaceCulling();
         }
 

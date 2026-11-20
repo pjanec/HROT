@@ -213,6 +213,9 @@ namespace Hrot.Core.Tkb
             yield return C("ReconnaissanceAircraft", "Reconnaissance", "1.2.*.7");
             yield return C("SurveillanceAircraft", "Surveillance/C2 (AEW)", "1.2.*.8");
             yield return C("AttackHelicopter", "Attack Helicopter", "1.2.*.20");
+            // ⭐ CE-4634 (ui, DESIGN_Dragon §8.2 K-1; cross-lane: behaviors owns the dragon, TKB 411 DIS 1.2.0.20.99) — a HROT subcategory under the attack
+            //   helicopter (the TwinEngineFighter precedent), so the dragon's look is keyed by a class: more specific, so it is not drawn as an AH-64
+            yield return C("Dragon", "Dragon (HROT)", "1.2.*.20.99");
             yield return C("UtilityHelicopter", "Utility Helicopter", "1.2.*.21");
             yield return C("PatrolHelicopter", "ASW/Patrol Helicopter", "1.2.*.22");
             yield return C("CargoHelicopter", "Cargo Helicopter", "1.2.*.23");

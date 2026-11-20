@@ -2,13 +2,14 @@
 state: LIVE
 updated: 2026-11-19 (§8.6c CE-4666 D-8 — a sound heard through an opening is no SPOT position) · 2026-10-25 (§8.8 AQ104 E ② ③ / AQ105 D — walls and slabs halve a high sound, door sounds and the voice from replicated state) · 2026-10-22 (§8.3a CE-3315 — cursors and seeds are timeline PLACES; the world carries the count, so a restored world goes on hearing) · 2026-10-22 (§8.3 CE-3301 — the ring is created with the solver, so a first load hears as a reload does) · 2026-10-22 (§8.7 CE-2349 — the M1 and the Bradley carry a thermal sight; listed eyes read the receptor) · 2026-10-21 (§8.4 CE-4039 — bit 15 is the solver's pending-ray flag; a Regular ear was deaf to rifles) · 2026-10-21 (§8.6a CE-2348 ③ — a heard burst is placed where it lands; lean awaits the user) · 2026-10-21 (§8.3 CE-3293 — a ring read is as of the reader's own time) · 2026-10-20 (§8.6 CE-3281 — the built-in catalogue is heard; jets as Rotor and silent SUMO cars confirmed by the user) · 2026-10-19 (§8.2 CE-3276, R-3023 — a loud sound carries past the ear range) · 2026-10-12 (CE-2107 built — §8)
 build-state: BUILT — A–F approved with the user's three changes (R-205); build rows CE-3060 … CE-3064 (§7); behaviors ② / ③ §8.
-current-answer: the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
+current-answer: ⭐ §9 (CE-1987, the sensor on °C contrast — BUILT, as built §9.8); the whole file — §2 inventory, §3 module diagram, §4 classes, §5 sequences, §6 decisions, §7 build order; §8 the behaviors lane's ② / ③ (the AI readers, hiding from a heard point); §8.1 shipped units hear and make sound (CE-2106).
 stale-below: nothing — new document.
 known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read those file paths as history. · §6 D's "position + radius, no identity" — the user (§6.1a K3, R-207) adds a coarse source CLASS to a heard contact; §5.1's SoundContactEvent gains it. §3's SoundEmissionBuffer box and §5.1's buffer participant — as built there is NO buffer; the sound state is on each emitter (§7 as-built CE-3062). §7's "every shipped unit is silent" — the urban types make sound and hear since CE-2106 (§8.1).
 known-conflict:
   - docs/HROT-Engine-Guide/HROT-Engine-Guide.md §12.2 and docs/projects/FDP/Toolkits/Fdp.Toolkits.md:732 claim acoustic detection
     "with terrain occlusion" — never built; corrected when CE-3062 lands.
 related-designs:
+  - designs/sensor-view/DESIGN_Sensor_View.md — the 3-D map's thermal debug view: outlines what the selected thermal observer sees; the sensor's move to °C contrast is CE-1987
   - designs/air-attack/DESIGN_Air_Combat.md — air combat: jets seen and heard; S0 measures the vision range at which a pilot sees a jet
   - designs/thermal/DESIGN_Thermal_Drivers.md — OWNS the thermal DRIVERS every node and an external infrared image generator compute heat from (CE-4646); re-bases this sensor's per-frame heat on them (TD-10)
   - docs/blueprints/Architect_Question_106_Sound_Paths.md — sound round corners / through openings (v2 of §8.8), R-3050
@@ -1031,3 +1032,142 @@ sequenceDiagram
 sound passes · a shout heard 30 m, talk not, 50 m not, own side not · the shouted kinds); `SoundEmissionSystemTests.AQ104E_ADoorOpened_ShutAndBroken_…`
 (first sight silent; open 15 m at the doorway of the hostile at it; shut, lock 5, breach 40). Red-proofs: each production line removed in turn
 (the wall share · the voice · the door call) ⇒ red.
+
+
+## 9. `CE-1987` — the thermal sensor on °C CONTRAST *(ui — the lane owns all of thermal, user `2026-11-19`; build-state: BUILT `2026-11-19` — C-1…C-5 APPROVED, user `2026-11-19`: "Approved" (R-1058); as built §9.8)*
+
+> 🔒 **User, `2026-11-19`:** *"You are the only one doing thermal."* — ⭐ the sensor and the 3-D map's view must not keep two heat models
+> (ruling 9; DESIGN_Sensor_View D-9 named this duplicate when the view was built).
+
+### 9.1 INVENTORY *(measured `2026-11-19`)*
+
+Queries: `search_graph name_pattern=".*(SurfaceClass|SurfaceType|ThermalClass|Background|Contrast).*" label=Class` → 2 (`SurfaceClassGrid`, a mesh class) ·
+`search_code "ThermalDriversOps.Signature"` → 6 (all tests) · grep `BaseSignature|SignatureOf(|MinSignature` (9 files outside tests). ⚠ Index coverage cannot be
+checked through the CLI.
+
+| piece | exists as | today |
+|---|---|---|
+| the detection rule | `ThermalPerception.SignatureOf` / `Reaches` (extracted `2026-11-19`, called by `SignatureFilterTest` and the view's outlines) | `BaseSignature × crossover + heat × (1 − BaseSignature) ≥ MinSignature` — 0..1, no temperature |
+| the crossover | `PerceptionWeather.BaseContrast` = \|DiurnalPhase\| (floor 0.25) | a cos of the solar hour: dips at 08:30 and 20:30 for EVERY target |
+| the °C model | `ThermalScene` (`ClassTemperatures`, `Apparent`, `SkyC`, `Unit`) — Fdp.Toolkits, pure, 0 B | read by the view only |
+| the ground under a target | `SurfaceClassGrid.ClassAt(x, y)` (Open · Road · Scrub · Forest, 5 m cells) | ⚠ owned PRIVATELY by `CarKinematicsSystem` (`_surface`) |
+| surface → thermal class | `materials.json` `surfaceThermalClasses` (ground soil-dry · open grass · forest dense-vegetation · water · scrub grass), `TerrainMaterialLibrary.SurfaceThermalClass` | read by the terrain export only |
+| the threshold | `ThermalSensorDto.MinSignature` (TKB 215: 0.3) | 0..1 |
+
+### 9.2 What the two models say — measured, 50°N midsummer, clear, a 2 m/s wind *(°C apparent; signature = today's 0..1)*
+
+| UTC | soil-dry | grass | cold parked hull | idling tank: body / hot end | man | today's man signature (sight needs ≥ 0.3) |
+|---|---|---|---|---|---|---|
+| 00:30 | 6.8 | 7.5 | 4.9 | 4.9 / 28.9 | 29.2 | 0.58 |
+| 04:30 | 11.2 | 10.8 | 14.2 | 14.2 / 38.2 | 29.2 | 0.46 |
+| 08:30 | 25.7 | 18.0 | 30.1 | 30.1 / 54.1 | 29.2 | ⛔ **0.22 — not seen** |
+| 12:30 | 35.4 | 22.8 | 36.7 | 36.7 / 60.7 | 29.2 | 0.58 |
+| 16:30 | 30.7 | 20.4 | 27.4 | 27.4 / 51.4 | 29.2 | 0.46 |
+| 20:30 | 14.3 | 12.0 | 9.6 | 9.6 / 33.6 | 29.2 | ⛔ **0.22 — not seen** |
+
+*What the table shows that the rule hid:* the crossover is a property of a PAIR (a surface against its background), never of a target alone. Today's rule dims every
+target at the same two hours — so a 29 °C man against 18 °C grass, the easiest thermal target there is, vanishes at 08:30 — while a sun-heated hull on grass at noon
+(+14 K) is never seen. The °C model gives each pair its own crossover (the hull against soil: ~03:30 and ~13:30).
+
+### 9.3 The proven solution, and what we take
+
+| proven practice | we take | because |
+|---|---|---|
+| detection by the APPARENT TEMPERATURE DIFFERENCE ΔT of a target against its background, against the sensor's minimum resolvable ΔT (MRTD) — how every FLIR model scores a target | ✅ adopt | it is what a thermal imager measures; our view already computes both temperatures |
+| ΔT shrinks with range (atmospheric transmission) and the required ΔT grows as the target covers fewer pixels (Johnson criteria) | ⚠ adapt: the existing weather range cap only (fog ⇒ 2 × visibility), a flat ΔT threshold inside it | the sensor's range is authored per type today; a range-dependent MRTD needs per-sensor optics data we do not have |
+| the target's hottest part decides detection (an exhaust, a barrel) | ✅ adopt | an idling tank is seen by its engine deck, not its hull |
+
+### 9.4 Claim table — what the leans rest on
+
+| the lean rests on | code — how it IS | design basis — how it was MEANT to be |
+|---|---|---|
+| the sensor's only production reader of the 0..1 rule is the filter (+ the view's readout) | ✅ grep above; `ThermalPerception.cs` | ✅ Thermal Drivers TD-10: ONE calculator |
+| the ground under a target is knowable on the sim side, 0 B | ✅ `SurfaceClassGrid.ClassAt` (one index) | ✅ R-5065 `surfaceThermalClasses` (built for the image generator) |
+| the °C model is pure and 0 B, so a parallel EQS filter may call it | ✅ `ThermalSceneTests.SV2_TheModel_AllocatesNothing` | ✅ CLAUDE.md parallel rule (no shared mutable state) |
+| `th-idling-tank` keeps its verdict at a 4 K threshold | ✅ 00:30: hot end +22 K, cold hull −1.9 K against soil-dry | ⛔ its expect rows assume the 0..1 rule — re-judged by a run |
+| no other scenario's verdict moves | ⛔ **not measured** — `th-*`, `sv-night-and-heat`, the air and urban scenarios with thermal observers are re-run as part of the build | ⛔ — |
+
+### 9.5 Decisions — ⭐ leans, for the user
+
+| # | question | ⭐ lean | rejected (one line each) |
+|---|---|---|---|
+| **C-1** | what decides detection | ⭐ \|ΔT\| = \|T_target − T_background\| (apparent °C, `ThermalScene`) ≥ the sensor's `MinContrastK`; T_target = the HOTTEST of the unit's body, hot end, barrel and fire (`ThermalScene.Unit`); a negative ΔT (a cold hull on warm ground) counts the same | the 0..1 signature kept beside °C — two heat models (ruling 9) · positive ΔT only — a thermal imager sees a cold object as well |
+| **C-2** | the background | ⭐ the apparent °C of the surface's thermal class at the TARGET's point: `SurfaceClassGrid.ClassAt` → `surfaceThermalClasses` (Open → soil-dry, Road → asphalt, Scrub → grass, Forest → dense-vegetation); the grid moved from `CarKinematicsSystem`'s private field to ONE world service both read | the sky as background — only for a target above the horizon (a flyer: background = `SkyC`, ⭐ included) · one ground class for the whole map — loses the road / field difference the table shows |
+| **C-3** | the threshold's unit and value | ⭐ `ThermalSensorDto.MinContrastK` replaces `MinSignature`; TKB 215's hand-held sight **4 K** (keeps `th-idling-tank`: hot end +22 K seen, cold hull −1.9 K not); the TKB field renamed, old JSON's `MinSignature` read once as `4 K` | a ΔT per range band (Johnson) — §9.3 |
+| **C-4** | what retires | ⭐ `PerceptionWeather.BaseContrast` (the crossover proxy) and `ThermalState.BaseSignature` (the passive base: the surface model now gives every unit its passive temperature); `ThermalDriversOps.Signature` stays only as the drivers' 0..1 heat SUMMARY for external generators (TD-1), never as detection | keeping `BaseSignature` for the AI — it is exactly the duplicate |
+| **C-5** | where the per-frame class temperatures come from (the sensor runs in the parallel EQS phase) | ⭐ computed in the perception phase's SERIAL pre-pass once per frame at the world's global weather sample (14 classes, 0 B), held read-only for the parallel filters; the day forcing once per sim day | per observer, inside the filter — 14 × observers per frame for one answer · a static cache — shared mutable state in a parallel phase |
+
+### 9.6 UML
+
+```mermaid
+classDiagram
+  direction LR
+  class SignatureFilterTest { <<existing, EQS filter>> ExecuteBatch() }
+  class ThermalPerception { <<existing>> TryEyeOf() Reaches() +ContrastOf() }
+  class ThermalBackground { <<NEW, Fdp.Toolkits Perception>> per-frame class °C (read-only) · BackgroundC(x, y, z) }
+  class ThermalScene { <<existing, pure>> ClassTemperatures() Apparent() SkyC() Unit() }
+  class SurfaceClassGrid { <<existing>> ClassAt(x, y) }
+  class GroundSurfaces { <<NEW: the one world service>> Grid }
+  class CarKinematicsSystem { <<existing>> reads GroundSurfaces (was its private _surface) }
+  class SensorView { <<existing, ui>> outlines + readout call ContrastOf }
+  SignatureFilterTest --> ThermalPerception : ContrastOf ≥ MinContrastK
+  SensorView --> ThermalPerception : the same rule
+  ThermalPerception --> ThermalBackground
+  ThermalPerception --> ThermalScene : the target's hottest part
+  ThermalBackground --> ThermalScene : class °C once per frame
+  ThermalBackground --> GroundSurfaces
+  GroundSurfaces --> SurfaceClassGrid
+  CarKinematicsSystem --> GroundSurfaces
+```
+*What the picture shows that prose hid:* the AI sensor and the view meet in ONE function (`ContrastOf`) on ONE background, and the surface grid stops being one system's
+private field — the sensor, the cars and the view read the same cells.
+
+```mermaid
+sequenceDiagram
+  participant Pre as perception pre-pass (serial)
+  participant BG as ThermalBackground
+  participant F as SignatureFilterTest (parallel, per observer)
+  participant TP as ThermalPerception
+  Pre->>BG: Prepare(world sample, day forcing) — 14 class °C, read-only for the frame
+  F->>TP: ContrastOf(target, eye)
+  TP->>BG: BackgroundC(target point) — the surface class, or the sky for a flyer
+  TP->>TP: T_target = max(body, hot end, barrel, fire) (ThermalScene.Unit)
+  TP-->>F: |ΔT| ≥ MinContrastK ?
+```
+
+```mermaid
+graph TD
+  PM["Perception module (the node with Perception)"] -->|registers, serial pre-pass, every frame| BG2["ThermalBackground.Prepare"]
+  EQS["EQS solve (parallel phase)"] -->|calls per candidate| F2["SignatureFilterTest"]
+  F2 --> TP2["ThermalPerception.ContrastOf"]
+  MAP["3-D map host (every map node)"] -->|draws per frame| SV3["SensorView outlines / readout"]
+  SV3 --> TP2
+  TERR["terrain load (once)"] -->|builds| GS["GroundSurfaces (SurfaceClassGrid)"]
+  CK["CarKinematicsSystem"] -.->|was: its own private grid| GS
+```
+*What the picture shows that prose hid:* the pre-pass must run on every node that runs the filter (Perception) AND the map hosts read the same function — a map host
+with no Perception module prepares its own background from the view's weather sample (the view already computes the class °C every frame).
+
+### 9.7 How it is judged *(R-4277)*
+
+| scenario | expect |
+|---|---|
+| `th-idling-tank` (re-judged) | the idling tank a contact, the cold parked one never — at 4 K |
+| ⭐ NEW `th-man-at-dawn` | at 08:30 a standing man on grass IS a contact (today's rule misses him: 0.22 < 0.3) |
+| ⭐ NEW `th-hull-in-the-sun` | at 12:30 a parked cold-engined tank on GRASS is a contact (+14 K); the same tank on bare soil is not (+1.3 K) |
+| rails | `ThermalPerceptionTests`: ContrastOf over the §9.2 table; 0 B; the parallel read-check (`HROT_READ_CHECK=1`) over the filter |
+
+### 9.8 As built *(CE-1987, ui, `2026-11-19`)*
+
+| piece | as built |
+|---|---|
+| the rule | `ThermalPerception.ContrastOf` = \|hottest part − background\| (K); `UnitC` (the hottest part: `ThermalScene.Unit` over `UnitThermalDrivers`, ONE function — the view's drawing calls its hull/air overload); `Reaches(contrastK, minK)`; `TryEyeOf(view, sensor, unit, out minK, out range)`. `SignatureFilterTest` calls them; the old `SignatureOf` / `HeatOf` deleted |
+| the background | `Perception/Signatures/ThermalBackground.cs` — `Prepare(world)` once per sim time (14 class °C at the global weather sample at the origin, the day forcing once per sim day and place, the grid, the ground query), `Of(view)`, `BackgroundC(point)` (the sky above `FlyerHeightM` = 20 m over the ground), `GroundClassAt`; a world with no scenario clock is lit at a fixed noon (rails) |
+| the pre-pass (C-5) | `EqsSolverSystem.Execute` prepares it at its serial start, before the parallel solves (SimHost, cross-lane); the filter prepares it itself only when called directly (a rail); the 3-D view prepares its own world's (presentation thread) |
+| the grid (C-2) | `Terrain/GroundSurfaces.cs` — ONE grid per world (terrain + roads, rebuilt on a change), read by `CarKinematicsSystem` (⛔ its private build retired) and the background. `GroundClass` gained `Field` (an Open surface — grass) and `Water`; cars drive both as Open (unchanged factors) |
+| the threshold (C-3) | `ThermalSensorDto.MinContrastK` (K), renamed by Roslyn from `MinSignature` (6 refs) with `SimCombatDef(Builder).ThermalMinContrastK` (2 + 2); TKB 215 → **4 K**. No data file carried the old name |
+| retired (C-4) | `PerceptionWeather.BaseContrast` and `CrossoverFloor`. ⚠ **Deviation:** `ThermalState.BaseSignature` STAYS — it is a parameter of `ThermalDriversOps.Signature`, the 0..1 summary C-4 keeps for external generators, and a recorded field; detection no longer reads it |
+| rails | `ThermalBackgroundTests` (a field reads grass, soil beside it, the sky above; once per sim time; 0 B) · `PerceptionWeatherTests.S2_3_…AndContrastNotTheHourDecides` (at the old crossover a man and an idling engine are seen; at night a cold hull is not; ⚠ measured: at 08:30 at 0°N a sun-lit cold hull IS 5.8 K above the soil — seen, rightly) · `EqsModuleTests.S7_TheThermalSensor_…` (through the whole solve: a cold engine not seen, the same idling seen) · `SensorViewFrameRail` outlines + readout (the readout's third line: *"contrast 22 K vs background 7 C >= observer 4 K: SEEN"*) |
+| parallel safety | `HROT_PARALLEL_SIM=1 scripts/stepped-hash.py --threads 1,4,8` (and `1,1`) — **STATE EQUAL** on `th-hull-in-the-sun` and `sv-night-and-heat` (thermal contacts made in the parallel EQS phase), equal on the base commit too. ⚠ **A trap, measured:** a first run read *"STATE DIFFERS"* with 53 entities and sim time 4 where the clean run has 97 and 2 — the script's default port (8131) was still held by a hand-started debug editor, so it measured THAT process. ⇒ shut every editor on 8131 (or pass `--port`) before hashing; ⚠ and pass `--dll …/Debug/…` — the default is the Release runner, which is not built here ("the editor did not answer") |
+| scenarios | `th-idling-tank` (golden same) · NEW `th-man-at-dawn` (a man on grass at the old crossover hour: the thermal bit) · NEW `th-hull-in-the-sun` (a sun-heated parked hull on the grass street of wide-corridor: the thermal bit) · NEW `th-hull-on-hot-soil` (the same hull on basic-desert's bare ground: never the thermal bit) — the planned single `th-hull-in-the-sun` SPLIT in two: wide-corridor's only bare soil lies behind its houses (📐 measured: the observer's eyes and sensor both missed a tank there) · `sv-night-and-heat`, `th-vehicle-left-warm-spot`, `th-burning-wreck` unchanged (golden same) |
+

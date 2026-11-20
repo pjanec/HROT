@@ -141,6 +141,9 @@ namespace Hrot.SimHost.Systems
             _currentCmd  = view.GetCommandBuffer();
             _currentTick = Fdp.Toolkit.Perception.PerceptionClock.Now(view);   // ⭐ CE-3292 — the sim step, not the frame
             _currentRepo = repo;
+            // ⭐ CE-1987 (R-1058, docs/DESIGN_Thermal_And_Acoustic_Sensing.md §9 C-5) — the thermal background for this frame, SERIALLY, before any parallel
+            //   solve: the thermal filters only read it (cross-lane, ui — the lane that owns thermal)
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.ThermalState>()) Fdp.Toolkit.Perception.Signatures.ThermalBackground.Prepare(repo);
             _memory.Begin(repo);
             _lastSchedule.Clear();
             _shared.Clear();

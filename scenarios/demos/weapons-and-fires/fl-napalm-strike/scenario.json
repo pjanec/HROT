@@ -1,0 +1,256 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: a napalm strike (CE-3487 flame FL-3, F-5; docs/designs/weapons/DESIGN_Flame_Weapons.md \u00a77b). On basic-desert an 'A-10 Napalm' (the A-10 with a Mk 77 firebomb rack) starts 4.1 km west at 300 m and is ordered AirPlatformStrike on the line of three unarmed hostiles at (600, 300) ('Line Man 1..3', within 6 m of it). The firebomb lays its fire in an 80 x 25 m ellipse along the flight line: the fireball sets every man inside alight, and the ground burns for 300 s. 'Late Man' (hostile, unarmed) starts 130 m north and walks south through the strike point at 1.5 m/s, reaching the burning ground long after the fireball - only the ground fire can burn him. 'Far Car' stands 50 m north of the axis. Judge: one firebomb released and bursting; the three line men set alight and dead; the Late Man hurt by the ground fire (never caught by the fireball); the Far Car untouched."
+  },
+  "entities": {
+    "c3487000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -3500,
+          300,
+          300
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 410
+      },
+      "EntityInfo": {
+        "Name": "A-10 Napalm",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "AirPlatformStrike",
+        "Params": {
+          "Location": [
+            600,
+            300,
+            0
+          ],
+          "Target": "c3487000-0000-4000-8000-000000000003"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3487000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          598,
+          294,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Line Man 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3487000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          600,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Line Man 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3487000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          602,
+          306,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Line Man 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3487000-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          600,
+          430,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Late Man",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "speed": 1.5,
+          "arrivalRadius": 2,
+          "target": [
+            600,
+            230,
+            0
+          ]
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3487000-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          600,
+          350,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 500,
+        "Max": 500
+      },
+      "TkbIdentity": {
+        "TkbType": 1002
+      },
+      "EntityInfo": {
+        "Name": "Far Car",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      }
+    }
+  }
+}

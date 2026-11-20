@@ -1,0 +1,36 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-1987 (R-1058): at the retired rule's crossover hour a standing man on grass IS seen by thermal. Modality is a bitmask (Visual 1, Thermal 4).",
+  "runFor": 40,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the observer holds the Man with the THERMAL bit (Modality has 4)",
+      "on": "field",
+      "who": "Observer",
+      "path": "TargetMemory.Entries.0.Modality",
+      "op": "in",
+      "value": [
+        4,
+        5,
+        6,
+        7,
+        12,
+        13,
+        14,
+        15
+      ],
+      "before": 20
+    },
+    {
+      "name": "... at the Man's place (480, 200)",
+      "on": "field",
+      "who": "Observer",
+      "path": "TargetMemory.Entries.0.PosX",
+      "op": "==",
+      "value": 480,
+      "atEnd": true
+    }
+  ]
+}

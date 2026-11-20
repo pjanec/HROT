@@ -1560,7 +1560,7 @@ namespace Hrot.UI.Common.Map3D
             bool vehicle = IsVehicle;
             _hullYaw = hullYaw;
             if (HullLocked && (vehicle || IsFlyer)) _yaw = hullYaw + _hullLook;   // ⭐ CE-1351 — V: the view turns with the hull, the mouse looks off it
-            _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);   // ⭐ CE-1210 (MS-5) — at his seat
+            _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), _station.Bodies, out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);   // ⭐ CE-1210 (MS-5) — at his seat
             _eyeKnown = true;
             _centre = new Vector3(_eye.X, _eye.Y, (tf.Position.Z + _eye.Z) * 0.5f);   // ⭐ CE-1293 — the far end of the continuum
             StepKick(w, dt);   // ⭐ CE-1216 (§8k S-3)
@@ -1648,7 +1648,7 @@ namespace Hrot.UI.Common.Map3D
             bool vehicle = IsVehicle;
             _hullYaw = HullYaw(tf.Rotation);
             if (HullLocked && (vehicle || IsFlyer)) _yaw = _hullYaw + _hullLook;
-            _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);
+            _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), _station.Bodies, out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);
             _centre = new Vector3(_eye.X, _eye.Y, (tf.Position.Z + _eye.Z) * 0.5f);
             _roll = IsFlyer ? Fdp.Toolkit.Motion.RotorcraftModel.TiltOf(tf.Rotation).Roll : 0f;
             float dt = _dt;

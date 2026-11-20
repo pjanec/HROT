@@ -739,6 +739,10 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
 
     // ---- 3-D --------------------------------------------------------------------------------------------
 
+    /// <summary>⭐ CE-1984 (DESIGN_Sensor_View D-4) — a fire's puff under a sensor view: the hot part (yellow → orange) is self-luminous
+    /// (<see cref="SceneSensors.Emissive"/>), the soot that ends the ramp is not.</summary>
+    private static Color Glow(in RenderContext ctx, Color c) => c.R >= 200 ? ctx.Emissive(c) : ctx.Heat(c, ctx.AirC + 80f);   // ⭐ CE-1985 — the soot is hot gas
+
     public void Draw3D(RenderContext ctx)
     {
         // ⭐ CE-1165 (U4-e) — each cloud as faint puffs filling its cylinder
@@ -747,7 +751,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         {
             CloudPuffsInto(cl, _puffs);
             foreach (var puff in _puffs)
-                Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.1f, puff.Radius), 6, 10, puff.Colour);
+                Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.1f, puff.Radius), 6, 10, ctx.Heat(puff.Colour, ctx.AirC + 1f));   // ⭐ CE-1985
         }
         CloudsDrawn = clouds.Count;
         var effects = _effects; ResolveInto(effects); ResolveStateInto(effects); SortForDraw(effects);
@@ -755,64 +759,129 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         {
             var c = Fade(r.Colour, r.Opacity);
             float size = SizeOf(r);
+            var cool = ctx.Heat(c, ctx.AirC + 3f);   // ⭐ CE-1985 — a mark, a smoke: about the air's °C in the heat picture
             switch (r.Look.Kind)
             {
                 case EffectKind.Decal:
                     // ⭐ CE-1129 (VE §10 IM-6) — on the ground: draped; on a wall or a roof: a disc in the face's plane, a hair off it
-                    if (r.Rect.X > 0f) DrawDrapedRect(r.At, r.Rect, r.Heading, c);   // ⭐ CE-4635 (U-4) — scorched ground, draped
-                    else if (IsOnGround(r)) DrawDrapedDisc(r.At, size / 2f, c);
-                    else DrawSurfaceDisc(r.At, r.Normal, size / 2f, c);
+                    if (r.Rect.X > 0f) { if (ctx.Sensor != SceneSensor.Thermal) DrawDrapedRect(r.At, r.Rect, r.Heading, cool); }   // ⭐ CE-4635 (U-4) — scorched ground, draped; in thermal its warmth is DrawHeatMarks3D's
+                    else if (IsOnGround(r)) DrawDrapedDisc(r.At, size / 2f, cool);
+                    else DrawSurfaceDisc(r.At, r.Normal, size / 2f, cool);
                     break;
                 case EffectKind.Explosion:
                     if (RaisesDust(r.Look))   // ⭐ CE-1231 — the grey-brown cloud round the orange core, rising with it
                     {
                         var (dustRadius, dustAlpha) = Dust(size, r.Phase);
                         Raylib.DrawSphereEx(HrotToRaylib.Position(r.At + new Vector3(0, 0, dustRadius * 0.6f)), dustRadius, 8, 12,
-                                            Fade(DustColour, dustAlpha * r.Opacity));
+                                            ctx.Heat(Fade(DustColour, dustAlpha * r.Opacity), ctx.AirC + 20f));
                         size *= CoreShare;
                     }
                     Raylib.BeginBlendMode(BlendMode.Additive);
                     Raylib.DrawSphereEx(HrotToRaylib.Position(r.At + new Vector3(0, 0, size * 0.25f * r.Phase)),
-                                        MathF.Max(0.05f, size / 2f * (0.3f + 0.7f * r.Phase)), 8, 12, Fade(c, 1f - 0.7f * r.Phase));
+                                        MathF.Max(0.05f, size / 2f * (0.3f + 0.7f * r.Phase)), 8, 12, ctx.Emissive(Fade(c, 1f - 0.7f * r.Phase)));   // ⭐ CE-1984
                     Raylib.EndBlendMode();
                     break;
                 case EffectKind.MuzzleFlash:
                 {
                     float radius = MathF.Max(0.05f, size / 2f * (1f - 0.5f * r.Phase));
                     Raylib.BeginBlendMode(BlendMode.Additive);
-                    Raylib.DrawSphereEx(HrotToRaylib.Position(FlashCentre(r, radius)), radius, 6, 10, Fade(c, 1f - r.Phase));   // ⭐ CE-1070
+                    Raylib.DrawSphereEx(HrotToRaylib.Position(FlashCentre(r, radius)), radius, 6, 10, ctx.Emissive(Fade(c, 1f - r.Phase)));   // ⭐ CE-1070 · CE-1984
                     Raylib.EndBlendMode();
                     break;
                 }
                 case EffectKind.Tracer:
                     if (TracerSpan(r, out var t0, out var t1))
-                        Raylib.DrawCylinderEx(HrotToRaylib.Position(t0), HrotToRaylib.Position(t1), size / 2f, size / 2f, 4, c);
+                        Raylib.DrawCylinderEx(HrotToRaylib.Position(t0), HrotToRaylib.Position(t1), size / 2f, size / 2f, 4, ctx.Emissive(c));   // ⭐ CE-1984
                     break;
                 case EffectKind.Fire:
                 case EffectKind.FlameJet:   // ⭐ CE-4635
                     PuffsInto(r, _puffs); foreach (var puff in _puffs)
-                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
+                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, Glow(in ctx, puff.Colour));   // ⭐ CE-1984
                     break;
                 case EffectKind.Smoke:
                 case EffectKind.Chaff:
                     PuffsInto(r, _puffs); foreach (var puff in _puffs)
-                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 6, 10, puff.Colour);
+                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 6, 10, ctx.Heat(puff.Colour, ctx.AirC + 5f));   // ⭐ CE-1985
                     break;
                 case EffectKind.Flare:
                 {
                     // ⭐ CE-1115 (§9 DV-4) — the trail first, then the burning star (additive, flickering), a hot core inside it
                     PuffsInto(r, _puffs); foreach (var puff in _puffs)
-                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, puff.Colour);
+                        Raylib.DrawSphereEx(HrotToRaylib.Position(puff.At), MathF.Max(0.05f, puff.Radius), 5, 8, ctx.Heat(puff.Colour, ctx.AirC + 40f));   // ⭐ CE-1985
                     float flicker = 0.85f + 0.15f * MathF.Sin(r.Age * 37f + r.Seed);
                     Raylib.BeginBlendMode(BlendMode.Additive);
-                    Raylib.DrawSphereEx(HrotToRaylib.Position(r.At), MathF.Max(0.05f, size / 2f * flicker), 6, 10, c);
-                    Raylib.DrawSphereEx(HrotToRaylib.Position(r.At), MathF.Max(0.03f, size / 5f), 5, 8, Fade(Color.White, r.Opacity));
+                    Raylib.DrawSphereEx(HrotToRaylib.Position(r.At), MathF.Max(0.05f, size / 2f * flicker), 6, 10, ctx.Emissive(c));   // ⭐ CE-1984
+                    Raylib.DrawSphereEx(HrotToRaylib.Position(r.At), MathF.Max(0.03f, size / 5f), 5, 8, ctx.Emissive(Fade(Color.White, r.Opacity)));
                     Raylib.EndBlendMode();
                     break;
                 }
             }
         }
         Drawn = effects.Count;
+        if (ctx.Sensor == SceneSensor.Thermal) DrawHeatMarks3D();
+    }
+
+    /// <summary>⭐ CE-1985 (DESIGN_Sensor_View §5b, TH-5) — K above the ground a fully warm mark reads: a vehicle's stand, a burned area, a body's imprint.</summary>
+    public const float StandMarkK = 15f, BurnedMarkK = 30f, ImprintMarkK = 6f;
+
+    /// <summary>The share of a stand's rise its cool part carries; its hot third (the engine's end) carries all of it.</summary>
+    public const float StandCoolShare = 0.6f;
+
+    /// <summary>Marks drawn in the last thermal frame (rails).</summary>
+    public int HeatMarksDrawn { get; private set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-1985</c> (DESIGN_Sensor_View §5b, TH-5 — TD-14's instructor layer) — every warm ground heat mark in the thermal pass: its rise
+    /// (<see cref="Fdp.Toolkit.Perception.Signatures.ThermalDriversOps.MarkWarmth"/> × the kind's K) blended ADDITIVELY in the pass' linear code
+    /// (<see cref="LitShader.EncodeDeltaK"/>), so it reads as the surface under it + the rise — on grass, soil or asphalt alike, with no class lookup. A stand's
+    /// hot third (its <c>HotEnd</c>) carries the whole rise, the rest <see cref="StandCoolShare"/> of it. ⛔ Never drawn in the normal views (the mark entity
+    /// is a driver). 0 B: the query is the state resolve's, the weather a struct copy.
+    /// </summary>
+    private void DrawHeatMarks3D()
+    {
+        HeatMarksDrawn = 0;
+        var world = _world();
+        if (world == null || _markQuery == null || !ReferenceEquals(world, _stateWorld)) return;
+        double now = Fdp.Toolkit.Time.SimClock.TotalTimeOf(world);
+        var weather = Fdp.Toolkit.Weather.WeatherField.GlobalOf(world, out _);
+        bool blending = false;
+        foreach (var e in _markQuery)
+        {
+            ref readonly var marks = ref world.GetComponentRO<Fdp.Toolkit.Terrain.GroundHeatMarks>(e);
+            int n = Math.Min((int)marks.Count, Fdp.Toolkit.Terrain.GroundHeatMarks.Capacity);
+            for (int i = 0; i < n; i++)
+            {
+                var m = marks.Get(i);
+                if (m.Length <= 0f || m.Width <= 0f) continue;
+                float warmth = Fdp.Toolkit.Perception.Signatures.ThermalDriversOps.MarkWarmth(in m, now, in weather);
+                float k = m.Kind switch
+                {
+                    Fdp.Toolkit.Terrain.HeatMarkKind.VehicleStand => StandMarkK,
+                    Fdp.Toolkit.Terrain.HeatMarkKind.BurnedArea => BurnedMarkK,
+                    Fdp.Toolkit.Terrain.HeatMarkKind.BodyImprint => ImprintMarkK,
+                    _ => 0f,
+                };
+                float rise = warmth * k;
+                if (rise < 0.3f) continue;
+                // additive, and no depth WRITES: the hot third lies exactly on its stand, so a written depth would reject it (📐 measured: front = rear)
+                if (!blending) { Rlgl.DrawRenderBatchActive(); Raylib.BeginBlendMode(BlendMode.Additive); Rlgl.DisableDepthMask(); blending = true; }
+                var centre = new Vector3(m.At.X, m.At.Y, 0f);
+                var rect = new Vector2(m.Length, m.Width);
+                bool hotEnd = m.Kind == Fdp.Toolkit.Terrain.HeatMarkKind.VehicleStand && m.HotEnd != Fdp.Toolkit.Terrain.HeatMarkEnd.NoHotEnd;
+                DrawDrapedRect(centre, rect, m.Heading, LitShader.EncodeDeltaK(hotEnd ? rise * StandCoolShare : rise));
+                if (hotEnd)
+                {
+                    // the engine's third: the rest of the rise on top (additive) ⇒ the whole rise there
+                    float side = m.HotEnd == Fdp.Toolkit.Terrain.HeatMarkEnd.Front ? 1f : -1f;
+                    var f = new Vector2(MathF.Cos(m.Heading), MathF.Sin(m.Heading));
+                    var third = m.At + f * (side * m.Length / 3f);
+                    DrawDrapedRect(new Vector3(third.X, third.Y, 0f), new Vector2(m.Length / 3f, m.Width), m.Heading,
+                                   LitShader.EncodeDeltaK(rise * (1f - StandCoolShare)));
+                }
+                HeatMarksDrawn++;
+            }
+        }
+        if (blending) { Rlgl.DrawRenderBatchActive(); Rlgl.EnableDepthMask(); Raylib.EndBlendMode(); }
     }
 
     /// <summary>The visible streak of a tracer at its phase: a piece of the muzzle → target line, a third of it long (≤ 60 m),

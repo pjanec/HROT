@@ -108,6 +108,7 @@ public sealed class HearingGizmo : IGlobalStatelessGizmo
         SoundSourceClass.HeavyWeapon   => new Rgba32(255, 120, 20, 255),
         SoundSourceClass.Explosion     => new Rgba32(255, 60, 40, 255),
         SoundSourceClass.Flame         => new Rgba32(255, 90, 0, 255),   // ⭐ CE-4635 (backend) — a flamethrower's roar
+        SoundSourceClass.Roar          => new Rgba32(200, 40, 40, 255),   // ⭐ CE-4634 (backend) — a dragon's roar
         _                              => new Rgba32(180, 180, 180, 255),
     };
 }

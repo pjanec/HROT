@@ -21,8 +21,6 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// <summary>S2-3 — a thermal sensor sees through haze better than the eye: its range is capped at this × the visibility.</summary>
         public const float ThermalFogFactor = 2f;
 
-        /// <summary>S2-3 — the least share of a passive object's BASE signature left at the thermal crossover.</summary>
-        public const float CrossoverFloor = 0.2f;
 
         /// <summary>S2-4 — the wind speed (m/s) in <see cref="HearingFactor(in WeatherSample)"/>'s masking term.</summary>
         public const float WindMaskMps = 8f;
@@ -56,9 +54,8 @@ namespace Fdp.Toolkit.Perception.Sensors
         /// <summary>S2-3 — a thermal sensor ignores the light; fog caps it at <see cref="ThermalFogFactor"/> × the visibility.</summary>
         public static float ThermalRange(float range, in WeatherSample w) => MathF.Min(range, w.VisibilityM * ThermalFogFactor);
 
-        /// <summary>S2-3 — the crossover: the share of a passive object's BASE signature left by the diurnal swing — 1 at the day's
-        /// extremes, <see cref="CrossoverFloor"/> where the ground temperature crosses its daily mean (dawn and dusk).</summary>
-        public static float BaseContrast(in WeatherSample w) => Math.Clamp(MathF.Abs(w.DiurnalPhase), CrossoverFloor, 1f);
+        // ⛔ CE-1987 (R-1058) — BaseContrast (the crossover as |DiurnalPhase| for EVERY target) RETIRED: the thermal sensor reads the target's °C contrast against
+        //   the ground under it (ThermalPerception.ContrastOf), so each pair has its own crossover.
 
         /// <summary>S2-4 — wind and rain mask hearing: × 1/(1 + wind/8 m/s) × 1/(1 + rain/10 mm/h), never below <see cref="HearingFloor"/>.</summary>
         public static float HearingFactor(in WeatherSample w)

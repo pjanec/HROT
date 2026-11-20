@@ -263,6 +263,11 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         ChargeLightsDrawn = 0;
         EjectionSeatsDrawn = 0;
         OpeningsDrawn = CrewOutDrawn = 0; _lightsNow.Clear();   // ⭐ CE-4670
+        // ⭐ CE-1985 (DESIGN_Sensor_View §5c) — the thermal pass: every body instance carries its °C as its colour (Submit), the batch reads it so
+        _thermal = ctx.Sensor == SceneSensor.Thermal && UnitHeat != null;
+        _airHeat = Fdp.Toolkit.Vis3D.LitShader.EncodeC(ctx.AirC + 6f);   // a draw no unit owns (a far SUMO body, a rope, a load): about body-warm
+        _submitHeat = _unitBody = _unitHot = _airHeat; _hotSign = 0;
+        if (_thermal && LitShader.IsCreated) LitShader.Shared.SetThermalSource(1, ThermalDefaultClass);
         _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
@@ -369,7 +374,9 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             if (band == ScreenBand.Far) { DrawFar(world, e, look, size, type, colour, hasNet); continue; }
             BodiesFull++;
             bool deadAnimal = animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);   // ⭐ CE-4623 (AR-8) — a dead animal LIES; it is never the burnt-out wreck of a vehicle
-            bool wreck = look.Family != VisualFamily.Person && !animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
+            // ⭐ CE-4634 (DESIGN_Dragon §8.2 D) — a dead DRAGON is not a burnt-out wreck either: it lies wings out, legs folded (the flying kit, still)
+            bool deadDragon = look.Family == VisualFamily.Dragon && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
+            bool wreck = look.Family is not (VisualFamily.Person or VisualFamily.Dragon) && !animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
             ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
             var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
             var carriage = look.Family == VisualFamily.Person ? Carriage.Of(world, e, tkb) : FigureCarriage.Free;   // ⭐ CE-1081..1084 (§6m)
@@ -377,13 +384,17 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             bool rotorTurning = !wreck && (look.Family == VisualFamily.Drone   // ⭐ CE-1086 — a drone's rotors run while it lives
                                            || look.Family is VisualFamily.Helicopter or VisualFamily.AttackHelicopter && IsAirborne(world, tf.Position, look.Geometry)
                                            || look.Family == VisualFamily.MineClearer && FlailActivity.IsOn(world, e)   // ⭐ CE-4624 — the flail drum spins while the flail is on
-                                           || look.Family == VisualFamily.AirDefenceVehicle && RadarActivity.IsOn(world, e));   // ⭐ CE-4618 — the antenna spins while the radar radiates
+                                           || look.Family == VisualFamily.AirDefenceVehicle && RadarActivity.IsOn(world, e)   // ⭐ CE-4618 — the antenna spins while the radar radiates
+                                           || look.Family == VisualFamily.Dragon && !deadDragon && DragonFlies(world, e, tf.Position, look.Geometry));   // ⭐ CE-4634 — its wings beat / glide while it flies   // ⭐ CE-4618 — the antenna spins while the radar radiates
             var animalMode = animal ? AnimalReader.ModeOf(world, e) : AnimalMode.Calm;
             if (look.Family == VisualFamily.Horse && type is 703 or 704 && animalMode == AnimalMode.Calm) animalMode = AnimalMode.Guard;   // ⭐ CE-4623 — a saddled (riding / war) horse stands head up, it does not graze
             float animalHeight = animal && look.Family is VisualFamily.Horse or VisualFamily.Goat or VisualFamily.Cat or VisualFamily.Poultry
                 ? tf.Position.Z - (Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(tf.Position.X, tf.Position.Y) ?? 0f) : 0f;   // ⭐ CE-4623 — a jump's height: the legs tuck
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning, _frameClock, animalMode, animalHeight);   // ⭐ CE-1353
-            if (motion.Bank != 0f) body = Matrix4x4.CreateRotationX(motion.Bank) * body;   // ⭐ CE-4621 — a motorcycle leans into its turn, about its ground line (its riders lean with it: HeldFigure)
+            if (deadDragon) motion = MotionPose.Still with { Tuck = 1f };   // ⭐ CE-4634 — dead: wings still, legs folded
+            // ⭐ CE-4621 / CE-4634 — the drawn sway off the sim pose (a motorcycle's lean into a turn, a dragon's wingbeat bob): the one owner, its riders and a rider's eye read the same
+            var sway = _motion.SwayOf(e);
+            if (!sway.IsIdentity) body = sway * body;
 
             KitPart[] parts;
             KitPivots pivots = default;
@@ -494,6 +505,14 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
                 }
                 else _fall.Alive(e, StanceId.Standing, simTime);
             }
+            else if (look.Family == VisualFamily.Dragon)
+            {
+                // ⭐ CE-4634 (DESIGN_Dragon §8.2 K-2, W) — wings spread in flight (and dead), folded when it stands; the neck and the head turn and nod with turret 0 (the breath's
+                //   aim) about the TKB's pivots (the placed kit's, cached per type: 0 B) — so the drawn mouth is where the flame leaves
+                parts = DragonKits.For(rotorTurning, deadDragon).Parts;
+                pivots = PlacedKit(DragonKits.Flying, type, tkb, size).Pivots;
+                if (_poseOf != null && !deadDragon) pose = _poseOf(world, e);
+            }
             else
             {
                 var kit = KitOf(look);
@@ -551,15 +570,17 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             bool vehicleBody = look.Family != VisualFamily.Person && !animal;
             _damageMask = vehicleBody ? VehicleDamageDraw.DestroyedMask(world, e) : (byte)0;
             _turretThrown = vehicleBody && wreck && VehicleDamageDraw.TurretThrown(world, e);
+            if (_thermal) SetUnitHeat(world, e, size);   // ⭐ CE-1985
             DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
                       geometry, carriage, shader, rounds);
             _damageMask = 0; _turretThrown = false;
+            _unitBody = _unitHot = _airHeat; _hotSign = 0;
             // ⭐ CE-4670 (§7d) — its hatches, doors and ramps as the replicated state has them, a head out of a hatch, its lit lights (a wreck: none)
             if (vehicleBody && !wreck && look.Family != VisualFamily.WeaponSystem)
                 DrawFittings(world, e, tkb != null && tkb.TryGetByType(type, out var fittingType) ? fittingType : null, parts, size, pivots, pose, motion,
                              kitToBody, body, colour, shader, simTime);
             _expression = Vector3.Zero;
-            if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
+            if (geometry != null && look.Family != VisualFamily.Dragon) DrawGear(world, geometry, tf.Position, body, shader, wreck);   // ⭐ CE-4634 — a dragon's "wheels" are its feet (the kit's)
             if (mortarFired) DrawMortar(e, body, colour, shader);   // ⭐ CE-1236 — after the figure: its muzzle is the shot's
             if (chargeBlink)   // ⭐ CE-1179 — the detonator's light, over the bundle
             {
@@ -588,7 +609,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         DrawCarried(world, shader);   // ⭐ CE-1085 — pass 2 (⭐ CE-4555 — no per-frame closure: a wreck is read inside)
         DrawRopes(world, shader, simTime);   // ⭐ CE-1119 (§6w AB-V5) — pass 3: the fast ropes, and the cut ones lying where they fell
         _batch.Flush(shader, _applySurface ??= d => _surface.Apply(LitShader.Shared, d));   // ⭐ CE-4555 (§6ak.2) — everything above, one instanced call per mesh
-        DrawLightPoints();   // ⭐ CE-4670 (§7d D-4) — the lit lights, unlit, after the lit batch
+        if (_thermal && LitShader.IsCreated) LitShader.Shared.SetThermalSource(0, ThermalDefaultClass);   // ⭐ CE-1985 — the next lit draws by class again
+        DrawLightPoints(in ctx);   // ⭐ CE-4670 (§7d D-4) — the lit lights, unlit, after the lit batch · ⭐ CE-1984 — self-luminous under a sensor view
         BodyDrawStats.Record(_batch.DrawCalls, _batch.Instances, BodiesDrawn, DoorsDrawn);
         BodyDrawStats.RecordBands(BodiesFull, BodiesFar, BodiesHidden, DoorsHidden);
         if (_recordPick) _pick.End();
@@ -729,11 +751,21 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
             bool partWrecked = wreck || (_damageMask != 0 && VehicleDamageDraw.Destroyed(_damageMask, part));   // ⭐ CE-4670 — a destroyed part is drawn dark
             var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn.ToColor() : PartColour(part.Colour, colour, partWrecked);   // ⭐ CE-1099
+            if (_thermal)   // ⭐ CE-1985 — every part at the unit's °C; the hot end is a slab on the hull (below), not whole parts (a hull is one long box)
+            {
+                _submitHeat = _unitBody;
+                if (_hotSign != 0 && part.Shape == PartShape.Box)
+                {
+                    var ext = part.Extent * size;
+                    float volume = ext.X * ext.Y * ext.Z;
+                    if (volume > _hullVolume) { _hullVolume = volume; _hullCentre = part.Centre * size; _hullExtent = ext; _hullKitToBody = kitToBody; _hullBody = body; }
+                }
+            }
             if (look.Toy && !wreck) tint = part.Colour == ColourRole.Dark ? new Color(200, 90, 15, 255) : BlockFigure.ToyOrange;   // ⭐ CE-1173 (U12)
             // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face; ⭐ CE-4555 (§6ak D-4, D-5) — as this instance's data, into the batch
             Submit(mesh, model, tint, Paint(outfit, pi, part.Face, camoSeed));
             PartsDrawn++;
-            if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o)
+            if (part.Face != FaceOn.None && !_thermal) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o) · CE-1985: no painted face in the heat picture
             for (int k = 0; k < details; k++)   // ⭐ CE-1099 (§6q) — the outfit's details on this part
                 if (_details[k].Part == pi)
                 {
@@ -751,7 +783,21 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
                     StainsDrawn++;
                 }
         }
+        // ⭐ CE-1985 (§5b) — the engine's hot end: a slab over the hull's front or rear third, at the hot end's °C
+        if (_thermal && _hotSign != 0 && _hullVolume > 0f)
+        {
+            var slab = Matrix4x4.CreateScale(_hullExtent.X * 0.3f, _hullExtent.Y * 0.92f, _hullExtent.Z * 0.12f)
+                     * Matrix4x4.CreateTranslation(_hullCentre.X + _hotSign * _hullExtent.X * 0.34f, _hullCentre.Y, _hullCentre.Z + _hullExtent.Z * 0.47f);
+            _submitHeat = _unitHot;
+            Submit(_cube, HrotToRaylib.ModelFromHrot(slab * _hullKitToBody * _hullBody), default, BodySurface.PlainData);
+        }
+        _hullVolume = 0f;
+        _submitHeat = _airHeat;
     }
+
+    private float _hullVolume;
+    private Vector3 _hullCentre, _hullExtent;
+    private Matrix4x4 _hullKitToBody, _hullBody;
 
     /// <summary>⭐ CE-1033 S4 — the figure's parts: the logical stance (the shared rule), BLENDED from the stance it is leaving while
     /// the muscle reports a transition in progress (<see cref="StanceStatus"/> — replicated, so every host shows the same blend).</summary>
@@ -1285,8 +1331,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             case CarriageKind.Seated when carriage.Seat is { } seat && world.HasComponent<SimTransform>(carriage.Holder):
             {
                 ref readonly var v = ref world.GetComponentRO<SimTransform>(carriage.Holder);
-                // ⭐ CE-4621 — a motorcycle BANKS into a turn (about its ground line): its riders lean with it (the bank its body was last drawn with)
-                body = Carriage.InSeat(Matrix4x4.CreateRotationX(_motion.BankOf(carriage.Holder)) * Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
+                // ⭐ CE-4621 / CE-4634 — the carrier's drawn sway (a motorcycle's bank, a dragon's bob): its riders move with the body they sit on
+                body = Carriage.InSeat(_motion.SwayOf(carriage.Holder) * Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
                 // ⭐ CE-1202 (§6n N-2) — the gunner of a station weapon (the technical's bed pintle, the HMMWV's ring) turns WITH it: his
                 //   seat's place swung about the weapon's traverse pivot by the weapon's own azimuth, as its kit is drawn
                 body = TurnedWithStation(world, e, body, simTime);
@@ -1465,9 +1511,17 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// <summary>⭐ CE-4623 — birds drawn from flocks by the last frame (rails).</summary>
     public int FlockBirdsDrawn { get; private set; }
 
-    /// <summary>⭐ CE-4623 — is <paramref name="holder"/> a horse (what a Ride seat sits on)?</summary>
+    /// <summary>⭐ CE-4623 — is <paramref name="holder"/> a horse (what a Ride seat sits on)? ⭐ CE-4634 — or a DRAGON (its rider and pillion sit astride the same way, R-4269's
+    /// riding pose: legs round the barrel, firing from the saddle).</summary>
     private bool IsHorse(EntityRepository world, Entity holder)
-        => world.HasComponent<TkbIdentity>(holder) && LookOf(world.GetComponentRO<TkbIdentity>(holder).TkbType, _tkb()).Family == VisualFamily.Horse;
+        => world.HasComponent<TkbIdentity>(holder) && LookOf(world.GetComponentRO<TkbIdentity>(holder).TkbType, _tkb()).Family is VisualFamily.Horse or VisualFamily.Dragon;
+
+    /// <summary>⭐ CE-4634 — does the dragon <paramref name="e"/> fly? Its motion model's word (<see cref="Fdp.Toolkit.Motion.FlightState"/>.Airborne, the rotorcraft's take-off / landing);
+    /// the height heuristic only when it has no flight state yet.</summary>
+    private static bool DragonFlies(EntityRepository world, Entity e, Vector3 position, BodyGeometryDto? geometry)
+        => world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>() && world.HasComponent<Fdp.Toolkit.Motion.FlightState>(e)
+            ? world.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(e).Airborne != 0
+            : IsAirborne(world, position, geometry);
 
     /// <summary>
     /// ⭐ CE-4623 (AU-4, AR-14) — a flock: N birds, each a closed-form offset of (seed, index, sim time, mode) in the flock's frame (<see cref="FlockBirds"/>); a dot each when far, the bird
@@ -1777,8 +1831,11 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// Pure — the rail runs it over every kind.
     /// </summary>
     /// <summary>⭐ <c>CE-1974</c> — a carrier its rider sits ON in the open (an animal): drawn even while it is the operator's own body. (The motorcycle has a windscreen, so it
-    /// already has a crew eye and is drawn.)</summary>
-    public static bool OpenCarrier(VisualFamily family) => VisualFamilies.IsAnimal(family);
+    /// already has a crew eye and is drawn.) ⭐ CE-4634 — and a DRAGON: its rider sits on its back in the open, and sees its neck and wings.</summary>
+    /// <summary>⭐ CE-4634 — the drawn sway of <paramref name="carrier"/> (<see cref="MotionTracker.SwayOf"/>): what a rider's camera eye moves with.</summary>
+    public Matrix4x4 SwayOf(Entity carrier) => _motion.SwayOf(carrier);
+
+    public static bool OpenCarrier(VisualFamily family) => VisualFamilies.IsAnimal(family) || family == VisualFamily.Dragon;
 
     public static Vector3? CrewEye(VisualFamily family, Vector3 size)
     {
@@ -1956,7 +2013,29 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     internal LitInstanceBatch Batch => _batch;
 
     private void Submit(Mesh mesh, in Matrix4x4 model, Color colour, in LitInstanceData data)
-        => _batch.Add(mesh.VaoId == _cylinder.VaoId ? _cylinderBucket : mesh.VaoId == _cone.VaoId ? _coneBucket : _cubeBucket, model, colour, data);
+        => _batch.Add(mesh.VaoId == _cylinder.VaoId ? _cylinderBucket : mesh.VaoId == _cone.VaoId ? _coneBucket : _cubeBucket, model,
+                      _thermal ? _submitHeat : colour, data);   // ⭐ CE-1985 — in the thermal pass EVERY body instance carries a °C (never a colour read as one)
+
+    // ── ⭐ CE-1985 (docs/designs/sensor-view/DESIGN_Sensor_View.md §5b, §5c) — the thermal pass ─────────────────────────────────────────────
+    /// <summary>The class a lit draw that says nothing is read as in the thermal pass (concrete — plausible background).</summary>
+    public const int ThermalDefaultClass = (int)Fdp.Toolkit.Perception.Signatures.ThermalClassId.Concrete;
+
+    /// <summary>A unit's temperatures for the thermal pass (wired to the map's sensor view by <c>AttachMapLayers</c>): its body °C, its hot end's °C
+    /// and which end is hot (+1 front, −1 rear, 0 none). Null ⇒ no thermal picture of bodies.</summary>
+    public Func<EntityRepository, Entity, (float BodyC, float HotC, int HotSign)>? UnitHeat { get; set; }
+
+    private bool _thermal;
+    private Color _airHeat, _submitHeat, _unitBody, _unitHot;
+    private int _hotSign;
+
+    private void SetUnitHeat(EntityRepository world, Entity e, Vector3 size)
+    {
+        var (bodyC, hotC, sign) = UnitHeat!(world, e);
+        _unitBody = Fdp.Toolkit.Vis3D.LitShader.EncodeC(bodyC);
+        _unitHot = Fdp.Toolkit.Vis3D.LitShader.EncodeC(hotC);
+        _hotSign = sign;
+        _submitHeat = _unitBody;
+    }
 
     /// <summary>⭐ CE-1101 (§6r) — heads painted with a face, and uniform parts painted with camouflage, by the last frame (rails).</summary>
     public int FacesPainted { get; private set; }
@@ -2169,6 +2248,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             || Hrot.Core.Tkb.AreaEffectCloudTkb.Is(tkbType)   // ⭐ CE-1165 — nor a gas / smoke CLOUD: EffectLayer draws it
             || Hrot.Core.Tkb.BuildingDamageTkb.Is(tkbType)
             || Hrot.Core.Tkb.GroundDamageTkb.Is(tkbType)
+            || Hrot.Core.Tkb.GroundFireTkb.Is(tkbType)   // ⭐ CE-3487 (flame FL-3) — nor a cell's GROUND FIRE record: its FireState spots are drawn by the effect layer (§6 the look contract); backend, cross-lane one-line edit
             || Hrot.Core.Tkb.GroundHeatMarksTkb.Is(tkbType)   // ⭐ CE-4664 (TD-14) — nor a cell's ground HEAT MARKS: never drawn in the normal views; terrain lane, cross-lane one-line edit
             || tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainFeature || tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainBlock   // ⭐ CE-1966 — nor a placed terrain FEATURE / BLOCK: the terrain mesh draws what it makes, the feature gizmo its handle (it drew the unknown pink box at its anchor); terrain lane, cross-lane
             || IsTerrainDrawnObstacle(tkbType)   // ⭐ CE-4656 (terrain's note) — nor a baked CULTURAL-FEATURE obstacle: the terrain mesh draws its material box (it was ALSO drawn as the unknown box); the car (kind 1) stays ours
@@ -2252,6 +2332,17 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// by its reference point (ground centre, or the TKB box offset for a CG-referenced body). False for a unit (no body).
     /// </summary>
     public bool TryGetBox(EntityRepository world, Entity e, ITkbDatabase? tkb, out Vector3 centre, out Quaternion rotation, out Vector3 half)
+        => TryGetBoxCore(world, e, tkb, out centre, out rotation, out half);
+
+    /// <summary>⭐ CE-1985 — the TKB type name of what this layer draws for <paramref name="e"/> (e.g. a hover readout's fallback when the unit has no name); null when unknown.</summary>
+    public string? TypeNameOf(EntityRepository world, Entity e)
+        => world.HasComponent<TkbIdentity>(e) && _tkb() is { } tkb && tkb.TryGetByType((long)world.GetComponentRO<TkbIdentity>(e).TkbType, out var t) ? t.Name : null;
+
+    /// <summary>⭐ CE-1985 — <see cref="TryGetBox"/> with the TKB this layer draws from (a screen-space overlay outlining a body, e.g. the thermal view's).</summary>
+    public bool TryGetBox(EntityRepository world, Entity e, out Vector3 centre, out Quaternion rotation, out Vector3 half)
+        => TryGetBoxCore(world, e, _tkb(), out centre, out rotation, out half);
+
+    private bool TryGetBoxCore(EntityRepository world, Entity e, ITkbDatabase? tkb, out Vector3 centre, out Quaternion rotation, out Vector3 half)
     {
         centre = default; rotation = Quaternion.Identity; half = default;
         if (!world.HasComponent<TkbIdentity>(e) || !world.HasComponent<SimTransform>(e)) return false;
@@ -2326,6 +2417,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     {
         VisualFamily.Person => Hrot.Look.People.PersonLook.DefaultColour.ToColor(),   // ⭐ CE-4671 LK-S2
         VisualFamily.Tank => new Color(112, 120, 82, 255),
+        VisualFamily.Dragon => new Color(122, 31, 31, 255),   // ⭐ CE-4634 — TKB 411's own #7A1F1F (the TKB's colour wins anyway)
         VisualFamily.Afv => new Color(122, 116, 84, 255),
         VisualFamily.WheeledCar => new Color(72, 104, 168, 255),
         VisualFamily.WheeledUtility => new Color(128, 120, 92, 255),

@@ -1,0 +1,424 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: the scene of the 3-D map's night-vision and thermal views (CE-1984 / CE-1985; docs/designs/sensor-view/DESIGN_Sensor_View.md \u00a77; mockup docs/UX/sensor-view.svg) \u2014 every heat and light source the views draw, made by the SIMULATION, at night. On basic-desert at 00:30 local, clear sky: 'Idling Tank' (a crewed T-72, Neutral) idles at (450, 200); 'Parked Tank' (a T-72 authored HeatSource Off) stands cold at (450, 300); 'Lit Car' (a crewed HMMWV) at (350, 120) has its lamps on (dark, engine idling); 'Man' stands at (300, 250); 'Leaving Tank' (a crewed T-72) idles at (200, 450) and at 75 s the 'Drive Off' trigger sends it north \u2014 it leaves a warm ground heat mark; 'Gunner' (a friendly M1) kills 'Wreck', a hostile T-72 240 m north of it, whose hull then burns. Everything but the Wreck is Neutral, so the Gunner shoots only it. Judge: the idling tank Idle and the parked one never warm; the car's lamps on; the man a warm body (Standing); the wreck destroyed and burning (FireState); one vehicle-stand heat mark where the Leaving Tank stood. The VIEWS are judged by SensorViewFrameRail (frame rails), not here. Fail: any source missing. Red-proof: author the Parked Tank Idle and it reads warm.",
+  "world": {
+   "ScenarioClock": {
+    "Start": "2025-06-22T00:30:00+02:00"
+   },
+   "WeatherConditions": {
+    "GroundTemperatureC": 15,
+    "LapseRateKPerKm": 6.5,
+    "SeaLevelPressureHpa": 1013.25,
+    "RelativeHumidity": 0.6,
+    "WindCount": 0,
+    "CloudCount": 1,
+    "VisibilityM": 25000,
+    "FogTopM": 0,
+    "FogVisibilityM": 200,
+    "Precipitation": 0,
+    "PrecipitationMmPerHour": 0,
+    "FeatherM": 0,
+    "WindAltitudeM": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindFromDeg": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindSpeedMps": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindGustMps": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "CloudBaseM": [
+     1500,
+     0,
+     0,
+     0
+    ],
+    "CloudThicknessM": [
+     600,
+     0,
+     0,
+     0
+    ],
+    "CloudOctas": [
+     1,
+     0,
+     0,
+     0
+    ],
+    "CloudKind": [
+     1,
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ },
+ "entities": {
+  "5f198500-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     60,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 215
+   },
+   "EntityInfo": {
+    "Name": "Observer",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "5f198500-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     450,
+     200,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 2500,
+    "Max": 2500
+   },
+   "TkbIdentity": {
+    "TkbType": 103
+   },
+   "EntityInfo": {
+    "Name": "Idling Tank",
+    "ForceId": "Neutral"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "5f198500-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     450,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 2500,
+    "Max": 2500
+   },
+   "TkbIdentity": {
+    "TkbType": 103
+   },
+   "EntityInfo": {
+    "Name": "Parked Tank",
+    "ForceId": "Neutral"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "HeatSource": {
+    "State": "Off",
+    "Since": 0,
+    "MotionSince": 0
+   }
+  },
+  "5f198500-0000-4000-8000-000000000004": {
+   "SimTransform": {
+    "Position": [
+     350,
+     120,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 2500,
+    "Max": 2500
+   },
+   "TkbIdentity": {
+    "TkbType": 102
+   },
+   "EntityInfo": {
+    "Name": "Lit Car",
+    "ForceId": "Neutral"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "5f198500-0000-4000-8000-000000000005": {
+   "SimTransform": {
+    "Position": [
+     300,
+     250,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Man",
+    "ForceId": "Neutral"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "5f198500-0000-4000-8000-000000000006": {
+   "SimTransform": {
+    "Position": [
+     200,
+     450,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 2500,
+    "Max": 2500
+   },
+   "TkbIdentity": {
+    "TkbType": 103
+   },
+   "EntityInfo": {
+    "Name": "Leaving Tank",
+    "ForceId": "Neutral"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "5f198500-0000-4000-8000-000000000007": {
+   "SimTransform": {
+    "Position": [
+     540,
+     280,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.7071068,
+     0.7071068
+    ]
+   },
+   "Health": {
+    "Current": 3000,
+    "Max": 3000
+   },
+   "TkbIdentity": {
+    "TkbType": 100
+   },
+   "EntityInfo": {
+    "Name": "Gunner",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "BasicVehicleSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "5f198500-0000-4000-8000-000000000008": {
+   "SimTransform": {
+    "Position": [
+     540,
+     520,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 2500,
+    "Max": 2500
+   },
+   "TkbIdentity": {
+    "TkbType": 103
+   },
+   "EntityInfo": {
+    "Name": "Wreck",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   }
+  },
+  "5f198500-0000-4000-8000-000000000011": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Drive Off",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Drive off",
+      "subject": "5f198500-0000-4000-8000-000000000006"
+     },
+     "when": {
+      "$type": "ScenarioTime",
+      "fromSeconds": 75
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "5f198500-0000-4000-8000-000000000006",
+        "behavior": "MoveToLocation",
+        "params": {
+         "speed": 5,
+         "arrivalRadius": 5,
+         "target": [
+          200,
+          560,
+          0
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

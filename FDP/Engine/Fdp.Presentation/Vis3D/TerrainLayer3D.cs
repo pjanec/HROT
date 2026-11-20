@@ -277,8 +277,43 @@ namespace Fdp.Toolkit.Vis3D
             "tree-crown" or "tree-crown-dark" or "canopy" => 242,   // ⭐ CE-4377 — the leaf pattern (the hedge's)
             "earth-berm" or "rubble" or "scorch" or "scorch-light" => 243,   // ⭐ CE-4392 — rubble: the mottled earth
             "hedge" => 242,
-            _ => 255,
+            // ⭐ CE-1985 (DESIGN_Sensor_View §5c) — codes below 239.5 draw no pattern (LitShader.materialDetail), so these change nothing in the
+            //   normal view; they let the THERMAL pass tell the classes apart (⛔ every one of them, and water, shared 255)
+            "apron" => 239,                                                                                       // asphalt
+            "steel-plate" or "car-body" or "fence-metal-sheet" or "fence-chainlink" => 238,                      // metal
+            "glass" or "painted-window" => 237,                                                                    // glass
+            _ => 232,                                                                                              // unknown: concrete
         };
+
+        /// <summary>
+        /// ⭐ <c>CE-1985</c> (docs/designs/sensor-view/DESIGN_Sensor_View.md §5c) — the material code (<see cref="MaterialCode"/>, 224..255) → the thermal class
+        /// (<see cref="Fdp.Toolkit.Perception.Signatures.ThermalClassId"/>), the table the thermal pass reads per terrain fragment. ONE table beside the codes,
+        /// so a new code cannot go unclassified.
+        /// </summary>
+        private static void SetClass(Span<int> codeClass, int code, Fdp.Toolkit.Perception.Signatures.ThermalClassId c)
+        {
+            if (code - 224 < codeClass.Length) codeClass[code - 224] = (int)c;
+        }
+
+        public static void ThermalClassTable(Span<int> codeClass)
+        {
+            for (int i = 0; i < codeClass.Length; i++) codeClass[i] = (int)Fdp.Toolkit.Perception.Signatures.ThermalClassId.Concrete;
+            SetClass(codeClass, 255, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Water);
+            SetClass(codeClass, 250, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Grass);              // open ground
+            SetClass(codeClass, 249, Fdp.Toolkit.Perception.Signatures.ThermalClassId.DenseVegetation);    // forest floor
+            SetClass(codeClass, 248, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Brick);
+            SetClass(codeClass, 247, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Concrete);
+            SetClass(codeClass, 246, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Sand);               // sandbags
+            SetClass(codeClass, 245, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Concrete);           // roof / floor
+            SetClass(codeClass, 244, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Wood);
+            SetClass(codeClass, 243, Fdp.Toolkit.Perception.Signatures.ThermalClassId.SoilDry);            // earth, rubble, soot
+            SetClass(codeClass, 242, Fdp.Toolkit.Perception.Signatures.ThermalClassId.DenseVegetation);    // hedge, tree crowns
+            SetClass(codeClass, 241, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Brick);              // a brick building's roof
+            SetClass(codeClass, 240, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Brick);              // roof tiles
+            SetClass(codeClass, 239, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Asphalt);
+            SetClass(codeClass, 238, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Metal);
+            SetClass(codeClass, 237, Fdp.Toolkit.Perception.Signatures.ThermalClassId.Glass);
+        }
 
         private static Color Shade(Color c, float k) => new((byte)(c.R * k), (byte)(c.G * k), (byte)(c.B * k), c.A);
 

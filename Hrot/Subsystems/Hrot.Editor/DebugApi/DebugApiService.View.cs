@@ -88,6 +88,53 @@ namespace Hrot.Editor.DebugApi
             return (new JsonObject { ["following"] = id, ["distance"] = MathF.Round(view.Following!.Distance, 2) }, null);
         }
 
+        /// <summary>⭐ <c>CE-1984</c> (docs/designs/sensor-view/DESIGN_Sensor_View.md D-10) — <c>GET /view/sensor</c>: the map's sensor view and, under
+        /// night vision, the light it sees.</summary>
+        public JsonNode GetSensorView()
+        {
+            if (ViewControl.Of(ShownWorld)?.Sensor is not { } sv)
+                return new JsonObject { ["available"] = false, ["reason"] = "No map canvas draws this world (a headless host)." };
+            return SensorViewNode(sv);
+        }
+
+        /// <summary>⭐ <c>CE-1984</c> — <c>POST /view/sensor {mode, palette?, halo?, sensorResolution?, noise?, vignette?, autoGain?}</c>; mode is
+        /// <c>off</c> · <c>nightVision</c> · <c>thermal</c> (refused until CE-1985).</summary>
+        public (JsonNode? Result, string? Error) SetSensorView(JsonNode? body)
+        {
+            if (ViewControl.Of(ShownWorld)?.Sensor is not { } sv)
+                return (null, "No map canvas draws this world (a headless host): there is no view to switch.");
+            if (body?["mode"]?.GetValue<string>() is { } m)
+            {
+                var mode = m switch
+                {
+                    "off" or "none" => Fdp.Toolkit.Vis2D.Abstractions.SceneSensor.None,
+                    "nightVision" or "nv" => Fdp.Toolkit.Vis2D.Abstractions.SceneSensor.NightVision,
+                    "thermal" => Fdp.Toolkit.Vis2D.Abstractions.SceneSensor.Thermal,
+                    _ => (Fdp.Toolkit.Vis2D.Abstractions.SceneSensor?)null,
+                };
+                if (mode is not { } md) return (null, $"Unknown mode '{m}' (off, nightVision, thermal).");
+                if (sv.SetMode(md) is { } refusal) return (null, refusal);
+            }
+            if (body?["palette"] is JsonValue pv && pv.TryGetValue<int>(out var p)) sv.Palette = Math.Clamp(p, 0, sv.Mode == Fdp.Toolkit.Vis2D.Abstractions.SceneSensor.Thermal ? 2 : 1);
+            if (body?["halo"] is JsonValue hv && hv.TryGetValue<bool>(out var h)) sv.Halo = h;
+            if (body?["sensorResolution"] is JsonValue rv && rv.TryGetValue<bool>(out var r)) sv.SensorResolution = r;
+            if (body?["noise"] is JsonValue nv && nv.TryGetValue<bool>(out var n)) sv.Noise = n;
+            if (body?["vignette"] is JsonValue vv && vv.TryGetValue<bool>(out var v)) sv.Vignette = v;
+            if (body?["autoGain"] is JsonValue gv && gv.TryGetValue<bool>(out var g)) sv.AutoGain = g;
+            return (SensorViewNode(sv), null);
+        }
+
+        private static JsonObject SensorViewNode(SensorView sv) => new()
+        {
+            ["available"] = sv.Post.Available,
+            ["mode"] = sv.Mode switch { Fdp.Toolkit.Vis2D.Abstractions.SceneSensor.NightVision => "nightVision", Fdp.Toolkit.Vis2D.Abstractions.SceneSensor.Thermal => "thermal", _ => "off" },
+            ["palette"] = sv.Palette, ["halo"] = sv.Halo, ["sensorResolution"] = sv.SensorResolution, ["noise"] = sv.Noise,
+            ["vignette"] = sv.Vignette, ["autoGain"] = sv.AutoGain, ["thermalOffered"] = SensorView.ThermalOffered,
+            ["lux"] = float.IsFinite(sv.Lux) ? sv.Lux : null,
+            ["moonElevationDeg"] = MathF.Round(sv.MoonElevationDeg, 1), ["moonIllumination"] = MathF.Round(sv.MoonIllumination, 3),
+            ["framesProcessed"] = sv.Post.Frames,
+        };
+
         public JsonNode GetSelection()
         {
             var (primary, all) = SelectionOf(ShownWorld, ShownMap);

@@ -196,7 +196,7 @@ namespace CarKinem.Systems
             foreach (var e in query)
                 if (Fdp.Toolkit.Terrain.OffRoad.Authored(in repo.GetComponentRO<VehicleParams>(e))) { needed = true; break; }
             if (!needed) return;
-            _surface = Fdp.Toolkit.Terrain.SurfaceClassGrid.Build(_terrainWorld, in roads);
+            _surface = Fdp.Toolkit.Terrain.GroundSurfaces.Of(repo);   // ⭐ CE-1987 (R-1058) — the ONE grid of the world, shared with the thermal sensor's background
             _surfaceBuilt = true;
         }
         [Fdp.Core.NotState("set once in Initialize from component registration")]

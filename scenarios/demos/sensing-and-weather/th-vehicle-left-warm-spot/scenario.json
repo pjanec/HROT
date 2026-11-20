@@ -1,0 +1,227 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: a vehicle leaves a warm patch where it idled (CE-4664, thermal drivers TD-14 / TD-S8; docs/designs/thermal/DESIGN_Thermal_Drivers.md \u00a74b; the thermal view draws it, DESIGN_Sensor_View \u00a75e). On basic-desert at 00:30 local, clear sky: 'Tank', a crewed T-72 at (300, 300), idles (a crewed vehicle starts Idle); 'Cold Truck', an HMMWV at (280, 300) in the SAME 64 m ground cell, is authored HeatSource Off (parked, engine cold). At 120 s the 'Drive Off' trigger orders both north to y = 500. Judge: the tank's engine ran for two minutes at its stand (>= the 60 s a stand needs), so when it moves off ONE heat mark is written to the cell's record (GroundHeatMarks, network id measured below) and the tank is Running; the truck's engine never ran there, so the record never holds a second mark. Fail: no mark, or two. Red-proof: author the truck Idle and the record holds two marks.",
+  "world": {
+   "ScenarioClock": {
+    "Start": "2025-06-22T00:30:00+02:00"
+   },
+   "WeatherConditions": {
+    "GroundTemperatureC": 15,
+    "LapseRateKPerKm": 6.5,
+    "SeaLevelPressureHpa": 1013.25,
+    "RelativeHumidity": 0.6,
+    "WindCount": 0,
+    "CloudCount": 1,
+    "VisibilityM": 25000,
+    "FogTopM": 0,
+    "FogVisibilityM": 200,
+    "Precipitation": 0,
+    "PrecipitationMmPerHour": 0,
+    "FeatherM": 0,
+    "WindAltitudeM": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindFromDeg": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindSpeedMps": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindGustMps": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "CloudBaseM": [
+     1500,
+     0,
+     0,
+     0
+    ],
+    "CloudThicknessM": [
+     600,
+     0,
+     0,
+     0
+    ],
+    "CloudOctas": [
+     1,
+     0,
+     0,
+     0
+    ],
+    "CloudKind": [
+     1,
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ },
+ "entities": {
+  "c4664000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     300,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 2500,
+    "Max": 2500
+   },
+   "TkbIdentity": {
+    "TkbType": 103
+   },
+   "EntityInfo": {
+    "Name": "Tank",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "c4664000-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     280,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 2500,
+    "Max": 2500
+   },
+   "TkbIdentity": {
+    "TkbType": 102
+   },
+   "EntityInfo": {
+    "Name": "Cold Truck",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "HeatSource": {
+    "State": "Off",
+    "Since": 0,
+    "MotionSince": 0
+   }
+  },
+  "c4664000-0000-4000-8000-000000000011": {
+   "TkbIdentity": {
+    "TkbType": 8861
+   },
+   "EntityInfo": {
+    "Name": "Drive Off",
+    "ForceId": "Friend"
+   },
+   "Behavior": {
+    "Name": "Trigger",
+    "Params": {
+     "common": {
+      "title": "Drive off",
+      "subject": "c4664000-0000-4000-8000-000000000001"
+     },
+     "when": {
+      "$type": "ScenarioTime",
+      "fromSeconds": 120
+     },
+     "do": [
+      {
+       "act": "Order",
+       "args": {
+        "target": "c4664000-0000-4000-8000-000000000001",
+        "behavior": "MoveToLocation",
+        "params": {
+         "speed": 5,
+         "arrivalRadius": 5,
+         "target": [
+          300,
+          500,
+          0
+         ]
+        }
+       }
+      },
+      {
+       "act": "Order",
+       "args": {
+        "target": "c4664000-0000-4000-8000-000000000002",
+        "behavior": "MoveToLocation",
+        "params": {
+         "speed": 5,
+         "arrivalRadius": 5,
+         "target": [
+          280,
+          500,
+          0
+         ]
+        }
+       }
+      }
+     ]
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

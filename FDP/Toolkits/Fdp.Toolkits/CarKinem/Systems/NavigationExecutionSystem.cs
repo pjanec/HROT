@@ -66,6 +66,15 @@ namespace CarKinem.Systems
         public const int FrustrationTickLimit = 120;
 
         /// <summary>
+        /// ⭐ <c>CE-5040</c> (terrain, mf-clear-lane-and-cross) — the speed under which a move counts as frustrated: <see cref="FrustrationSpeedThreshold"/>, or half the
+        /// move's own <see cref="NavigationIntent.TargetSpeed"/> when that is lower. 📌 An engineer ordered to walk at detector pace (0.2 m/s, ReconMinefield) moved at
+        /// ~0.19 m/s, under the fixed 0.2 m/s threshold every tick ⇒ FailedBlocked after 0.29 m, and his sweep waited on the failed move for good. A body that is
+        /// truly stopped still fails at any commanded speed; every mover commanded at 0.4 m/s or more keeps the old threshold.
+        /// </summary>
+        public static float FrustrationSpeedFor(in NavigationIntent intent)
+            => intent.TargetSpeed > 0f ? MathF.Min(FrustrationSpeedThreshold, intent.TargetSpeed * 0.5f) : FrustrationSpeedThreshold;
+
+        /// <summary>
         /// ⭐ <c>CE-2304</c> — the path progress (metres) a walking move must gain within <see cref="NoProgressLimitSeconds"/>.
         /// A man crawling prone still gains it in about a second.
         /// </summary>
@@ -315,7 +324,7 @@ namespace CarKinem.Systems
                 float speed = vel.Linear.Length();
                 bool stalled = Stalled(repo, entity, ref frustration, progressAtThisTick, deltaTime);   // ⭐ CE-2304
 
-                if (speed < FrustrationSpeedThreshold || stalled)
+                if (speed < FrustrationSpeedFor(in intent) || stalled)
                 {
                     frustration.Ticks++;
                     frustration.ElapsedSinceFirstReplan += deltaTime;

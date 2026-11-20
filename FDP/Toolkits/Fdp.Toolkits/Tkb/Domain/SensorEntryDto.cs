@@ -81,8 +81,8 @@ namespace Fdp.Toolkit.Tkb.Domain
     {
         [EditUnit("m")] public float Range { get; init; }
         [EditRange(0, 360)] [EditUnit("deg")] public float FieldOfViewDegrees { get; init; } = 360f;
-        /// <summary>The weakest heat signature it resolves (0 = any).</summary>
-        public float MinSignature { get; init; }
+        /// <summary>⭐ CE-1987 (R-1058) — the smallest temperature CONTRAST (K) between a target's hottest part and its background it detects (0 = any); a hand-held sight 4 K.</summary>
+        [EditUnit("K")] public float MinContrastK { get; init; }
     }
 
     /// <summary>A listening sensor (ears, microphones).</summary>

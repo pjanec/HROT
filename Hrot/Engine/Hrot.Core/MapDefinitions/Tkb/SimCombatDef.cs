@@ -184,9 +184,9 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         public float ThermalRange { get; init; }
 
-        /// <summary>⭐ <c>CE-4658</c> — the weakest heat signature (0..1) that thermal sight resolves (<c>ThermalSensorDto.MinSignature</c>; 0 = any): a cold hull's base
+        /// <summary>⭐ <c>CE-4658</c> / <c>CE-1987</c> (R-1058) — the smallest °C contrast (K) that thermal sight resolves (<c>ThermalSensorDto.MinContrastK</c>; 0 = any): a cold hull's base
         /// below it stays hidden, an idling engine above it is seen.</summary>
-        public float ThermalMinSignature { get; init; }
+        public float ThermalMinContrastK { get; init; }
 
         /// <summary>
         /// ⭐ <c>CE-4617</c> (docs/designs/air-attack/DESIGN_Radar_SAM.md RS-2) — the range (m) of an air-search RADAR the vehicle carries, stated
@@ -231,7 +231,7 @@ namespace Hrot.Map.Definitions.Tkb
         public List<WeaponMount> Weapons { get; } = new();
         public float SensorRange { get; set; }
         public float ThermalRange { get; set; }
-        public float ThermalMinSignature { get; set; }
+        public float ThermalMinContrastK { get; set; }
         public float RadarRange { get; set; }
         public bool AutonomousEngagement { get; set; } = false;
 
@@ -255,7 +255,7 @@ namespace Hrot.Map.Definitions.Tkb
                 Weapons = Weapons.ToArray(),
                 SensorRange = SensorRange,
                 ThermalRange = ThermalRange,
-                ThermalMinSignature = ThermalMinSignature,
+                ThermalMinContrastK = ThermalMinContrastK,
                 RadarRange = RadarRange,
                 AutonomousEngagement = AutonomousEngagement,
         };

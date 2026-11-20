@@ -26,5 +26,15 @@ related-designs:
 | **measured** | `mf-clear-lane-and-cross`: S3 `MinefieldAhead` at 159 s, S4 `ReconMinefield` at 162 s, no second mine |
 | ⭐ **not changed** | `ReconMinefield`'s pace (MS-B2: ~75 s per 10 m cell, by design) — the scenario now places its engineers 40 m short and runs 2000 s |
 
+⭐ **The chain past S3 needed three more fixes, all on terrain under this claim** (each with a red-proved rail in your suites):
+
+| commit | where | what |
+|---|---|---|
+| `8b767435c` | `NavigationExecutionSystem` (shared) | ⭐ the frustration watchdog counted a move commanded SLOW as stuck: the fixed 0.2 m/s threshold failed the engineer's 0.2 m/s detector-pace walk after 0.29 m ⇒ now `min(0.2, ½ × TargetSpeed)` |
+| `8b767435c` | `ReconMinefieldBehavior` | a step whose move reports Failure now ends the sweep as a Failure (never a mark) — it waited on the failed move for good |
+| `08f09f2ae` | `ReconMinefieldBehavior.SeekDir` | at the request's point — the field's NEAR side, OUTSIDE it — he now goes on toward the field's centre; he kept his heading, walked the edge and oscillated round the point for good |
+
+📐 Measured after them: the field is marked at 1927 s (the trace at detector pace takes ~29 min — MS-B2's pace, unchanged), Breach and ClearLane start.
+
 ⚠ **FYI, not caused by this:** `mf-no-way-round` (no commander) fails its `MinefieldAhead` row on today's tree — the squad stalls ~40 m along its route
 short of the field at 120 s (it halted at 111 s on `2026-11-18`). Being bisected by terrain now.

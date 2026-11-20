@@ -86,6 +86,9 @@ public enum PartRole : byte
     /// <summary>⭐ CE-4624 (DESIGN_Minefields MS-U4) — the mine clearer's flail drum and its chains: they turn about the drum's LATERAL axis (<see cref="KitPart.SwingPivot"/>, the drum's centre) by
     /// <see cref="MotionPose.Flail"/> while the flail is on, still when it is off.</summary>
     FlailDrum,
+    /// <summary>⭐ CE-4634 (DESIGN_Dragon §8.2 K-2) — a dragon's NECK: it yaws with turret 0 about the turret pivot (as a <see cref="Turret"/> does) but keeps its own place
+    /// (<see cref="KitFromTkb"/> re-centres a turret onto the pivot; a neck reaches from the shoulders to the head) and does not nod (the head, a <see cref="Gun"/>, does).</summary>
+    Neck,
 }
 
 /// <summary>
@@ -284,7 +287,7 @@ public readonly record struct KitPart(
             var trunnion = new Vector3(pivots.GunTrunnionXZ.X * size.X, 0f, pivots.GunTrunnionXZ.Y * size.Z);
             m *= Matrix4x4.CreateTranslation(-trunnion) * Matrix4x4.CreateRotationY(-pose.GunElevation) * Matrix4x4.CreateTranslation(trunnion);
         }
-        if (Role is PartRole.Turret or PartRole.Gun && pose.TurretAzimuth != 0f)
+        if (Role is PartRole.Turret or PartRole.Gun or PartRole.Neck && pose.TurretAzimuth != 0f)
         {
             var axis = new Vector3(pivots.Turret.X * size.X, pivots.Turret.Y * size.Y, 0f);
             m *= Matrix4x4.CreateTranslation(-axis) * Matrix4x4.CreateRotationZ(pose.TurretAzimuth) * Matrix4x4.CreateTranslation(axis);
@@ -876,6 +879,7 @@ public static class ShapeKits
         VisualFamily.AirDefenceVehicle => AirDefenceVehicle, // ⭐ CE-4618
         VisualFamily.MineClearer => MineClearer,             // ⭐ CE-4624
         VisualFamily.Motorcycle => Motorcycle,               // ⭐ CE-4621
+        VisualFamily.Dragon => DragonKits.Flying,            // ⭐ CE-4634 — the layer picks the folded kit when it stands (DragonKits.For)
         VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird
             or VisualFamily.Poultry or VisualFamily.Pig or VisualFamily.Goat or VisualFamily.Rabbit => AnimalKits.For(family),   // ⭐ CE-4623
         VisualFamily.Unit => None,
@@ -901,6 +905,7 @@ public static class ShapeKits
         VisualFamily.Bulldozer => new Vector3(8.0f, 4.3f, 4.0f),       // ⭐ CE-6007 — a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS
         VisualFamily.MineClearer => new Vector3(McL, McW, McH),         // ⭐ CE-4624 — 9.2 × 3.5 × 3.3 m: the tracks + the flail's reach, the flail's width, the launcher rail's top (the TKB's own wins)
         VisualFamily.AirDefenceVehicle => new Vector3(SaL, SaW, SaH),   // ⭐ CE-4618 — 9.1 × 2.8 × 4.2 m (the TKB's box, to the antenna's top; the TKB's own wins)
+        VisualFamily.Dragon => DragonKits.Size,   // ⭐ CE-4634 — the TKB 411 box: 20 m long, 26 m span, 6 m tall (the TKB's own wins)
         VisualFamily.Motorcycle => new Vector3(MoL, MoW, MoH),   // ⭐ CE-4621 — 2.1 × 0.8 × 1.15 m (to the bars; the TKB's own wins)
         VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird
             or VisualFamily.Poultry or VisualFamily.Pig or VisualFamily.Goat or VisualFamily.Rabbit => AnimalKits.SizeOf(family),   // ⭐ CE-4623 — the kit's own metres (the TKB's own wins)

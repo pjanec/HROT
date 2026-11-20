@@ -43,6 +43,16 @@ namespace Hrot.AI.Behaviors.Brains
     public static class ClearLaneBehavior
     {
         public const float DefaultWidth = 4.5f, DefaultPace = 0.5f, DefaultSpeed = 5f, StartRadius = 3f, EndRadius = 2f;
+        /// <summary>⭐ <c>CE-5040</c> (terrain) — how far behind the lane's start, on its axis, the clearer lines up before driving in. 📌 mf-clear-lane-and-cross:
+        /// straight to a start 1 m off the field's edge, the clearer cut the field's corner and struck three mines (1500 → 337) before the lane began.</summary>
+        public const float ApproachMetres = 15f;
+
+        /// <summary>The lining-up point: <see cref="ApproachMetres"/> back from <c>Start</c> along the lane's axis (Start → End).</summary>
+        public static Vector3 Approach(in ClearLaneParams p)
+        {
+            var d = new Vector3(p.End.X - p.Start.X, p.End.Y - p.Start.Y, 0f);
+            return d.LengthSquared() < 1e-6f ? p.Start : p.Start - Vector3.Normalize(d) * ApproachMetres;
+        }
         public const byte ToStart = 0, Clearing = 1;
 
         [StructLayout(LayoutKind.Sequential)]
@@ -61,6 +71,8 @@ namespace Hrot.AI.Behaviors.Brains
             public byte Phase, Issued;
             /// <summary>1 while the brain has asked the tool ON.</summary>
             public byte ToolOn;
+            /// <summary>⭐ CE-5040 — 1 once lined up behind the start on the lane's axis (<see cref="Approach"/>).</summary>
+            public byte Lined;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -94,6 +106,20 @@ namespace Hrot.AI.Behaviors.Brains
             if (!world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
             var here = world.GetComponentRO<SimTransform>(self).Position;
             var source = LocomotionMoveTo.OrderSource(world, self);
+            if (s.Phase == ToStart && s.Lined == 0)
+            {
+                var approach = Approach(in p);
+                if (Flat(here, approach) <= StartRadius || Flat(here, p.Start) <= StartRadius) { s.Lined = 1; s.Issued = 0; }
+                else
+                {
+                    if (s.Issued == 0)
+                    {
+                        if (!LocomotionMoveTo.Issue(world, self, approach, p.Speed, StartRadius * 0.5f, MoveGait.Keep, source: source)) return NodeStatus.Failure;
+                        s.Issued = 1;
+                    }
+                    return NodeStatus.Running;
+                }
+            }
             if (s.Phase == ToStart)
             {
                 if (Flat(here, p.Start) <= StartRadius)

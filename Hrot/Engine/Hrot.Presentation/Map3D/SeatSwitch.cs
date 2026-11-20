@@ -91,7 +91,11 @@ public static class SeatSwitch
 
     /// <summary>⭐ MS-5 — a seated man's eye in the world: his seat's place on the vehicle's pose (the type's <c>SeatDto</c>), up to the eyes;
     /// false when the type gives the seat no place.</summary>
-    public static bool TryEye(EntityRepository w, Entity man, ITkbDatabase? tkb, out Vector3 eye)
+    public static bool TryEye(EntityRepository w, Entity man, ITkbDatabase? tkb, out Vector3 eye) => TryEye(w, man, tkb, null, out eye);
+
+    /// <summary>⭐ CE-4634 — the same eye on the vehicle's DRAWN pose: <paramref name="bodies"/>' sway of the carrier (a dragon's wingbeat bob, a motorcycle's bank) — so the rider's view
+    /// rises and sinks with the body he sees under him. Null ⇒ the sim pose (an aim's arc check stays on it).</summary>
+    public static bool TryEye(EntityRepository w, Entity man, ITkbDatabase? tkb, EntityBodyLayer3D? bodies, out Vector3 eye)
     {
         eye = default;
         if (!Has<IsEmbarkedTag>(w, man)) return false;
@@ -99,6 +103,7 @@ public static class SeatSwitch
         if (!Has<SimTransform>(w, tag.VehicleEntity) || Carriage.SeatOf(w, tag.VehicleEntity, tag.Seat, tkb) is not { HasPlace: true } seat) return false;
         var tf = w.GetComponentRO<SimTransform>(tag.VehicleEntity);
         var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
+        if (bodies != null) body = bodies.SwayOf(tag.VehicleEntity) * body;
         eye = Vector3.Transform(new Vector3(0f, 0f, EyeAboveHips), Carriage.InSeat(body, seat));
         return true;
     }

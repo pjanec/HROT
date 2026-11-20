@@ -130,6 +130,31 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(NavResult.FailedBlocked, lastResult);
         }
 
+        /// <summary>
+        /// ⭐ CE-5040 — a move COMMANDED slow (0.2 m/s, detector pace) walking at 0.18 m/s is not frustrated: the threshold is half its own target speed; the same
+        /// move standing still still fails blocked. ✅ Red-proof: the fixed threshold back ⇒ the slow walker fails ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE5040_AMoveCommandedSlow_WalkingAtItsPace_IsNotBlocked_StoppedItStillIs()
+        {
+            using var repo = CreateWorld();
+            var system = new NavigationExecutionSystem();
+            var walker = AddNavigatingEntity(repo, position: Vector2.Zero, destination: new Vector2(1000f, 0f), arrivalRadius: 0.5f, velocityX: 0.18f, intentId: 1);
+            var stopped = AddNavigatingEntity(repo, position: new Vector2(0f, 50f), destination: new Vector2(1000f, 50f), arrivalRadius: 0.5f, velocityX: 0f, intentId: 2);
+            foreach (var e in new[] { walker, stopped })
+            {
+                var intent = repo.GetComponent<NavigationIntent>(e);
+                intent.TargetSpeed = 0.2f;
+                repo.SetComponent(e, intent);
+            }
+            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit * 3; i++) system.Execute(repo, 0.016f);
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(walker).Result);
+            Assert.Equal(0, repo.GetComponent<FrustrationTicks>(walker).Ticks);
+            Assert.Equal(NavResult.FailedBlocked, repo.GetComponent<NavigationStatus>(stopped).Result);
+            Assert.Equal(0.1f, NavigationExecutionSystem.FrustrationSpeedFor(new NavigationIntent { TargetSpeed = 0.2f }), 4);
+            Assert.Equal(NavigationExecutionSystem.FrustrationSpeedThreshold, NavigationExecutionSystem.FrustrationSpeedFor(new NavigationIntent { TargetSpeed = 15f }));
+        }
+
         // ── Test 3: Intent ID mismatch resets status ──────────────────────────────────────────────
 
         /// <summary>

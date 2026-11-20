@@ -33,6 +33,9 @@ public sealed class MapViewModeLayer : IMapLayer
     /// with the camera" (and <c>POST /view/follow</c>, through <see cref="ViewControl"/>) can follow its units. Null: following refuses.</summary>
     public Func<EntityRepository?>? World { get; set; }
 
+    /// <summary>⭐ CE-1984 (DESIGN_Sensor_View D-10) — the map's sensor view, so <c>GET/POST /view/sensor</c> reaches it through <see cref="ViewControl"/>.</summary>
+    public SensorView? Sensor { get; set; }
+
     /// <summary>⭐ CE-1293 — the drawn bodies, so the follow camera's eyes are the drawn head's.</summary>
     public EntityBodyLayer3D? Bodies { get; set; }
 

@@ -29,6 +29,7 @@ namespace Fdp.Toolkit.Combat
         /// drops a mount above the cap, so a unit with a non-lethal weapon uses it rather than hold).</summary>
         public static bool AllowsMount(EntityRepository world, Entity unit, Entity target, WeaponMountDto? mount)
         {
+            if (!IncendiaryPermits(world, unit, 0L, mount)) return false;   // ⭐ CE-3486 (F-9) — a flamethrower the ROE forbids is not chosen: the coax is
             if (!ConductPermits(world, unit, target, mount == null || ItemAppearances.FiresLethal(world, mount))) return false;
             var level = LevelFor(world, unit, target);
             if (level == RoeForceLevel.Lethal) return true;
@@ -108,6 +109,24 @@ namespace Fdp.Toolkit.Combat
 
         /// <summary>Is a round of <paramref name="ammo"/> (0 = unknown ⇒ what <paramref name="mount"/> fires) lethal?</summary>
         public static bool IsLethalRound(EntityRepository world, long ammo, WeaponMountDto? mount) => Lethal(world, ammo, mount);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3486</c> (flame FL-2, F-9, R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md) — may <paramref name="unit"/> fire an INCENDIARY
+        /// round (a flamethrower's fuel, napalm)? Not when its ROE (<see cref="RoeOf.Incendiary"/>, down the chain of command) forbids it. Any other
+        /// round: yes. ⚠ Self-defence does NOT lift it (a scenario's ban is absolute), and a police / civil force is held already by its force level
+        /// (an incendiary round is lethal). The civilian-in-the-flame half is <see cref="LineOfFire.NeutralInFlame"/>, judged where a neutral on the
+        /// line is.
+        /// </summary>
+        public static bool IncendiaryPermits(EntityRepository world, Entity unit, long ammo, WeaponMountDto? mount)
+            => !IsIncendiary(world, ammo, mount)
+               || !world.IsComponentTypeRegistered<Roe>() || RoeOf.Incendiary(world, unit) != RoeIncendiary.IncendiaryForbidden;
+
+        /// <summary>⭐ <c>CE-3486</c> — is the round incendiary: its munition's warhead (<paramref name="ammo"/>; 0 = the mount's own round).</summary>
+        public static bool IsIncendiary(EntityRepository world, long ammo, WeaponMountDto? mount)
+        {
+            var warhead = ammo != 0 ? CombatTkb.WarheadOf(world, ammo) : mount != null ? CombatTkb.WarheadOf(world, mount) : null;
+            return warhead?.Kind == WarheadKind.Incendiary;
+        }
 
         private static bool Lethal(EntityRepository world, long ammo, WeaponMountDto? mount)
             => ammo != 0 ? ItemAppearances.IsLethal(world, ammo) : mount == null || ItemAppearances.FiresLethal(world, mount);

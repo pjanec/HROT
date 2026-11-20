@@ -37,6 +37,57 @@ namespace Hrot.Common.Diagnostics.Gizmos
     [DataPolicy(DataPolicy.NoReplay)]
     public struct FollowUnitEvent { public Entity Target; }
 
+    /// <summary>⭐ CE-1984 (docs/designs/sensor-view/DESIGN_Sensor_View.md D-10) — a View ▸ Sensor View item (<see cref="Action"/> = its
+    /// <see cref="GlobalActionIds"/> id); the map's sensor view drains it. ⚠ 8067 measured free on every lane 2026-11-19.</summary>
+    [EventId(8067)]
+    [DataPolicy(DataPolicy.NoReplay)]
+    public struct SensorViewMenuEvent { public int Action; }
+
+    /// <summary>
+    /// ⭐ CE-1984 (DESIGN_Sensor_View D-10, D-11) — the View ▸ Sensor View submenu as JSON, from the view's state packed in one int
+    /// (<see cref="Pack"/>): the mode as three checked items, then the post-process options. Built only when the state changes (a menu click),
+    /// never per frame.
+    /// </summary>
+    public static class SensorViewMenu
+    {
+        /// <summary>mode 0 off · 1 night vision · 2 thermal; palette's name; the toggles; whether thermal is offered yet (SV-2).</summary>
+        public static int Pack(int mode, int palette, bool halo, bool resolution, bool noise, bool vignette, bool autoGain, bool thermalOffered)
+            => mode | (palette << 2) | (halo ? 1 << 5 : 0) | (resolution ? 1 << 6 : 0) | (noise ? 1 << 7 : 0) | (vignette ? 1 << 8 : 0)
+             | (autoGain ? 1 << 9 : 0) | (thermalOffered ? 1 << 10 : 0);
+
+        private static readonly string[] NvPalettes = { "Green (P43)", "White (P45)" };
+        private static readonly string[] ThermalPalettes = { "White-hot", "Black-hot", "Ironbow" };
+
+        /// <summary>The submenu item (one JSON object, no trailing comma).</summary>
+        public static string Json(int state, string? shortcut = null)
+        {
+            int mode = state & 3, palette = (state >> 2) & 7;
+            bool B(int bit) => (state & (1 << bit)) != 0;
+            string Item(int id, string label, bool? on, bool enabled = true, string? key = null)
+                => "{\"id\":" + id + ",\"label\":\"" + label + "\"" + (on is { } c ? ",\"checked\":" + (c ? "true" : "false") : "")
+                   + (enabled ? "" : ",\"enabled\":false") + (key != null ? ",\"shortcut\":\"" + key + "\"" : "") + "}";
+            string paletteName = mode == 2 ? ThermalPalettes[Math.Min(palette, 2)] : NvPalettes[Math.Min(palette, 1)];
+            return "{\"label\":\"Sensor View\",\"children\":["
+                 + Item(GlobalActionIds.SensorViewOff, "Off", mode == 0, key: shortcut) + ","
+                 + Item(GlobalActionIds.SensorViewNightVision, "Night Vision", mode == 1, key: shortcut) + ","
+                 + Item(GlobalActionIds.SensorViewThermal, "Thermal", mode == 2, B(10), key: shortcut) + ","
+                 + "{\"separator\":true},"
+                 + Item(GlobalActionIds.SensorPaletteNext, "Palette: " + paletteName, null, mode != 0) + ","
+                 + Item(GlobalActionIds.SensorAutoGain, "Automatic Gain", B(9), mode != 0) + ","
+                 + Item(GlobalActionIds.SensorHalo, "Halo", B(5), mode != 0) + ","
+                 + Item(GlobalActionIds.SensorResolution, "Sensor Resolution", B(6), mode != 0) + ","
+                 + Item(GlobalActionIds.SensorNoise, "Noise", B(7), mode != 0) + ","
+                 + Item(GlobalActionIds.SensorVignette, "Vignette", B(8), mode != 0) + "]}";
+        }
+
+        /// <summary>Every action id of the submenu (the map pack registers each one).</summary>
+        public static readonly int[] Actions =
+        {
+            GlobalActionIds.SensorViewOff, GlobalActionIds.SensorViewNightVision, GlobalActionIds.SensorViewThermal, GlobalActionIds.SensorPaletteNext,
+            GlobalActionIds.SensorAutoGain, GlobalActionIds.SensorHalo, GlobalActionIds.SensorResolution, GlobalActionIds.SensorNoise, GlobalActionIds.SensorVignette,
+        };
+    }
+
     // DTO that matches the StructEdit schema used by the StructInspector panel.
     // Must be JSON-serializable; property names match the schema produced by the terminal.
     // ⭐ CE-1065 (docs/DESIGN_Terrain_Combat_Tuning.md §5d) — 🔒 user, 2026-10-14: "overwhelmed with the amount of gizmos shown on the
@@ -411,6 +462,28 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <summary>⭐ CE-4347 — the View menu this frame: with the RTS item when orders are offered, checked while RTS is on.</summary>
         public static string MainMenuJsonFor(bool ordersOffered, bool rtsOn) => !ordersOffered ? MainMenuJson : rtsOn ? MainMenuJsonWithOrdersChecked : MainMenuJsonWithOrders;
 
+        /// <summary>⭐ CE-1984 (DESIGN_Sensor_View D-10) — the View menu with the Sensor View submenu appended (<see cref="SensorViewMenu"/>); the
+        /// string is rebuilt only when the menu's inputs change.</summary>
+        public string MainMenuJsonFor(bool ordersOffered, bool rtsOn, int? sensorState, string? sensorKey = null)
+        {
+            var baseJson = MainMenuJsonFor(ordersOffered, rtsOn);
+            if (sensorState is not { } s) return baseJson;
+            if (ReferenceEquals(baseJson, _menuBase) && s == _menuSensor && sensorKey == _menuKey && _menuJson != null) return _menuJson;
+            _menuBase = baseJson; _menuSensor = s; _menuKey = sensorKey;
+            return _menuJson = baseJson.Substring(0, baseJson.Length - 3) + "," + SensorViewMenu.Json(s, sensorKey) + "]}]";   // "…}]}]": before the children's ']'
+        }
+
+        private string? _menuKey;
+
+        /// <summary>⭐ CE-1989 — the key that cycles the sensor view (shown on its menu items); unset = none shown.</summary>
+        public Func<string?>? SensorMenuKey { get; set; }
+
+        private string? _menuBase, _menuJson;
+        private int _menuSensor = -1;
+
+        /// <summary>⭐ CE-1984 — the map's sensor view state for the View menu (<see cref="SensorViewMenu.Pack"/>); unset = no Sensor View submenu.</summary>
+        public Func<int>? SensorMenuState { get; set; }
+
         private readonly long _anchorId;   // a gizmo-manager TOOL id (NewId counter), not a network id
         private readonly FdpEventBus _interactionBus;
         private readonly StructInspectorProjector<LayerControlDto> _projector;
@@ -551,7 +624,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             draw.EmitRaw(in maskPrim);
 
             // Inject "View > Tactical Map Layers..." into the host main menu bar.
-            draw.DrawMainMenuBinding(MainMenuJsonFor(Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view), RtsChecked?.Invoke() == true));   // ⭐ CE-3171 · CE-4347
+            draw.DrawMainMenuBinding(MainMenuJsonFor(Hrot.Common.Orders.OrdersOffered.IsOfferedIn(view), RtsChecked?.Invoke() == true, SensorMenuState?.Invoke(), SensorMenuKey?.Invoke()));   // ⭐ CE-3171 · CE-4347
 
             // Emit StructInspector panel when editing is active.
             if (_isEditing)
