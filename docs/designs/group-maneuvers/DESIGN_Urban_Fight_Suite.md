@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILDING — the grammar (CE-2455) BUILT; U1 being built; U2–U6 DESIGN
+build-state: BUILDING — the grammar (CE-2455) BUILT; U1, U2 being built; U3–U6 DESIGN
 updated: 2026-11-20 (first version — behaviors, on the user's request)
-current-answer: §1 the rubric · §3 the suite · §4 U1 in detail
+current-answer: §1 the rubric · §3 the suite · §4 U1 · §5 U2
 stale-below: nothing
 known-rot: none
 known-conflict: none
@@ -67,7 +67,7 @@ shooting · ignoring cover · bunching · a stalemate that never ends · perfect
 | # | situation | exercises (attack · defend) | state |
 |---|---|---|---|
 | **U1** | **car shootout** *(11/12 `2026-11-20`; the last red is CE-2460)* — both squads behind parked cars on opposite kerbs, ~70 m apart down a 22 m street | cover use, peek and fire, suppression, moving to better cover, casualty care under fire | ⏳ building (§4) |
-| U2 | **corner fight** — one squad holds an intersection corner, the other comes down the cross street | leaning round a corner, slicing the pie, suppress and flank through a parallel street / building | DESIGN |
+| U2 | **corner fight** *(§5)* — one squad holds an intersection corner, the other comes down the cross street | leaning round a corner, slicing the pie, suppress and flank through a parallel street / building | ⏳ building (§5) |
 | U3 | **house defence v clearing** — a squad defends a 2–3 storey house, the other clears it with a fire-support half outside | window posts, falling back upstairs, suppressing windows, the stack, room by room, the stair | DESIGN |
 | U4 | **meeting engagement** — two squads advancing down one street meet at ~80 m | the contact reaction, cover (cars, doorways), fire and movement, the side-street flank | DESIGN |
 | U5 | **window to window** — both hold facing houses; one then crosses the street | window duels, smoke, crossing under covering fire | DESIGN |
@@ -106,4 +106,31 @@ the first exchange takes to settle who is winning.
 | U1-6 | Blue's BREAK CONTACT: one ~50 m bound straight to the retreat answer, across the open in Red's sight (`exposed` broken by Blue Rifleman 6, 45–60 s) | ⭐ BEHAVIOUR — S2-F bounds straight; doctrine bounds cover to cover | ⏭ `CE-2460` (lean: fire-and-movement's cover rushes toward the answer) |
 | U1-4 | both squads went straight into drills (Blue suppress-and-flank, Red fire-and-movement) and lay prone to fire | ✅ realistic | — |
 | U1-5 | a squad member ~1 s with no task at the start | ✅ order latency (a frame), not a defect | — |
+
+## 5. U2 — the corner fight *(build-state: BUILDING)*
+
+**Site** — the junction of `demo-city`'s residential street (x 639–661, between the `res-bw` and `res-be` rows) and the shop street (y ≈ 400).
+Blue (6 men) is ordered `BoundingOverwatch` up the residential street from y ≈ 280 to (650, 430) — through the junction. Red (6 men, no order:
+the default SOP) holds the junction's two near corners: three behind `res-bw-21`'s front (x 627–633, y 384) and three behind `res-be-22`'s
+(x 666–671, y 386) — the buildings hide them from the street until a man leans out. Contact comes at 10–40 m.
+
+```mermaid
+graph TD
+  B[Blue: BoundingOverwatch up the street] -->|reaches the mouth| C{contact at 10-40 m}
+  R[Red: two corner groups, hidden] -->|a man leans out| C
+  C --> RB[Blue: react to contact - cover, return fire, suppress the corner, flank]
+  C --> RR[Red: fire from the corner - lean, not step into the street]
+```
+*What the picture shows that prose hid:* contact is decided by who leans out first, and both reactions run from the same SOP rows U1 judged — U2
+adds the corner's geometry, not new rows.
+
+| row | layer | cue |
+|---|---|---|
+| both sides fire; each within **5 s** of the other's first round (close range) | 2 | as U1, window 5 s |
+| nobody in the fight stands upright in the open **10 s** in an enemy's sight | 1 | `never` `exposed` `upright` `fighting` `m` 2.5 `for` 10 |
+| no squad knot held 10 s · no friendly hits · both sides take losses | 1 / 3 | as U1 |
+
+**Review checklist (layer 4)** — ① does Red lean out from the corner or step into the street · ② does Blue keep to the walls, or walk the
+middle of the street in a column · ③ once Red is found, is the corner suppressed while a team moves · ④ does Blue flank (through the shop street
+or a building) or only trade fire · ⑤ does the bound stop at the mouth, or does a team bound into the junction under Red's guns.
 

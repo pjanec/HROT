@@ -121,6 +121,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// · 2 done. Set when the first bound is issued.</summary>
         public byte Smoked;
         public SimInstant SmokedAt;
+        /// <summary>⭐ <c>CE-2460</c> — the moving element's cover picks for its NEXT bound (fire and movement's own picker, <see cref="SquadCover"/>).</summary>
+        public SquadCoverPicks Cover;
     }
 
     /// <summary>
@@ -188,6 +190,7 @@ namespace Hrot.AI.Behaviors.Brains
         public PlayStart Start(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx, Span<MemberPartitionInput> partition)
         {
             if (!SquadManeuverRunner.AnyLive(in ctx)) return PlayStart.Fail;
+            p.Cover = default;   // ⭐ CE-2460 — no picks from an earlier run
             if (p.HasTo != 0)   // ⭐ E-3a (DA-68) — told where to go: that is the answer, no terrain and no contact needed
             {
                 ws.Answer = p.To;
@@ -209,7 +212,32 @@ namespace Hrot.AI.Behaviors.Brains
             if (ws.HasAnswer == 0)
                 SquadManeuverRunner.AskTerrain(ref ws, in ctx, FindSafeRetreatPoint.BlueprintId, RetreatSite, p.RetreatSearchRadius,
                     SquadManeuverRunner.FirstLive(in ctx), new Entity((ulong)ws.ThreatId));
+            // ⭐⭐ CE-2460 (U1) — the answer known and a threat to hide from: the moving element's NEXT bound is cover to cover toward the answer,
+            //   ≤ BoundMetres, by fire and movement's own picker (one query, the sensor dropped after it answers). The movers hold until the picks
+            //   are made (≤ SquadCover.PickTimeoutSeconds); a mover with no cover ahead keeps the straight move to the answer (walkable — S2-F)
+            else if (ws.HasAnswer == 1 && ws.ThreatId != 0)
+            {
+                byte e = Moving(in ctx);
+                if (!SquadCover.IsReady(in p.Cover, e))
+                {
+                    SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, e, ws.Answer, BoundMetres + 2f,
+                                    new Entity((ulong)ws.ThreatId), ws.ThreatPoint, ws.IssuedAt);
+                    if (SquadCover.IsReady(in p.Cover, e)) ws.Reissue = 1;   // the picks are made: the movers go
+                }
+            }
         }
+
+        /// <summary>⭐ <c>CE-2460</c> — a bound is at most this long (m): fire and movement's rush (RushMetres 15), the doctrine's "short, cover to cover".</summary>
+        public const float BoundMetres = 15f;
+        /// <summary>⭐ <c>CE-2460</c> — the commander's cover-pick query site for the bounds (beside <see cref="RetreatSite"/>).</summary>
+        public const int CoverSite = 0x21230003;
+
+        private static byte Moving(in SquadPlayContext ctx)
+            => ctx.Squad.PhaseId == BoundingOverwatchManeuver.PhaseElement0Moving ? (byte)0 : (byte)1;
+
+        /// <summary>⭐ <c>CE-2460</c> — the moving element waits for its cover picks (a threat known): never while there is nothing to hide from.</summary>
+        private static bool WaitingForPicks(in BreakContactParams p, in SquadPlayState ws, in SquadPlayContext ctx)
+            => ws.HasAnswer == 1 && ws.ThreatId != 0 && !SquadCover.IsReady(in p.Cover, Moving(in ctx));
 
         public NodeStatus Outcome(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
@@ -227,8 +255,11 @@ namespace Hrot.AI.Behaviors.Brains
         {
             evt = PhaseEventKind.BoundComplete;
             if (ws.HasAnswer != 1 || ws.Reissue != 0) return false;
-            byte moving = ctx.Squad.PhaseId == BoundingOverwatchManeuver.PhaseElement0Moving ? (byte)0 : (byte)1;
-            return ctx.Now - ws.IssuedAt >= p.BoundTimeoutSeconds || SquadManeuverRunner.ElementArrived(in ws, in ctx, moving);
+            byte moving = Moving(in ctx);
+            if (WaitingForPicks(in p, in ws, in ctx)) return false;   // ⭐ CE-2460 — the movers hold on the spot meanwhile: that is no bound
+            bool done = ctx.Now - ws.IssuedAt >= p.BoundTimeoutSeconds || SquadManeuverRunner.ElementArrived(in ws, in ctx, moving);
+            if (done) SquadCover.Spend(ref p.Cover, in ctx, moving);   // the next bound picks afresh
+            return done;
         }
 
         public void BeginIssue(ref BreakContactParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
@@ -250,9 +281,12 @@ namespace Hrot.AI.Behaviors.Brains
             }
             if (ws.HasAnswer != 1 || element != moving)
                 return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = BoundingOverwatchManeuver.RoleCovering };
+            if (WaitingForPicks(in p, in ws, in ctx))   // ⭐ CE-2460 — a moment's hold while the cover picks are made
+                return new MemberOrder { Kind = MemberOrderKind.Hold, Speed = p.Speed, RoleId = BoundingOverwatchManeuver.RoleMoving };
+            bool cover = SquadCover.Has(in p.Cover, member, out var pick);   // ⭐ CE-2460 — cover to cover; else straight to the answer (S2-F)
             return new MemberOrder
             {
-                Kind = MemberOrderKind.AdvanceTo, Point = ws.Answer, Speed = p.Speed,
+                Kind = MemberOrderKind.AdvanceTo, Point = cover ? pick : ws.Answer, Speed = p.Speed, Cover = cover ? (byte)1 : (byte)0,
                 ArrivalRadius = SquadManeuverRunner.MoverArrivalMetres, RoleId = BoundingOverwatchManeuver.RoleMoving,
             };
         }

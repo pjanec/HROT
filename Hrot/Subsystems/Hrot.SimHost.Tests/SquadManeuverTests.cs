@@ -223,6 +223,9 @@ namespace Hrot.SimHost.Tests
             public ushort Kind => Repo.GetComponentRO<SquadCognitiveState>(Commander).ManeuverKind;
             public Entity RetreatQuery() => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, BreakContactPlay.RetreatSite);
 
+            /// <summary>⭐ CE-2460 — the commander's cover query for the break-contact bound now being made.</summary>
+            public Entity BreakCoverQuery() => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, BreakContactPlay.CoverSite);
+
             /// <summary>⭐ CE-2123 — the commander's flank query, and SimHost's answer to it.</summary>
             public Entity FlankQuery() => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, SuppressAndManeuverPlay.FlankSite);
 
@@ -1032,6 +1035,8 @@ namespace Hrot.SimHost.Tests
 
             var hidden = new Vector3(-40f, -30f, 0f);
             s.Answer(query, hidden);
+            s.Tick(); s.Tick();
+            s.Answer(s.BreakCoverQuery(), null);   // ⭐ CE-2460 — no cover on the way: the bound goes straight to the answer (S2-F)
             s.Orders.Clear();
             s.Tick(); s.Tick();
             var first = s.LastOrders();
@@ -1039,6 +1044,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.CombatPosture, first[s.Members[1]].Intent);   // covering
 
             s.Teleport(s.Members[0], hidden);
+            s.Tick(); s.Tick();
+            s.Answer(s.BreakCoverQuery(), null);
             s.Orders.Clear();
             s.Tick(); s.Tick();
             Assert.Equal((BehaviorNames.AdvanceTo, hidden), s.LastOrders()[s.Members[1]]);
@@ -1048,6 +1055,36 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
             Assert.True(done);
             Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2460</c> (user `2026-11-20`, the lean; Urban Fight Suite U1) — BREAK CONTACT BOUNDS COVER TO COVER: with a cover point on the way
+        /// (≤ <see cref="BreakContactPlay.BoundMetres"/> nearer the retreat answer) the mover bounds THERE, not straight to the answer; meanwhile (the picks being
+        /// made) he holds. 📐 Live before: <c>uf-car-shootout</c>, one ~50 m bound across the open in the enemy's sight. ✅ Red-proof: <c>OrderFor</c> back to
+        /// the answer ⇒ red.</summary>
+        [Fact]
+        public void CE2460_BreakContact_BoundsCoverToCover_TowardTheAnswer()
+        {
+            var s = new Squad(members: 2);
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            var hidden = new Vector3(-40f, -30f, 0f);
+            s.Answer(s.RetreatQuery(), hidden);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.CombatPosture, s.LastOrders()[s.Members[0]].Intent);   // waiting for the picks: a hold, not the long run
+            var me = s.At(s.Members[0]);
+            var dir = Vector3.Normalize(hidden - me);
+            var cover = me + dir * 10f;                                                       // a cover point 10 m toward the answer
+            var q = s.BreakCoverQuery();
+            Assert.False(q.IsNull, "the commander asks the terrain for cover on the way");
+            s.Answer(q, cover);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            var bound = s.LastOrders()[s.Members[0]];
+            Assert.Equal(BehaviorNames.AdvanceTo, bound.Intent);
+            Assert.True(Vector3.Distance(bound.Objective, cover) < 0.5f, $"bounds to the cover point {cover}, not the answer: {bound.Objective}");
         }
 
         /// <summary>⭐ <c>CE-2351</c> (user, option 1) — a squad ORDERED TO HOLD does not break contact on its own: outmatched (six in the
@@ -3093,7 +3130,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// ⭐⭐ <c>CE-2373</c> (AQ104 L, D-2m DL-2…DL-4) — a LONE all-round defender is posted for COVERAGE, not nearness, and guards on a round:
         /// three window posts — the nearest sees only north, one sees the east half, one the west half. He is posted at the east one (the most
-        /// it sees), after 30 s there he goes to the west one (the half not yet watched), never to the north one (it adds nothing); and with
+        /// it sees), after RoundDwellSeconds there he goes to the west one (the half not yet watched), never to the north one (it adds nothing); and with
         /// an enemy known in the area he stays where he is. ✅ Red-proofs: the picker fed the ask's order ⇒ the nearest (north) post; no round
         /// ⇒ he stays east; the round ignoring a known enemy ⇒ he moves.
         /// </summary>
@@ -3114,7 +3151,7 @@ namespace Hrot.SimHost.Tests
             s.Tick();
             s.Orders.Clear();
             for (int i = 0; i < 20; i++) s.Tick();
-            Assert.Empty(s.Orders);   // not yet: 30 s on each post
+            Assert.Empty(s.Orders);   // not yet: RoundDwellSeconds on each post
             s.Pause(SquadDefendPlay.RoundDwellSeconds + 1);
             s.Tick(); s.Tick();
             Assert.Equal<Vector3>(west, PostureOf(s, s.Members[0]).Post.Point);

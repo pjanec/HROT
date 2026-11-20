@@ -348,8 +348,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ D-2l (DA-78) — the BuildingSurvey that gives each window post its window's frame.</summary>
         public const int FrameSite  = 0x22750005;
         public const int CoverageSite = 0x22750006;   // ⭐ CE-2373 (D-2m)
-        /// <summary>⭐ D-2m (DL-4) — a lone man's time on each round post once he reached it (s).</summary>
-        public const double RoundDwellSeconds = 30.0;
+        /// <summary>⭐ D-2m (DL-4) — a lone man's time on each round post once he reached it (s). ⭐ 12 s (user `2026-11-20`, CE-3463: "window rotation drop
+        /// from 30 s per window to about 12 s") — 📐 at 30 s a 27 s approach met the round on the wrong window two times in three (ia-area-defend);
+        /// a sentry checks his windows often. ⛔ Was 30 s.</summary>
+        public const double RoundDwellSeconds = 12.0;
         /// <summary>⭐ D-2m — a round move he has not finished in this long counts as arrived (s).</summary>
         public const double RoundMoveSeconds = 60.0;
         public const float LongerViewMetres = 5f;
