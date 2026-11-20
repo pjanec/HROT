@@ -575,6 +575,22 @@ public sealed class ScenarioChecksTests
         Assert.Equal(17, v["the gappy man was in the open 10 s"].Time!.Value, 3);   // his time started again at 7 s
         Assert.Equal(10, v["the open man was in the open 10 s"].Time!.Value, 3);
 
+        // ⭐ CE-2458 — a broken never row over units names the man who broke it
+        var nev = Parse("""{ "runFor": 30, "expect": [{"name": "nobody stands still 15 s", "never": {"on": "still", "who": "*Squad ", "m": 1, "for": 15}}] }""", out var np);
+        Assert.Empty(np);
+        var w2 = new FakeWorld { World = world };
+        void Man2(string name, int id, double x)
+        {
+            w2.U.Ids[name] = id;
+            w2.Comps[id] = new JsonObject { ["Health"] = new JsonObject { ["Current"] = 100, ["Max"] = 100 },
+                                            ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, 0, 0) } };
+        }
+        var nb = new ConditionBook(nev, w2, 0);
+        for (int t = 0; t <= 20; t++) { Man2("Squad Walker", 2, 50 + 2.0 * t); Man2("Squad Sentry", 1, 10); nb.Observe(t); }
+        var broken = nb.Verdicts().Single();
+        Assert.False(broken.Ok);
+        Assert.Equal("Squad Sentry", broken.By);
+
         Parse("""{ "runFor": 1, "expect": [{"name": "a", "on": "still", "who": "A", "m": 1}, {"name": "b", "on": "shot", "by": "A", "for": 3}, {"name": "c", "on": "near", "who": "A", "point": [0,0], "fighting": true}] }""", out var bad);
         Assert.Contains(bad, p => p.Contains("a still cue needs for", StringComparison.Ordinal));
         Assert.Contains(bad, p => p.Contains("for belongs to a state cue", StringComparison.Ordinal));

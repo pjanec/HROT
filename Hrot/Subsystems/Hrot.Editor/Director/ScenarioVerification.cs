@@ -49,12 +49,15 @@ namespace Hrot.Editor.Director
     /// <summary>One expectation's verdict: <see cref="Time"/> is when it held (or, for <c>never</c>, when it was broken).</summary>
     /// <remarks><see cref="Outside"/>: a failed expectation's cue DID hold, but outside its window (at that time) — "it moved" is not
     /// "it never happened", and the report must tell them apart.</remarks>
-    public sealed record Verdict(string Name, bool Ok, double? Time, string Kind, double? Outside = null)
+    /// <remarks>⭐ <c>CE-2458</c> <see cref="By"/>: a broken <c>never</c> over units (<c>cover</c>, <c>still</c>, <c>exposed</c>, <c>field</c>) names the unit that
+    /// broke it — a layer-1 realism row is only actionable when it says WHO (📐 uf-car-shootout: "someone stood in sight 15 s").</remarks>
+    public sealed record Verdict(string Name, bool Ok, double? Time, string Kind, double? Outside = null, string? By = null)
     {
         public JsonObject ToJson() => new()
         {
             ["name"] = Name, ["ok"] = Ok, ["t"] = Time is { } t ? Math.Round(t, 4) : null, ["kind"] = Kind,
             ["heldOutsideItsWindowAt"] = Outside is { } o ? Math.Round(o, 4) : null,
+            ["by"] = By,
         };
     }
 
@@ -81,6 +84,9 @@ namespace Hrot.Editor.Director
         private readonly Dictionary<(CheckCue Cue, int Unit), System.Numerics.Vector2> _settledAt = new();
         // ⭐ CE-2456 — the standing vehicles' cover points of THIS sample (the AI's own live rule), built on the first cover cue that asks
         private List<Fdp.Toolkit.Spatial.Eqs.CoverPoint>? _vehiclePoints;
+        // ⭐ CE-2458 — the unit that made each per-unit cue hold THIS sample, and who broke each never row
+        private readonly Dictionary<CheckCue, int> _holder = new();
+        private readonly Dictionary<string, string> _brokenBy = new(StringComparer.Ordinal);
 
         /// <param name="t0">The sim time the run started at (rows carry absolute sim times).</param>
         public ConditionBook(ScenarioChecks checks, IVerifyWorld world, double t0)
@@ -111,6 +117,7 @@ namespace Hrot.Editor.Director
             _rel = rel;
             _comps.Clear();
             _vehiclePoints = null;
+            _holder.Clear();
             _nameOf = _w.Named().GroupBy(x => x.Id).ToDictionary(g => g.Key, g => g.First().Name);
             ReadRows();
             foreach (var (name, cue) in _checks.Anchors)
@@ -123,7 +130,11 @@ namespace Hrot.Editor.Director
                 if (e.Never)
                 {
                     if (_broken.ContainsKey(e.Name) || (hi is { } h0 && rel > h0 + 1e-9)) continue;
-                    if (When(e.Cue, lo) is { } b && (lo is null || b >= lo - 1e-9) && (hi is null || b <= hi + 1e-9)) _broken[e.Name] = b;
+                    if (When(e.Cue, lo) is { } b && (lo is null || b >= lo - 1e-9) && (hi is null || b <= hi + 1e-9))
+                    {
+                        _broken[e.Name] = b;
+                        if (_holder.TryGetValue(e.Cue, out var who) && _nameOf.TryGetValue(who, out var name)) _brokenBy[e.Name] = name;   // ⭐ CE-2458
+                    }
                 }
                 else if (!_times.ContainsKey(e.Name) && When(e.Cue, lo) is { } t && (lo is null || t >= lo - 1e-9) && (hi is null || t <= hi + 1e-9))
                     _times[e.Name] = t;
@@ -142,7 +153,8 @@ namespace Hrot.Editor.Director
 
         public IReadOnlyList<Verdict> Verdicts() => _checks.Expect.Select(e =>
             e.If != null && !_times.ContainsKey(e.If) ? new Verdict(e.Name, true, null, "skipped")
-            : e.Never ? new Verdict(e.Name, !_broken.ContainsKey(e.Name), _broken.TryGetValue(e.Name, out var b) ? b : null, "never")
+            : e.Never ? new Verdict(e.Name, !_broken.ContainsKey(e.Name), _broken.TryGetValue(e.Name, out var b) ? b : null, "never",
+                                    By: _brokenBy.TryGetValue(e.Name, out var by) ? by : null)
                     : new Verdict(e.Name, _times.ContainsKey(e.Name), _times.TryGetValue(e.Name, out var t) ? t : null, e.AtEnd ? "atEnd" : "once",
                                   _times.ContainsKey(e.Name) ? null : _outside.TryGetValue(e.Name, out var o) ? o : null))
             .ToList();
@@ -478,7 +490,9 @@ namespace Hrot.Editor.Director
             var key = (c, unit);
             if (!holds) { _heldSince.Remove(key); return false; }
             if (!_heldSince.TryGetValue(key, out var since)) _heldSince[key] = since = _rel;
-            return _rel - since >= c.For - 1e-9;
+            bool lasted = _rel - since >= c.For - 1e-9;
+            if (lasted && unit >= 0) _holder[c] = unit;   // ⭐ CE-2458 — who
+            return lasted;
         }
 
         /// <summary>⭐ <c>CE-2455</c> — the unit is still in the fight: alive and not incapacitated — <c>Injury.IsInTheFight</c>
