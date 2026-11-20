@@ -9,6 +9,19 @@
 #include "NiagaraDataInterfaceArrayFunctionLibrary.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "Sound/SoundAttenuation.h"
+#include "Sound/SoundBase.h"
+#include "Sound/SoundConcurrency.h"
+
+namespace
+{
+	template <class T> T* LoadRooted(const TCHAR* Path)   // the sounds of the presets: loaded once, kept
+	{
+		T* A = LoadObject<T>(nullptr, Path);
+		if (A && !A->IsRooted()) A->AddToRoot();
+		return A;
+	}
+}
 
 FHrotShotFx UHrotWeaponFx::LyraRifleFx()
 {
@@ -20,6 +33,14 @@ FHrotShotFx UHrotWeaponFx::LyraRifleFx()
 	Fx.Tracer = LoadObject<UNiagaraSystem>(nullptr, TEXT("/Game/Effects/Particles/Weapons/NS_WeaponFire_Tracer.NS_WeaponFire_Tracer"));
 	Fx.ShellEject = LoadObject<UNiagaraSystem>(nullptr, TEXT("/Game/Effects/Particles/Weapons/NS_WeaponFire_ShellEject.NS_WeaponFire_ShellEject"));
 	Fx.Impact = LoadObject<UNiagaraSystem>(nullptr, TEXT("/Game/Effects/Particles/Impacts/NS_ImpactConcrete.NS_ImpactConcrete"));
+	// ⭐ Lyra's own sounds (/Game/Audio, copied from the Lyra project, U-17k): the rifle's MetaSound (close + distant layers), its
+	// attenuation and its concurrency (the farthest guns stop when too many fire); the plaster impact
+	Fx.Sound = LoadRooted<USoundBase>(TEXT("/Game/Audio/Sounds/Weapons/Rifle/MSS_Weapons_Rifle_Fire.MSS_Weapons_Rifle_Fire"));
+	Fx.SoundAttenuation = LoadRooted<USoundAttenuation>(TEXT("/Game/Audio/AttenuationPresets/ATT_Rifle.ATT_Rifle"));
+	Fx.SoundConcurrency = LoadRooted<USoundConcurrency>(TEXT("/Game/Audio/Concurrency/SCON_Guns_StopFarthest.SCON_Guns_StopFarthest"));
+	Fx.ImpactSound = LoadRooted<USoundBase>(TEXT("/Game/Audio/MetaSounds/sfx_ImpactDefault_nl_meta_Preset.sfx_ImpactDefault_nl_meta_Preset"));
+	Fx.ImpactAttenuation = LoadRooted<USoundAttenuation>(TEXT("/Game/Audio/AttenuationPresets/ATT_FX_BulletImpact.ATT_FX_BulletImpact"));
+	Fx.ImpactConcurrency = LoadRooted<USoundConcurrency>(TEXT("/Game/Audio/Concurrency/SCON_Impacts.SCON_Impacts"));
 	return Fx;
 }
 
@@ -50,6 +71,7 @@ FHrotShotFx UHrotWeaponFx::MinigunFx()
 	Fx.TracerWidth = 4.f;
 	Fx.FlashSize = 1.6f;
 	Fx.DustSize = 70.f; Fx.DustLife = 2.0f; Fx.DustBrightness = 0.4f;
+	Fx.SoundPitch = 1.15f; Fx.SoundVolume = 0.8f;   // ⚠ a stand-in: the rifle, faster — no minigun sound yet
 	return Fx;
 }
 
@@ -62,6 +84,7 @@ FHrotShotFx UHrotWeaponFx::HeavyMgFx()
 	Fx.TracerWidth = 7.f;
 	Fx.FlashSize = 3.f;
 	Fx.DustSize = 120.f; Fx.DustLife = 2.5f; Fx.DustBrightness = 0.4f;
+	Fx.SoundPitch = 0.62f; Fx.SoundVolume = 1.6f;   // ⚠ a stand-in: the rifle, deeper and louder — no heavy MG sound yet
 	return Fx;
 }
 
@@ -82,6 +105,8 @@ FVector UHrotWeaponFx::FireShotAt(USceneComponent* Weapon, FTransform Muzzle, co
 	if (R)
 	{
 		R->AddFlash(Muzzle, Fx.FlashSize);
+		R->PlaySound(Fx.Sound, At, Fx.SoundAttenuation, Fx.SoundConcurrency, Fx.SoundVolume, Fx.SoundPitch);
+		if (Hits.Num() > 0) R->PlaySound(Fx.ImpactSound, Hits[0], Fx.ImpactAttenuation, Fx.ImpactConcurrency);
 		const int32 Every = Fx.TracerEvery > 0 ? Fx.TracerEvery : R->TracerEvery;
 		if (Every <= 1 || Round % Every == 0)
 			R->AddTracer(At, Hits.Num() > 0 ? Hits[0] : At + Dir * 30000.0, Fx.TracerLength, Fx.TracerWidth);   // a miss: out to 300 m

@@ -9,6 +9,12 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
+#include "AudioDevice.h"
+#include "AudioDeviceManager.h"
+#include "Engine/Engine.h"
+#include "Sound/SoundAttenuation.h"
+#include "Sound/SoundBase.h"
+#include "Sound/SoundConcurrency.h"
 #include "HrotPersonAnimInstance.h"
 #include "HrotWeaponFx.h"
 #if WITH_EDITOR
@@ -111,6 +117,41 @@ void UHrotShotRenderer::AddPuff(const FVector& At, float Size0, float Size1, flo
 	Puffs.Add({ At, Now(), FMath::Max(Life, 0.1f), Size0, Size1, FMath::FRand(), Brightness });
 }
 
+void UHrotShotRenderer::PlaySound(USoundBase* Sound, const FVector& At, USoundAttenuation* Attenuation, USoundConcurrency* Concurrency, float Volume, float Pitch)
+{
+	if (!Sound || !GetWorld()) return;
+	const float Dist = FVector::Dist(At, ViewLocation());
+	if (Dist > SoundRange) return;
+	FPendingSound S{ Sound, Attenuation, Concurrency, At, Now() + (SpeedOfSound > 0.f ? Dist / SpeedOfSound : 0.f), Volume, Pitch, Now() };
+	if (S.When <= Now() + 0.01f) PlayNow(S); else PendingSounds.Add(S);
+}
+
+bool UHrotShotRenderer::ActivateWorldAudio()
+{
+	UWorld* W = GetWorld();
+	FAudioDeviceManager* M = GEngine ? GEngine->GetAudioDeviceManager() : nullptr;
+	if (!W || !M) return false;
+	FAudioDeviceHandle H = W->GetAudioDevice();
+	if (!H.IsValid()) return false;
+	// ⚠ measured: SetActiveDevice did not hold (the editor picks the active device again from window focus) — SOLO wins over that
+	M->SetSoloDevice(H.GetDeviceID());
+	return true;
+}
+
+void UHrotShotRenderer::PlayNow(const FPendingSound& S)
+{
+	if (!S.Sound.IsValid() || !GetWorld()) return;
+	UGameplayStatics::PlaySoundAtLocation(GetWorld(), S.Sound.Get(), S.At, FRotator::ZeroRotator, S.Volume, S.Pitch, 0.f, S.Att.Get(), S.Con.Get());
+	++SoundsPlayed;
+	if (bLogSounds)
+	{
+		FAudioDeviceHandle H = GetWorld()->GetAudioDevice();
+		UE_LOG(LogTemp, Warning, TEXT("[HROT-SOUND] t=%.3f %s at %.0f m: asked %.3f, %.3f s later; device %d active sounds %d"),
+			GetWorld()->GetTimeSeconds(), *S.Sound->GetName(), FVector::Dist(S.At, ViewLocation()) / 100.f, S.Asked, Now() - S.Asked,
+			H.IsValid() ? (int32)H.GetDeviceID() : -1, H.IsValid() ? H->GetActiveSounds().Num() : -1);
+	}
+}
+
 void UHrotShotRenderer::AddTracer(const FVector& From, const FVector& To, float Length, float Width)
 {
 	const FVector D = To - From;
@@ -189,6 +230,8 @@ void UHrotShotRenderer::Tick(float DeltaTime)
 	Tracers.RemoveAll([&](const FTracer& R) { return (T - R.Born) * TracerSpeed - R.Length > R.Range; });
 	for (FLight& L : Lights) if (L.C && L.Until <= T && L.C->IsVisible()) L.C->SetVisibility(false);
 	Puffs.RemoveAll([&](const FPuff& P) { return T - P.Born > P.Life; });
+	for (int32 I = PendingSounds.Num() - 1; I >= 0; --I)   // the bangs whose sound has now reached the view
+		if (PendingSounds[I].When <= T) { PlayNow(PendingSounds[I]); PendingSounds.RemoveAtSwap(I); }
 	LiveFlashes = Flashes.Num(); LiveTracers = Tracers.Num(); LivePuffs = Puffs.Num();
 	if (!FlashIsm && Flashes.Num() == 0 && Tracers.Num() == 0 && Puffs.Num() == 0) return;
 	if (!EnsureComponents()) return;

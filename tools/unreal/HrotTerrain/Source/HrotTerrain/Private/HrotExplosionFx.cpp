@@ -10,6 +10,8 @@
 #include "NiagaraSystem.h"
 #include "Particles/ParticleSystem.h"
 #include "Particles/ParticleSystemComponent.h"
+#include "Sound/SoundAttenuation.h"
+#include "Sound/SoundBase.h"
 
 namespace
 {
@@ -55,6 +57,27 @@ namespace
 	// our own soot decal (scripts/unreal/hrot_shotfx_assets.py) — ⚠ Lyra's M_ExplosionDecal takes its colour from Niagara particles:
 	// as a plain decal it painted a flat tan box (measured, the lab's tank shell)
 	const TCHAR* ScorchMaterial = TEXT("/Game/Hrot/Fx/M_HrotScorch.M_HrotScorch");
+
+	// ⭐ the sound per kind (U-17k): Lyra's grenade (a MetaSound: body, punch, distant tail), deeper and louder for the bigger kinds —
+	// ⚠ a stand-in until a library with shells and rockets (no such sound in Lyra)
+	struct FBlastSound { float Volume, Pitch; };
+	FBlastSound Sound(EHrotBlast K)
+	{
+		switch (K)
+		{
+		case EHrotBlast::Grenade: return { 1.0f, 1.0f };
+		case EHrotBlast::Rocket:  return { 1.3f, 0.9f };
+		case EHrotBlast::Mortar:  return { 1.7f, 0.75f };
+		case EHrotBlast::TankHE:  return { 2.0f, 0.68f };
+		}
+		return { 1.f, 1.f };
+	}
+	template <class T> T* LoadRooted(const TCHAR* Path)
+	{
+		T* A = LoadObject<T>(nullptr, Path);
+		if (A && !A->IsRooted()) A->AddToRoot();
+		return A;
+	}
 }
 
 bool UHrotExplosionFx::Explode(UObject* WorldContext, FVector Location, FVector Normal, EHrotBlast Kind)
@@ -69,6 +92,13 @@ bool UHrotExplosionFx::ExplodeWith(UObject* WorldContext, FVector Location, FVec
 	const FBlastLook L = Look(Kind);
 	UHrotShotRenderer* R = UHrotShotRenderer::Get(WorldContext);
 	if (R) R->Flash(Location + Normal * 50.f, L.LightIntensity, L.LightRadius, L.LightSeconds);   // seen from afar too
+	if (R)   // ⭐ heard from afar too — and later: the sound travels (UHrotShotRenderer::PlaySound)
+	{
+		static USoundBase* Bang = LoadRooted<USoundBase>(TEXT("/Game/Audio/Sounds/Explosions/MSS_Explosions_Grenade.MSS_Explosions_Grenade"));
+		static USoundAttenuation* Att = LoadRooted<USoundAttenuation>(TEXT("/Game/Audio/AttenuationPresets/ATT_Grenade.ATT_Grenade"));
+		const FBlastSound S = Sound(Kind);
+		R->PlaySound(Bang, Location, Att, nullptr, S.Volume, S.Pitch);
+	}
 	if (R && (FVector::Dist(Location, R->ViewLocation()) > R->BlastRange || !R->TakeBudget(UHrotShotRenderer::EExtra::Blast))) return false;
 
 	const FRotator Up = FRotationMatrix::MakeFromZ(Normal.GetSafeNormal()).Rotator();   // the effect's up = the surface normal

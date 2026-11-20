@@ -8,6 +8,9 @@
 #include "HrotShotRenderer.generated.h"
 
 class UInstancedStaticMeshComponent;
+class USoundBase;
+class USoundAttenuation;
+class USoundConcurrency;
 class UPointLightComponent;
 class USceneComponent;
 
@@ -30,6 +33,15 @@ public:
 	/** ⭐ A SMOKE PUFF of a trail (a missile's, U-17g): at `At`, `Size0` cm across at birth growing to `Size1`, fading over `Life`
 	 *  seconds; `Brightness` 0..1 (a rocket motor's white smoke 0.9, a dirty one 0.4). Every puff of the world: one instanced mesh. */
 	void AddPuff(const FVector& At, float Size0, float Size1, float Life, float Brightness = 0.8f);
+	/** ⭐ A SOUND in the world (U-17k): heard from the view (each IG channel its own camera — the listener), arriving after the time
+	 *  sound takes from `At` to the view (SpeedOfSound) — the flash first, the bang later. Null sound = nothing. */
+	void PlaySound(USoundBase* Sound, const FVector& At, USoundAttenuation* Attenuation = nullptr, USoundConcurrency* Concurrency = nullptr,
+	               float Volume = 1.f, float Pitch = 1.f);
+	/** Makes this world's audio device the ACTIVE one (unmuted). ⚠ measured (U-17k): the engine mutes every device but the active one,
+	 *  and a play world's own device becomes active only when a game window takes focus — never in the lab's hidden Simulate (exact
+	 *  digital silence, even a 2D sound). A standalone IG has one device; this is for the lab. */
+	UFUNCTION(BlueprintCallable, Category = "HROT|Shots")
+	bool ActivateWorldAudio();
 	/** A tracer: a short glowing streak flying From → To at TracerSpeed; `Length` / `Width` cm (0 = TracerLength / TracerWidth — a
 	 *  minigun's long streaks join into a line, a heavy MG's are fewer and thicker: per weapon, FHrotShotFx) */
 	void AddTracer(const FVector& From, const FVector& To, float Length = 0.f, float Width = 0.f);
@@ -66,6 +78,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") int32 MaxLights = 4;
 	/** trail puffs alive at most (the oldest go first) — each is 3 crossed cards */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") int32 MaxPuffs = 6000;
+	/** cm/s; 0 = no delay */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float SpeedOfSound = 34300.f;
+	/** sounds further than this are not played at all (cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") float SoundRange = 300000.f;
+	/** sounds played so far (all time) — a test reads it */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 SoundsPlayed = 0;
+	/** log every sound as it starts: game time, how far, how late (the speed of sound), the device's active sounds — a test reads it */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") bool bLogSounds = false;
 	/** which near extras are drawn at all (measurement: what each costs) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") bool bNearSmoke = true;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") bool bNearShell = true;
@@ -102,6 +122,9 @@ private:
 	TArray<FTracer> Tracers;
 	struct FPuff { FVector At; float Born, Life, Size0, Size1, Seed, Bright; };
 	TArray<FPuff> Puffs;
+	struct FPendingSound { TWeakObjectPtr<USoundBase> Sound; TWeakObjectPtr<USoundAttenuation> Att; TWeakObjectPtr<USoundConcurrency> Con; FVector At; float When, Volume, Pitch, Asked; };
+	TArray<FPendingSound> PendingSounds;
+	void PlayNow(const FPendingSound& S);
 	TMap<TWeakObjectPtr<const USceneComponent>, int32> Rounds;
 	struct FLight { TObjectPtr<UPointLightComponent> C; float Until = 0.f; };
 	TArray<FLight> Lights;

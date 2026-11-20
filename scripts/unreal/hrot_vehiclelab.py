@@ -8,7 +8,8 @@
     aims the row picture at the grid's centre; "animal": a UHrotAnimalKind + "state" (+ "then": {"state", "after"}
     = a change in play, by game time) spawns an AHrotAnimal; "views": [{"name", "label" | "at", "back", "up", "lookZ", "az"}] = more pictures, any framing; "person": a soldier
     (hrot_person); "groundFire": {"radius", "intensity"}; on any entry, in play: "burn": intensity (UHrotBurning), "flamethrower":
-    {"socket", "loc", "rot", "size", "firing"} (UHrotFlamethrower; a person's goes on its weapon); "missile": a UHrotMissileKind ("fly" = a test flight in play); job "floor": [x, y, size]; job "guns": a vehicle's gun firing (fire_guns);
+    {"socket", "loc", "rot", "size", "firing"} (UHrotFlamethrower; a person's goes on its weapon); "missile": a UHrotMissileKind ("fly" = a test flight in play); job "floor": [x, y, size]; job "guns": a vehicle's gun firing (fire_guns, "from" / "until" s);
+    job "explode": timed explosions; job "record": s of the audio recorded to <shots>/audio.wav; job "hold": s to keep playing;
     a soldier's "launcher" (shoulder_launcher) + "fireRpg" (fire_rpg)
 
 A row of AHrotVehicle (one kit) in a new level, each with its state (turret yaw / gun pitch / damage), played in Simulate (the
@@ -61,6 +62,8 @@ def level():
     for c in ("t.IdleWhenNotForeground 0", "t.MaxFPS 0", "r.VSync 0", "r.VSyncEditor 0", "r.DontLimitOnBattery 1"):
         unreal.SystemLibrary.execute_console_command(None, c)
     LES().editor_set_viewport_realtime(True)
+    # ⚠ measured (U-17k): the editor's viewports are SILENT unless "Enable Real Time Audio" is on (off by default; not reachable from
+    # Python) — a recording run launches with -ini:EditorPerProjectUserSettings:[/Script/UnrealEd.LevelEditorMiscSettings]:bEnableRealTimeAudio=True
     for i, v in enumerate(JOB["vehicles"]):
         at, rot = tuple(v.get("at") or (i * SPACING, 0, float(v.get("z", 0)))), (0, float(v.get("heading", -60)), 0)
         if v.get("animal"):   # ⭐ an AHrotAnimal: its kind + its state, as HROT sets them ("then": {"state", "after"} = a change in play)
@@ -194,6 +197,8 @@ def fire_guns():
         if a is None: continue
         g["carry"] = g.get("carry", 0.0) + float(g.get("rate", 10)) * max(0.0, now - g.get("last", now)); g["last"] = now
         if "fxs" not in g: g["fxs"] = unreal.HrotWeaponFx.minigun_fx() if g.get("fx", "HMG") == "MINIGUN" else unreal.HrotWeaponFx.heavy_mg_fx()
+        if g.get("until") is not None and now > S["tfind"] + float(g["until"]): g["carry"] = 0.0; continue   # a burst that ends
+        if g.get("from") is not None and now < S["tfind"] + float(g["from"]): g["carry"] = 0.0; continue
         while g["carry"] >= 1.0:
             g["carry"] -= 1.0
             import random
@@ -222,6 +227,14 @@ def step():
     p = S["phase"]
     if p == "level": level(); return
     if S.get("guns"): fire_guns()
+    if JOB.get("test2d") and not S.get("did2d") and S.get("tfind") is not None and game_now() >= S["tfind"] + 2.0:   # a plain 2D sound (no listener)
+        S["did2d"] = True
+        snd = unreal.load_asset(JOB["test2d"]); unreal.GameplayStatics.play_sound2d(UES().get_game_world(), snd, 1.0, 1.0)
+        log(f"2D test sound {snd} at {game_now() - S['tfind']:.2f} s")
+    for b in list(S.get("blasts") or []):
+        if game_now() >= S["tfind"] + float(b.get("after", 1)):
+            unreal.HrotExplosionFx.explode(UES().get_game_world(), unreal.Vector(*b["at"]), unreal.Vector(0, 0, 1), getattr(unreal.HrotBlast, b.get("kind", "GRENADE")))
+            log(f"explosion {b.get('kind', 'GRENADE')} at {b['at']} — game {game_now() - S['tfind']:.2f} s after the start"); S["blasts"].remove(b)
     for item in list(S.get("rpgs") or []):
         if game_now() >= S["tfind"] + float(item[1].get("after", 3.6)):
             fire_rpg(S["v"][item[0]], item[1]); S["rpgs"].remove(item)
@@ -281,6 +294,15 @@ def step():
         S["rpgs"] = [(v["label"], v["fireRpg"]) for v in JOB["vehicles"] if v.get("fireRpg") and v["label"] in S["v"]]
         S["tfind"] = game_now()
         S["guns"] = [dict(g) for g in JOB.get("guns", [])]
+        S["blasts"] = [dict(b) for b in JOB.get("explode", [])]   # ⭐ timed explosions: {"at", "kind", "after"} (U-17k: sound timing)
+        if JOB.get("record"):   # ⭐ the AUDIO the view hears, recorded to a WAV (U-17k): sound proven without listening
+            rr = unreal.HrotShotRenderer.for_world(UES().get_game_world()); rr.set_editor_property("log_sounds", True)
+            log(f"world audio active: {rr.activate_world_audio()}")
+            unreal.AudioMixerLibrary.start_recording_output(UES().get_game_world(), float(JOB["record"]))
+            log(f"audio recording started at game {game_now():.2f}")
+            for nm, fx in (("rifle", unreal.HrotWeaponFx.lyra_rifle_fx()), ("hmg", unreal.HrotWeaponFx.heavy_mg_fx())):
+                log(f"  {nm}: sound {fx.get_editor_property('sound')}, impact {fx.get_editor_property('impact_sound')}, att {fx.get_editor_property('sound_attenuation')}")
+            unreal.SystemLibrary.execute_console_command(None, "au.Debug.Sounds 1")
         for g in S["guns"]:
             if g.get("aim") and g["label"] in S["v"]: S["v"][g["label"]].set_aim(float(g["aim"][0]), float(g["aim"][1]))
         S["later"] = [(v["label"], v["then"]) for v in JOB["vehicles"] if v.get("then") and v["label"] in S["v"]]
@@ -291,7 +313,13 @@ def step():
     if p == "next":
         if game_now() < S["ready"]: return
         if not S["queue"]:
+            if game_now() < S.get("tfind", 0) + float(JOB.get("hold", 0)): return   # keep playing (a recording, timed events)
             for g in S.get("guns") or []: log(f"gun {g['label']}: {g.get('n', 0)} rounds")
+            if JOB.get("record"):
+                w = UES().get_game_world()
+                unreal.AudioMixerLibrary.stop_recording_output(w, unreal.AudioRecordingExportType.WAV_FILE, "audio", JOB["shots"])
+                r = unreal.HrotShotRenderer.for_world(w)
+                log(f"audio recording stopped at game {game_now() - S['tfind']:.2f} s; sounds played {r.get_editor_property('sounds_played')}")
             LES().editor_request_end_play(); S.update(phase="end", t=time.time() + 3); return
         kind, label = S["queue"].pop(0)
         n = len(JOB["vehicles"])

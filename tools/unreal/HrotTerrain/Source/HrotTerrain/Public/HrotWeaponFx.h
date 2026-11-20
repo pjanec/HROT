@@ -9,6 +9,9 @@
 
 class UNiagaraSystem;
 class UStaticMesh;
+class USoundBase;
+class USoundAttenuation;
+class USoundConcurrency;
 class USceneComponent;
 
 /** The effects of one weapon type (Lyra's rifle set by default — see HrotWeaponFx.cpp). Any may be null: that part is skipped. */
@@ -36,6 +39,16 @@ struct HROTTERRAIN_API FHrotShotFx
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float DustSize = 0.f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float DustLife = 1.5f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float DustBrightness = 0.5f;
+	// ---- sound (U-17k): heard from the view, delayed by the distance (UHrotShotRenderer::PlaySound) ------------------------------
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") TObjectPtr<USoundBase> Sound;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") TObjectPtr<USoundAttenuation> SoundAttenuation;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") TObjectPtr<USoundConcurrency> SoundConcurrency;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float SoundVolume = 1.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") float SoundPitch = 1.f;
+	/** where a round lands */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") TObjectPtr<USoundBase> ImpactSound;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") TObjectPtr<USoundAttenuation> ImpactAttenuation;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Weapon") TObjectPtr<USoundConcurrency> ImpactConcurrency;
 };
 
 UCLASS()
