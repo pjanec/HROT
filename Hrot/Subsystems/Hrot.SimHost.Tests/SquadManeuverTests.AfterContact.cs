@@ -211,7 +211,7 @@ namespace Hrot.SimHost.Tests
                 {
                     ref var b = ref s.Repo.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(sensor);
                     b.Count = 0; b.LastUpdateTick = 1;
-                    b.LastUpdateTimeSeconds = (float)((ISimulationView)s.Repo).Time;
+                    b.LastUpdateTimeSeconds = (float)((Fdp.ModuleHost.Abstractions.ISimulationView)s.Repo).Time;
                     b.HasSteer = steer ? (byte)1 : (byte)0;
                     b.SteerPoint = new Vector3(26f, 20f, 0f);   // 20 m along a route bending east (45°)
                 }
