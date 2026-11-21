@@ -288,6 +288,75 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-2466</c> R6 (R-2140, 📄 docs/designs/group-maneuvers/DESIGN_Squad_Tactics.md §7.9) — <c>CoveredByFireAhead</c>, the squad's reaction
+    /// when its route reaches ground a known enemy covers (a <c>CoveredByFire</c> area of its side's <c>UnderFire</c> knowledge) that the planner
+    /// could not go round: every live man HOLDS where he stands (short of it — the row fires within 30 m). While it has not reported, a way round
+    /// (the route no longer shows it) ends the hold and the task goes on. After <see cref="HoldShortSeconds"/> it requests FIRE SUPPORT and reports
+    /// PROGRESS TaskFailed up — and from then on HOLDS until it is given a new order: ⛔ never walks back in when the knowledge cools (S2). The
+    /// shape of <see cref="MinefieldAheadBehavior"/>. ⭐ Conduct <c>Halts</c>: a Dash presses on.
+    /// </summary>
+    public static class CoveredByFireAheadBehavior
+    {
+        /// <summary>How long the squad holds short before it asks for fire support and reports the task failed (s).</summary>
+        public const float HoldShortSeconds = 120f;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CoveredByFireAheadState
+        {
+            public byte Ordered;
+            public byte Reported;
+            public SimInstant Since;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CoveredByFireAheadBlackboard
+        {
+            public Fdp.Toolkit.Behavior.SopAreaParams Area;
+            public CoveredByFireAheadState State;
+        }
+
+        [BehaviorResolver(BehaviorNames.CoveredByFireAhead)]
+        public static void Resolve(in NoParams authored, ref CoveredByFireAheadBlackboard block, EntityRepository world, Entity self)
+        {
+            block.Area = new Fdp.Toolkit.Behavior.SopAreaParams { WithinMetres = 30f };
+            block.State = default;
+        }
+
+        [Behavior(BehaviorNames.CoveredByFireAhead, Conduct = Fdp.Toolkit.Behavior.Conduct.Halts, Params = typeof(NoParams), Categories = BehaviorCategory.Commander,
+            Description = "A squad whose route reaches ground a known enemy covers holds short of it; after a while it asks for fire support and reports the task failed.")]
+        [BTreeDefinition(BehaviorNames.CoveredByFireAhead, Curated = true, Group = "Library/Reactions", ParamsType = typeof(CoveredByFireAheadBlackboard))]
+        public static BTreeBuilder<CoveredByFireAheadBlackboard, BTreeContext> BuildTree()
+            => new BTreeBuilder<CoveredByFireAheadBlackboard, BTreeContext>()
+                .StatefulAction(bb => bb.Area, bb => bb.State, Tick);
+
+        public static NodeStatus Tick(ref Fdp.Toolkit.Behavior.SopAreaParams area, ref CoveredByFireAheadState s, Entity self, EntityRepository world)
+        {
+            double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : world.SimulationTime;
+            if (s.Ordered == 0)
+            {
+                if (world.HasComponent<UnitRoster>(self))
+                {
+                    var roster = world.GetComponentRO<UnitRoster>(self);
+                    for (int i = 0; i < roster.Count; i++)
+                    {
+                        var m = roster.SubordinateEntities[i];
+                        if (world.IsAlive(m) && Injury.IsInTheFight(world, m)) CommandOrders.Assign(world, self, m, BehaviorNames.PersonHold, "{}", newOrder: true);
+                    }
+                }
+                s.Ordered = 1;
+                s.Since = (SimInstant)now;
+                return NodeStatus.Running;
+            }
+            if (s.Reported != 0) return NodeStatus.Running;   // given up: held until a new order (never back in when the knowledge cools)
+            if (!SquadSopConditions.CoveredByFireAhead(ref area, self, world)) return NodeStatus.Success;   // a way round: the task goes on
+            if (now - (double)s.Since < HoldShortSeconds) return NodeStatus.Running;
+            AfterContact.ReportCannotGoOn(world, self, Fdp.Toolkit.Squad.Command.RequestKind.FireSupport);
+            s.Reported = 1;
+            return NodeStatus.Running;
+        }
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>CE-4624</c> MS-B1 — the trigger's <see cref="MineStruck"/> → the drill, as a REACTION (<see cref="ReactionUrgency.Hit"/>): a struck
     /// VEHICLE reacts itself; a struck MAN's unit (his commander, alive) reacts — else the man himself. Before the brain tick, on the
     /// brain's host. The gate decides (a Dash refuses it, CD-3). ⭐ A second

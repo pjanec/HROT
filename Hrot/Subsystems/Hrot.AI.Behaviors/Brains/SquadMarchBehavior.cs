@@ -352,6 +352,7 @@ namespace Hrot.AI.Behaviors.Brains
                            | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection
                            | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled
                            | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Minefield   // ⭐ CE-4624 MS-B4 — and a minefield its side knows (KG-7)
+                           | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.CoveredByFire   // ⭐ CE-2466 R3/R6 — ground a known enemy covers (its side's UnderFire, Minefields §9b)
                            | (openGround ? Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.OpenGround : 0);
             var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(ctx.World, ctx.Commander, Site);
             if (sensor.IsNull) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(ctx.World, ctx.Commander, Site, in settings);
