@@ -123,6 +123,8 @@ namespace Hrot.AI.Behaviors.Brains
         public SimInstant SmokedAt;
         /// <summary>⭐ <c>CE-2460</c> — the moving element's cover picks for its NEXT bound (fire and movement's own picker, <see cref="SquadCover"/>).</summary>
         public SquadCoverPicks Cover;
+        /// <summary>⭐ <c>CE-2465</c> — bit e: element e has ended a bound since the play started (the contact-broken end needs both).</summary>
+        public byte BoundsDone;
     }
 
     /// <summary>
@@ -191,6 +193,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!SquadManeuverRunner.AnyLive(in ctx)) return PlayStart.Fail;
             p.Cover = default;   // ⭐ CE-2460 — no picks from an earlier run
+            p.BoundsDone = 0;    // ⭐ CE-2465
             if (p.HasTo != 0)   // ⭐ E-3a (DA-68) — told where to go: that is the answer, no terrain and no contact needed
             {
                 ws.Answer = p.To;
@@ -243,6 +246,10 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!SquadManeuverRunner.AnyLive(in ctx) || ws.HasAnswer == SquadManeuverRunner.NoAnswer) return NodeStatus.Failure;
             if (ws.HasAnswer != 1) return NodeStatus.Running;
+            // ⭐⭐ CE-2465 (U2-4) — the contact IS broken: each element has bounded once and the squad is in a lull (no fire at it, no new contact
+            //   for LullSeconds) ⇒ done, even with an element short of the point. 📐 uf-corner-fight: a mover whose cover picks never moved him
+            //   kept his element's centre 30 m from the answer and the squad stood 280 s. ⛔ Not for an ordered To with no threat (go there).
+            if (ws.ThreatId != 0 && (p.BoundsDone & 3) == 3 && SquadSopConditions.InALull(ctx.World, ctx.Commander)) return NodeStatus.Success;
             for (byte e = 0; e < 2; e++)
             {
                 var c = ctx.Centre(e, out bool any);
@@ -260,7 +267,7 @@ namespace Hrot.AI.Behaviors.Brains
             // ⭐ CE-2461 — or the movers all stopped short (bounding's rule, one helper): 📐 uf-corner-fight, the element stood 60 s with no task
             bool done = ctx.Now - ws.IssuedAt >= p.BoundTimeoutSeconds || SquadManeuverRunner.ElementArrived(in ws, in ctx, moving)
                         || SquadGates.MoversStopped(in ctx, SquadGates.Element(in ctx, moving), ws.IssuedAt);
-            if (done) SquadCover.Spend(ref p.Cover, in ctx, moving);   // the next bound picks afresh
+            if (done) { SquadCover.Spend(ref p.Cover, in ctx, moving); p.BoundsDone |= (byte)(1 << moving); }   // the next bound picks afresh
             return done;
         }
 

@@ -7410,6 +7410,35 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.AdvanceTo, s.LastOrders()[s.Members[1]].Intent);   // he stopped short: element 1 goes now
         }
 
+        /// <summary>⭐⭐ <c>CE-2465</c> (Urban Fight Suite U2-4) — BREAK CONTACT ENDS WHEN THE CONTACT IS BROKEN: each element has bounded once and
+        /// the squad is in a lull (no fire at it, no new contact for <see cref="SquadSopConditions.LullSeconds"/>) ⇒ Success, though nobody reached
+        /// the point; while it is still under fire it goes on. 📐 Live before: <c>uf-corner-fight</c>, a mover whose cover picks never moved him kept
+        /// the play running 280 s, the squad standing upright and still. ✅ Red-proof: the lull end removed ⇒ never finishes ⇒ red.</summary>
+        [Fact]
+        public void CE2465_BreakContact_EndsInALull_WithAnElementShortOfThePoint_AndNotUnderFire()
+        {
+            foreach (bool underFire in new[] { false, true })
+            {
+                var s = new Squad(members: 2);
+                s.PoolMany(6, new Vector3(0f, 60f, 0f));
+                s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+                for (int i = 0; i < 12; i++) s.Tick();
+                Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+                s.Answer(s.RetreatQuery(), new Vector3(-40f, -30f, 0f));
+                bool done = false; Fbt.NodeStatus result = default;
+                for (int k = 0; k < 40 && !done; k++)   // ~40 s: every bound's movers stop where they stand (nobody gets nearer)
+                {
+                    var q = s.BreakCoverQuery();
+                    if (!q.IsNull) s.Answer(q, null);
+                    foreach (var m in s.Members) Nav(s, m, Fdp.Toolkit.Navigation.NavigationResult.Arrived);
+                    if (underFire) s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+                    for (int i = 0; i < 60 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+                }
+                if (underFire) Assert.False(done, "under fire the break contact goes on");
+                else { Assert.True(done, "in a lull the contact is broken: done"); Assert.Equal(Fbt.NodeStatus.Success, result); }
+            }
+        }
+
         /// <summary>⭐ <c>CE-2461</c> — a cover point on another storey or a ledge (more than <see cref="SquadCover.MaxClimbMetres"/> above the mover)
         /// is never a bound's pick. 📐 Live before: <c>uf-corner-fight</c>, picks at Z = 3 beside a house left the movers standing under them.
         /// ✅ Red-proof: the height test removed ⇒ the raised point is picked ⇒ red.</summary>
