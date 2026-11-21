@@ -519,11 +519,15 @@ namespace Hrot.AI.Behaviors.Brains
             if (fight != NodeStatus.Success || ws.NoRally != 0) return fight;
             if (ws.PeakEnemy <= 0f || !AfterContact.EnemyAlive(world, self)) return fight;   // the enemy is gone: nothing to remember, no rally
             AfterContact.Learn(world, self, ws.PeakEnemy);
+            // ⭐ CE-2466 R2 — the RALLY is the drill after a BROKEN contact (§7.9.2): a squad that held, assaulted or defended its post goes back to
+            //   its task at once (R1's learning still applies). 📐 ia-area-defend: the guard's post rallied 30 s after the first attacker left and
+            //   met the second one late.
             bool broke = (SquadContactResponse)ws.Choice.Winner == SquadContactResponse.BreakContact && ws.Play.HasAnswer == 1;
+            if (!broke) return fight;
             var rallyAt = ws.Play.Answer;
             Next(ref ws, StageRally, world);
-            ws.RallyStep = broke ? (byte)0 : (byte)1;
-            ws.RallyAt = rallyAt; ws.HasRallyAt = broke ? (byte)1 : (byte)0;
+            ws.RallyStep = 0;
+            ws.RallyAt = rallyAt; ws.HasRallyAt = 1;
             AfterContact.ReportRally(world, self);
             return NodeStatus.Running;
         }
