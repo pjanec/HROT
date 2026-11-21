@@ -21,10 +21,24 @@ Branch `backend`; merged `behaviors@25431b39c` (a fast-forward: it already held 
 | UF-3 save by age (K1) | DONE `b9a0daa74` | the save writes an owned record's age; a load makes it `Loaded` (age in `LearnedAt`, no reader treats it as fresh); the owning writer rebases it each tick it finds one. Rails `TerrainObjectRequestsTests.CE2468_APlaceUnderFire_IsSavedByAge_AndLoadedHoldingIt`, `UnderFireKnowledgeTests.UF3_*` (a save at t 3000 loaded at t 0 ages from the saved age) |
 | UF-4 table + sight (K3, K5, K11) | DONE `c3911d14c` | `UnderFireTable` on `DoorStates`, its own cache; `UnderFireSight` grids per Direct record on the authored terrain (`SegmentBlocked(doors: null)`, eye 1.6, target 1.0, 5 m), built by `UnderFireSightSystem` in the serial pass only when the table, terrain or builders changed, cleared on `WorldEpoch.Moved`. Rail `UnderFireNavTests.UF4_*`: equal grids on two loads cell for cell, a path query builds nothing, 0 B over 10 steady frames |
 | UF-5 per-side route cost (K4, K8, K12) | DONE `c3911d14c` | `UnderFirePolyMap` per mesh registered by the bake (keyed by layer: a re-bake replaces it), factor 1 + 7 × covered share, Direct only; one lookup in `DoorAwareQueryFilter.GetCost`; `RoadGraphRouter` prices a segment whose midpoint is covered (×8), `RoutePlanner` passes the side. Rails `UnderFireNavTests.UF5_*`: two streets round a wood — Blue (knows) drives the far street, Red the near one; Indirect not priced; the road leg goes round for Blue |
-| UF-6 the danger solve | DONE `1f0f1c9be` | Shelled areas from the side's Indirect records; `CoveredByFire` (kind 9, bit 1 << 9, `Wants` bound) from the side's Direct grids (`CoveredByFireAreas`, the `MinefieldAreas` shape, cap 4); rated 1. Rail `UnderFireNavTests.UF6_*`. ⏳ the shelled scenarios re-run (below) |
+| UF-6 the danger solve | DONE `1f0f1c9be` | Shelled areas from the side's Indirect records; `CoveredByFire` (kind 9, bit 1 << 9, `Wants` bound) from the side's Direct grids (`CoveredByFireAreas`, the `MinefieldAreas` shape, cap 4); rated 1. Rail `UnderFireNavTests.UF6_*`. Shared-seam scenarios: below |
 | UF-7 the witness detector (K6, K8) | DONE `1f0f1c9be` — closes CE-4626 | `ShelledAreas.Teach`: each side with a live unit within 1 500 m learns a shelled point when it becomes shelled, on a new burst and every 20 s; `At` = the last burst. Rail `UnderFireKnowledgeTests.UF7_*`: Blue at 1 km learns, Red at 2 km does not until it comes within range; a refresh does not move `LearnedAt` |
 
 📄 Design folded: [`DESIGN_Minefields.md` §9b.2 "As built"](../../designs/minefields/DESIGN_Minefields.md) (obligation ⑤).
+
+### Shared-seam scenarios (UF-5 / UF-6) — `scenario-regression.sh`, deterministic editor tier
+
+| scenario | after CE-2468 (`a58bc1c29`) | base `91da592a6` (before UF-1, clean worktree) | verdict |
+|---|---|---|---|
+| `mf-engineers-answer` · `mf-knowledge-survives` · `mf-at-vs-vehicle` · `mf-way-round` · `mf-recon-and-mark` · `mf-strike-and-halt` | PASS | — | unchanged |
+| `ua-squad-danger-crossing` · `-contact` · `-hold` · `pc-urban-move` · `agg-shelled-unit` | PASS | — | unchanged (⭐ `agg-shelled-unit` passes with shelling per side, 1 500 m witnesses — K8's intended change did not move it) |
+| `mf-no-way-round` | FAIL: "the squad reacts MinefieldAhead", "still halted at the end" | FAIL, the SAME two rows | ⚠ pre-existing (`CE-2447` history) |
+| `mf-clear-lane-and-cross` | FAIL: S8, S10, S11 (t 1956.5 s) | FAIL, the SAME three rows at the same time | ⚠ pre-existing |
+| `pc-urban-ambush` | FAIL: ClearBuilding H5, UrbanMovement again, east to (280,190) | FAIL, the SAME three rows | ⚠ pre-existing |
+
+⚠ **The first run found a real defect:** 14 / 14 aborted on the first frame — `UnderFireSightSystem` had no `[TickMode]` (CE-3293); fixed `a58bc1c29`, with a guard in
+`SimHostCoreLogicPackTests` (every pack system declares one; red-proved). ⭐ The parallel checks (`HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`) on the 18
+UnderFire rails: 18 / 18. ⏳ `stepped-hash.py --threads 1,4,8`: not yet run.
 
 ### Red-proofs — every rail by a compiling mutation
 
