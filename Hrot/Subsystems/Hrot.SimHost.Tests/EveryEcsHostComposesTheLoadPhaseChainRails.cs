@@ -147,6 +147,16 @@ namespace Hrot.SimHost.Tests
                 "EcsHostClusterHandlers does not compose the linked-client step on the registry it was given");
         }
 
+        /// <summary>⭐ CE-11025 (the silent-default rule) — the ONE composition hands the replay handler it builds the load chain it builds, so every
+        /// ECS host's replay open makes the recording's world resident through the chain's shared parts.</summary>
+        [Fact]
+        public void CE11025_TheComposition_HandsTheReplayHandlerItsLoadChain()
+        {
+            var composition = CompositionRootSource.ReadRepoSource("Hrot/Network/Hrot.Network.Orchestration/EcsHostClusterHandlers.cs");
+            Assert.Matches(@"replayLoad\.WorldLoad\s*=\s*chain\s*;", composition);
+            Assert.Matches(@"slave\.RegisterHandler\(chain\)", composition);
+        }
+
         // ── ② ⭐⭐⭐ it is not SHADOWED ─────────────────────────────────────────────────────────
 
         // ── ② ⭐⭐⭐ nothing can be SHADOWED, because nothing else claims the step ───────────────

@@ -76,7 +76,8 @@ public readonly record struct LoadPhaseContext(
     double CheckpointingSeconds = 0,   // ⭐ CE-3299 D17 (R-3045) — the session's recording mode (0 = FULL)
     bool RecordingOff = false,
     System.Collections.Generic.IReadOnlyDictionary<string, string>? FeatureConfigsAtLoad = null,
-    string? ScenarioArgsJson = null)            // ⭐ macros S3a ⑦ (SR-41) — the load's scenario args · ⭐ CE-3354 ③ — this node's load also waits for its built 3-D map (the master's map-in-load set, stamped per node)
+    string? ScenarioArgsJson = null,
+    string? OverlayHash = null)                 // ⭐ CE-11025 — a REPLAY's world: the recording's terrain additions (null = none); a live load reads the staged scenario's            // ⭐ macros S3a ⑦ (SR-41) — the load's scenario args · ⭐ CE-3354 ③ — this node's load also waits for its built 3-D map (the master's map-in-load set, stamped per node)
     // ⭐ CE-4090 (AQ108 D14) — this live run must not be recorded ("Record live runs" was off at its load)
 {
     /// <summary>⭐ Builds the context from a node-op intent, or <c>null</c> when it carries no load payload.</summary>
@@ -90,6 +91,10 @@ public readonly record struct LoadPhaseContext(
     /// <summary>⭐ True while the cluster is BUILDING a world — the phase in which content loads.</summary>
     public bool IsLoadingPhase
         => TargetState == ClusterState.LoadingLive || TargetState == ClusterState.LoadingEdit;
+
+    /// <summary>⭐ CE-11025 — the WORLD of a replay open (<see cref="ClusterState.LoadingReplay"/>): the terrain and its overlay come from the
+    /// recording (<see cref="TerrainName"/>, <see cref="OverlayHash"/>), never from the staged scenario of an earlier run.</summary>
+    public bool IsReplayWorld => TargetState == ClusterState.LoadingReplay;
 
     /// <summary>⭐ True for the transition that ENDS the load — the phase that must be held open.</summary>
     public bool IsOperatingTarget

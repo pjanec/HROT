@@ -188,14 +188,18 @@ namespace Hrot.SimHost.Modules.Orchestration
                 chainParts = chainParts.Append(LoadPart.LinkedClient).ToList();
             }
 
-            slave.RegisterHandler(LoadPhaseChain.FromRoles(
+            var chain = LoadPhaseChain.FromRoles(
                 h.Role, h.LoadProviders, h.World,
                 profileParts:        chainParts,
                 recordingController: controller,
                 storageDirectory:    h.StagingRoot,
                 hostLabel:           h.HostLabel,
                 entityMap:           h.EntityMap,
-                changeCheck:         changeCheck));
+                changeCheck:         changeCheck);
+            slave.RegisterHandler(chain);
+            // ⭐⭐ CE-11025 (Q113-J) — a replay open makes the RECORDING's terrain resident through this chain's shared parts (terrain → map →
+            //     linked client), on every ECS host by construction (the silent-default rule: the handler built in step 1 is handed the chain).
+            replayLoad.WorldLoad = chain;
 
             // 8. Scenario save + recording archive (CE-279 Layer A). ⭐ CE-4093 — a save handler is wrapped so the node's part of a completed save
             //    round re-baselines the check.
