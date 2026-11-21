@@ -80,16 +80,9 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         private static void End(EntityRepository world, Entity charge)
         {
-            if (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                && world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(charge)
-                && world.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>())
+            if (Fdp.Toolkit.NetworkSpawning.NetworkEntityDestroy.Request(world, charge, "Charge detonated"))   // ⭐ CE-2468 UF-1 — the one network destroy
             {
                 world.GetComponentRW<WeaponSystemParams>(charge).Charge = 0;
-                world.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
-                {
-                    NetworkId = world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(charge).Value,
-                    Reason    = "Charge detonated",
-                });
                 return;
             }
             world.DestroyEntity(charge);
