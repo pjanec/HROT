@@ -449,7 +449,7 @@ field's own rotated lattice).
 | KG-8 | ⛔ *its "the shelled area stays node-level … not a `PlaceKnowledge` kind" is SUPERSEDED by §9b (R-2140, `2026-11-21`): the shelled area and the ground a known enemy covers are ONE kind, `UnderFire`.* the UNIFICATION point is the planner's ONE per-side area-cost table, not the danger kinds: minefields fill it now; a shelled or gas area MAY later add a cost through the same table (go round when cheap, else cross with care) — ⛔ not built now (AQ101 ruled cross-or-hold). Junction / crossing / open-ground areas are route GEOMETRY, not knowledge: they stay in the sensor. The shelled area stays node-level and short-lived (not a `PlaceKnowledge` kind); ⚠ its missing SIDE (every side's squads see every shelling) is a gap, filed, not fixed here |
 | KG-9 | ⭐ the navigation node (the Muscle, where the danger solve and the planner run) HAS the knowledge: `PlaceKnowledge` and `Minefield` replicate through the shared translator pack every node role installs — the `GroundDamage` precedent (`SharedTranslatorPack.cs:14-16, :86-87`); the sensor's unit side comes from the replicated affiliation (`EntityInfo`, the same pack). The solve adds a `Minefield` area when the route enters a cell the UNIT'S SIDE knows as mined or suspected; the march asks for the kind (`SquadMarchBehavior.cs:218-222`) |
 
-### 9b. The second kind — UNDER FIRE: the shelled area and the ground a known enemy covers, ONE store *(`2026-11-21`, behaviors, `CE-2466`, R-2140; build-state: DESIGN — approved, not built)*
+### 9b. The second kind — UNDER FIRE: the shelled area and the ground a known enemy covers, ONE store *(`2026-11-21`, behaviors, `CE-2466`, R-2140; build-state: READY-TO-BUILD `2026-11-21` — reviewed (§9b.1), dispatched to `backend`)*
 
 🔒 User, `2026-11-21`: *"Remembering the place which is covered by fire is also a good idea. Just it resembles the place where explosions are happening. So this is
 something we might already have. So I hope that knowledge is of the same kind, or that we unify these two somehow using the same storage mechanism to avoid
@@ -466,9 +466,9 @@ the ENEMY stays in contact knowledge — this kind is the GROUND, not the man.
 | storage, sharing, save, replicate | — | ⭐ ONE `UnderFireKnowledge` record per (subject, side): the shared `PlaceKnowledgeHeader` + payload `Cause` · `Point` · `RangeM` · `EnemyStrength` (Direct: the enemy danger seen at the break, read by Squad Tactics R4); `LearnedAt` = the last evidence (merge: newest); subject = a stable key from (cause, point on a 25 m grid) |
 | how long | 120 s | per cause, read-side: `Indirect` cools `CoolSeconds` 120 s after its last evidence (as now), `Direct` `DirectCoolSeconds` 600 s; a cooled record is ignored, and dropped by the writer after 2 × its cool time |
 | what it covers | a circle of `RadiusM` | `Indirect`: the circle (as now) · `Direct`: the cells within `RangeM` the point SEES — `UnderFireSight`, a 5 m grid derived on each node from (point, range) through `TerrainWorld.SegmentBlocked`, never stored (the `MinePattern` precedent: derived the same on every node) |
-| who reads it | the danger solve (`ShelledAreas.Footprints`) | ⭐ the danger solve (the unit's side: `Indirect` → `Shelled` area as now, `Direct` → a new `CoveredByFire` area) **and** the per-side route cost (`NavDoorways.GetCost`: a polygon whose centre is under fire for the mover's side ×`UnderFireCost` 8 — priced, never closed: KG-7, go round when cheap) **and** the squad's `Firm()` (Squad Tactics R4) |
+| who reads it *(⚠ revised by the review below — K8: `Indirect` is NOT priced)* | the danger solve (`ShelledAreas.Footprints`) | ⭐ the danger solve (the unit's side: `Indirect` → `Shelled` area as now, `Direct` → a new `CoveredByFire` area) **and** the per-side route cost (`NavDoorways.GetCost`: a polygon whose centre is under fire for the mover's side ×`UnderFireCost` 8 — priced, never closed: KG-7, go round when cheap) **and** the squad's `Firm()` (Squad Tactics R4) |
 
-⭐⭐ **NOTHING LASTS FOREVER** (🔒 user, `2026-11-21`: *"let's make sure that the knowledge can age. So nothing lasts forever."*): every `UnderFire` record has a finite life from its `LearnedAt` — the cause's cool time, after which every reader ignores it, and 2 × that, after which the writer DESTROYS it (in the serial `PlaceKnowledgeSystem`, by sim time, so a replay and every node agree). Only NEW evidence (a burst at a shelled point, a new contact from the position) moves `LearnedAt`; a reader, a route or a save never refreshes it. A saved record keeps its `LearnedAt` as sim time, so a scenario loaded later ages it from there — ⛔ never re-stamped at load. ⚠ This is the `UnderFire` kind's rule; the minefield kind keeps its knowledge (a laid field does not move) — R-4273 unchanged.
+⭐⭐ **NOTHING LASTS FOREVER** (🔒 user, `2026-11-21`: *"let's make sure that the knowledge can age. So nothing lasts forever."*): every `UnderFire` record has a finite life from its `LearnedAt` — the cause's cool time, after which every reader ignores it, and 2 × that, after which the writer DESTROYS it (in the serial `PlaceKnowledgeSystem`, by sim time, so a replay and every node agree). Only NEW evidence (a burst at a shelled point, a new contact from the position) moves `LearnedAt`; a reader, a route or a save never refreshes it. ⭐ **As reviewed (K1):** a save writes each record's AGE (now − `LearnedAt`), and a load REBASES it on the load's clock (`LearnedAt` = load time − age) — ⛔ never the absolute sim time (a plain scenario load may start at 0, an exercise load jumps the clock: an absolute value would read as fresh for thousands of seconds). ⭐ **(K4) cooling is a CHANGE:** when a record passes its cool time the writer sets its `State` to `Cooled` (a record change), so the per-side table — rebuilt only on a change — drops it from the cost and the sensor; the 2 × cool time then RETIRES it (K2). ⚠ This is the `UnderFire` kind's rule; the minefield kind keeps its knowledge (a laid field does not move) — R-4273 unchanged.
 
 📐 **Measured — `UnderFireSight` cost** (demo-city, `2026-11-21`, a scratch rail, not committed): `SegmentBlocked` ~2 µs a ray; a 150 m range on a 5 m grid =
 2 821 rays = **4–5 ms**, once per record per node (the 2 m grid: 30–40 ms). Red's two corners in `uf-corner-fight` see 32 % / 48 % of the circle. ⇒ cold, once
@@ -551,6 +551,74 @@ graph TD
 *What it shows that prose hid: the two detectors run on DIFFERENT nodes (the bursts where the ballistics run, the broken contact where the brain runs) and meet
 only in the replicated record — which is why the knowledge must be the replicated `PlaceKnowledge` record (KG-9's translator pack) and could never stay in
 `ShelledAreas`' node-local table.*
+
+#### 9b.1 The independent review — `2026-11-21` *(read-only reviewer; ✅ = verified against the code by the author)*
+
+🔒 User, `2026-11-21`: *"We should not leave anything for the build to check … let's make sure that the knowledge can age. So nothing lasts forever."*
+
+| # | finding | sev | ⭐ resolution — folded, binding on the build |
+|---|---|---|---|
+| K1 | a saved absolute `LearnedAt` reads as fresh after a load at another clock — ✅ `PlaceKnowledgeSection.cs:180` writes the absolute value | BLOCKER | save the AGE, rebase at load (above) |
+| K2 | nothing can destroy a record — ✅ `RecordWriterCore.cs` creates / updates only | BLOCKER | ⭐ a `Retire(key)` step in `RecordWriterCore` (owned entities only; drops a pending creation), the DDS dispose to the ghosts, the recorder records the destroy (replay agrees); an ORPHAN (its owner node gone) is retired by the node that inherits its ownership (the existing handover) — and readers ignore it from its cool time regardless |
+| K3 | the sight grid is not the same everywhere: `SegmentBlocked` reads live `DoorStates` (craters, collapse, breaches, doors) | BLOCKER | ⭐ `UnderFireSight` uses the AUTHORED terrain (`doors: null`, the `Height` grid), eye 1.6 m, target 1.0 m — deterministic on every node. ⚠ A building destroyed after the record is not reflected (stated limitation; the record ages out within 600 s) |
+| K4 | `GetCost` has no `now`; a per-call record scan per A* expansion | MAJOR | cooling is a record change (above) ⇒ no `now` in the filter; ⭐ a per-side `UnderFirePolyMap` (polyRef → factor), built once per table rebuild — the `MinefieldPolyMap` shape; a query is one lookup. A polygon's factor = 1 + 7 × its COVERED SHARE (its vertices + centre sampled against the grid), not its centre alone |
+| K5 | where / which thread builds the 4–5 ms grid | MAJOR | in the serial pre-pass on each node after the table changes; published immutable; cleared on `WorldEpoch.Moved` |
+| K6 | the 20 s refresh re-stamps `LearnedAt` | MAJOR | a refresh carries `At` = the last BURST time (`p.T0`): no new burst, no change |
+| K7 | the subject key does not fit `KnowledgeKey` / `SubjectKind`; a running-mean centre drifts across grid lines | MAJOR | ⭐ `SubjectKind.Place`; the Guid derived deterministically (name-based, from cause + the cell of the FIRST centre — frozen at first learn); later evidence for a point within `MergeM` of a record's frozen point updates THAT record |
+| K8 | pricing `Indirect` overrides AQ101 R-4227 ("crossed or held, never routed around"); the witness rule hides shelling from far squads | MAJOR | ⭐ **`Indirect` is NOT priced** — it stays cross-or-hold (the ruling unchanged); only `Direct` is priced. ⭐ `WitnessMetres` **1 500 m** (a burst is heard far) — a side with no unit within 1.5 km does not know of it: an intended change, ⏭ `agg-shelled-unit` and every scenario with shelling re-run |
+| K9 | the second kind's plumbing was not listed | MAJOR | the build list in the handoff (`HANDOFF_Behaviors_To_Backend_UnderFire.md`): its own writer subclass + claims, registration (`DamageAssessmentModule.cs:42`, `CgfLogicPack.cs:354`), a `GlobalComponentIds` entry, a TKB id, a descriptor ordinal, the DDS type + translators (`SharedTranslatorPack.cs:91-99`), `PlaceKnowledgeKind.UnderFire`, `KnowledgeSource.Contact` / `.Burst`, the save shape + load arms (`PlaceKnowledgeSection.cs:57`, `ScenarioLoadStep.cs:293`) — ⭐ ids allocated by the building lane (rule 3) and published in its first note |
+| K10 | `CoveredByFire` needs more than an enum value | MINOR | `DangerAreaSettings.Wants` cap raised, a `CoveredByFireAreas` pass (the `MinefieldAreas` shape) with its own cap, a stable id from the Guid |
+| K11 | every refresh rebuilds the minefield table too | MINOR | ⭐ its OWN table on `DoorStates` (`UnderFireTable`), beside the minefield one |
+| K12 | `EnemyStrength` missing from the UML; road legs skip `GetCost` | MINOR | UML below; ⭐ road legs priced too — a road segment whose midpoint is covered costs × the same factor in `RoadGraphRouter` |
+| K13 | several SimHosts would each write a record per key | MINOR | accepted — the union merges them (newest) |
+
+```mermaid
+classDiagram
+  class RecordWriterCore {
+    <<existing>>
+    Retire(key) (new - K2)
+  }
+  class UnderFireKnowledge {
+    <<new kind 2>>
+    Header - SubjectKind.Place, State incl Cooled
+    Cause - Indirect or Direct
+    Point - frozen at first learn
+    RangeM
+    EnemyStrength
+  }
+  class UnderFireWriter {
+    <<new - RecordWriterCore subclass, serial, cools and retires>>
+  }
+  class UnderFireTable {
+    <<new - per side, on DoorStates, its own cache>>
+  }
+  class UnderFireSight {
+    <<new - authored terrain, eye 1.6 m, built in the serial pre-pass>>
+  }
+  class UnderFirePolyMap {
+    <<new - polyRef to factor per side, Direct only>>
+  }
+  class NavDoorways {
+    <<existing - GetCost one lookup>>
+  }
+  class RoadGraphRouter {
+    <<existing - road legs priced too>>
+  }
+  class DangerAlongRouteSolve {
+    <<existing - Shelled from the table, CoveredByFireAreas>>
+  }
+  UnderFireWriter --|> RecordWriterCore
+  UnderFireWriter --> UnderFireKnowledge
+  UnderFireTable ..> UnderFireKnowledge
+  UnderFireSight ..> UnderFireTable
+  UnderFirePolyMap ..> UnderFireSight
+  NavDoorways ..> UnderFirePolyMap
+  RoadGraphRouter ..> UnderFireSight
+  DangerAlongRouteSolve ..> UnderFireTable
+  DangerAlongRouteSolve ..> UnderFireSight
+```
+*What it shows that prose hid (as reviewed): the build is a writer SUBCLASS, a table, a sight grid and a polygon map — the minefield kind's four pieces, one each; and the
+only change to the shared core is `Retire`, which the minefield kind never needed because a laid field never goes away.*
 
 **Rejected:** covered-by-fire inside `ShelledAreas` — no side, unsaved, 8 points, 120 s, node-local · two stores (one per cause) — duplication (the user's ruling)
 · every burst as knowledge — replication churn for evidence no other node needs · storing the seen-cell grid in the record — derivable, 450 B per record on

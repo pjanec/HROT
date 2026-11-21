@@ -1673,14 +1673,20 @@ the "deliberate attack" is the existing assault with rule 4's gate, its urban fl
 | a unit's own used firing spots | `FiringPositionMemory` — its OWN windows, not the enemy's | `Combat/FiringPositionMemory.cs` | ⛔ not this |
 | the enemy itself | `SquadContacts`, `CommandPicture` | Squad/State, Squad/Command | ⛔ stays there (KG-5) — the knowledge is the GROUND he covers |
 
-#### 7.9.2 The four rules
+#### 7.9.2 The rules — ⭐ AS REVIEWED `2026-11-21` (§7.9.7; R1–R4 approved, R5–R6 and every amendment are lane decisions for the user's review)
 
 | # | rule | built on |
 |---|---|---|
-| **R1** | ⭐ **remember**: break contact succeeding writes the ground the threat covers as `UnderFire` knowledge (cause `DirectFire`) for the squad's side — the threat point, its range, and `EnemyStrength` (the pool's enemy danger sum at the break); ⏳ it AGES like every `UnderFire` record (§9b: nothing lasts forever) | `DESIGN_Minefields.md` §9b (one store with the shelled area) |
-| **R2** | ⭐ **rally and report**: a new last stage of `ReactToContact` after a won break contact — `SquadHold` `RallySeconds` 30 where the squad stands; on entry `Lace` + `Sitrep` up | `SquadHoldPlay`, `ReportQueue` |
-| **R3** | ⭐ **never resume blindly**: the resumed task re-plans; its route is priced by the side's `UnderFire` cells (go round when it can). When it cannot, the route sensor reports a `CoveredByFire` area and a new `BasicSquadSop` row `CoveredByFireAhead` holds the squad short of it and reports (`Sitrep`) — ⛔ never the crossing drill | `NavDoorways.GetCost` (KG-8's one table), `DangerAlongRouteSolve` |
-| **R4** | ⭐ **no frontal assault on a force it broke contact from**: in `Firm()`, an `Assault` winner whose contact stands in a fresh `DirectFire` record of the side becomes `Hold` unless the squad now has SUPERIORITY — its strength against the strength the record remembers (`EnemyStrength`, written by R1 from the squad's pool at the break) gives the enemy a share ≤ `AssaultShare` 0.25 (doctrine's 3 : 1) | `Firm()`; the share is `SquadEnemyStrengthRatio`'s own formula (`SquadInputs.cs:251`) with the remembered enemy in place of the pool's |
+| **R1** | ⭐ **remember** — when the `ReactToContact` reaction ENDS with an enemy still alive, whatever drill ran (a won or failed break contact, a hold, a failed assault — review S4), it learns one `UnderFire` record (`Direct`) **per identified pooled contact** (separate keys — U2's two corners are two records, S5), captured BEFORE `Next()` wipes the play; `EnemyStrength` = the MAXIMUM pool danger sum seen over the whole reaction (not at the end, after the lull let contacts fade — S6). An ordered break contact (`HasTo`, no threat) learns nothing. ⏳ It ages (§9b) | Minefields §9b |
+| **R2** | ⭐ **rally and report** — a new last stage `StageRally`: both elements to `ws.Answer` (the hidden retreat point — not "where it stands", which CE-2465 may leave split and in the open, S9), `SquadHold` `RallySeconds` 30 in cover; on entry `Lace` + a `Spot` of the remembered positions (the SITREP is the staff's own, `StaffSystems.ComposeSitrep` — S15). A wounded man left inside a fresh `UnderFire` record counts as FULLY exposed: rescued only under suppression, never in the lull alone (S8) | `SquadHoldPlay`, `ReportQueue`, `CasualtyExposure` |
+| **R3** | ⭐ **never resume blindly** — a march: its lead's path to the objective is priced by the side's `UnderFire` cost (§9b), so it goes round when it can (`SquadMarchBehavior.cs:240` — a path query). ⭐ A bound has NO route (`BoundingOverwatchBehavior.cs:235-238`: a straight line to the objective, S1) ⇒ **a bound takes its direction from the next waypoint of a priced path** to the objective (`BoundAlongRoute`), never the straight line. No way round ⇒ the route sensor reports `CoveredByFire` and the SOP row `CoveredByFireAhead` holds the squad short (⛔ never the crossing drill: `DangerAreaAhead` excludes it like `Minefield`, S14) | §9b, `DangerRouteWatch` |
+| **R4** | ⭐ **no frontal assault on a force it broke contact from** — in `Firm()`, an `Assault` winner whose contact stands within `RangeM` of a fresh `Direct` record's point (the point test, no sight grid in the brain — S16) becomes **`BreakContact`** (⛔ not `Hold`: a hold leaves the squad standing where the corner's fire caught it — S7; `Hold` only when `HoldsFirm`), unless the squad's strength against the record's `EnemyStrength` gives the enemy a share ≤ `AssaultShare` 0.25 (3 : 1). ⚠ `PressesOn` (CE-2454, a lone man on an attacking order) keeps its own branch, railed | `Firm()`, `SquadEnemyStrengthRatio`'s formula |
+| **R5** | ⭐ **fit to fight** (new, S10) — after the rally, a squad whose `SquadStrengthRatio` is under `FitShare` 0.5 does not resume: it holds, sends `Lace` and a `Request` (`Reinforce`), and reports `Progress TaskFailed` | `ReportQueue` |
+| **R6** | ⭐ **a hold short ends** (new, S2) — `CoveredByFireAhead` holding `HoldShortSeconds` 120 s sends a `Request` (`FireSupport`) and `Progress TaskFailed` up; a squad UNDER A PLATOON is then the platoon's (it re-tasks, or orders the deliberate attack — CE-2467); a LONE squad ends its task (⛔ never "waits forever", ⛔ never walks back in when the record cools) | `ReportQueue` |
+
+⭐ **Under a platoon** (S3): the SOP's *"Under a platoon → the platoon reacts for the squad"* row (`BasicSquadSop.cs:135`) sits above `ReactToContact`, so R1, R2 and R4 do not run for a platoon's squad — ⇒ the PLATOON's contact reaction learns R1 the same way (its own pooled contacts), and `CoveredByFireAhead` sits ABOVE that row (a squad of a platoon still never walks into known covered ground; it holds and reports, and R6 hands it to the platoon). The platoon's own plays read the same table (their routes are path queries — priced the same).
+
+⛔ **SUPERSEDED by the review** (kept so nobody quotes it): *R1 "break contact succeeding writes … the threat point"* (one point, success only) · *R2 "`SquadHold` 30 where the squad stands … `Lace` + `Sitrep`"* · *R3 "the resumed task re-plans"* (a bound never planned) · *R4 "… becomes `Hold`"*.
 
 #### 7.9.3 Classes
 
@@ -1759,28 +1765,32 @@ sequenceDiagram
   participant N as route planner + sensor
   S->>B: outmatched, break contact
   B-->>S: Success (CE-2465 - out of sight, a lull)
-  S->>K: Learn Blue, DirectFire, Red's corner, range
-  S->>S: StageRally - SquadHold 30 s
-  S->>Q: LACE, SITREP
+  S->>K: Learn Blue, Direct - one record per Red corner, the max strength seen
+  S->>S: StageRally - both elements to the hidden point, SquadHold 30 s
+  S->>Q: LACE, SPOT of the corners
+  S->>S: fit to fight? (R5) - else Request Reinforce, TaskFailed
   S-->>T: the reaction ends, the bound resumes
-  T->>N: re-plan to the objective
-  N->>N: Red's corner sees the street - its cells priced
+  T->>N: BoundAlongRoute - a priced path to the objective
+  N->>N: the corners see the street - its cells priced
   alt a way round
     N-->>T: the route by the next street
   else no way round
     N-->>T: CoveredByFire area 30 m ahead
-    T->>S: SOP row CoveredByFireAhead - hold short, SITREP
+    T->>S: SOP row CoveredByFireAhead - hold short
+    S->>Q: after 120 s - Request FireSupport, TaskFailed (R6)
   end
-  Note over S: a new contact from the corner - Firm() turns Assault into Hold (R4)
+  Note over S: a new contact from the corner - Firm() turns Assault into BreakContact (R4)
 ```
-*What it shows that prose hid: the re-plan is the ONLY change to the resumed task — no new "bypass" behaviour; whether the squad bypasses or holds is decided
+*What it shows that prose hid: a priced path is the ONLY change to the resumed task (for a bound: its direction from that path's next waypoint) — no new "bypass" behaviour; whether the squad bypasses or holds is decided
 by the per-side cost and the existing sensor, the KG-7 split (avoid vs cross with care) unchanged.*
 
 #### 7.9.5 Claims
 
 | the design rests on | code — how it IS | design — how it was MEANT |
 |---|---|---|
-| a won break contact returns to `ReactToContact`, which ends the reaction with no casualty to care for | ✅ `SquadContactBehaviors.cs:533-536` | ✅ §4 S2 |
+| a won break contact returns to `ReactToContact`, which ends the reaction with no casualty to care for | ✅ `SquadContactBehaviors.cs:533-536` — ⚠ a WOUNDED man sends it to `Rescue` first (S8, R2) | ✅ §4 S2 |
+| a resumed march re-plans; a resumed bound does not | ✅ march: the lead's `AdvanceTo` objective is a path query (`SquadMarchBehavior.cs:240`) · ⛔ bound: a straight line (`BoundingOverwatchBehavior.cs:235-238`) ⇒ R3's `BoundAlongRoute` | ✅ §6.1 / §7.6.2 |
+| a platoon's squad never runs `ReactToContact` | ✅ `BasicSquadSop.cs:135` above it | ✅ Platoon Attack / Defend |
 | a dead man is no casualty (no recovery walk into the kill zone) | ✅ `SquadCasualties.ToCareFor` → `Injury.IsIncapacitated` (alive only) | ✅ §7.5 R-d |
 | `Lace` / `Sitrep` reports exist and queue with the staff delay | ✅ `CommandReports.cs:15-27` | ✅ Command Chain |
 | the per-side route cost has one home | ✅ `NavDoorways.cs:563` | ✅ KG-8 |
@@ -1791,16 +1801,43 @@ by the per-side cost and the existing sensor, the KG-7 split (avoid vs cross wit
 **Rejected:** a rally pause alone — the squad still walks the same street · always waiting for the platoon's order — a lone squad never moves again · a
 squad-local "broke contact from" memory beside the knowledge — two stores of one fact (R-2140) · a new threat-aware planner — KG-8's table.
 
-#### 7.9.6 Scenarios and their expect rows *(R-4277, stated upfront)*
+#### 7.9.6 Scenarios and their expect rows *(R-4277, stated upfront; ⭐ as reviewed — S12, S13)*
 
-| scenario | new / changed expect rows |
+| scenario | expect rows |
 |---|---|
-| `uf-corner-fight` (U2) — `runFor` 240 → 420 | `never` a Blue man within 15 m of Red's corners (627–633, 384) / (666–671, 386) after `Red fires+30` · Blue's squad runs `SquadHold` (the rally) after `BreakContact` · the existing rows unchanged |
-| a new `uf-shelled-street` (U-suite) | a squad marching to a point beyond a street the enemy shells (3 bursts / 60 s): its route goes round the shelled block, `never` a man inside it; a squad of the OTHER side (not a witness) walks through (side-awareness, CE-4626) |
+| `uf-corner-fight` (U2) — `runFor` 240 → **780** (past `DirectCoolSeconds` 600 + a margin: the "walks back in when it cools" failure must show) | `never` a Blue man within 15 m of Red's corners (627–633, 384) / (666–671, 386) after `Red fires+30` (`close`) · a `field` row on the commander's report outbox: a `Lace` report after the break (the rally is an inner play — the `task` cue sees only `ReactToContact`) · `never` Blue `still` 60 s in a Red man's sight · Blue's task ENDS (R6 lone squad: `Progress TaskFailed` in the outbox) before 780 s · the existing rows unchanged |
+| a new `uf-shelled-street` | Blue marches to a point beyond a block Red's mortar shells (3 bursts / 60 s, a scheduled `do`): its route goes ROUND… ⚠ ⛔ NOT for shelling — §9b keeps the shelled area cross-or-hold (AQ101 R-4227) ⇒ the row is: the squad HOLDS short of the shelled block (`SquadHold` reason `Shelled`) while it is shelled, crosses after it cools · a Green squad 2 km off (beyond `WitnessMetres`) learns nothing (`knowledge` row: no record of its side) |
+| a new `uf-corner-bypass` | the corner fight with a parallel street open: after the break Blue's bound takes the parallel street (`never` within 15 m of the corners, a man reaches the objective) — R3's go-round |
 
 **Rails** (`SquadManeuverTests` + the place-knowledge suite): R1 the record after a won break contact (side, cause, point) · R2 the rally stage and its two
 reports · R3 the priced cell (a planner rail on a two-street navmesh) and the SOP row · R4 `Firm()` (Assault → Hold in a fresh record, unchanged outside it) —
 each red-proved; the parallel checks (`HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`) on every one (R1's event goes through the batch buffer, R-4212).
+
+#### 7.9.7 The independent review — `2026-11-21` *(two read-only reviewers, one per half; findings verified where marked ✅; resolutions folded above and in Minefields §9b)*
+
+🔒 User, `2026-11-21`: *"We should not leave anything for the build to check. We need to check first, could you please start a review, independent review of that design with the goal of finding gaps and flaws."*
+
+| # | finding (squad half) | sev | resolution |
+|---|---|---|---|
+| S1 | a resumed bound has no route to re-plan — ✅ verified `BoundingOverwatchBehavior.cs:235-238` | BLOCKER | R3: `BoundAlongRoute` |
+| S2 | the hold short has no exit but ageing; a lone squad's reports go unanswered | BLOCKER | R6 |
+| S3 | a platoon's squads never run R1/R2/R4 — ✅ verified `BasicSquadSop.cs:135` | MAJOR | the platoon learns R1; `CoveredByFireAhead` above the platoon row |
+| S4 | R1 only on a WON break contact | MAJOR | R1 on any reaction end with the enemy alive |
+| S5 | one threat point; U2 has two corners | MAJOR | one record per identified pooled contact |
+| S6 | `EnemyStrength` read from the faded pool | MAJOR | the max over the reaction |
+| S7 | R4's `Hold` leaves the squad in the kill zone; `PressesOn` changed silently | MAJOR | `BreakContact`; `PressesOn` kept and railed |
+| S8 | a wounded man rescued from inside covered ground | MAJOR | fully exposed inside a fresh record |
+| S9 | the rally "where it stands" may be split, upright, under fire | MAJOR | both elements to `ws.Answer` |
+| S10 | nothing stops a broken squad (U2-4: the lone leader) | MAJOR | R5 |
+| S11 | the sight grid's thread / cache | MAJOR | §9b K5 (serial pre-pass) |
+| S12 | the rally row uncheckable; a frozen squad passes | MAJOR | §7.9.6 rows (outbox, `still`, task end, 780 s) |
+| S13 | `uf-shelled-street` contradicted the witness rule | MAJOR | re-specified (far squad beyond `WitnessMetres`; shelling stays cross-or-hold) |
+| S14 | `DangerAreaAhead` excludes only minefields | MINOR | excludes `CoveredByFire` too; the kind in `DangerRouteWatch` |
+| S15 | SITREP is the staff's; the enemy goes in a SPOT | MINOR | R2 sends `Lace` + `Spot` |
+| S16 | R4's "contact stands in a record" ambiguous | MINOR | the point test (within `RangeM`) |
+| S17 | §7.9 sits before "## 5" | MINOR | ⚠ kept — the file's §7 subsections already precede §5 (its history); not moved |
+
+⚠ **Not verified by either reviewer, stated so nobody assumes it:** whether the brain node holds `TerrainWorld` (R4 uses the point test so it does not need it) · whether a scenario `do` can schedule mortar bursts for `uf-shelled-street` (⏭ checked when the scenario is written; a squad with `IndirectFire` firing on a point is the fallback).
 
 ## 5. Embark / disembark — as measured *(2026-10-11)*
 
