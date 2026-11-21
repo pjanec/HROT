@@ -1060,6 +1060,32 @@ Rails: `DangerAlongRouteClassifierTests.CE3081_*` ×5 (incl. the real test-town 
 (simhost,cgf); red-proved (detection + Brain filter off ⇒ 6/6 red). Gates: `Fdp.Toolkits.Tests` 3228/0; integration danger-area set
 (across hosts ×2, `CE3079` crossing twin, `DangerAreaNodesTests`) 11/0 — no v1 answer moved.
 
+#### 10.7c The route's STEER POINT in the answer *(`CE-2469` SP-1, backend, `2026-11-21`; for Squad Tactics §7.9 R3; build-state: BUILT)*
+
+⭐ A bound has no route of its own and the Brain has no navmesh, so the answer now carries where the solver's planned — per-side priced (UF-5) — route goes next.
+
+```mermaid
+sequenceDiagram
+  participant S as DangerAlongRouteSolve (navmesh node)
+  participant W as DangerAreaResultTopic
+  participant A as DangerAreaSensorSystem.Apply (Brain)
+  participant B as DangerRouteSteer.Of (behaviour)
+  S->>S: planner.Plan(query with the unit's side) - the SAME route it classifies
+  S->>S: SteerOf(route, 20 m) - only when the plan succeeded
+  S->>W: areas + SteerX/Y/Z + HasSteer
+  W->>A: DangerAreaResultEvent
+  A->>A: buffer.SteerPoint / HasSteer (cleared on a new epoch)
+  B->>A: the commander's DangerArea sensor, fresh within 4 s
+```
+*What the picture shows that prose hid: no second plan — the steer point is a by-product of the route the areas are classified on, so it can never disagree with them.*
+
+| | as built |
+|---|---|
+| where | `DangerAreaCognitiveBuffer.HasSteer` + `SteerPoint` (596 → 608 B), `DangerAreaResultEvent`, `DangerAreaResultTopic.SteerX/Y/Z/HasSteer` (ordinal unchanged) |
+| when | `HasSteer` = 1 only for a PLANNED route; the straight-leg fallback answers 0. ⛔ SUPERSEDED: the solve returned before planning on a map with no roads, gas, mines or covered ground — it now plans whenever a navmesh exists (one plan per refresh), so a clear route still carries its steer |
+| the contract | `DangerRouteSteer.Of(world, commander, out steer)` — `UnitSensors.Of(…, DangerArea)`, fresh within `FreshSeconds` 4 s |
+| rails | `UnderFireNavTests.CE2469_*` (Friend round the wood, Hostile straight; `Of` fresh / stale) · `EqsDistributedTests.DangerAlongRoute_AcrossHosts_*` (the steer reaches the Brain) |
+
 #### 10.5b ✅ AS-BUILT — B6 (`CE-3079`, backend), `2026-10-06`: the demo PASSES live, with no HTTP write
 
 | §10.3 / §10.5 said | as built |

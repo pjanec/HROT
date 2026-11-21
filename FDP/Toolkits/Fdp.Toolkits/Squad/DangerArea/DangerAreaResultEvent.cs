@@ -30,5 +30,9 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public DangerAreaDescriptor[] Areas = Array.Empty<DangerAreaDescriptor>();
         /// <summary>How many of <see cref="Areas"/> are valid.</summary>
         public int Count;
+        /// <summary>⭐ <c>CE-2469</c> SP-1 — the planned route's steer point (<see cref="DangerAreaCognitiveBuffer.SteerPoint"/>); valid when <see cref="HasSteer"/> is 1.</summary>
+        public System.Numerics.Vector3 SteerPoint;
+        /// <summary>⭐ <c>CE-2469</c> — 1 when the solver planned a route (0 = a straight leg, or no plan).</summary>
+        public byte HasSteer;
     }
 }

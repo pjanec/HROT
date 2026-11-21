@@ -120,6 +120,66 @@ namespace Fdp.Toolkit.Terrain.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-2469 SP-1 (R-2140 R3) — the danger answer carries the planned route's STEER POINT, from the same per-side priced route: a Friend that knows the enemy on the
+        /// west street steers east round the wood, a Hostile that does not steers straight up the west street; the answer reaches the sensor's buffer and
+        /// <see cref="Fdp.Toolkit.Squad.DangerArea.DangerRouteSteer.Of"/> reads it while fresh (4 s), never after. 🔴 Red-proofs: steer from the straight fallback
+        /// (no plan) ⇒ both straight; drop the copy in <c>DangerAreaSensorSystem.Apply</c> ⇒ <c>Of</c> answers false.
+        /// </summary>
+        [Fact]
+        public void CE2469_TheSteerPoint_TakesThePerSidePricedRoute_AndReachesTheSensor()
+        {
+            var rig = new Rig();
+            var r = rig.R;
+            r.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>(); r.RegisterComponent<Fdp.Toolkit.Spatial.Eqs.EqsSensor>();
+            r.RegisterComponent<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(); r.RegisterComponent<Fdp.Toolkit.Perception.Components.SensorTag>();
+            r.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(); r.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+            r.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(); r.RegisterComponent<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>();
+            r.RegisterComponent<SimTransform>(); r.RegisterComponent<EntityInfo>(); r.RegisterComponent<NavAgentProfile>();
+            r.RegisterComponent<NavigationIntent>(); r.RegisterComponent<Fdp.Toolkit.Spatial.Eqs.EqsContextPoints>();
+            r.RegisterManagedEvent<Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent>();
+            r.RegisterEvent<Fdp.Toolkit.Perception.Events.SensorChangedEvent>();
+            var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { TileCache = null }.Build(rig.Terrain)!;
+            r.SetSingletonManaged<INavmeshProvider>(nav);
+            rig.Know(Blue, Enemy, 400f);
+            rig.Doors();
+            var planner = new RoutePlanner();
+
+            (Vector3 Steer, bool Has, Entity Unit) SolveFor(int side)
+            {
+                var unit = r.CreateEntity();
+                r.AddComponent(unit, new SimTransform { Position = From, Rotation = Quaternion.Identity });
+                r.AddComponent(unit, new EntityInfo { ForceId = (ForceId)side });
+                r.AddComponent(unit, new NavAgentProfile { PreferredLayerMask = Wheeled });
+                var child = Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(r, unit, 1, Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(To));
+                var sensor = r.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsSensor>(child);
+                var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
+                int n = Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.Solve(r, child, in sensor, areas, planner, null, out var steer, out bool has);
+                r.Bus.PublishManaged(new Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent
+                {
+                    ParentNetworkId = 0, LocalChildIndex = child.Index, Epoch = sensor.Epoch, RefreshTick = 3, Areas = areas, Count = n,
+                    SteerPoint = steer, HasSteer = has ? (byte)1 : (byte)0,
+                });
+                return (steer, has, unit);
+            }
+            var friend = SolveFor(Blue);
+            var hostile = SolveFor(Red);
+            Assert.True(friend.Has && hostile.Has);
+            Assert.InRange(Vector3.Distance(From, friend.Steer), 19f, 21f);
+            Assert.True(friend.Steer.X > 55f, $"the knowing side steers east round the wood: {friend.Steer}");
+            Assert.InRange(hostile.Steer.X, 40f, 50f);
+            Assert.InRange(hostile.Steer.Y, 35f, 45f);   // straight up the west street
+
+            r.SetSimulationTime(10f);
+            r.Bus.SwapBuffers();
+            new Fdp.Toolkit.Squad.Systems.DangerAreaSensorSystem().Execute(r, 0.1f);
+            Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerRouteSteer.Of(r, friend.Unit, out var read));
+            Assert.Equal(friend.Steer, read);
+            Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerRouteSteer.Of(r, hostile.Unit, out read) && read == hostile.Steer);
+            r.SetSimulationTime(15f);
+            Assert.False(Fdp.Toolkit.Squad.DangerArea.DangerRouteSteer.Of(r, friend.Unit, out _), "an answer 5 s old is not used");
+        }
+
+        /// <summary>
         /// ⭐⭐ UF-4 (K3, K5) — the sight is a pure function of the authored terrain and the record: two LOADS build the same grid cell for cell; the grids and cost maps are built in
         /// the serial pass only (a path query builds nothing); a steady frame of the pass + the readers allocates 0 B (R-2084).
         /// 🔴 Red-proof: pass the live doors to <c>SegmentBlocked</c> in the grid build ⇒ an opened door changes the grid (not run here); drop the unchanged-table early return ⇒ the steady frame rebuilds (Builds grows, bytes &gt; 0).

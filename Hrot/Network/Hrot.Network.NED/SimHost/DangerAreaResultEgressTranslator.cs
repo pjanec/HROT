@@ -63,6 +63,8 @@ namespace Hrot.Network.NED.SimHost
                     Epoch           = evt.Epoch,
                     RefreshTick     = evt.RefreshTick,
                     Areas           = areas,
+                    SteerX          = evt.SteerPoint.X, SteerY = evt.SteerPoint.Y, SteerZ = evt.SteerPoint.Z,   // ⭐ CE-2469 SP-1
+                    HasSteer        = evt.HasSteer,
                 });
                 SentSampleCount++;
             }

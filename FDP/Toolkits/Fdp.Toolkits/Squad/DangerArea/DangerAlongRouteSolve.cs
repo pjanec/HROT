@@ -33,7 +33,19 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// </summary>
         public static int Solve(EntityRepository repo, Entity carrier, in EqsSensor sensor, Span<DangerAreaDescriptor> areas,
             RoutePlanner planner, global::CarKinem.Road.RoadNetworkHolder? roads)
+            => Solve(repo, carrier, sensor, areas, planner, roads, out _, out _);
+
+        /// <summary>⭐ <c>CE-2469</c> SP-1 (R-2140 R3) — the bound length: the steer point lies this far (m) along the planned route.</summary>
+        public const float SteerMetres = 20f;
+
+        /// <summary>
+        /// The same, and the planned route's STEER POINT (CE-2469 SP-1): the point on the route <see cref="SteerMetres"/> from its start, or its end when shorter —
+        /// from the SAME route the areas are classified on (no second plan), so it takes the per-side price (UF-5). <paramref name="hasSteer"/> false = no plan (a straight leg).
+        /// </summary>
+        public static int Solve(EntityRepository repo, Entity carrier, in EqsSensor sensor, Span<DangerAreaDescriptor> areas,
+            RoutePlanner planner, global::CarKinem.Road.RoadNetworkHolder? roads, out Vector3 steer, out bool hasSteer)
         {
+            steer = default; hasSteer = false;
             if (planner == null) return 0;
             if (!EqsContext.SelfPosition(repo, carrier, sensor, out var start)) return 0;
             if (!TryRouteEnd(repo, carrier, in sensor, out var end, out var roadUse)) return 0;
@@ -57,9 +69,10 @@ namespace Fdp.Toolkit.Squad.DangerArea
             // ⭐ CE-2468 UF-6 (§9b, K8) — the shelled areas the unit's SIDE knows (Indirect records), through the same seam. ⛔ SUPERSEDED: the node-level
             //   ShelledAreas.Footprints (CE-4583) — every side saw every shelling; ShelledAreas is now the detector that teaches the witness sides (UF-7)
             gasCount += ShelledFootprints(underFire, sidePlus1, gas.Slice(gasCount));
-            if (!RoadGraphRouter.HasRoads(graph) && gasCount == 0 && knowledge.RecordCount == 0 && knowledge.MarkedCount == 0 && !sight.HasSide(sidePlus1)) return 0;   // ⭐ CE-4624 / CE-2468 — known mines or known enemy ground are reason enough
-
             var navmesh = repo.HasSingletonManaged<INavmeshProvider>() ? repo.GetSingletonManaged<INavmeshProvider>() : null;
+            // ⭐ CE-4624 / CE-2468 — known mines or known enemy ground are reason enough; ⭐ CE-2469 — and a navmesh: the steer point needs the plan even on a clear route
+            if (navmesh == null && !RoadGraphRouter.HasRoads(graph) && gasCount == 0 && knowledge.RecordCount == 0 && knowledge.MarkedCount == 0 && !sight.HasSide(sidePlus1)) return 0;
+
             var query = new RouteQuery(start, end, roadUse, NavigationBackend.Auto, layer);
             Span<Vector3> route = stackalloc Vector3[RoutePlanner.MaxNavWaypoints * 3];
             int points;
@@ -68,6 +81,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 var planned = planner.Points;
                 points = Math.Min(planned.Count, route.Length);
                 for (int i = 0; i < points; i++) route[i] = planned[i];
+                hasSteer = SteerOf(route.Slice(0, points), SteerMetres, out steer);   // ⭐ CE-2469 SP-1 — the planned route only, never the straight fallback
             }
             else
             {
@@ -154,6 +168,22 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 };
             }
             return n;
+        }
+
+        /// <summary>⭐ <c>CE-2469</c> SP-1 — the point <paramref name="metres"/> along <paramref name="route"/> from its first point (its last when shorter); false for fewer than two points. 0 B.</summary>
+        public static bool SteerOf(ReadOnlySpan<Vector3> route, float metres, out Vector3 steer)
+        {
+            steer = default;
+            if (route.Length < 2) return false;
+            float left = metres;
+            for (int i = 1; i < route.Length; i++)
+            {
+                float d = Vector3.Distance(route[i - 1], route[i]);
+                if (d >= left && d > 0f) { steer = Vector3.Lerp(route[i - 1], route[i], left / d); return true; }
+                left -= d;
+            }
+            steer = route[route.Length - 1];
+            return true;
         }
 
         /// <summary>The step along a route at which minefield knowledge is sampled (m).</summary>

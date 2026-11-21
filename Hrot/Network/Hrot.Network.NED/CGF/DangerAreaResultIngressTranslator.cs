@@ -93,6 +93,8 @@ namespace Hrot.Network.NED.CGF
                     Observer        = observer,
                     Areas           = areas,
                     Count           = n,
+                    SteerPoint      = new System.Numerics.Vector3(data.SteerX, data.SteerY, data.SteerZ),   // ⭐ CE-2469 SP-1
+                    HasSteer        = data.HasSteer,
                 });
             }
         }

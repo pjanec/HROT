@@ -676,7 +676,7 @@ namespace Hrot.SimHost.Systems
         {
             var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
             int count = Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.Solve(_currentRepo, entity, in sensor, areas,
-                _routePlanner, RoadSource?.Invoke());
+                _routePlanner, RoadSource?.Invoke(), out var steer, out bool hasSteer);   // ⭐ CE-2469 SP-1 — and the route's steer point
             var answer = new Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent
             {
                 ParentNetworkId = parentNetworkId,
@@ -685,6 +685,8 @@ namespace Hrot.SimHost.Systems
                 RefreshTick     = _currentTick,
                 Areas           = areas,
                 Count           = count,
+                SteerPoint      = steer,
+                HasSteer        = hasSteer ? (byte)1 : (byte)0,
             };
             // ⛔ NOT _currentRepo.Bus: EqsModule is SlowBackground — asynchronous, on a SNAPSHOT — so a direct publish lands
             //   on the snapshot's bus and is lost (measured: the cross-host rail never got an answer). The command buffer is

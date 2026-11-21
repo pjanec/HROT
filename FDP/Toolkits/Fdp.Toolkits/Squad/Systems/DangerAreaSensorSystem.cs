@@ -82,6 +82,8 @@ namespace Fdp.Toolkit.Squad.Systems
                 }
                 buffer.Count = n;
                 DangerAreaCognitiveBuffer.KeepHandles(previous.Slice(0, had), span.Slice(0, n));   // CE-2224
+                buffer.HasSteer = evt.HasSteer;          // ⭐ CE-2469 SP-1 — the planned route's steer point, with the answer it came in
+                buffer.SteerPoint = evt.SteerPoint;
                 buffer.LastUpdateTick = evt.RefreshTick != 0 ? evt.RefreshTick : 1u;
                 buffer.LastUpdateTimeSeconds = now;   // Q4 — what BecomesStale reads
             }
