@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-21
-current-answer: §2 the sub-questions as revised by the independent review (§2a; rev 2, 2026-11-21) — the user approved subject to that review
+current-answer: §2 the sub-questions as revised by the independent review (§2a; rev 2, 2026-11-21) — ✅ APPROVED (R-11011, user `2026-11-21`: "ok approved, do")
 stale-below: nothing
 related-designs:
   - ../DESIGN_Entity_Control.md — OWNS C-8 ("one operator per node — the station id is the node id"), which A amends
