@@ -184,6 +184,62 @@ public sealed class ScenarioChecksTests
         Assert.Contains(stray, p => p.Contains("belong to a between cue"));
     }
 
+    /// <summary>⭐ <c>CE-2466</c> (Urban Fight Suite U2) — <c>close</c> / <c>far</c> take <c>fighting: true</c>: a DEAD man lying at the point does not break "never a man
+    /// within 15 m" (a dead man cannot walk back in); without the flag he does. ✅ Red-proof: the fighting filter removed from <c>DistanceHolds</c> ⇒ the flagged row breaks ⇒ red.</summary>
+    [Fact]
+    public void CE2466_Close_WithFighting_IgnoresTheDead()
+    {
+        var checks = Parse("""
+            {"runFor":5,"expect":[
+              {"name":"plain","never":{"on":"close","who":"*Blue ","point":[630,384],"m":15}},
+              {"name":"fighting","never":{"on":"close","who":"*Blue ","point":[630,384],"m":15,"fighting":true}}]}
+            """, out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld();
+        w.U.Ids["Blue Rifleman 1"] = 1;
+        w.Comps[1] = new JsonObject
+        {
+            ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(627, 388, 0) },
+            ["Health"] = new JsonObject { ["Current"] = 0, ["Max"] = 100 },
+        };
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        book.Finish(5);
+        var v = book.Verdicts().ToDictionary(x => x.Name, x => x.Ok);
+        Assert.False(v["plain"], "a dead man at the corner breaks the plain row");
+        Assert.True(v["fighting"], "but not the row over the men in the fight");
+    }
+
+    [Fact]
+    public void CE2466_Bunched_Men_APairIsNoKnotOfThree()
+    {
+        var checks = Parse("""
+            {"runFor":5,"expect":[
+              {"name":"two","never":{"on":"bunched","who":"*Red ","m":3}},
+              {"name":"three","never":{"on":"bunched","who":"*Red ","m":3,"men":3}}]}
+            """, out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld();
+        for (int i = 1; i <= 2; i++)
+        {
+            w.U.Ids[$"Red Rifleman {i}"] = i;
+            w.Comps[i] = new JsonObject
+            {
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(668 + 2 * i, 381, 0) },
+                ["Health"] = new JsonObject { ["Current"] = 100, ["Max"] = 100 },
+            };
+        }
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        book.Finish(5);
+        var v = book.Verdicts().ToDictionary(x => x.Name, x => x.Ok);
+        Assert.False(v["two"], "a pair 2 m apart is a knot of two");
+        Assert.True(v["three"], "but not a knot of three");
+        Parse("""{ "runFor": 1, "expect": [{"name": "a", "on": "close", "who": "A", "point": [0,0], "m": 1, "men": 3}, {"name": "b", "on": "bunched", "who": "A", "m": 1, "men": 1}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("men belongs to a bunched cue", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("men is an integer >= 2", StringComparison.Ordinal));
+    }
+
     private sealed class Units : IShotWorld
     {
         public readonly Dictionary<string, int> Ids = new(StringComparer.Ordinal);
@@ -594,7 +650,7 @@ public sealed class ScenarioChecksTests
         Parse("""{ "runFor": 1, "expect": [{"name": "a", "on": "still", "who": "A", "m": 1}, {"name": "b", "on": "shot", "by": "A", "for": 3}, {"name": "c", "on": "near", "who": "A", "point": [0,0], "fighting": true}] }""", out var bad);
         Assert.Contains(bad, p => p.Contains("a still cue needs for", StringComparison.Ordinal));
         Assert.Contains(bad, p => p.Contains("for belongs to a state cue", StringComparison.Ordinal));
-        Assert.Contains(bad, p => p.Contains("fighting belongs to a cover, still, field, bunched or exposed cue", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("fighting belongs to a cover, still, field, bunched, exposed, close or far cue", StringComparison.Ordinal));
     }
 
     /// <summary>
