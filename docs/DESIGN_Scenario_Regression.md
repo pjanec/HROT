@@ -903,7 +903,7 @@ features have their test scenario, because we cannot run even 30 scenarios after
 *"Running scenarios overnight, Multiply in parallel, that's okay. but only overnight, not after every little change in every behavior"*. 📐 Why: the full set is 260 scenarios at ~85 s each (21 in 30 min
 measured `2026-11-21`) ⇒ ~6 h serial. ⭐ After a change: the scenarios `docs/CAPABILITIES.md` names for each feature the change touched (📌 CE-2466:
 eight). ⭐ Overnight: `JOBS=2 scripts/scenario-regression.sh` (shards in separate runner processes — every verify child already has a private staging
-root, so they cannot collide; this VM has 4 cores) from a nightly scheduled task. ⛔ Never the whole set, nor a "family" sweep, after a change.
+root, so they cannot collide; this VM has 4 cores). ⛔ Not from a separate scheduled session — the user declined one (`2026-11-21`); nothing starts it on its own today. ⛔ Never the whole set, nor a "family" sweep, after a change.
 
 ### 11.3 UML
 
