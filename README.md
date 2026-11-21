@@ -135,7 +135,37 @@ HROT publishes everything a renderer needs to show the battle convincingly (§ I
 | ✅ **Review during the action** | pause a live exercise, rewind to show what happened, and resume live where it paused — one continuous record |
 | ✅ **After-action review** | replay any recorded exercise, see the event timeline (every shot, hit, order and report), mark moments, compare what each station saw |
 | ✅ **Go live from replay** | branch a new live exercise from any recorded moment ("what if he had turned left?"); the original record stays untouched |
-| ✅ **Trainees and players** | briefed before a run, a summary at its end, a per-trainee debrief against the training standards |
+| ✅ **Trainees and players** | briefed before a run, a summary at its end |
+
+---
+
+## Mission planning
+
+| | |
+|---|---|
+| ✅ **Missions per unit** | a mission is a list of tasks — each a behaviour with its parameters and the trigger that starts it — for any unit or echelon |
+| ✅ **Orders through the chain** | a commander's orders flow down to his subordinates, who carry them out by their own drills and SOPs; reports flow back up |
+| ✅ **Control measures in the plan** | objectives taken in turn, a base of fire and an assault, phase lines with deadlines, a reserve committed when the plan stalls — shown in a company attack that runs three ways: it works, it stalls, the defence collapses |
+| ✅ **Rehearse the plan** | Preview runs the plan dry — nothing recorded — and *Run to* jumps to any time in it |
+| ✅ **Compare courses of action** | branch the same exercise from one moment into alternatives and replay each |
+| ✅ **Orders on the map** | move, engage and stop orders, designated targets and areas, a command mode for many units at once |
+| 🚧 **A graphical plan editor** | phases and phase lines drawn on the map and edited in the plan (today the plan is a task list) |
+
+---
+
+## Objective evaluation and scoring
+
+The exercise is judged by **measurable conditions**, not by an observer's impression — the same machinery that verifies the engine's own
+scenarios.
+
+| | |
+|---|---|
+| ✅ **Objectives and measures** | take, hold, keep a minimum of men, by a deadline — tracked live, and the **exercise result** computed from them |
+| ✅ **Rules that react** | triggers (*when* … with hold, delay, cooldown and repeat, *then* … orders, messages, objectives, end of exercise) drive the exercise and its scoring |
+| ✅ **The instructor's rules view** | every objective, measure and rule with its live state, the same data each trainee's display reads |
+| 🚧 **Per-trainee standards** | each training standard GO / NO-GO for each trainee against his group's mean, what went well and what to work on, and his own moments with a jump into the recording |
+| ✅ **Evidence for every judgement** | the event timeline indexes every shot, hit, casualty, order, report and decision with its time — each score traces back to the moment that earned it |
+| ✅ **Repeatable** | deterministic runs mean the same plan scores the same, so a difference in result is a difference in decisions |
 
 ---
 
