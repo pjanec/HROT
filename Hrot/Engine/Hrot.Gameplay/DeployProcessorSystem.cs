@@ -73,6 +73,7 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
     [Fdp.Core.SessionState("the deploy server's join ledger per station: every unit id is checked against the live world before use; cleaned when a station leaves")]
     private readonly List<PendingSpawn> _pending = new();
     [Fdp.Core.SessionState("the deploy server's join ledger per station: every unit id is checked against the live world before use; cleaned when a station leaves")]
+    private readonly List<int> _departing = new();   // CE-11027 — scratch for ReadDepartures (a departure is rare; reused, never shrunk)
     private readonly HashSet<int> _answered = new();   // the stations whose DeployStatusTopic this server wrote (deleted when they leave)
     [Fdp.Core.SessionState("the deploy server's join ledger per station: every unit id is checked against the live world before use; cleaned when a station leaves")]
     private readonly List<(int Role, int Unit)> _spawned = new();   // the men THIS server made, per role (the count a role's Max is checked against)
@@ -394,8 +395,10 @@ public sealed class DeployProcessorSystem : IEcsModuleSystem
         foreach (ref readonly var gone in repo.ReadEvents<NodeDeparted>())
         {
             for (int i = _slots.Count - 1; i >= 0; i--)
-                if (_slots[i].Station == gone.NodeId) DisposeSlotAt(repo, i);
-            DisposeAnswer((int)gone.NodeId);
+                if (((Fdp.Core.StationId)_slots[i].Station).Node == gone.NodeId) DisposeSlotAt(repo, i);   // ⭐ CE-11027 A′ — every station on the node
+            _departing.Clear();
+            foreach (int a in _answered) if (((Fdp.Core.StationId)a).Node == gone.NodeId) _departing.Add(a);   // ⭐ CE-11027 A′ — the answer of every station on the node
+            foreach (int a in _departing) DisposeAnswer(a);
         }
     }
 

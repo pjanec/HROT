@@ -1484,12 +1484,14 @@ namespace Hrot.Map.Definitions.Tkb
             DefineBomberDrone(builder);  // ⭐ CE-7027
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
             DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
+            DefineAttackHelicopter(builder, TkbEntityTypes.Heli_AH64Flame, "AH-64 (flame)", FlameChin(), specific: 1);   // ⭐ CE-3490 BA-9 — the same airframe
             // ⭐⭐ CE-3281 (Sensing §8.6) — the aircraft are HEARD: rotors 3 km, jets 15 km (⚠ a fixed-wing engine is class Rotor — "an aircraft
             //   overhead", the 3-bit class is full); the AH-64's Hydra-70 as the ATGM's report; the A-10's GAU-8 as the catalogue's autocannon,
             //   its burst a Mk-82's (the larger of its two).
             builder.WithSignatures(TkbEntityTypes.Heli_UH60, Heard(RotorRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Heli_UH60_DoorsOff, Heard(RotorRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Heli_AH64, Heard(RotorRange, SoundSourceClass.Rotor, AtgmReport))
+                   .WithSignatures(TkbEntityTypes.Heli_AH64Flame, Heard(RotorRange, SoundSourceClass.Rotor, AtgmReport))   // ⭐ CE-3490 BA-9 — the same airframe and pod
                    .WithSignatures(TkbEntityTypes.Jet_F16, Heard(JetRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Jet_MiG29, Heard(JetRange, SoundSourceClass.Rotor))   // ⭐ CE-10000 (AC-7)
                    .WithSignatures(TkbEntityTypes.Cargo_C130, Heard(JetRange, SoundSourceClass.Rotor))
@@ -1500,6 +1502,7 @@ namespace Hrot.Map.Definitions.Tkb
             builder.WithRadarCrossSection(TkbEntityTypes.Heli_UH60, 4f)
                    .WithRadarCrossSection(TkbEntityTypes.Heli_UH60_DoorsOff, 4f)
                    .WithRadarCrossSection(TkbEntityTypes.Heli_AH64, 3f)
+                   .WithRadarCrossSection(TkbEntityTypes.Heli_AH64Flame, 3f)   // ⭐ CE-3490 BA-9
                    .WithRadarCrossSection(TkbEntityTypes.Jet_F16, 3f)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_MiG29, 4f)   // ⭐ CE-10000 (AC-7, §5a)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_AttackA10, 10f)
@@ -1867,10 +1870,32 @@ namespace Hrot.Map.Definitions.Tkb
         /// the crew is the type itself (no seats). A brain (its behaviours are the behaviour lane's, slice 6). Friendly.
         /// </summary>
         private static void DefineAttackHelicopter(NedTkbBuilder builder)
+            => DefineAttackHelicopter(builder, TkbEntityTypes.Heli_AH64, "AH-64 Apache (attack helicopter)", new WeaponMount
+            {
+                WeaponType = "7.62mm_M134_chin", Ammunition = 4000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
+                DispersionMils = 6f, MagazineSize = 4000, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+                AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer), TracerEvery = 5,
+                MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
+            }, specific: 0);
+
+        /// <summary>⭐⭐ <c>CE-3490</c> BA-9 — the flame helicopter's chin weapon: a flame projector on the chin turret throwing the flame TANK's fuel
+        /// (<see cref="Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel"/>, 60 m, 5°) — a pump-fed projector like the tank's, not a man's backpack; 600 shots
+        /// at 10 a second (a minute of flame), from the nozzle 0.8 m past the turret.</summary>
+        private static WeaponMount FlameChin() => new()
         {
-            const long type = TkbEntityTypes.Heli_AH64;
-            DefineAircraft(builder, type, "AH-64 Apache (attack helicopter)", "SFAPMHA-------", "#56604F",
-                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 20 },
+            WeaponType = "chin flame projector", Category = WeaponCategory.Flamethrower, TurretIndex = 0,
+            Ammunition = 600, MagazineSize = 600, RateOfFire = 600, Range = Hrot.Core.Tkb.MunitionTkbCatalog.TankFlameReachM, MuzzleVelocity = 40f,
+            FireOnMove = true,
+            MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
+            AmmoTkb = (Fdp.Core.TkbTypeId)Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel,
+        };
+
+        /// <summary>The AH-64 airframe with <paramref name="chin"/> on its chin turret (mount 0) — ⭐ CE-3490 BA-9: shared by the gun ship (406) and the
+        /// flame helicopter (412, DIS specific 1), so the two cannot differ in anything but the chin weapon.</summary>
+        private static void DefineAttackHelicopter(NedTkbBuilder builder, long type, string name, WeaponMount chin, byte specific)
+        {
+            DefineAircraft(builder, type, name, "SFAPMHA-------", "#56604F",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 20, Specific = specific },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
                 {
                     ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
@@ -1904,13 +1929,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 20; c.ArmorSide = 15; c.ArmorRear = 8; c.ArmorTop = 8;
                     c.EyeHeight = 1f;
                     c.SensorRange = 6000;
-                    c.Weapons.Add(new WeaponMount
-                    {
-                        WeaponType = "7.62mm_M134_chin", Ammunition = 4000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
-                        DispersionMils = 6f, MagazineSize = 4000, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
-                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer), TracerEvery = 5,
-                        MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
-                    });
+                    c.Weapons.Add(chin);
                     c.Weapons.Add(new WeaponMount
                     {
                         WeaponType = "Hydra-70 pod", Ammunition = 38, Range = 4000f, RateOfFire = 300, DispersionMils = 10f,

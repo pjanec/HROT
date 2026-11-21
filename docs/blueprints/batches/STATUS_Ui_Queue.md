@@ -9,7 +9,7 @@ current-answer: §1
 self-wake-up: `ui self-wake-up` (trig_0141R92G1qK6SHY6mh3nnMms, hourly) — KEPT (R-4292); its message is §1a's text verbatim (set 2026-11-18 12:04).
 
 ## 1. Now
-working — ⭐ the DRAGON (CE-4634 D-4, user `2026-11-19`: *"the 3D map visualization for the dragon and his dragon breath. And the passengers riding it"*): the 3-D look BUILT `2026-11-19` (DESIGN_Dragon §8, `DragonModelRail`); next its sounds (wingbeat, roar) and its 2-D symbol. · ⭐ the ui lane owns ALL of thermal (user, `2026-11-19`: *"You are the only one doing thermal"*). CE-1985 DONE `2026-11-19` (+ scenarios `sv-night-and-heat`, `th-vehicle-left-warm-spot`); CE-1987 DONE `2026-11-19` (R-1058, the AI sensor on °C contrast). Then CE-1990 scene lights and CE-1991 the cigarette ember (R-1057, user-approved `2026-11-19`); last: CE-1984 night vision + CE-1989 F4 DONE `2026-11-19`.
+working — ⭐ the DRAGON (CE-4634 D-4, user `2026-11-19`: *"the 3D map visualization for the dragon and his dragon breath. And the passengers riding it"*): the 3-D look, the wingbeat bob and the sounds BUILT `2026-11-19` (DESIGN_Dragon §8, `DragonModelRail`, `AudioTests.Dragon`); next its 2-D symbol. · ⭐ the ui lane owns ALL of thermal (user, `2026-11-19`: *"You are the only one doing thermal"*). CE-1985 DONE `2026-11-19` (+ scenarios `sv-night-and-heat`, `th-vehicle-left-warm-spot`); CE-1987 DONE `2026-11-19` (R-1058, the AI sensor on °C contrast). Then CE-1990 scene lights and CE-1991 the cigarette ember (R-1057, user-approved `2026-11-19`); last: CE-1984 night vision + CE-1989 F4 DONE `2026-11-19`.
 
 ## 2. The queue (in order)
 

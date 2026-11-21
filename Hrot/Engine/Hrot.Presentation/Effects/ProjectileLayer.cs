@@ -7,6 +7,7 @@ using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis3D;
 using Hrot.Core.Tkb;
 using Raylib_cs;
+using Round = Hrot.Look.Effects.RoundState;
 
 namespace Hrot.UI.Common.Effects;
 
@@ -26,28 +27,25 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
     private readonly Func<EntityRepository?> _world;
     private readonly Func<ITkbDatabase?> _tkb;
     private readonly Func<MapCamera3D?>? _camera;
-    private EntityRepository? _queryWorld;
-    private EntityQuery? _query;
-    private EntityQuery? _replicated;
 
     /// <summary>The smallest a round's body is drawn, in screen pixels (along its longest side).</summary>
     public const float MinPixels = 10f;
 
     /// <summary>A grenade's tumble, turns per second.</summary>
-    public const float TumbleTurnsPerSecond = 2.5f;
+    public const float TumbleTurnsPerSecond = Hrot.Look.Effects.RoundLook.TumbleTurnsPerSecond;   // ⭐ CE-11004 (RR-4) — the shared value
 
     /// <summary>⭐ CE-1190 — a throwing star's spin, turns per second (about its normal; it flies flat).</summary>
-    public const float SpinTurnsPerSecond = 6f;
+    public const float SpinTurnsPerSecond = Hrot.Look.Effects.RoundLook.SpinTurnsPerSecond;   // ⭐ CE-11004 (RR-4)
 
     /// <summary>⭐ P2 (§8 PR-F) — a tracer's visible streak: the last <see cref="TracerSeconds"/> of its flight, at most
     /// <see cref="TracerMaxLength"/> metres, at least <see cref="TracerMinPixels"/> wide.</summary>
-    public const float TracerSeconds = 0.03f, TracerMaxLength = 25f, TracerMinPixels = 2.5f;
+    public const float TracerSeconds = Hrot.Look.Effects.RoundLook.TracerSeconds, TracerMaxLength = Hrot.Look.Effects.RoundLook.TracerMaxLength, TracerMinPixels = 2.5f;
 
     /// <summary>Smoke-trail puffs: one every <see cref="TrailSpacing"/> metres back toward the muzzle, at most <see cref="TrailPuffs"/>.</summary>
-    public const float TrailSpacing = 0.9f;
+    public const float TrailSpacing = Hrot.Look.Effects.RoundLook.TrailSpacing;
 
     /// <inheritdoc cref="TrailSpacing"/>
-    public const int TrailPuffs = 60;
+    public const int TrailPuffs = Hrot.Look.Effects.RoundLook.TrailPuffs;
 
     public ProjectileLayer(Func<EntityRepository?> world, Func<ITkbDatabase?> tkb, Func<MapCamera3D?>? camera = null)
     {
@@ -73,8 +71,7 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
 
     /// <summary>One round, resolved for drawing: its look, where its centre is, the way its nose points, whether it is lying, the
     /// seconds left on its fuze (0 without one), where it was fired from, and its own seed.</summary>
-    public readonly record struct Round(MunitionVisualDto Look, Vector3 Centre, Vector3 Nose, bool Lying, float FuzeLeft, Vector3 Muzzle, int Seed,
-                                        float Speed = 0f, Entity Entity = default, long Ammo = 0);
+    // ⭐ CE-11004 (RR-4) — the round's record is the shared one (Hrot.Look.Effects.RoundState, aliased as Round in this file)
 
     /// <summary>⭐ CE-1091 (docs/DESIGN_Map_3D_Mode.md §6n N-6) — a round's REMEMBERED path: where it was (newest last) and when (sim
     /// seconds), one point every <see cref="PathSpacing"/> metres, at most <see cref="PathPoints"/>. Presentation memory on each host — a
@@ -118,98 +115,19 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
     /// <see cref="From"/> to <see cref="To"/>, or a sphere (<see cref="IsSphere"/>, radius <see cref="RadiusFrom"/> at <see cref="From"/>).</summary>
     public readonly record struct Solid(Vector3 From, Vector3 To, float RadiusFrom, float RadiusTo, bool IsSphere, Color Colour);
 
-    /// <summary>Every round with a look — railable without a GL context.</summary>
+    /// <summary>Every round with a look — railable without a GL context. ⭐ CE-11004 (RR-4) — the SHARED rule (<see cref="Hrot.Look.Effects.RoundLook"/>);
+    /// the map adds only its remembered paths.</summary>
     public List<Round> Resolve()
     {
         var list = new List<Round>();
         var world = _world();
-        if (world == null || !world.IsComponentTypeRegistered<SimTransform>()) return list;
-        bool combat = world.IsComponentTypeRegistered<BallisticProjectile>();
-        bool replicated = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()
-                          && world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-        if (!combat && !replicated) return list;
-        if (!ReferenceEquals(world, _queryWorld))
-        {
-            _queryWorld = world;
-            _query = combat ? world.Query().With<BallisticProjectile>().With<SimTransform>().Build() : null;
-            // ⭐ LR-3 (§8.5, R-271) — a VIEWER's rounds: replicated, so no combat state — the look from the munition type, the nose from
-            //   the replicated velocity, at rest = lying. On the muscle the same round also has BallisticProjectile ⇒ drawn once, above.
-            if (replicated)
-            {
-                var q = world.Query().With<Fdp.Toolkit.Replication.Components.LightweightRound>()
-                                     .With<Fdp.Toolkit.Replication.Components.TkbIdentity>().With<SimTransform>();
-                _replicated = (combat ? q.Without<BallisticProjectile>() : q).Build();
-            }
-            else _replicated = null;
-        }
-        var tkb = _tkb();
-        bool hasVelocity = world.IsComponentTypeRegistered<SimVelocity>();
-        double now = Fdp.Toolkit.Time.SimClock.Of(world).TotalTime;
-        if (_replicated != null)
-            foreach (var e in _replicated)
-            {
-                long type = world.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType;
-                if (MunitionTkbCatalog.VisualOf(tkb, type) is not { } look) continue;
-                var at = world.GetComponentRO<SimTransform>(e).Position;
-                var velocity = hasVelocity && world.HasComponent<SimVelocity>(e) ? world.GetComponentRO<SimVelocity>(e).Linear : Vector3.Zero;
-                int seed = e.Index * 7919 + e.Generation;
-                float speed = velocity.Length();
-                bool lying = speed < 0.2f;
-                Vector3 nose;
-                if (lying && look.Sticks)
-                {
-                    // ⭐ CE-1976 (BW-4, BW-10) — a STUCK arrow / bolt: drawn along its replicated rotation (+X = its flight), at its replicated place (its point already a third inside the surface) — never flat, never lifted onto the ground
-                    nose = StuckNose(world.GetComponentRO<SimTransform>(e).Rotation, seed);
-                }
-                else if (lying)
-                {
-                    nose = YawDirection(seed);
-                    float ground = GroundHeight?.Invoke(at.X, at.Y) ?? at.Z;
-                    at = new Vector3(at.X, at.Y, MathF.Max(at.Z, ground));
-                }
-                else
-                {
-                    nose = velocity / speed;
-                    nose = InFlightPose(look.Shape, nose, now, seed);
-                }
-                // the muzzle is unknown on a viewer: a tracer / smoke trail runs back along the flight, capped by its own limits
-                var muzzle = at - (lying ? Vector3.Zero : nose * (look.SmokeTrail ? TrailSpacing * TrailPuffs : TracerMaxLength));
-                list.Add(new Round(look, at, nose, lying, 0f, muzzle, seed, lying ? 0f : speed, e, type));
-            }
-        if (_query == null) { Remember(list, now); return list; }
-        foreach (var e in _query)
-        {
-            ref readonly var round = ref world.GetComponentRO<BallisticProjectile>(e);
-            if ((round.Warhead & WarheadRound.Spent) != 0) continue;
-            if (MunitionTkbCatalog.VisualOf(tkb, round.Ammo) is not { } look) continue;
-            var at = world.GetComponentRO<SimTransform>(e).Position;
-            int seed = e.Index * 7919 + e.Generation;
-            bool lying = (round.Warhead & WarheadRound.Landed) != 0 || round.StoppedTick != 0;
-            var velocity = hasVelocity && world.HasComponent<SimVelocity>(e) ? world.GetComponentRO<SimVelocity>(e).Linear : Vector3.Zero;
-            var travel = at - round.PreviousPosition;
-            var heading = velocity.LengthSquared() > 1e-4f ? velocity : travel.LengthSquared() > 1e-6f ? travel : Vector3.UnitX;
-            Vector3 nose;
-            if (lying && look.Sticks)
-                nose = StuckNose(world.GetComponentRO<SimTransform>(e).Rotation, seed);   // ⭐ CE-1976 — stuck: along its rotation, as it stopped
-            else if (lying)
-            {
-                // flat on the ground, pointing the way it was going (or a direction of its own if it came straight down)
-                var flat = new Vector3(heading.X, heading.Y, 0f);
-                nose = flat.LengthSquared() > 1e-6f ? Vector3.Normalize(flat) : YawDirection(seed);
-                float ground = GroundHeight?.Invoke(at.X, at.Y) ?? at.Z;
-                at = new Vector3(at.X, at.Y, MathF.Max(at.Z, ground));
-            }
-            else
-            {
-                nose = Vector3.Normalize(heading);
-                nose = InFlightPose(look.Shape, nose, now, seed);
-            }
-            list.Add(new Round(look, at, nose, lying, (round.Warhead & WarheadRound.TimeFuze) != 0 ? round.FuzeRemaining : 0f, round.Muzzle, seed,
-                               lying ? 0f : velocity.Length(), e, round.Ammo));
-        }
-        Remember(list, now);
+        if (world == null) return list;
+        _rounds.Resolve(world, _tkb(), GroundHeight, list);
+        if (list.Count > 0 || _paths.Count > 0) Remember(list, Fdp.Toolkit.Time.SimClock.Of(world).TotalTime);
         return list;
     }
+
+    private readonly Hrot.Look.Effects.RoundLook _rounds = new();
 
     /// <summary>The body's solids at <paramref name="scale"/> × its real size (≥ 1 when drawn far away). A lying round rests ON the
     /// ground (its centre lifted half a diameter).</summary>
@@ -311,20 +229,14 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
         return solids;
     }
 
-    /// <summary>⭐ CE-4647 (AC-15 step 4) — how long a missile's motor burns, seconds: its TKB template's <see cref="Fdp.Toolkit.Tkb.Domain.MissileDto.BurnSeconds"/> (the air lane's contract: IR 5 s, radar 8 s); 0 = no limit (a rocket or a missile whose row says nothing trails smoke all its flight, as before).</summary>
-    public static float BurnOf(ITkbDatabase? tkb, long ammo)
-        => tkb != null && ammo != 0 && tkb.TryGetByType(ammo, out var t) && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.MissileDto>() is { BurnSeconds: > 0f } m ? m.BurnSeconds : 0f;
+    /// <summary>⭐ CE-4647 — the motor's burn (s); ⭐ CE-11004 (RR-4) — the shared rule.</summary>
+    public static float BurnOf(ITkbDatabase? tkb, long ammo) => Hrot.Look.Effects.RoundLook.BurnOf(tkb, ammo);
 
-    /// <summary>⭐ CE-4647 — how long the smoke already laid lingers after burn-out (the coasting missile is seen to coast).</summary>
-    public const float TrailLingerSeconds = 0.8f;
+    /// <summary>⭐ CE-4647 — how long the smoke lingers after burn-out.</summary>
+    public const float TrailLingerSeconds = Hrot.Look.Effects.RoundLook.TrailLingerSeconds;
 
-    /// <summary>⭐ CE-4647 — the smoke trail's strength 0…1 by the round's AGE against its motor's burn: full while it burns, fading over <see cref="TrailLingerSeconds"/>, then NONE while it coasts.
-    /// <paramref name="burn"/> ≤ 0 (no motor data) ⇒ 1 — unchanged. No allocation.</summary>
-    public static float TrailFactor(float burn, double age)
-    {
-        if (burn <= 0f || double.IsNaN(age) || age <= burn) return 1f;
-        return (float)Math.Max(0.0, 1.0 - (age - burn) / TrailLingerSeconds);
-    }
+    /// <summary>⭐ CE-4647 — the smoke trail's strength by the round's age; ⭐ CE-11004 (RR-4) — the shared rule.</summary>
+    public static float TrailFactor(float burn, double age) => Hrot.Look.Effects.RoundLook.TrailFactor(burn, age);
 
     /// <summary>⭐ CE-1091 — every flying round's path grows by where it is now; rounds gone are forgotten.</summary>
     private void Remember(List<Round> rounds, double now)
@@ -417,17 +329,8 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
         return puffs;
     }
 
-    /// <summary>⭐ P2 (§8 PR-F) — a tracer round's streak: from the round back along its flight for the last
-    /// <see cref="TracerSeconds"/> (≤ <see cref="TracerMaxLength"/>, never past its muzzle). False when it is no tracer, lying, or still.</summary>
-    public static bool TracerOf(in Round r, out Vector3 head, out Vector3 tail)
-    {
-        head = tail = r.Centre;
-        if (!r.Look.Tracer || r.Lying || r.Speed <= 0f) return false;
-        float length = MathF.Min(MathF.Min(r.Speed * TracerSeconds, TracerMaxLength), Vector3.Distance(r.Centre, r.Muzzle));
-        if (length <= 0.01f) return false;
-        tail = r.Centre - r.Nose * length;
-        return true;
-    }
+    /// <summary>⭐ P2 (§8 PR-F) — a tracer round's streak; ⭐ CE-11004 (RR-4) — the shared rule.</summary>
+    public static bool TracerOf(in Round r, out Vector3 head, out Vector3 tail) => Hrot.Look.Effects.RoundLook.TracerOf(in r, out head, out tail);
 
     /// <summary>⭐ CE-1091 — the streak's colour: a faint warm grey.</summary>
     public static readonly Color StreakColour = new(220, 214, 200, 110);
@@ -486,11 +389,11 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
     {
         StreamsDrawn = 0;
         if (w == null || RecentShots.Of(w) is not { } shots) return;
-        foreach (var (shooter, mount, at, toward) in shots.Recent(now, FireStreams.Window))
+        foreach (var (shooter, mount, at, toward) in shots.Recent(now, Hrot.Look.Effects.FireStreams.Window))
         {
-            if (!w.IsAlive(shooter) || !FireStreams.IsAutomatic(Fdp.Toolkit.Combat.CombatTkb.MountOf(w, shooter, mount))) continue;
-            if (!Fdp.Toolkit.Combat.Muzzle.TryOf(w, shooter, mount, out var muzzle, out var forward)) continue;
-            float strength = FireStreams.Dashes(muzzle, toward, forward, now - at, _dashes);
+            // ⭐ CE-11001 (RR-1) — the dashes come from the SHARED rule, the same call an external renderer makes
+            var stream = new Hrot.Look.Effects.TracerStream { Shooter = shooter, WeaponIndex = mount, Toward = toward };
+            float strength = Hrot.Look.Effects.FireStreams.Dashes(w, in stream, now - at, _dashes, out var muzzle);
             if (_dashes.Count == 0) continue;
             float width = 0.03f;
             if (camera != null)
@@ -504,46 +407,9 @@ public sealed class ProjectileLayer : ISceneLayer   // ⭐ CE-3289 — the world
         }
     }
 
-    /// <summary>⭐ CE-1190 — the pose a round's nose takes IN FLIGHT: a grenade and a thrown axe tumble end over end, a throwing star spins flat
-    /// about the vertical (its nose is the direction of one arm), everything else points along its flight.</summary>
-    private static Vector3 InFlightPose(MunitionShape shape, Vector3 flight, double now, int seed) => shape switch
-    {
-        MunitionShape.Grenade or MunitionShape.Axe => Tumble(flight, now, seed),
-        MunitionShape.Star => Spin(now, seed),
-        _ => flight,
-    };
-
-    /// <summary>⭐ CE-1190 — a flat spin: a horizontal direction turning about the vertical at <see cref="SpinTurnsPerSecond"/>.</summary>
-    private static Vector3 Spin(double now, int seed)
-    {
-        float angle = (float)((now * SpinTurnsPerSecond + (seed & 1023) / 1024.0) % 1.0) * MathF.PI * 2f;
-        return new Vector3(MathF.Cos(angle), MathF.Sin(angle), 0f);
-    }
-
-    /// <summary>A grenade's tumble: its axis turned end over end about the horizontal perpendicular to its flight.</summary>
-    private static Vector3 Tumble(Vector3 flight, double now, int seed)
-    {
-        var side = Vector3.Cross(flight, Vector3.UnitZ);
-        if (side.LengthSquared() < 1e-6f) side = Vector3.UnitY;
-        float angle = (float)((now * TumbleTurnsPerSecond + (seed & 1023) / 1024.0) % 1.0) * MathF.PI * 2f;
-        return Vector3.Normalize(Vector3.Transform(flight, Quaternion.CreateFromAxisAngle(Vector3.Normalize(side), angle)));
-    }
-
     private static float Jitter(int key)
     {
         unchecked { uint h = (uint)key * 0x9E3779B1u; h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 13; return ((h & 0xFFFF) / 65535f) - 0.5f; }
     }
 
-    /// <summary>⭐ CE-1976 — the nose of a STUCK round: its replicated rotation carries +X onto its flight (BW-4); a degenerate rotation falls back to a direction of its own.</summary>
-    private static Vector3 StuckNose(Quaternion rotation, int seed)
-    {
-        var n = Vector3.Transform(Vector3.UnitX, rotation);
-        return n.LengthSquared() > 1e-6f ? Vector3.Normalize(n) : YawDirection(seed);
-    }
-
-    private static Vector3 YawDirection(int seed)
-    {
-        float a = (seed & 1023) / 1024f * MathF.PI * 2f;
-        return new Vector3(MathF.Cos(a), MathF.Sin(a), 0f);
-    }
 }

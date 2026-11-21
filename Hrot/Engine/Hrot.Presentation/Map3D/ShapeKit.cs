@@ -3,6 +3,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Components;
 using Fdp.Toolkit.Combat.Components;
+using PostureBlend = Hrot.Look.People.PostureBlend;
 
 namespace Hrot.UI.Common.Map3D;
 
@@ -91,32 +92,6 @@ public enum PartRole : byte
     Neck,
 }
 
-/// <summary>
-/// ⭐ CE-1033 S4 (docs/DESIGN_Map_3D_Mode.md §6, "things come alive") — the moving parts' pose for one frame: the main-rotor
-/// angle, the wheels' roll angle (radians) and the limb swing (radians, + = the left leg forward). Default: all still.
-/// </summary>
-/// <para>⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13e) — and the block figure's UPPER BODY (<see cref="KitPart.Upper"/> parts): <paramref name="Lean"/>
-/// tilts it forward about the hip (radians; a run, and an aim pitched down), <paramref name="Twist"/> turns it about the vertical
-/// (radians, counter-clockwise; an aim to the side), about a hip at <paramref name="HipZ"/> of the figure's height.</para>
-/// <para>⭐ WL-6c — the gait itself: <paramref name="Stride"/> (0..1, how much the figure is walking or running) and its
-/// <paramref name="GaitPhase"/> (radians; <c>Swing = amplitude · sin(phase)</c>); <paramref name="KneeFlexL"/> / <paramref name="KneeFlexR"/>
-/// bend each shin back about its knee (radians) — the foot lifting as the leg swings through.</para>
-/// <para>⭐ WL-6d — <paramref name="Moving"/> (0..1, from the speed alone — a crawl is too slow to read as a walk) and the
-/// <paramref name="CrawlPhase"/> (radians, one cycle per <c>MotionTracker.CrawlMetres</c>).</para>
-/// <para>⭐ CE-1204 (docs/DESIGN_Entity_Control.md §8l LK-5) — <paramref name="HeadTurn"/>: the HEAD (the <see cref="FaceOn.Front"/> part)
-/// turns about its own vertical axis by this much off the torso (radians, counter-clockwise), before the torso's <paramref name="Twist"/>
-/// carries it — so the head points where his eyes do (the replicated look's head yaw).</para>
-/// <para>⭐ CE-4623 (animals, AU-3) — <paramref name="Gait"/> + <paramref name="GaitPhase"/> + <paramref name="Swing"/> (the amplitude) give each quadruped leg its own swing
-/// (<see cref="QuadrupedGaits.LegAngle"/>); <paramref name="Tuck"/> (0..1) draws the legs folded up in a jump; <paramref name="Wing"/> is a bird's wing angle (radians);
-/// <paramref name="Head"/> an animal's head pitch about its withers (+ = down).</para>
-/// <para>⭐ CE-4624 — <paramref name="Flail"/>: the mine clearer's flail drum angle (radians) about its lateral axis (+ = the top turning forward, <see cref="PartRole.FlailDrum"/>).</para>
-public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing, float Lean = 0f, float Twist = 0f, float HipZ = 0.5f,
-                                         float Stride = 0f, float GaitPhase = 0f, float KneeFlexL = 0f, float KneeFlexR = 0f,
-                                         float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f, float Antenna = 0f, float Bank = 0f,
-                                         float Wing = 0f, float Head = 0f, float Tuck = 0f, QuadGait Gait = QuadGait.Stand, float Flail = 0f)
-{
-    public static readonly MotionPose Still = default;
-}
 
 /// <summary>
 /// ⭐ CE-1033 — the pose of a kit's articulated parts: turret azimuth RELATIVE TO THE HULL (radians, counter-clockwise seen from
@@ -328,7 +303,7 @@ public static class ShapeKits
     public const float TailRotorRatio = 4.7f;
 
     /// <summary>The wheels' radius on a wheeled kit, as a fraction of the type's height (the wheel cylinders' diameter is 0.42).</summary>
-    public const float WheelRadiusOfHeight = 0.21f;
+    public const float WheelRadiusOfHeight = Hrot.Look.Vehicles.MotionRules.WheelRadiusOfHeight;   // ⭐ CE-11003 (RR-3) — the shared value
 
     internal static KitPart Cone(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c)
         => new(PartShape.Cone, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, axis);
@@ -739,7 +714,7 @@ public static class ShapeKits
     // ── ⭐ CE-4618 (docs/designs/air-attack/DESIGN_Radar_SAM.md §5 U-1) — the RADAR SAM truck: an 8×8 carrier, a cab, a four-canister launcher on a turntable, a radar mast ─────
     private const float SaL = 9.1f, SaW = 2.8f, SaH = 4.2f;   // a short-range radar SAM on an 8×8 truck (Tor / Pantsir-like, generic): the TKB's own box (type 114: 9.1 × 2.8 × 4.2 m) — so the kit's metres ARE metres
     /// <summary>The SAM truck's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>; the car kits' radius is a fraction of THEIR height).</summary>
-    public const float SamWheelRadius = 0.6f;
+    public const float SamWheelRadius = Hrot.Look.Vehicles.MotionRules.SamWheelRadius;   // ⭐ CE-11003 (RR-3)
     // the turntable's axis, the cradle's hinge (x, z) — ⭐ the TKB's own TurretDto (NedTkbCatalog.RadarSam: PivotX −1.5, PivotZ 2.6, TrunnionX 0.4 ⇒ hinge x −1.1), so the kit
     // WITHOUT a TKB and the kit placed FROM the TKB (KitFromTkb) are the same picture — and the radar mast
     private const float SamAxisX = -1.5f, SamTrunnionX = -1.1f, SamTrunnionZ = 2.6f, SamMastX = 2.5f;
@@ -814,7 +789,7 @@ public static class ShapeKits
     // ── ⭐ CE-4621 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a, U-2) — the MOTORCYCLE: two wheels, a tank, a long seat, a rack; the riders are men drawn at the seats ─────
     private const float MoL = 2.1f, MoW = 0.8f, MoH = 1.2f;   // backend's type 115: 2.1 m long, 0.8 m across the bars, 1.2 m to the bars (the riders sit above)
     /// <summary>The motorcycle's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>), a 0.62 m tyre.</summary>
-    public const float MotoWheelRadius = 0.31f;
+    public const float MotoWheelRadius = Hrot.Look.Vehicles.MotionRules.MotoWheelRadius;   // ⭐ CE-11003 (RR-3)
 
     /// <summary>A motorcycle box from METRES (x forward, y left, z up from the ground).</summary>
     private static KitPart Mo(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c, float pitch = 0f)
@@ -1154,7 +1129,7 @@ public static partial class BlockFigure
     ];
 
     /// <summary>⭐ WL-6c — how much lower the athletic fighting stance carries the hips (m): knees bent, weight forward.</summary>
-    public const float AthleticDrop = 0.10f;
+    public const float AthleticDrop = Hrot.Look.People.UpperBody.AthleticDrop;   // ⭐ CE-11002 (RR-2) — the shared value
     private static readonly Vector3 Drop = new(0f, 0f, -AthleticDrop);
 
     /// <summary>⭐ WL-6c — the ATHLETIC FIGHTING STANCE of an aimed soldier standing still: hips lower, knees bent, the support (left)
@@ -2011,108 +1986,6 @@ public static partial class BlockFigure
 }
 
 /// <summary>
-/// ⭐ WL-6b (docs/DESIGN_Weapon_Layers.md §5h) — the picture's own timing of a weapon-posture change, on SIMULATION time (a pause
-/// freezes it, every host shows the same): the rifle moves from the old posture to the new one over <see cref="Seconds"/>, and an aimed
-/// upper body turns and pitches toward its aim with a <see cref="AimSeconds"/> time constant instead of jumping. The posture itself is
-/// the weapon brain's (R-272), replicated; nothing here is sent — like <see cref="DeathFall"/>, a unit first seen (a load, a late host,
-/// a replay jump) is simply in its posture, and a clock that goes back snaps.
-/// </summary>
-public sealed class PostureBlend
-{
-    /// <summary>How long the rifle takes to move between two postures (s, sim time).</summary>
-    public const float Seconds = 0.3f;
-
-    /// <summary>The aim angles' time constant (s, sim time): about 95 % of a turn is done in three of these.</summary>
-    public const float AimSeconds = 0.12f;
-
-    /// <summary>⭐ CE-1204 (§8l LK-5) — the drawn head's time constant (s, sim time): a glance turns the head, never snaps it.</summary>
-    public const float HeadSeconds = 0.15f;
-
-    private struct State
-    {
-        public WeaponPostureKind From, To;
-        public double ChangedAt;
-        public float Twist, Pitch;
-        public double AimAt;
-        public bool HasAim;
-        public float Head;
-        public double HeadAt;
-        public bool HasHead;
-    }
-
-    private readonly Dictionary<Entity, State> _states = new();
-    private readonly List<Entity> _gone = new();
-
-    /// <summary>Where <paramref name="e"/>'s rifle is this frame: between <c>From</c> and <c>To</c>, <c>T</c> of the way (1 = there).</summary>
-    public (WeaponPostureKind From, WeaponPostureKind To, float T) Posture(Entity e, WeaponPostureKind now, double simTime)
-    {
-        if (!_states.TryGetValue(e, out var st))
-        {
-            st = new State { From = now, To = now, ChangedAt = double.NegativeInfinity };
-            _states[e] = st;
-            return (now, now, 1f);
-        }
-        if (now != st.To)
-        {
-            // a change mid-blend starts from whichever end the rifle was nearer
-            float done = Progress(st, simTime);
-            st.From = done < 0.5f ? st.From : st.To;
-            st.To = now;
-            st.ChangedAt = simTime;
-            _states[e] = st;
-        }
-        return (st.From, st.To, Progress(st, simTime));
-    }
-
-    private static float Progress(in State st, double simTime)
-        => double.IsNegativeInfinity(st.ChangedAt) || simTime < st.ChangedAt ? 1f
-         : (float)Math.Clamp((simTime - st.ChangedAt) / Seconds, 0.0, 1.0);
-
-    /// <summary>The aim angles this frame, eased toward <paramref name="twist"/> / <paramref name="pitch"/> (0 when not aimed, so the
-    /// body turns back). Must follow <see cref="Posture"/> for the same entity in the frame.</summary>
-    public (float Twist, float Pitch) Aim(Entity e, float twist, float pitch, double simTime)
-    {
-        if (!_states.TryGetValue(e, out var st)) st = new State { From = WeaponPostureKind.AtEase, To = WeaponPostureKind.AtEase, ChangedAt = double.NegativeInfinity };
-        double dt = simTime - st.AimAt;
-        if (!st.HasAim || dt < 0 || dt > 1.0)
-        {
-            st.Twist = twist; st.Pitch = pitch;   // first seen, a clock jump, or a long gap: no easing
-        }
-        else if (dt > 0)
-        {
-            float k = 1f - MathF.Exp(-(float)dt / AimSeconds);
-            st.Twist += (twist - st.Twist) * k;
-            st.Pitch += (pitch - st.Pitch) * k;
-        }
-        st.AimAt = simTime;
-        st.HasAim = true;
-        _states[e] = st;
-        return (st.Twist, st.Pitch);
-    }
-
-    /// <summary>⭐ CE-1204 (§8l LK-5) — the head's turn off the torso this frame, eased toward <paramref name="turn"/> like the aim.</summary>
-    public float Head(Entity e, float turn, double simTime)
-    {
-        if (!_states.TryGetValue(e, out var st)) st = new State { From = WeaponPostureKind.AtEase, To = WeaponPostureKind.AtEase, ChangedAt = double.NegativeInfinity };
-        double dt = simTime - st.HeadAt;
-        if (!st.HasHead || dt < 0 || dt > 1.0) st.Head = turn;   // first seen, a clock jump, or a long gap: no easing
-        else if (dt > 0) st.Head += (turn - st.Head) * (1f - MathF.Exp(-(float)dt / HeadSeconds));
-        st.HeadAt = simTime;
-        st.HasHead = true;
-        _states[e] = st;
-        return st.Head;
-    }
-
-    /// <summary>Forgets everyone not drawn this frame.</summary>
-    public void EndFrame(HashSet<Entity> drawn)
-    {
-        _gone.Clear();
-        foreach (var e in _states.Keys) if (!drawn.Contains(e)) _gone.Add(e);
-        foreach (var e in _gone) _states.Remove(e);
-    }
-}
-
-/// <summary>
 /// ⭐ <c>CE-1348</c> — the DRAWN stance of each figure, moving smoothly to his logical stance (<see cref="LogicalStance"/>, which changes in the
 /// tick it is ordered) over <see cref="SecondsBetween"/> of sim time; the muscle's own blend (<see cref="StanceStatus"/>) is followed when it
 /// runs the same change, never stepped back from. 🔴 The figure used to draw the NEW stance in full until the muscle reported its transition
@@ -2123,13 +1996,12 @@ public sealed class PostureBlend
 public sealed class StanceBlend
 {
     /// <summary>Standing ↔ crouched (s, sim time).</summary>
-    public const float CrouchSeconds = 0.35f;
+    public const float CrouchSeconds = StanceTiming.CrouchSeconds;   // ⭐ CE-11014 — the ONE stance timing (the muscle applies it too)
 
     /// <summary>Into or out of prone (s, sim time).</summary>
-    public const float ProneSeconds = 0.8f;
+    public const float ProneSeconds = StanceTiming.ProneSeconds;
 
-    public static float SecondsBetween(StanceId a, StanceId b)
-        => a == b ? 0f : a == StanceId.Prone || b == StanceId.Prone ? ProneSeconds : CrouchSeconds;
+    public static float SecondsBetween(StanceId a, StanceId b) => StanceTiming.SecondsBetween(a, b);
 
     private struct State
     {
@@ -2163,7 +2035,7 @@ public sealed class StanceBlend
         }
         float t = Raw(st, simTime);
         if (muscle is { Phase: StanceTransitionPhase.Transitioning } m && m.CurrentStance == st.From && now == st.To)
-            t = MathF.Max(t, Math.Clamp(m.TransitionProgress, 0f, 1f));
+            t = MathF.Max(t, m.TransitionSeconds.Seconds > 0f ? StanceTiming.ProgressAt(in m, simTime) : Math.Clamp(m.TransitionProgress, 0f, 1f));   // ⭐ CE-11014 — the body's own start and duration
         t = MathF.Max(t, st.Floor);
         st.Floor = t;
         _states[e] = st;

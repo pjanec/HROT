@@ -24,6 +24,7 @@ supersedes: DESIGN_Time_Control_And_Reporting.md and DESIGN_Time_And_Write_Archi
 roadmap: PLAN_Time_System_Refactor.md -- the ORDER. T0 (make the integration net work) blocks
   every task derived from this document.
 related-designs:
+  - ../designs/IG/DESIGN_Linked_Client_Director.md — OWNS the director's LINKED CLIENT (a node extension as the frame sink and sound source, DD-022's HROT half; CE-11017, Q113)
   - docs/DESIGN_Cluster_Load_Phase.md — §9.2 (CE-4087) OWNS the bootstrap latch's roles half: a scenario load waits for a Brain and a MuscleGround node and is refused otherwise; §18 here owns the clock half of the same item
   - ../DESIGN_Replay_Time_Axis_And_Review.md — the replay clock's SIM view (rate per segment, SnapTo over paused stretches) and the review's SnapTo back to the live clock
   - docs/DESIGN_Director_Timeline_Editor.md — TE-19: the shared Timeline panel seeks through ITimeTransportFacade (grown: CanSeek / Seek); in a cluster replay that is this design's ReplaySeek round

@@ -32,7 +32,7 @@ namespace Hrot.SimHost.Tests
 
             new RoundImpactIngressTranslator(participant: null, map, localNodeId: 0).ProcessSample(new RoundImpact
             {
-                ShooterEntityId = 7, X = 1f, Y = 2f, Z = 3f, NormalY = -1f, TravelY = 4f, MunitionType = 6003L, Kind = 1,
+                ShooterEntityId = 7, X = 1f, Y = 2f, Z = 3f, NormalY = -1f, TravelY = 4f, MunitionType = 6003L, Kind = 1, Material = (byte)Fdp.Toolkit.Combat.ImpactMaterial.Brick,
             }, cmd);
             cmd.Playback(world);
             world.Bus.SwapBuffers();
@@ -41,6 +41,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(e.IsRemote);
             Assert.Equal(shooter, e.Shooter);
             Assert.Equal((1f, 2f, 3f, -1f, 4f, 6003L, (byte)1), (e.X, e.Y, e.Z, e.NormalY, e.TravelY, e.Ammo, e.Kind));
+            Assert.Equal((byte)Fdp.Toolkit.Combat.ImpactMaterial.Brick, e.Material);   // ⭐ CE-11009 (RR-9) — what it struck crosses the wire
         }
 
         /// <summary>⭐ CE-1148 S2 (Node Roles §3.5) — every node reads the marks; its OWN mark comes back from the wire and is dropped by

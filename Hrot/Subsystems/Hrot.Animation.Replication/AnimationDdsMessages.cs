@@ -101,6 +101,9 @@ public partial struct DdsStanceStatus
     public ushort Pad1;
     public float TransitionProgress;
     public uint AckVersion;
+    public double TransitionStartedAt;   // ⭐ CE-11014 — sim seconds the body's transition began (StanceStatus.TransitionStartedAt)
+    public byte FromStance;              // ⭐ CE-11014 — StanceId it leaves
+    public float TransitionSeconds;      // ⭐ CE-11014 — its duration as applied
 }
 
 // ── Side-buffer topics ────────────────────────────────────────────────────────

@@ -647,6 +647,7 @@ public sealed class EntityTypeCatalogTests
         409 MiG-29 Fulcrum | dis 1.2.222.1.200.0.0 | family TwinEngineJet | folder Platform/Air/Russia/Fighter/Air Defense | icon -
         410 A-10C (napalm) | dis 1.2.225.2.0.1.0 | family AttackJet | folder Platform/Air/United States/Attack/Strike | icon -
         411 Dragon | dis 1.2.0.20.99.0.0 | family AttackHelicopter | folder Platform/Air/Attack Helicopter | icon -
+        412 AH-64 (flame) | dis 1.2.225.20.0.1.0 | family AttackHelicopter | folder Platform/Air/United States/Attack Helicopter | icon -
         600 M2 HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         601 DShK HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         602 M134 minigun | dis 1.1.0.50.2.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -

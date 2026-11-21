@@ -562,7 +562,7 @@ namespace Fdp.Toolkit.Combat.Systems
             if (db == null || !db.TryGetByType(munitionType, out var type) || type == null
                 || type.GetDescriptor<Fdp.Toolkit.Tkb.Domain.MunitionVisualDto>() == null) return false;
             repo.AddComponent(round, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(munitionType) });
-            repo.AddComponent(round, default(Fdp.Toolkit.Replication.Components.LightweightRound));
+            repo.AddComponent(round, new Fdp.Toolkit.Replication.Components.LightweightRound { LaunchedAt = (SimInstant)Fdp.Toolkit.Time.SimClock.TotalTimeOf(repo) });   // ⭐ CE-11011 (RR-11) — its launch time
             repo.SetDisType(round, type.DisType);
             if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>())
                 repo.AddComponent(round, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());

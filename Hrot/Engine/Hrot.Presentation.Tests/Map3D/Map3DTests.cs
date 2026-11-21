@@ -15,6 +15,7 @@ using Hrot.Map.Definitions.Tkb;
 using Hrot.UI.Common.AddEntity;
 using Hrot.UI.Common.Map3D;
 using Xunit;
+using PostureBlend = Hrot.Look.People.PostureBlend;
 
 namespace Hrot.Presentation.Tests.Map3D;
 
@@ -1306,7 +1307,7 @@ public sealed class Map3DTests
             float z = x < 30f ? 1f : x < 60f ? 1f + (x - 30f) * 39f / 30f : 40f - (x - 60f) * 39f / 40f;
             path.Add(new Vector3(x, 0f, z), i * 0.05);   // 5 s of flight
         }
-        var round = new Hrot.UI.Common.Effects.ProjectileLayer.Round(missile, new Vector3(100f, 0f, 1f), Vector3.Normalize(new Vector3(1f, 0f, -1f)), false, 0f,
+        var round = new Hrot.Look.Effects.RoundState(missile, new Vector3(100f, 0f, 1f), Vector3.Normalize(new Vector3(1f, 0f, -1f)), false, 0f,
                                                                     new Vector3(0f, 0f, 1f), 7, 140f);
         var curved = Hrot.UI.Common.Effects.ProjectileLayer.TrailOf(round, path);
         var straight = Hrot.UI.Common.Effects.ProjectileLayer.TrailOf(round);

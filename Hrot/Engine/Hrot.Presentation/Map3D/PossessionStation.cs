@@ -1168,35 +1168,13 @@ namespace Hrot.UI.Common.Map3D
             }
 
             /// <summary>⭐ CE-1158 — a unit's type name from the TKB (<c>BMP-2</c>, <c>ZU-23-2</c>), or null.</summary>
-            public static string? TypeName(EntityRepository w, Entity e)
-            {
-                if (e.IsNull || !w.IsAlive(e) || !w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()
-                    || !w.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e) || !w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return null;
-                long type = w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType;
-                return w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!.TryGetByType(type, out var t) && t != null ? t.Name : null;
-            }
+            public static string? TypeName(EntityRepository w, Entity e) => Hrot.Look.Hud.HudWords.TypeName(w, e);   // ⭐ CE-11005 (RR-5) — the shared words
 
             /// <summary>⭐ CE-1158 (§8h U-1) — an action as the HUD names it: <c>Open door</c>, <c>Drag</c>, <c>Drive BMP-2</c>, <c>Man ZU-23-2</c>.</summary>
-            public static string Label(EntityRepository w, in UseAction a)
-                => a.Verb is UseVerbKind.Drive or UseVerbKind.Pilot or UseVerbKind.Board or UseVerbKind.Man
-                         or UseVerbKind.Take or UseVerbKind.Drop or UseVerbKind.PickUpRound && TypeName(w, a.Target) is { } name   // ⭐ CE-1207
-                    ? $"{a.Label} {name}" : a.Label;
+            public static string Label(EntityRepository w, in UseAction a) => Hrot.Look.Hud.HudWords.Label(w, in a);
 
             /// <summary>⭐ CE-1158 (§8h U-3) — why an action cannot be done, in the HUD's words.</summary>
-            public static string ReasonText(UseReason r) => r switch
-            {
-                UseReason.OutOfReach => "too far",
-                UseReason.Locked => "locked",
-                UseReason.DoorRefuses => "will not move",
-                UseReason.NotDown => "not down",
-                UseReason.SeatTaken => "seat taken",
-                UseReason.OtherSide => "enemy aboard",   // ⭐ R-4096
-                UseReason.Unfit => "you are down",
-                UseReason.Carrying => "hands full",
-                UseReason.NothingToDo => "nothing to do",
-                UseReason.Failed => "failed",
-                _ => "",
-            };
+            public static string ReasonText(UseReason r) => Hrot.Look.Hud.HudWords.ReasonText(r);
 
             /// <summary>⭐ CE-1158 (§8h U-1, U-3) — the prompt: <c>F  Open door</c>, or greyed with its reason <c>F  Open door (too far)</c> (⭐ CE-1212 — E before).</summary>
             public static string Prompt(EntityRepository w, in UseAction a)
@@ -1277,29 +1255,10 @@ namespace Hrot.UI.Common.Map3D
             /// <summary>⭐ CE-1358 — the weapon line shows the barrel's heat from this percent (below it the barrel is not worth a word).</summary>
             public const int HeatShownFromPercent = 25;
 
-            public static string KindOf(Fdp.Toolkit.Tkb.Domain.WeaponCategory c) => c switch
-            {
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms => "RIFLE",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun => "MG",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon => "AUTOCANNON",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun => "CANNON",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm => "MISSILE",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar => "MORTAR",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade => "GRENADE",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb => "BOMB",        // ⭐ Air Ops (backend, cross-lane: a name only)
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket => "ROCKETS",   // ⭐ Air Ops 6a (AW-3)
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Howitzer => "HOWITZER",   // ⭐ IF-1 (I8)
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Sam => "SAM",             // ⭐ CE-2187 (backend, cross-lane: a name only)
-                _ => "WEAPON",
-            };
+            public static string KindOf(Fdp.Toolkit.Tkb.Domain.WeaponCategory c) => Hrot.Look.Hud.HudWords.KindOf(c);
 
             /// <summary>⭐ CE-1079 — a round's name from the TKB (its munition template; a trailing " round" dropped), or null.</summary>
-            public static string? RoundName(EntityRepository w, long ammo)
-            {
-                if (ammo == 0 || !w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return null;
-                if (!w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!.TryGetByType(ammo, out var t) || t == null) return null;
-                return t.Name.EndsWith(" round", StringComparison.Ordinal) ? t.Name[..^6] : t.Name;
-            }
+            public static string? RoundName(EntityRepository w, long ammo) => Hrot.Look.Hud.HudWords.RoundName(w, ammo);
         }
     }
 
@@ -1310,8 +1269,19 @@ namespace Hrot.UI.Common.Map3D
     /// V (a vehicle's hull-locked view, where the mouse steers) and Esc (release), and sends ONE control frame per frame. It consumes
     /// the input, so no click or menu reaches the map's layers while the operator is in the unit.
     /// </summary>
-    public sealed class FpsCameraDriver : ICameraDriver
+    public sealed class FpsCameraDriver : ICameraDriver, ICameraSuggests
     {
+        /// <summary>⭐ CE-11006 (RR-6) — the operator in a unit: over its shoulder (the side and distance he set) or at its eyes.</summary>
+        public void Describe(EntityRepository world, ref Hrot.Map.Common.Components.CameraSuggestion s)
+        {
+            s.Source = Hrot.Map.Common.Components.CameraSource.Operator;
+            bool shoulder = ShoulderViewOn;
+            s.Mode = shoulder ? Hrot.Map.Common.Components.CameraMode.Shoulder : Hrot.Map.Common.Components.CameraMode.Eyes;
+            s.Bound = Unit;
+            s.Distance = shoulder ? _station.ShoulderDistance(Scheme) : 0f;
+            s.ShoulderSide = shoulder ? (sbyte)Math.Sign(_station.ShoulderSide) : (sbyte)0;
+        }
+
         /// <summary>Radians of look per pixel of mouse movement.</summary>
         public const float LookSensitivity = 0.0025f;
         /// <summary>⭐ <c>CE-1351</c> — how far ahead of a flyer's nose A/D put the heading it turns to (rad): held, it turns at its own rate

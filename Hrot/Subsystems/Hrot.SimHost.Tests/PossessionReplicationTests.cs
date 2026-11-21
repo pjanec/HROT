@@ -20,6 +20,135 @@ namespace Hrot.SimHost.Tests
     /// </summary>
     public sealed class PossessionReplicationTests
     {
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-1 (Q114 A, R-11011) — retyping the four possession fields from <c>NodeId</c> to <c>StationId</c> must NOT change the layout hash of the three events and the component
+        /// (<c>SchemaValidator</c> refuses a recording whose recorded hash differs): the hashes below were computed at the base, BEFORE the retype, and are hard-coded.
+        /// 🔴 Mutation: the hasher ignores <c>[LayoutHashAs]</c> ⇒ all four differ.
+        /// </summary>
+        [Fact]
+        public void CE11027_TheRetypeKeepsTheRecordedLayoutHashes_OfTheThreeEventsAndTheComponent()
+        {
+            Assert.Equal(0xEDB181D40B5C0FA7UL, Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(typeof(PossessRequestEvent)));
+            Assert.Equal(0x6A8A8992039E9D2FUL, Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(typeof(ReleasePossessionEvent)));
+            Assert.Equal(0x353FF5AEC55DF7B8UL, Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(typeof(OperatorControlFrameEvent)));
+            Assert.Equal(0x32AEB11D78EBE82BUL, Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(typeof(PossessedBy)));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11027</c> S12-1 — a recording made BEFORE the retype plays: its manifest carries the hashes of the base (hard-coded in the rail above) and the sizes; the validator finds all four types by id and reports
+        /// NO changed component and throws for no event. ⚠ No committed recording asset holds possession events, so this is the manifest form the brief allows (the hashes ARE what an old recording stores).
+        /// 🔴 Mutation: the hasher ignores <c>[LayoutHashAs]</c> ⇒ the component is reported changed and the event check throws.
+        /// </summary>
+        [Fact]
+        public void CE11027_AManifestRecordedAtTheOldType_StillValidates()
+        {
+            var meta = new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata
+            {
+                SchemaManifest = new System.Collections.Generic.Dictionary<int, Fdp.Core.FlightRecorder.ComponentSchemaInfo>
+                {
+                    [GlobalComponentIds.PossessedBy] = new() { Name = typeof(PossessedBy).FullName!, Size = Fdp.Core.TypeLayout.SizeOf(typeof(PossessedBy)), LayoutHash = 0x32AEB11D78EBE82BUL, IsManaged = false },
+                },
+                EventManifest = new System.Collections.Generic.Dictionary<int, Fdp.Core.FlightRecorder.ComponentSchemaInfo>
+                {
+                    [PossessionEventIds.PossessRequest] = new() { Name = typeof(PossessRequestEvent).FullName!, Size = Fdp.Core.TypeLayout.SizeOf(typeof(PossessRequestEvent)), LayoutHash = 0xEDB181D40B5C0FA7UL, IsManaged = false },
+                    [PossessionEventIds.ReleasePossession] = new() { Name = typeof(ReleasePossessionEvent).FullName!, Size = Fdp.Core.TypeLayout.SizeOf(typeof(ReleasePossessionEvent)), LayoutHash = 0x6A8A8992039E9D2FUL, IsManaged = false },
+                    [PossessionEventIds.ControlFrame] = new() { Name = typeof(OperatorControlFrameEvent).FullName!, Size = Fdp.Core.TypeLayout.SizeOf(typeof(OperatorControlFrameEvent)), LayoutHash = 0x353FF5AEC55DF7B8UL, IsManaged = false },
+                },
+            };
+            Assert.Empty(Fdp.Core.FlightRecorder.SchemaValidator.Validate(meta));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-1 (Q114 A) — two stations on ONE node (<c>Of(node,1)</c>, <c>Of(node,2)</c>) possess two units; each control frame reaches only the unit its station holds, a frame for a unit another
+        /// seat holds is dropped, and the component keeps the whole station (node AND seat). 🔴 Mutation: a control frame accepted for another station ⇒ the foreign frame lands.
+        /// </summary>
+        [Fact]
+        public void CE11027_TwoStationsOnOneNode_PossessTwoUnits_AndEachFrameReachesOnlyItsOwnUnit()
+        {
+            using var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(w);
+            var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+            Hrot.CGF.Configuration.CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+            var possession = new PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl);
+            void Frame() { w.Bus.SwapBuffers(); possession.Execute(w, 0.016f); w.Bus.SwapBuffers(); ingress.Execute(w, 0.016f); }
+            Entity Unit()
+            {
+                var u = w.CreateEntity();
+                w.AddComponent(u, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+                w.SetAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(u, true);
+                Fdp.Toolkit.Behavior.RootStateAccess.EnsureRootState(w, u);
+                return u;
+            }
+            var one = Unit();
+            var two = Unit();
+            var node = (NodeId)7;
+            var s1 = StationId.Of(node, 1);
+            var s2 = StationId.Of(node, 2);
+
+            w.Bus.Publish(new PossessRequestEvent { Unit = one, StationNodeId = s1, Mode = PossessionMode.Fps });
+            w.Bus.Publish(new PossessRequestEvent { Unit = two, StationNodeId = s2, Mode = PossessionMode.Fps });
+            Frame();
+            Assert.Equal(s1, w.GetComponentRO<PossessedBy>(one).StationNodeId);
+            Assert.Equal(s2, w.GetComponentRO<PossessedBy>(two).StationNodeId);
+            Assert.Equal(node, w.GetComponentRO<PossessedBy>(one).StationNodeId.Node);
+
+            w.Bus.Publish(new OperatorControlFrameEvent { Unit = one, StationNodeId = s1, Seq = 1, Forward = 1f });
+            w.Bus.Publish(new OperatorControlFrameEvent { Unit = two, StationNodeId = s2, Seq = 1, Forward = -1f });
+            w.Bus.Publish(new OperatorControlFrameEvent { Unit = one, StationNodeId = s2, Seq = 2, Forward = 0.5f });   // seat 2 sends a frame for seat 1's unit
+            Frame();
+            Assert.Equal(1f, w.GetComponentRO<OperatorInput>(one).Forward);
+            Assert.Equal(1u, w.GetComponentRO<OperatorInput>(one).Seq);        // the foreign frame (Seq 2) did not land
+            Assert.Equal(-1f, w.GetComponentRO<OperatorInput>(two).Forward);
+
+            // the node's station 0 is neither seat: it cannot take a unit a seat holds, and a request for a free unit by seat 1 is a re-take of its own
+            w.Bus.Publish(new PossessRequestEvent { Unit = one, StationNodeId = StationId.Of(node, 0), Mode = PossessionMode.Fps });
+            Frame();
+            Assert.Equal(s1, w.GetComponentRO<PossessedBy>(one).StationNodeId);
+
+            // each seat can be released on its own
+            w.Bus.Publish(new ReleasePossessionEvent { Unit = one, StationNodeId = s2 });   // not its holder: ignored
+            Frame();
+            Assert.True(w.HasComponent<PossessedBy>(one));
+            w.Bus.Publish(new ReleasePossessionEvent { Unit = one, StationNodeId = s1 });
+            Frame();
+            Assert.False(w.HasComponent<PossessedBy>(one));
+            Assert.True(w.HasComponent<PossessedBy>(two));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-1 (Q114 A′) — <c>NodeDeparted(node)</c> releases the units of EVERY station on the node (<c>Of(node,0..2)</c>), a unit of another node is kept.
+        /// 🔴 Mutation: the departure compares the whole station with the node id ⇒ only station 0's unit is released.
+        /// </summary>
+        [Fact]
+        public void CE11027_ADepartedNode_ReleasesEveryStationOnIt()
+        {
+            using var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(w);
+            w.Bus.Register<Fdp.Toolkit.Replication.Messages.NodeDeparted>();
+            var possession = new PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl);
+            Entity Held(StationId station)
+            {
+                var u = w.CreateEntity();
+                w.AddComponent(u, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+                w.SetAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(u, true);
+                w.AddComponent(u, new PossessedBy { StationNodeId = station, Mode = PossessionMode.Fps, Epoch = 1 });
+                return u;
+            }
+            var node = (NodeId)7;
+            var mine = new[] { Held(StationId.Of(node, 0)), Held(StationId.Of(node, 1)), Held(StationId.Of(node, 2)) };
+            var other = Held(StationId.Of((NodeId)8, 1));
+            w.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = node });
+            w.Bus.SwapBuffers();
+            possession.Execute(w, 0.016f);
+            foreach (var u in mine) Assert.False(w.HasComponent<PossessedBy>(u));
+            Assert.True(w.HasComponent<PossessedBy>(other));
+        }
+
         private static (EntityRepository World, Entity Unit, NetworkEntityMap Map) Node(int netId)
         {
             var w = new EntityRepository();

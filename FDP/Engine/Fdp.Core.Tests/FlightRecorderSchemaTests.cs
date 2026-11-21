@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Xunit;
 using Fdp.Core;
@@ -105,6 +106,21 @@ namespace Fdp.Tests
         public void ComponentLayoutHasher_ThrowsOnNullType()
         {
             Assert.Throws<ArgumentNullException>(() => ComponentLayoutHasher.ComputeHash(null!));
+        }
+
+        // ⭐ CE-11027 S12-1 — [LayoutHashAs]: a field whose type carries it hashes under the named type's name
+        private struct HoldsNode { public NodeId Who; public int X; }
+        private struct HoldsStation { public StationId Who; public int X; }
+        private struct HoldsInt { public int Who; public int X; }
+
+        /// <summary>⭐ <c>CE-11027</c> — a field typed <see cref="StationId"/> hashes exactly as the same field typed <see cref="NodeId"/> (the attribute), and differently from a plain <c>int</c>. 🔴 Mutation: the hasher ignores the attribute ⇒ equal-to-node fails.</summary>
+        [Fact]
+        public void CE11027_LayoutHashAs_HashesAStationFieldAsTheNodeFieldItReplaced()
+        {
+            var asNode = ComponentLayoutHasher.ComputeHash(typeof(HoldsNode));
+            Assert.Equal(asNode, ComponentLayoutHasher.ComputeHash(typeof(HoldsStation)));
+            Assert.NotEqual(asNode, ComponentLayoutHasher.ComputeHash(typeof(HoldsInt)));   // the type name still counts
+            Assert.Equal(typeof(NodeId), typeof(StationId).GetCustomAttributes(typeof(LayoutHashAsAttribute), false).Cast<LayoutHashAsAttribute>().Single().As);
         }
 
         // ── SchemaValidator tests ────────────────────────────────────────────────

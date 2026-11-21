@@ -141,7 +141,7 @@ public class EntityMasterTranslatorTests
         repo.RegisterComponent<LightweightRound>();
         repo.RegisterComponent<NetworkAuthority>();
         repo.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();
-        var master = new EntityMaster { EntityId = 88, TkbType = 6004, Flags = (ulong)EntityMasterFlags.Lightweight };
+        var master = new EntityMaster { EntityId = 88, TkbType = 6004, Flags = (ulong)EntityMasterFlags.Lightweight, LaunchedAt = 12.5 };
 
         translator.ProcessSample(in master, new RecordingCommandBuffer(), repo, writerNodeId: 2);
 
@@ -149,6 +149,7 @@ public class EntityMasterTranslatorTests
         Assert.Equal(EntityLifecycle.Active, repo.GetLifecycleState(round));
         Assert.False(repo.HasComponent<GhostStateTracker>(round));
         Assert.True(repo.HasComponent<LightweightRound>(round));
+        Assert.Equal(12.5, repo.GetComponentRO<LightweightRound>(round).LaunchedAt.Seconds);   // ⭐ CE-11011 (RR-11) — the sender's launch time
         Assert.True(repo.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(round));
 
         translator.ProcessDispose(88);

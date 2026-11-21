@@ -62,6 +62,46 @@ public sealed class FilmTests : System.IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-11006 (RR-6, R-11000) — the suggested camera a node extension reads: the director chasing unit 77 at 20 m writes Director / Chase / net id 77 / 20 m,
+    /// its cut counter, and the camera's own pose (eye, orientation carrying +X onto the view, fov); the free camera writes Operator / Free; a follow writes
+    /// Follow / Orbit with the unit. 🔒 Red-proved: the director's Describe not called (the driver test dropped) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void RR6_TheSuggestedCamera_SaysWhoDrivesHowAndWhere()
+    {
+        using var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<NetworkIdentity>();
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new SimTransform { Position = new Vector3(5f, 6f, 0f), Rotation = Quaternion.Identity });
+        world.AddComponent(unit, new NetworkIdentity { Value = 77 });
+        var camera = new MapCamera3D();
+        var director = new FilmDirector(() => world) { Shot = new FilmShot { Follow = 77, Distance = 20f, Yaw = 1f, Pitch = -0.3f, Lift = 2f } };
+        camera.Driver = director;
+        Assert.True(director.Place(camera));
+
+        CameraSuggestions.Write(world, camera);
+        Assert.True(Hrot.Look.CameraAdvice.TryGet(world, out var s));
+        Assert.Equal((Hrot.Map.Common.Components.CameraSource.Director, Hrot.Map.Common.Components.CameraMode.Chase, 77, 20f),
+                     (s.Source, s.Mode, s.BoundNetId, s.Distance));
+        Assert.Equal(FilmStudio.Cut, s.Cut);
+        Assert.Equal(camera.Eye, s.Position);
+        Assert.True(Vector3.Dot(Vector3.Transform(Vector3.UnitX, s.Orientation), Vector3.Normalize(camera.Forward)) > 0.9999f);
+        Assert.Equal(camera.FovyDegrees, s.FovyDegrees);
+
+        camera.Driver = null;
+        CameraSuggestions.Write(world, camera);
+        Assert.True(Hrot.Look.CameraAdvice.TryGet(world, out s));
+        Assert.Equal((Hrot.Map.Common.Components.CameraSource.Operator, Hrot.Map.Common.Components.CameraMode.Free), (s.Source, s.Mode));
+
+        camera.Driver = new FollowCameraDriver(() => world, unit, null);
+        CameraSuggestions.Write(world, camera);
+        Assert.True(Hrot.Look.CameraAdvice.TryGet(world, out s));
+        Assert.Equal((Hrot.Map.Common.Components.CameraSource.Follow, Hrot.Map.Common.Components.CameraMode.Orbit, unit, FollowCameraDriver.StartDistance),
+                     (s.Source, s.Mode, s.Bound, s.Distance));
+    }
+
+    /// <summary>
     /// The director looks AT a point (a driver that is not a pair of eyes): the fog starts part way there, as the free camera's —
     /// a first-person driver's starts at the lens. 🔴 Red-proof: <c>ViewsFromEye</c> true ⇒ 0.
     /// </summary>

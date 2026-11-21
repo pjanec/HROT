@@ -127,6 +127,13 @@ public static class FilmStudio
     /// <summary>⭐ Seats H4 — the director cut to a new camera key (the runner calls it when the key on screen changes).</summary>
     public static void NextCut() { lock (Gate) _cut++; }
 
+    /// <summary>⭐ CE-11006 (RR-6) — how many hard cuts the director has made (the suggested camera's counter).</summary>
+    public static int Cut { get { lock (Gate) return _cut; } }
+
+    /// <summary>⭐ CE-11006 (RR-6) — the director's segment on screen (null = none), for the suggested camera's take name.</summary>
+    public static string? ShotName { get { lock (Gate) return _shotName; } set { lock (Gate) _shotName = value; } }
+    private static string? _shotName;
+
     /// <summary>⭐ Seats H4 — a capture is filming the program: the user cannot take the camera (the runner sets it with the capture, <see cref="Release"/> clears it).</summary>
     public static bool CameraLocked { get { lock (Gate) return _locked; } set { lock (Gate) { _locked = value; if (value) _userHolds = false; } } }
 
@@ -178,7 +185,7 @@ public static class FilmStudio
             _twoD = false;
             _animateViewSwitch = true;
             _graphics = Array.Empty<Director.GraphicFrame>();
-            _directorCamera = true; _userHolds = false; _locked = false; _cut = _cutAtTake = 0;
+            _directorCamera = true; _userHolds = false; _locked = false; _cut = _cutAtTake = 0; _shotName = null;
             while (Waiting.Count > 0) Waiting.Dequeue().Done.TrySetCanceled();
         }
     }
@@ -189,8 +196,25 @@ public static class FilmStudio
 /// scenario's saved camera are left alone — <c>MapCameraLayer</c> never saves a driven view), but it looks AT a point
 /// (<see cref="ViewsFromEye"/> false: the weather read there, fog starting part way, as the free camera). Input is not its business.
 /// </summary>
-public sealed class FilmDirector : ICameraDriver
+public sealed class FilmDirector : ICameraDriver, ICameraSuggests
 {
+    /// <summary>⭐ CE-11006 (RR-6) — the director: a fixed key pose, or chasing its follow unit (by network id) at the shot's distance; its cut counter and
+    /// the segment on screen.</summary>
+    public void Describe(EntityRepository world, ref Hrot.Map.Common.Components.CameraSuggestion s)
+    {
+        s.Source = Hrot.Map.Common.Components.CameraSource.Director;
+        var shot = Shot;
+        if (shot?.Pose != null) s.Mode = Hrot.Map.Common.Components.CameraMode.FixedKey;
+        else if (shot is { Follow: not 0 })
+        {
+            s.Mode = Hrot.Map.Common.Components.CameraMode.Chase;
+            s.BoundNetId = shot.Follow;
+            s.Distance = shot.Distance;
+        }
+        s.Cut = FilmStudio.Cut;
+        if (FilmStudio.ShotName is { Length: > 0 } name) s.Take = new Fdp.Core.FixedString64(name);
+    }
+
     private readonly Func<EntityRepository?> _world;
 
     public FilmDirector(Func<EntityRepository?> world) => _world = world ?? throw new ArgumentNullException(nameof(world));

@@ -63,6 +63,16 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Perception.Radar.RadarSignature>();    // ⭐ CE-4617 — the radar SAM's salvo reads a target's cross-section (AmmoChoice.InDomain's lock floor); stamped at spawn, written by nothing in the phase
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Terrain.TerrainObjectKey>();                 // RoomDrill.OrderFor — a door / room key
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.DoorState>();                      // RoomDrill.OrderFor — the door's state
+            // ⭐ CE-3490 — the rest of what the world query's door table carries (DoorStates.Of → BuildingDamageTable, CraterTable, FelledTrees,
+            //   PlaceKnowledgeTable, WindowTable): any brain that asks the ground height or a line of sight (WorldQuery.Of) reads them. Each is written
+            //   only by its own system (BuildingDamageSystem, GroundDamageSystem, PlaceKnowledgeSystem), the weapon phase or network ingress — never in
+            //   the brain phase ⇒ tick-start reads. 📐 dr-dragon-village under HROT_READ_CHECK THREW in the air attack's missile defence (latent for any
+            //   brain near a scenario-placed building)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.BuildingDamage>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.WindowDamage>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.GroundDamage>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.TreeDamage>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.MinefieldKnowledge>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(); // an HSM condition on a member's capabilities
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.CombatTemperament>();  // TemperamentOf.Has — a member's temperament
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Motion.Descent>();                         // SquadFastRopePlay — a member on the rope

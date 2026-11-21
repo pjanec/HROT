@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Hrot.Common.Infrastructure;
 using Hrot.Map.Common.ClusterLoad;
 using Xunit;
 
@@ -918,6 +919,206 @@ public sealed class LoadPhaseChainTests
                 world: null,
                 profileParts: new[] { LoadPart.Map3D }));
         Assert.Contains("Map3D", ex.Message);
+    }
+
+    // ── ⭐ CE-11026 (R-11009, DESIGN_Linked_Client_Director §2d-1, §2e) — the load waits for the node's LINKED CLIENT ─────────────────────────────
+
+    /// <summary>A linked client for the rails: says what the test tells it, and records every call in order.</summary>
+    private sealed class FakeLinkedClient : ILinkedClient
+    {
+        public List<string>? Order { get; init; }
+        public string Name => "fake";
+        public bool Ready { get; set; }
+        public string? Failure { get; set; }
+        public string? Step { get; set; }
+        public List<Guid> Begun { get; } = new();
+        public int Polls { get; private set; }
+        public int PollsBeforeBegin { get; private set; }
+        public void BeginWorld(Guid loadId) { Begun.Add(loadId); Order?.Add("begin"); }
+        public bool IsWorldReady(Guid loadId, out string? failure, out string? step)
+        {
+            Polls++;
+            if (Begun.Count == 0) PollsBeforeBegin++;
+            failure = Failure; step = Step;
+            return Ready;
+        }
+    }
+
+    private static LoadPhaseChain LinkedChain(LinkedClients clients, List<string>? order = null)
+        => LoadPhaseChain.FromRoles(
+            NodeRole.Map2D,
+            new ILoadPartProvider[]
+            {
+                new FakeStep(LoadPart.KnowledgeBase),
+                new FakeStep(LoadPart.Terrain) { OnCommit = _ => order?.Add("terrain") },
+                new LinkedClientLoadStep(clients),
+            },
+            world: null,
+            profileParts: new[] { LoadPart.LinkedClient });
+
+    private static async Task<bool> Completes(Task hold) => ReferenceEquals(hold, await Task.WhenAny(hold, Task.Delay(300)));
+
+    /// <summary>a — no client offered: the step resolves at once and asks nobody; the load takes exactly as many polls as a chain without the step.</summary>
+    [Fact]
+    public async Task CE11026_NoLinkedClient_ResolvesAtOnce_AndTheLoadsTimingIsUnchanged()
+    {
+        var clients = new LinkedClients();
+        var with = LinkedChain(clients);
+        var without = LoadPhaseChain.FromRoles(NodeRole.Map2D, new ILoadPartProvider[] { new FakeStep(LoadPart.KnowledgeBase), new FakeStep(LoadPart.Terrain) }, world: null);
+
+        foreach (var chain in new[] { with, without })
+        {
+            var load = LoadIntent();
+            await chain.PrepareAsync(load, CancellationToken.None);
+            chain.Commit(load, null);
+            var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+            chain.DrainDeferredAcks();                       // ONE poll
+            Assert.True(await Completes(hold), "the load did not complete after one poll");
+        }
+
+        Assert.Equal(new[] { LoadPart.KnowledgeBase, LoadPart.Terrain, LoadPart.LinkedClient }, with.Parts);
+    }
+
+    /// <summary>
+    /// b — a client is told exactly once per load, with the load's transaction id, at the commit and after the terrain step's; the load holds until the client says ready, fails with exactly the client's reason, and reports the client's step.
+    /// 🔴 Mutations (each compiles): <c>BeginWorld</c> skipped ⇒ <c>Begun</c> empty; called in prepare / per poll ⇒ the order or count cells; failure ignored ⇒ the failing load holds for ever.
+    /// </summary>
+    [Fact]
+    public async Task CE11026_ALinkedClient_IsToldOncePerLoadAtTheCommit_AndTheLoadHoldsUntilItsWorldIsReady()
+    {
+        var order = new List<string>();
+        var client = new FakeLinkedClient { Order = order, Step = "terrain city-battle" };
+        var clients = new LinkedClients();
+        clients.Offer(client);
+        var chain = LinkedChain(clients, order);
+        var load = LoadIntent();
+
+        await chain.PrepareAsync(load, CancellationToken.None);
+        Assert.Empty(client.Begun);                          // not at prepare
+        chain.Commit(load, null);
+        Assert.Equal(new[] { "terrain", "begin" }, order);   // after the terrain commit
+        Assert.Equal(new[] { load.TransactionId }, client.Begun);
+
+        var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        Assert.False(await Completes(hold));                 // not ready: the load holds
+        Assert.Equal("terrain city-battle", chain.CurrentLoadStep);
+        chain.DrainDeferredAcks();
+        Assert.Equal(new[] { load.TransactionId }, client.Begun);   // polling does not tell it again
+
+        client.Ready = true;
+        chain.DrainDeferredAcks();
+        Assert.True(await Completes(hold));
+    }
+
+    [Fact]
+    public async Task CE11026_AClientsFailure_FailsTheLoadWithExactlyItsReason()
+    {
+        var client = new FakeLinkedClient { Step = "terrain" };
+        var clients = new LinkedClients();
+        clients.Offer(client);
+        var chain = LinkedChain(clients);
+        var load = LoadIntent();
+        await chain.PrepareAsync(load, CancellationToken.None);
+        chain.Commit(load, null);
+        var hold = chain.PrepareAsync(Intent(NodeOpType.PrepareState, ClusterState.OperatingLive), CancellationToken.None);
+        chain.DrainDeferredAcks();
+        Assert.False(hold.IsCompleted);
+
+        client.Failure = "no such terrain on the client";
+        chain.DrainDeferredAcks();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => hold);
+        Assert.Contains("no such terrain on the client", ex.Message);
+        Assert.Null(chain.CurrentLoadStep);
+    }
+
+    /// <summary>
+    /// c — THE RACE (DESIGN §2d-1): a client that answers "ready" for anything until it is told a world begins. The step must never ask before its commit, so the old world can never be read as ready.
+    /// 🔴 Mutation (compiles): <c>IsResolved</c> polling the current client without the commit's "asked" mark ⇒ <c>PollsBeforeBegin</c> is 1 and the step resolves before the commit.
+    /// </summary>
+    [Fact]
+    public void CE11026_TheStepNeverAsksBeforeItsCommit_SoTheOldWorldIsNeverReadAsReady()
+    {
+        var client = new FakeLinkedClient { Ready = true };   // "ready" for the OLD world
+        var clients = new LinkedClients();
+        clients.Offer(client);
+        var step = new LinkedClientLoadStep(clients);
+
+        Assert.True(step.IsResolved(null));                    // nothing was asked yet: nothing to wait for …
+        Assert.Equal(0, client.Polls);                         // … and the client was NOT asked (its answer would be about the old world)
+
+        client.Ready = false;                                  // from the begin on it says not ready until its new world is there
+        step.Commit(LoadContext(), null);
+        Assert.Equal(1, client.Begun.Count);
+        Assert.False(step.IsResolved(null));
+        Assert.Equal(0, client.PollsBeforeBegin);
+    }
+
+    /// <summary>A client's failure ends the step's wait and is the step's <c>Failure</c>, exactly; before a failure it is neither.</summary>
+    [Fact]
+    public void CE11026_TheStep_ReportsAClientsFailure_AsResolvedAndAsItsFailure()
+    {
+        var client = new FakeLinkedClient { Step = "terrain" };
+        var clients = new LinkedClients();
+        clients.Offer(client);
+        var step = new LinkedClientLoadStep(clients);
+        step.Commit(LoadContext(), null);
+        Assert.False(step.IsResolved(null));
+        Assert.Null(step.Failure);
+        Assert.Equal("terrain", step.ProgressStep);
+
+        client.Failure = "no such terrain on the client";
+        Assert.Equal("no such terrain on the client", step.Failure);
+        Assert.True(step.IsResolved(null));
+    }
+
+    private static LoadPhaseContext LoadContext() => LoadPhaseContext.From(LoadIntent())!.Value;
+
+    [Fact]
+    public void CE11026_AnAbort_ForgetsTheAskedClient_SoNothingWaitsForAnAbortedLoad()
+    {
+        var client = new FakeLinkedClient();
+        var clients = new LinkedClients();
+        clients.Offer(client);
+        var step = new LinkedClientLoadStep(clients);
+        var context = LoadContext();
+        step.Commit(context, null);
+        Assert.False(step.IsResolved(null));
+
+        step.Abort(context);
+
+        Assert.True(step.IsResolved(null));
+        Assert.Null(step.Failure);
+        Assert.Null(step.ProgressStep);
+    }
+
+    /// <summary>e — HOT PATH: a node with no linked client polls the step every frame of a load; it allocates nothing.</summary>
+    [Fact]
+    public void CE11026_IsResolved_WithNoLinkedClient_AllocatesNothing()
+    {
+        var step = new LinkedClientLoadStep(new LinkedClients());
+        for (int i = 0; i < 100; i++) step.IsResolved(null);   // warm
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 10_000; i++) step.IsResolved(null);
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    [Fact]
+    public void CE11026_TheRegistryHoldsOneClient_ASecondOfferReplacesIt_AndAWithdrawOfAReplacedClientIsIgnored()
+    {
+        var registry = new LinkedClients();
+        var a = new FakeLinkedClient();
+        var b = new FakeLinkedClient();
+        Assert.Null(registry.Current);
+        registry.Offer(a);
+        Assert.Same(a, registry.Current);
+        registry.Offer(b);
+        Assert.Same(b, registry.Current);
+        registry.Withdraw(a);                       // a was replaced: its withdraw must not remove b
+        Assert.Same(b, registry.Current);
+        registry.Withdraw(b);
+        Assert.Null(registry.Current);
     }
 
     private sealed class FakeStep : ILoadPartProvider

@@ -68,6 +68,45 @@ namespace Hrot.MuscleCharacter.Animation.Components
 
         /// <summary>Version observed by Muscle (ack counter to Brain's StanceIntent.Version).</summary>
         public uint AckVersion;
+
+        /// <summary>⭐ CE-11014 — the synced sim time the CURRENT (or last) body transition began, written by the muscle when it starts one and kept until the
+        /// next. With <see cref="FromStance"/> and <see cref="TransitionSeconds"/> any reader, on any node or in a replay, computes the blend's progress at any
+        /// instant (<see cref="StanceTiming.ProgressAt"/>) with no per-frame replication. ⚠ <see cref="TransitionProgress"/> is never advanced after its 0
+        /// (the backend keeps its progress privately) — superseded by these.</summary>
+        public SimInstant TransitionStartedAt;
+
+        /// <summary>⭐ CE-11014 — the stance the transition leaves (the last FINISHED stance; a change mid-blend restarts from it, as the backends do).</summary>
+        public StanceId FromStance;
+
+        /// <summary>⭐ CE-11014 — the blend's duration as the muscle APPLIES it: <see cref="StanceTiming.Effective"/> of the intent's BlendTime (an unset
+        /// BlendTime takes the per-pair default). 0 = no transition has run.</summary>
+        public SimDuration TransitionSeconds;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-11014 — THE body's stance-transition timing, ONE rule for the muscle (the duration it hands its backend and records), the map (its drawn
+    /// blend) and any reader: an explicit <see cref="StanceIntent.BlendTime"/> wins; unset (≤ 0) ⇒ the per-pair default (crouch ↔ stand
+    /// <see cref="CrouchSeconds"/>, into or out of prone <see cref="ProneSeconds"/> — the map's measured feel, R-11006). Pure.
+    /// </summary>
+    public static class StanceTiming
+    {
+        /// <summary>Standing ↔ crouched, and into or out of prone (s, sim time).</summary>
+        public const float CrouchSeconds = 0.35f, ProneSeconds = 0.8f;
+
+        /// <summary>The default duration between two stances (0 for the same one).</summary>
+        public static float SecondsBetween(StanceId from, StanceId to)
+            => from == to ? 0f : from == StanceId.Prone || to == StanceId.Prone ? ProneSeconds : CrouchSeconds;
+
+        /// <summary>The duration the muscle applies: <paramref name="blendTime"/> when set, else <see cref="SecondsBetween"/>.</summary>
+        public static float Effective(StanceId from, StanceId to, float blendTime) => blendTime > 0f ? blendTime : SecondsBetween(from, to);
+
+        /// <summary>The transition's progress at sim time <paramref name="now"/>: clamp((now − started) / seconds, 0, 1); 1 when none has run.</summary>
+        public static float ProgressAt(in StanceStatus s, double now)
+        {
+            float seconds = s.TransitionSeconds.Seconds;
+            if (seconds <= 0f) return 1f;
+            return (float)Math.Clamp((now - s.TransitionStartedAt.Seconds) / seconds, 0.0, 1.0);
+        }
     }
 
     /// <summary>
