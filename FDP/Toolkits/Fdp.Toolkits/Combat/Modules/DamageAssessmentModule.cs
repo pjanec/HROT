@@ -41,6 +41,7 @@ namespace Fdp.Toolkit.Combat.Modules
                                      new Fdp.Toolkit.Terrain.MinefieldStrikesSystem(),   // ⭐ CE-4624 MS-T1 — the mines that went off, written into the field's strikes record
                                      new Fdp.Toolkit.Terrain.PlaceKnowledgeSystem(),
                                      new Fdp.Toolkit.Terrain.UnderFireWriter(),   // ⭐ CE-2468 UF-2 — the places under fire each side learned (shelling here; broken contacts on the CGF node), aged and retired
+                                     new Fdp.Toolkit.Terrain.UnderFireSightSystem(),   // ⭐ CE-2468 UF-4 (K5) — the ground each known enemy sees + the route-cost maps, rebuilt serially only when the table changed
                                      new Fdp.Toolkit.Terrain.MinefieldLanesSystem() };   // ⭐ CE-4624 MS-T4 — the lanes cleared, written into the field's lanes record   // ⭐ CE-4624 MS-T2 — what each side learned (strikes here; recon on the CGF node)   // ⭐ CE-4603 (B-6) — the trunks it (or a player's hull) felled   // ⭐ CE-4591 (G-11) — an owned man standing where a crater opened takes the new ground   // ⭐ CE-4591 (P-4) — the craters it decided, written into the cell's ground-damage entity   // ⭐ CE-4391 S-1 — the breaches it decided, written into the building's damage entity (after it: B-5)
     }
 }

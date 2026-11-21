@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Navigation
         private int[] _prevNode = Array.Empty<int>();
         private int[] _prevSeg = Array.Empty<int>();
         private bool[] _done = Array.Empty<bool>();
+        private float[] _segFactor = Array.Empty<float>();   // K12 — per segment, this request's under-fire factor
 
         // The last route found (Route → EmitLeg).
         private readonly List<int> _segments = new();      // segment per hop, in travel order
@@ -99,6 +100,15 @@ namespace Fdp.Toolkit.Navigation
         /// (D5). False when they are not connected. Remembers the route for <see cref="EmitLeg"/>.
         /// </summary>
         public bool Route(in RoadNetworkBlob roads, in RoadAccess entry, in RoadAccess exit, out float roadMetres)
+            => Route(roads, entry, exit, out roadMetres, null, 0);
+
+        /// <summary>
+        /// ⭐ CE-2468 UF-5 (DESIGN_Minefields.md §9b.1 K12) — the same, the road priced for side <paramref name="sidePlus1"/> − 1: a segment whose MIDPOINT is covered by
+        /// a known enemy (<see cref="Fdp.Toolkit.Terrain.UnderFireSight.Covered"/>) costs × <see cref="Fdp.Toolkit.Terrain.UnderFireSight.FactorOf"/>(1) — the navmesh
+        /// polygons' own factor. <paramref name="roadMetres"/> is then a COST (the planner compares it), not a length. Null / 0 / a side with nothing covered = plain metres.
+        /// </summary>
+        public bool Route(in RoadNetworkBlob roads, in RoadAccess entry, in RoadAccess exit, out float roadMetres,
+            Fdp.Toolkit.Terrain.UnderFireSight? underFire, byte sidePlus1)
         {
             roadMetres = float.MaxValue;
             _segments.Clear(); _forward.Clear();
@@ -114,9 +124,12 @@ namespace Fdp.Toolkit.Navigation
             int n = roads.Nodes.Length;
             Ensure(n);
             for (int i = 0; i < n; i++) { _dist[i] = float.MaxValue; _prevNode[i] = -1; _prevSeg[i] = -1; _done[i] = false; }
+            PriceSegments(roads, underFire, sidePlus1);
+            float fe = _segFactor[entry.Segment], fx = _segFactor[exit.Segment];
+            if (entry.Segment == exit.Segment) direct *= fe;
             // Virtual source on the entry segment: its two end nodes are reached along the segment.
-            Relax(se.StartNodeIndex, entry.Along, -1, entry.Segment);
-            Relax(se.EndNodeIndex, se.Length - entry.Along, -1, entry.Segment);
+            Relax(se.StartNodeIndex, fe * entry.Along, -1, entry.Segment);
+            Relax(se.EndNodeIndex, fe * (se.Length - entry.Along), -1, entry.Segment);
 
             while (true)
             {
@@ -130,12 +143,12 @@ namespace Fdp.Toolkit.Navigation
                     var seg = roads.Segments[s];
                     int v = seg.StartNodeIndex == u ? seg.EndNodeIndex : seg.EndNodeIndex == u ? seg.StartNodeIndex : -1;
                     if (v < 0 || v >= n || _done[v]) continue;
-                    Relax(v, _dist[u] + seg.Length, u, s);
+                    Relax(v, _dist[u] + _segFactor[s] * seg.Length, u, s);
                 }
             }
 
-            float viaStart = Reach(sx.StartNodeIndex, exit.Along);
-            float viaEnd = Reach(sx.EndNodeIndex, sx.Length - exit.Along);
+            float viaStart = Reach(sx.StartNodeIndex, fx * exit.Along);
+            float viaEnd = Reach(sx.EndNodeIndex, fx * (sx.Length - exit.Along));
             float graph = MathF.Min(viaStart, viaEnd);
 
             if (direct <= graph)
@@ -245,6 +258,23 @@ namespace Fdp.Toolkit.Navigation
         {
             if (node < 0 || node >= _dist.Length || d >= _dist[node]) return;
             _dist[node] = d; _prevNode[node] = fromNode; _prevSeg[node] = fromNode < 0 ? -1 : viaSeg;
+        }
+
+        /// <summary>K12 — each segment's factor for this request: 1, or the covered factor where its midpoint is covered (reused array, 0 B steady).</summary>
+        private void PriceSegments(in RoadNetworkBlob roads, Fdp.Toolkit.Terrain.UnderFireSight? underFire, byte sidePlus1)
+        {
+            int m = roads.Segments.Length;
+            if (_segFactor.Length < m) _segFactor = new float[m];
+            bool priced = underFire != null && sidePlus1 != 0 && underFire.HasSide(sidePlus1);
+            float covered = Fdp.Toolkit.Terrain.UnderFireSight.FactorOf(1f);
+            for (int s = 0; s < m; s++)
+            {
+                _segFactor[s] = 1f;
+                if (!priced) continue;
+                var seg = roads.Segments[s];
+                var (mid, _, _) = RoadGraphNavigator.SampleRoadSegment(seg, seg.Length * 0.5f);
+                if (underFire!.Covered(sidePlus1, mid)) _segFactor[s] = covered;
+            }
         }
 
         private void Ensure(int n)

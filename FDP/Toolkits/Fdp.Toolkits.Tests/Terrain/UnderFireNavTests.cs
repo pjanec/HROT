@@ -1,0 +1,189 @@
+using System;
+using System.Numerics;
+using CarKinem.Road;
+using Fdp.Core;
+using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Navigation.Recast;
+using Xunit;
+
+namespace Fdp.Toolkit.Terrain.Tests
+{
+    /// <summary>
+    /// ⭐⭐ CE-2468 UF-5 (docs/designs/minefields/DESIGN_Minefields.md §9b.1 K4, K8, K12) — ground a known enemy covers COSTS the side that knows it: two streets either side of a wood
+    /// (wheels may not cross it — the <c>MinefieldNavTests</c> barrier), an enemy known to Blue on the short west street. Blue drives the long east street, Red (who knows nothing)
+    /// the short west one; the same on the road graph. Real Recast mesh, the real <see cref="UnderFireSightSystem"/> publishing the maps in the serial pass.
+    /// </summary>
+    public sealed class UnderFireNavTests
+    {
+        private const int Blue = 1, Red = 2;
+        private const uint Wheeled = (uint)NavLayerMask.Vehicle;
+
+        /// <summary>300 × 600 m open ground, a wood across x 90..210, y 60..540: a short street west of it, a long one east.</summary>
+        private const string TwoStreets = """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,300,600],"groundZ":0},"features":[
+             {"type":"Feature","properties":{"kind":"surface","surface":"forest"},
+              "geometry":{"type":"Polygon","coordinates":[[[90,60],[210,60],[210,540],[90,540],[90,60]]]}}]}
+            """;
+
+        private static readonly Vector3 From = new(45, 20, 0), To = new(45, 580, 0), Enemy = new(45, 300, 0);
+
+        private sealed class Rig
+        {
+            public readonly EntityRepository R = new();
+            public readonly TerrainWorld Terrain = TerrainWorldParser.Parse(TwoStreets, "t");
+            public readonly UnderFireSightSystem Sight = new();
+
+            public Rig()
+            {
+                R.RegisterComponent<UnderFireKnowledge>();
+                R.SetSingletonManaged(Terrain);
+            }
+
+            /// <summary>Side <paramref name="side"/> knows an enemy at <paramref name="at"/> covering <paramref name="rangeM"/> (a <see cref="UnderFireCause.Direct"/> record).</summary>
+            public void Know(int side, Vector3 at, float rangeM, UnderFireCause cause = UnderFireCause.Direct)
+            {
+                var k = new UnderFireKnowledge { Cause = cause, Point = at, RangeM = rangeM, EnemyStrength = 1f };
+                k.Header.SubjectKind = SubjectKind.Place; k.Header.Kind = PlaceKnowledgeKind.UnderFire; k.Header.ObjectIndex = -1;
+                k.Header.Subject = UnderFireRules.SubjectOf(cause, at); k.Header.SidePlus1 = (byte)(side + 1);
+                k.Header.State = UnderFireKnowledge.StateActive; k.Header.LearnedAt = (SimInstant)1.0;
+                R.AddComponent(R.CreateEntity(), k);
+            }
+
+            /// <summary>The serial pass, then the view's doors (what a path query on a worker thread is handed).</summary>
+            public DoorStates Doors() { R.Tick(); Sight.Execute(R, 0f); return DoorStates.Of(R, Terrain); }
+        }
+
+        private static uint Mask(int side) => Wheeled | NavLayerSelection.SideBits(side);
+
+        private static float MaxX(DotRecastNavmeshProvider nav, int side, DoorStates doors)
+        {
+            Span<NavWaypoint> w = stackalloc NavWaypoint[256];
+            int n = nav.PlanPath(From, To, w, Mask(side), doors);
+            Assert.True(n > 1, "a route exists");
+            float x = 0f;
+            for (int i = 0; i < n; i++) x = MathF.Max(x, w[i].Position.X);
+            return x;
+        }
+
+        /// <summary>
+        /// ⭐⭐ K4 / K8 — the covered street is avoided for the knowing side ONLY; an <see cref="UnderFireCause.Indirect"/> record is not priced.
+        /// 🔴 Red-proof: drop the lookup in <c>DoorAwareQueryFilter.GetCost</c> ⇒ Blue takes the west street; drop the side test in the cost map (price every side's grids) ⇒ Red goes east too.
+        /// </summary>
+        [Fact]
+        public void UF5_TheCoveredStreet_IsAvoidedByTheSideThatKnowsIt_Only()
+        {
+            var rig = new Rig();
+            var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { TileCache = null }.Build(rig.Terrain)!;
+            rig.Know(Red, Enemy, 150f, UnderFireCause.Indirect);   // K8 — shelling is not ground a route pays for
+            var doors = rig.Doors();
+            Assert.True(MaxX(nav, Red, doors) < 90f, "Indirect: Red keeps the short west street");
+
+            rig.Know(Blue, Enemy, 400f);   // the whole west street is in its sight (the polygons' corners too: K4 prices the covered SHARE)
+            doors = rig.Doors();
+            Assert.True(doors.UnderFireSight.HasSide((byte)(Blue + 1)) && !doors.UnderFireSight.HasSide((byte)(Red + 1)));
+            Assert.True(MaxX(nav, Blue, doors) >= 200f, "Blue knows the enemy on the west street: it drives east (round the wood, x 210)");
+            Assert.True(MaxX(nav, Red, doors) < 90f, "Red knows nothing of it: the short west street");
+            Assert.True(nav.PathCost(From, To, Mask(Blue), doors) > nav.PathCost(From, To, Mask(Red), doors));
+        }
+
+        /// <summary>
+        /// ⭐⭐ UF-6 (§9b, K8, K10) — the danger solve reads the unit's SIDE: a Direct record of Blue's is ONE <see cref="Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire"/> area on a route through
+        /// its seen ground (entered where the grid starts, left where it ends) and nothing for Red; an Indirect record of Red's is one <c>Shelled</c> footprint for Red only.
+        /// 🔴 Red-proofs: drop the side test in <c>CoveredByFireAreas</c> ⇒ Red gets the area; drop it in <c>ShelledFootprints</c> ⇒ Blue gets Red's shelling.
+        /// </summary>
+        [Fact]
+        public void UF6_TheDangerSolve_ReadsTheUnitsSide_CoveredByFireForDirect_ShelledForIndirect()
+        {
+            var rig = new Rig();
+            rig.Know(Blue, Enemy, 150f);
+            rig.Know(Red, new Vector3(45, 100, 0), 25f, UnderFireCause.Indirect);
+            var doors = rig.Doors();
+            var route = new[] { From, To };
+            var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
+            Assert.Equal(1, Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.CoveredByFireAreas(doors.UnderFireSight, route, (byte)(Blue + 1), areas));
+            var a = areas[0];
+            Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire, a.Kind);
+            Assert.InRange(a.Center.Y, 145f, 160f);            // the route enters the enemy's 150 m at y 150
+            Assert.InRange(a.FarSideHandle.Y, 445f, 460f);     // and leaves it at y 450
+            Assert.True(a.NearSideHandle.Y < a.Center.Y && a.FeatureId != 0);
+            Assert.InRange(a.DistanceAlongRoute, 125f, 140f);
+            Assert.Equal(0, Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.CoveredByFireAreas(doors.UnderFireSight, route, (byte)(Red + 1), areas));
+
+            var gas = new Fdp.Toolkit.Squad.DangerArea.GasFootprint[8];
+            Assert.Equal(0, Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.ShelledFootprints(doors.UnderFire, (byte)(Blue + 1), gas));   // Blue's record is Direct: no circle
+            Assert.Equal(1, Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.ShelledFootprints(doors.UnderFire, (byte)(Red + 1), gas));
+            Assert.Equal((Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Shelled, 25f), (gas[0].Kind, gas[0].Radius));
+            Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.CoveredByFire, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire));
+            Assert.False(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Crossings, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire));
+        }
+
+        /// <summary>
+        /// ⭐⭐ UF-4 (K3, K5) — the sight is a pure function of the authored terrain and the record: two LOADS build the same grid cell for cell; the grids and cost maps are built in
+        /// the serial pass only (a path query builds nothing); a steady frame of the pass + the readers allocates 0 B (R-2084).
+        /// 🔴 Red-proof: pass the live doors to <c>SegmentBlocked</c> in the grid build ⇒ an opened door changes the grid (not run here); drop the unchanged-table early return ⇒ the steady frame rebuilds (Builds grows, bytes &gt; 0).
+        /// </summary>
+        [Fact]
+        public void UF4_TheSight_IsTheSameOnTwoLoads_BuiltOnlyInTheSerialPass_AndASteadyFrameAllocatesNothing()
+        {
+            UnderFireSightGrid Load(out Rig rig, out DotRecastNavmeshProvider nav)
+            {
+                rig = new Rig();
+                nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { TileCache = null }.Build(rig.Terrain)!;
+                rig.Know(Blue, Enemy, 150f);
+                var s = rig.Doors().UnderFireSight;
+                Assert.Equal(1, s.GridCount);
+                return s.Grid(0).Grid;
+            }
+            var g1 = Load(out _, out _);
+            var g2 = Load(out var rig, out var nav);
+            Assert.True(g1.SeenCount > 100 && g1.SeenCount == g2.SeenCount && g1.Cells == g2.Cells);
+            for (float x = 0; x <= 300; x += 5) for (float y = 0; y <= 600; y += 5) Assert.Equal(g1.Covers(new Vector2(x, y)), g2.Covers(new Vector2(x, y)));
+            Assert.True(g1.Covers(new Vector2(45, 200)) && !g1.Covers(new Vector2(250, 300)), "the street is seen; behind the wood is not");
+
+            var doors = rig.Doors();
+            int builds = rig.Sight.Builds;
+            Assert.True(nav.PathCost(From, To, Mask(Blue), doors) < float.MaxValue);
+            Assert.Equal(builds, rig.Sight.Builds);   // the query looked the map up, built nothing
+
+            for (int i = 0; i < 3; i++) { rig.Sight.Execute(rig.R, 0f); DoorStates.Of(rig.R, rig.Terrain); }   // warm
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10; i++) { rig.Sight.Execute(rig.R, 0f); _ = DoorStates.Of(rig.R, rig.Terrain).UnderFire.NearestFresh(Blue, Enemy, 50f, out _); }
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.Equal(builds, rig.Sight.Builds);
+        }
+
+        /// <summary>
+        /// ⭐ K12 — a road leg is priced too: a segment whose midpoint is covered costs × <see cref="UnderFireSight.FactorOf"/>(1). Two roads round the wood: Blue takes the east one.
+        /// 🔴 Red-proof: leave <c>PriceSegments</c> at 1 ⇒ Blue's road is the west one.
+        /// </summary>
+        [Fact]
+        public void UF5_ARoadLeg_ThroughCoveredGround_IsPricedForTheKnowingSide()
+        {
+            var rig = new Rig();
+            rig.Know(Blue, Enemy, 400f);
+            var sight = rig.Doors().UnderFireSight;
+            var b = new RoadNetworkBuilder();
+            Vector2 a = new(45, 20), w = new(45, 300), e1 = new(250, 60), e2 = new(250, 540), z = new(45, 580);
+            b.AddNode(a); b.AddNode(w); b.AddNode(z); b.AddNode(e1); b.AddNode(e2);
+            void Seg(Vector2 p, Vector2 q, int s, int t) { var d = q - p; b.AddSegment(p, d, q, d, 13.9f, 3.5f, 1, s, t); }
+            Seg(a, w, 0, 1); Seg(w, z, 1, 2);                   // the west road: through the covered ground
+            Seg(a, e1, 0, 3); Seg(e1, e2, 3, 4); Seg(e2, z, 4, 2);   // the east road: round the wood
+            var roads = b.Build(50f, 8, 8);
+            try
+            {
+                var router = new RoadGraphRouter();
+                var entry = RoadGraphRouter.NearestAccess(roads, a, 30f); var exit = RoadGraphRouter.NearestAccess(roads, z, 30f);
+                Assert.True(entry.IsValid && exit.IsValid, $"access {entry.IsValid} {exit.IsValid}");
+                Assert.True(router.Route(roads, entry, exit, out float red, sight, (byte)(Red + 1)), "red route");
+                Assert.True(router.Route(roads, entry, exit, out float blue, sight, (byte)(Blue + 1)), "blue route");
+                Assert.True(red < 600f, $"Red: the west road, {red:0.0} m");
+                Assert.True(blue > red, $"Blue pays for the covered road or drives round: {blue:0.0} vs {red:0.0}");
+                var pts = new System.Collections.Generic.List<Vector3>();
+                router.EmitLeg(roads, pts, (_, _, _) => 0f);
+                float maxX = 0f; foreach (var p in pts) maxX = MathF.Max(maxX, p.X);
+                Assert.True(maxX >= 200f, "Blue's road leg goes round the wood");
+            }
+            finally { roads.Dispose(); }
+        }
+    }
+}
