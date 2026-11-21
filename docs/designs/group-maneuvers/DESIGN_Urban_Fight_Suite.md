@@ -128,7 +128,8 @@ adds the corner's geometry, not new rows.
 |---|---|---|
 | both sides fire; each within **5 s** of the other's first round (close range) | 2 | as U1, window 5 s |
 | nobody in the fight stands upright in the open **10 s** in an enemy's sight | 1 | `never` `exposed` `upright` `fighting` `m` 2.5 `for` 10 |
-| no squad knot held 10 s · no friendly hits · both sides take losses | 1 / 3 | as U1 |
+| no squad knot held 10 s · no friendly hits · Red hits Blue | 1 / 3 | as U1 |
+| ⭐ Blue, ambushed from the corners, gets out of Red's sight: from 30 s after Red's first round no Blue man stays in a Red man's sight 10 s (user `2026-11-21`: a squad that breaks contact need not score). ⛔ SUPERSEDED for U2: "Blue hits a Red man" (U2-2) | 3 | `never` `exposed` `for 10`, `after: "Red fires+30"` |
 
 **Review checklist (layer 4)** — ① does Red lean out from the corner or step into the street · ② does Blue keep to the walls, or walk the
 middle of the street in a column · ③ once Red is found, is the corner suppressed while a team moves · ④ does Blue flank (through the shop street

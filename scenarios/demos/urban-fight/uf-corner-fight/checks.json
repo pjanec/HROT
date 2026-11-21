@@ -58,10 +58,15 @@
       }
     },
     {
-      "name": "L3 Blue hits a Red man",
-      "on": "shot",
-      "by": "*Blue Squad ",
-      "hit": "*Red Squad "
+      "name": "L3 Blue, ambushed, gets out of Red's sight: from 30 s after Red's first round no Blue man stays in a Red man's sight 10 s (a squad that breaks contact need not score)",
+      "never": {
+        "on": "exposed",
+        "who": "*Blue Squad ",
+        "by": "*Red Squad ",
+        "fighting": true,
+        "for": 10
+      },
+      "after": "Red fires+30"
     },
     {
       "name": "L1 nobody of Red in the fight stands upright in the OPEN (no cover within 2.5 m) in a Blue man's sight 10 s once the shooting starts",
