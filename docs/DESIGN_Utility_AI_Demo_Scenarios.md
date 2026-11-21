@@ -951,7 +951,7 @@ moment the rifleman sees the hostile reach cover — it does not wait for the ne
 | ⭐ lean (v1 scope — the demo's need) | rejected / later |
 |---|---|
 | route sources ToPoint (navmesh plan) and OwnMove (the vehicle's own corridor on the solver node, read from `TrajectoryPoolManager`); Handle answers empty for now | shipping the route handle on the config topic — not needed while the solver node also holds the vehicle |
-| kinds: StreetCrossing (a road run ≤ 40 m) and Intersection (a run inside two road surfaces) | OpenGround, ChokePoint, CrestLine — the next kinds, filed as `CE-3081`; a long road run (walking ALONG a street) is not a crossing |
+| kinds: StreetCrossing (a road run ≤ 40 m) and Intersection (a run inside two road surfaces) | OpenGround, ChokePoint, CrestLine — the next kinds, filed as `CE-3081`; a long road run (walking ALONG a street) is not a crossing — ⭐ `CE-2463` (`2026-11-21`, user-approved lean): but each JUNCTION on such a run is still an Intersection (the cross street's field of fire), its near handle `JunctionStandOff` 12 m short of the junction band (the building line — the crossing's 4 m stands past the corners, 📐 demo-city `d_5_4`, `uf-corner-fight`). ⛔ SUPERSEDED: a long run reported nothing, its junctions included |
 | FeatureId = hash(road surface index, run centre on a 10 m grid) — stable across re-plans, so `AreaAhead` fires on a real change | a per-solve counter (every answer would look new) |
 | rating on the Brain from the unit's own memory, sight by `TerrainWorld.SegmentBlocked` (eye 1.6 m → area centre +1 m), danger by `ThreatDanger.OfSlot` (so dead = 0, CE-3080) | the squad pool (U7 adds it) |
 
