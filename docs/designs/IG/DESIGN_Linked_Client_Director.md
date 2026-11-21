@@ -154,7 +154,8 @@ sequenceDiagram
   loop every film frame
     R->>R: step once (StepOnce)
     R->>S: Frame(path, size, overlay)
-    S->>G: Frame(FilmFrame with the film camera, sim time, step)
+    S->>S: the map's FilmCaptureLayer places the camera for the shot and reads its pose (no render)
+    S->>G: Frame(FilmFrame with that pose, sim time, step)
     G-->>S: written
     S-->>R: done, next step
   end
@@ -243,7 +244,7 @@ invariant in `SimTimeSyncIntegrationTests`.
 |---|---|---|
 | D-1 | the contract `ILinkedClient` in **Hrot.Core**, offered through an `LinkedClients` registry **on `HrotNodeContext`** (precedent: `TerrainContent`, `HrotNodeContext.cs:192`) | a world singleton component holding a live object — state of the node, not of the world; recorded and saved paths would need opting out |
 | D-2 | **one `RoutingFrameSink`** built in `DirectorPack.Attach`, the choice made at `Begin` per job | choosing in each caller (runner, stills, queue) — three places that could disagree |
-| D-3 | the **runner passes the film camera** in `FilmFrame` | the client reading `CameraSuggestion` itself — written by `MapViewModeLayer`'s update, possibly a frame off the runner's `Frame` call (not measured) |
+| D-3 | **the frame's camera is the pose the map's film layer would render**: a linked-client frame goes through the SAME mailbox as a map frame (`FilmStudio.Capture` → `FilmCaptureLayer.Serve`, `Film.cs:296-320`); after the layer has placed the 3-D camera for the shot (`Direct()`), `Serve` reads `camera.Pose` (eye, orientation, field of view) and the overlay and hands them to the linked client instead of rendering (measured `2026-11-21`: `FilmStudio` holds the shot SPEC, the pose is resolved per frame by the map). A take with a 2-D shot (`FilmStudio.TwoD`) cannot go to a client: such a job is refused for the linked client with the reason (`frames: map` renders it) | the runner computing a pose itself (the shot is resolved only by the map's driver) · the client reading `CameraSuggestion` (written by `MapViewModeLayer`, possibly a frame off) |
 | D-4 | **cards stay the map's** | sending cards to the client — a second card look |
 | D-5 | **H-6 needs no HROT API** (bus + context) | a new clock-export component — a second source of time (R-126: one source of paused) |
 | D-6 | **F-H1 fixed in the master** | the gateway's own re-anchor only — the cluster's slaves would still miss a scale change |
