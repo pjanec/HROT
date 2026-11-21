@@ -1,14 +1,28 @@
-using System;
-using System.Numerics;
+using Fdp.Core.CommandHierarchy;
 using Fdp.Core;
+using Fdp.Modules.Geographic.Transforms;
+using Fdp.Modules.Geographic;
+using Fdp.Testing;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Behavior;
+using Fdp.Toolkit.Blueprints.Partitioning;
+using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Squad.Command;
 using Fdp.Toolkit.Squad.Maneuvers;
+using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Terrain;
 using Hrot.AI.Behaviors.Brains;
+using Hrot.CGF.Configuration;
 using Hrot.Map.Definitions.Behavior;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Numerics;
+using System.Text.RegularExpressions;
+using System;
 using Xunit;
-
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
@@ -167,11 +181,12 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.CoveredByFireAhead, s.TaskName);
             Assert.Equal(BehaviorNames.BoundingOverwatch, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
             Entity sensor = default;
-            for (int i = 0; i < 60 * ((int)CoveredByFireAheadBehavior.HoldShortSeconds + 2); i++)
+            for (int i = 0; i < (int)((CoveredByFireAheadBehavior.HoldShortSeconds + 3f) / 0.016f); i++)   // the harness steps 0.016 s
             {
                 sensor = AreaAhead(s, distanceAlongRoute: 12f, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire);
                 s.Tick();
             }
+            Assert.Equal(BehaviorNames.CoveredByFireAhead, s.TaskName);   // still the same hold (never restarted, so its clock ran)
             Assert.Equal(1, Queued(s, ReportKind.Request));
             Assert.Equal(1, Reports(s.Repo, s.Commander, ProgressKind.TaskFailed));
             s.Repo.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(sensor).Count = 0;   // the knowledge cooled
