@@ -238,6 +238,44 @@ resident at all (F-H3: `TerrainWorld` / `TerrainDefinition` are `NoReplay`; the 
 recording's terrain). Q113-J: the replay open runs the chain's shared Terrain / Map3D / linked-client parts for the recording's terrain. ⛔ SUPERSEDED (same day): a first version had the director's runner wait on its own — a second readiness path the
 master and live play could not see.
 
+### 2e-1. ✅ As built — a replay open's world (CE-11025, backend, `2026-11-21`)
+
+```mermaid
+sequenceDiagram
+  participant M as ClusterMaster
+  participant H as ReferenceReplayLoadHandler
+  participant C as LoadPhaseChain (IReplayWorldLoad)
+  participant P as Terrain → Map3D → LinkedClient parts
+  M->>H: PrepareReplay (LoadingReplay)
+  H->>H: PrepareReplayAsync — the recording is open: TerrainName, OverlayHash
+  H->>C: PrepareAsync(txn, terrain, overlay)  (skipped: no terrain named / a listener)
+  C->>P: PrepareAsync(context: LoadingReplay, IsReplayWorld)
+  M->>H: Commit(PrepareReplay) — frame thread
+  H->>C: Commit(txn) → each part commits, the client gets BeginWorld(txn)
+  M->>H: PrepareState(OperatingReplay)
+  H->>C: WhenReadyAsync(txn)
+  loop every frame — DrainDeferredAcks
+    C->>P: Failure? IsResolved?
+  end
+  C-->>H: ready (or faults with the part's reason → the round fails, Idle)
+```
+*What the picture shows that the prose in §2e hid:* the chain is not handed the replay op. The replay handler keeps the op and calls the chain's
+WORLD parts only — never the knowledge base, never the scenario entities (the recording brings those). It is the same providers and the same
+per-frame readiness a live load uses.
+
+| decision (lane: backend) | why — and what would change it |
+|---|---|
+| the replay handler drives the chain through `IReplayWorldLoad` (Fdp.Toolkits), set by `EcsHostClusterHandlers.Compose` | the handler is in Fdp.Toolkits and cannot see `LoadPhaseChain`; one composition hands it on every ECS host (the silent-default rule). ⛔ Rejected: the chain claiming `PrepareState(OperatingReplay)`, because the terrain name only exists after `PrepareReplay` opened the file |
+| `LoadPhaseContext.OverlayHash` + `IsReplayWorld` (`TargetState = LoadingReplay`) | a replay's terrain and additions come from the RECORDING. ⛔ The staged scenario header may belong to an earlier run |
+| additions missing on this machine ⇒ the base terrain + a warning (a live load stays strict) | the same as the Replay Browser (CE-4420 O-8). A strict replay would refuse to show a recording made elsewhere |
+| no terrain named / a listener ⇒ nothing runs | `TerrainResidency.Prepare(null)` UNLOADS. ⚠ A listener keeps whatever is resident. The master's aggregated `ReplayPrepareResult.TerrainName` could serve it later — not built |
+| the resident terrain loads nothing new (`TerrainResidency.Prepare` idempotent on name + folder + overlay) | ⚠ `MapBuildLoadStep.Commit` still calls `Request3D()` and the client still gets `BeginWorld`. Whether that map request is a no-op for an unchanged terrain is NOT measured |
+| ⚠ no `Loading` phase / step for `LoadingReplay` on the node's status | the replay handler is not an `ILoadProgressSource`; the wait itself is in the round. Named, not built |
+
+Rails: `ReferenceHandlerTests.CE11025_*` (the handler), `LoadPhaseChainTests.CE11025_*` (world parts only, the recording's terrain, the readiness
+and the failure), `TerrainLoadStepTests.CE11025_*` (the recording's additions over a stale staged header, missing additions, resident = same
+instance), `EveryEcsHostComposesTheLoadPhaseChainRails.CE11025_*` (the composition hands the chain).
+
 ## 3. The items — HROT's requests from DD-022, with their ids
 
 | DD-022 | CE | what | where |
@@ -247,11 +285,11 @@ master and live play could not see.
 | H-5 | ~~CE-11020~~ dropped | ✅ R-11008: no Replay Browser integration — the director renders from the editor's own replay (AAR); a job naming another recording plays once the editor passes its opener (Q113-G, CE-11023); multi-node exercises stay out | — |
 | H-6 | — | no HROT change: the gateway reads the anchors and steps on the node bus and `TimelineEpoch` from `HrotNodeContext.TimeController` (2d) | — |
 | H-7 | [CE-11021](../../blueprints/Blueprint_Issues_Tracker.md) | `sound: client \| hrot` per job; with `client` the encode muxes `FilmTrack` and checks its samples against the frames; `IDirectorSound` stays for map renders | Hrot.Presentation Director |
-| H-8 / F-H1 | [CE-11019](../../blueprints/Blueprint_Issues_Tracker.md) | a running scale change publishes a Continuous re-anchor, so cluster slaves follow it | Fdp.Toolkits Time (backend's area: a cross-lane edit) |
-| H-8 / F-H2 | [CE-11022](../../blueprints/Blueprint_Issues_Tracker.md) | the time docs say the anchor model (no pulse, no PLL); the stale comment at `MasterSyncController.cs:153`; the unused `TimeConfig` PLL fields named | Time Architecture, FDP.Toolkit.Time.md |
+| H-8 / F-H1 | [CE-11019](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`, Time Architecture §21)** | a running scale change publishes a Continuous re-anchor, so cluster slaves follow it | Fdp.Toolkits Time (backend's area: a cross-lane edit) |
+| H-8 / F-H2 | [CE-11022](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`)** | the time docs say the anchor model (no pulse, no PLL); the stale comment at `MasterSyncController.cs:153`; the unused `TimeConfig` PLL fields named | Time Architecture, FDP.Toolkit.Time.md |
 | (G) | [CE-11023](../../blueprints/Blueprint_Issues_Tracker.md) | the editor's director gets the editor's recording opener (`ScenarioDoor.OpenRecording`) — a job or reel item naming another recording then plays in the editor | Hrot.Editor |
-| (H) | [CE-11024](../../blueprints/Blueprint_Issues_Tracker.md) | `EffectCause.Kind` + `EffectCause.Shooter` from `RoundImpactNotification` — the gateway makes `Impact` from the effect entities, live and in replay (R-11007) | Hrot.Core, the effect spawner |
-| (J) / F-H3 | [CE-11025](../../blueprints/Blueprint_Issues_Tracker.md) | a replay open makes the recording's terrain resident through the load chain's shared parts (Terrain with the recording's name and overlay hash, then Map3D, then the linked client) | the load phase (backend's: a cross-lane change) |
+| (H) | [CE-11024](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`): the field is `Impact` (ImpactKind + 1; 0 = not a round impact)** | `EffectCause.Kind` + `EffectCause.Shooter` from `RoundImpactNotification` — the gateway makes `Impact` from the effect entities, live and in replay (R-11007) | Hrot.Core, the effect spawner |
+| (J) / F-H3 | [CE-11025](../../blueprints/Blueprint_Issues_Tracker.md) **built (`2026-11-21`, as-built in §2e-1)** | a replay open makes the recording's terrain resident through the load chain's shared parts (Terrain with the recording's name and overlay hash, then Map3D, then the linked client) | the load phase (backend's: a cross-lane change) |
 
 **Acceptance (R-4277 — a feature works when its scenarios pass):** the `showcases/player-station` scenario with a promoted take rendered
 twice — once with no linked client (the map, as today: frame count, MP4) and once with the gateway's reference client in `--render` mode (the same

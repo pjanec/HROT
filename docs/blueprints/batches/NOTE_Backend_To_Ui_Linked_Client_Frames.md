@@ -72,3 +72,15 @@ record FilmTrack(string Path, long Samples, int SampleRate, int Channels);
 
 `frames: auto` (the default) and the node's `LinkedClients.Current` with `CanFilm` true at the job's start ⇒ the client; otherwise HROT's map, as today.
 `frames: map` ⇒ always the map. ⛔ A take showing the 2-D map while its frames go to the client fails the job with the reason (render it with `frames: map`).
+
+## ⭐ Addendum `2026-11-21` — CE-11024: an impact's effect entity (`EffectCause`, Hrot.Core, id 72, recorded)
+
+Two fields APPENDED (the earlier ones keep their offsets):
+
+```csharp
+public byte   Impact;    // Fdp.Toolkit.Combat.ImpactKind + 1 — 1 Entry, 2 Exit, 3 Stop; ⭐ 0 = not a round's impact (a detonation)
+public Entity Shooter;   // who fired it (Null = unknown) — from RoundImpactNotification.Shooter or DetonationNotification.Shooter
+```
+
+⚠ Map `Impact` as `ImpactKind = Impact - 1` only when `Impact > 0`. A plain copy of `ImpactKind` would have made every detonation read "entered"
+(Entry is 0). Both fields read the same live and after a replay seek (`EffectStateTests.CE11024_*`).
