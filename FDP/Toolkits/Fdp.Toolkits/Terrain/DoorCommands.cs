@@ -129,6 +129,8 @@ namespace Fdp.Toolkit.Terrain
         public const int GroundFire = 5113;
         /// <summary>⭐ CE-3488 (flame FL-4) — <c>BuildingFireEvent</c>: a building set alight (5114 free on every lane, <c>2026-11-19</c>).</summary>
         public const int BuildingFire = 5114;
+        /// <summary>⭐ CE-2468 (DESIGN_Minefields.md §9b) — <c>UnderFireLearned</c>: a side learned a place under fire (5115 free on every branch, <c>2026-11-21</c>).</summary>
+        public const int UnderFireLearned = 5115;
     }
 
     /// <summary>

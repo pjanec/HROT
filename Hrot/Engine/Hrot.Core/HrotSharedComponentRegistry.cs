@@ -183,6 +183,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldStrikes>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldKnowledge>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.UnderFireKnowledge>();   // ⭐ CE-2468 (§9b) — the second place-knowledge kind (every node: the readers take the union)
+        world.RegisterEvent<Fdp.Toolkit.Terrain.UnderFireLearned>();         //   and the local event its detectors raise for the writer
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldLanes>();     // ⭐ CE-4624 MS-T4 — the lanes a node cleared (a runtime record), and the clearer's tool marker
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineClearing>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineBreadcrumbs>();   // ⭐ CE-4624 MS-T2 (MR-5) — a unit's back-out track near a field (its brain node writes it)
