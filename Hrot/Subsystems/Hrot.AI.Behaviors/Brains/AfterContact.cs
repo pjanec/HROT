@@ -30,8 +30,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const float FitShare = 0.5f;
         /// <summary>R2 — the rally hold (s).</summary>
         public const float RallySeconds = 30f;
-        /// <summary>R2 — a LONE man's pause after a broken contact (s): he has nobody to account for (doctrine's reorganisation is a squad act).</summary>
-        public const float LoneRallySeconds = 5f;
+        /// <summary>R2 — a LONE man's pause after a broken contact (s): 0 — he reports and goes on; he has nobody to account for (doctrine's reorganisation is a squad act). 📐 ia-area-defend: 5 s still pushed the lone attacker's second approach into the next attacker's window.</summary>
+        public const float LoneRallySeconds = 0f;
 
         /// <summary>How many of the squad's members are alive and in the fight.</summary>
         public static int LiveMembers(EntityRepository world, Entity commander)
