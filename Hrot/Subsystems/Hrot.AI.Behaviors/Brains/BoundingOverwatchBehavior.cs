@@ -139,7 +139,7 @@ namespace Hrot.AI.Behaviors.Brains
             DangerRouteWatch.Watch(in ctx, p.Objective, openGround: false, repoint: ws.Reissue != 0);
             byte next = (byte)(1 - BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId));
             if (!SquadCover.IsReady(in p.Cover, next))
-                SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, next, p.Objective, p.BoundMetres * CoverStretch,
+                SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, next, Aim(in p, in ctx, next), p.BoundMetres * CoverStretch,
                                 ws.ThreatId != 0 ? new Entity((ulong)ws.ThreatId) : Entity.Null, p.Objective, ws.IssuedAt);
         }
 
@@ -229,13 +229,37 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void BeginIssue(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
-            var centre = ctx.Centre(BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId), out bool any);
+            byte moving = BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId);
+            var centre = ctx.Centre(moving, out bool any);
             ws.Scratch = Vector3.Zero;
             if (!any) return;
-            var to = p.Objective - centre; to.Z = 0f;
-            float d = to.Length();
+            var left = p.Objective - centre; left.Z = 0f;
+            float d = left.Length();
             p.BoundFromMetres = d;   // ⭐ CE-2284 — where this bound starts, for the stall test
-            if (d > 1e-3f) ws.Scratch = to * (MathF.Min(p.BoundMetres, d) / d);
+            var to = Aim(in p, in ctx, moving) - centre; to.Z = 0f;
+            float a = to.Length();
+            if (a > 1e-3f) ws.Scratch = to * (MathF.Min(p.BoundMetres, d) / a);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2466</c> R3 (Squad Tactics §7.9; backend's <c>CE-2469</c> steer point) — where element <paramref name="element"/>'s next bound heads: along the
+        /// PRICED route to the objective — the route's direction (its start, the commander, → its steer point <c>DangerAlongRouteSolve.SteerMetres</c> on), applied
+        /// from the element's centre — so the bound goes round ground its side knows an enemy covers, and round the buildings a straight line meets. No fresh
+        /// planned answer (no navmesh, a straight fallback, the first seconds) ⇒ the objective itself, the straight line as before.
+        /// </summary>
+        private static Vector3 Aim(in BoundingOverwatchParams p, in SquadPlayContext ctx, byte element)
+        {
+            if (!Fdp.Toolkit.Squad.DangerArea.DangerRouteSteer.Of(ctx.World, ctx.Commander, out var steer)
+                || !ctx.World.HasComponent<SimTransform>(ctx.Commander)) return p.Objective;
+            var start = ctx.World.GetComponentRO<SimTransform>(ctx.Commander).Position;
+            var dir = steer - (Vector3)start; dir.Z = 0f;
+            float len = dir.Length();
+            if (len < 1f) return p.Objective;
+            var centre = ctx.Centre(element, out bool any);
+            if (!any) return p.Objective;
+            var aim = centre + dir * (MathF.Max(p.BoundMetres, 1f) / len);
+            aim.Z = centre.Z;
+            return aim;
         }
 
         public MemberOrder OrderFor(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)

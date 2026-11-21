@@ -193,5 +193,40 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 60; i++) s.Tick();
             Assert.Equal(BehaviorNames.CoveredByFireAhead, s.TaskName);   // still held: never back in
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2466</c> R3 (S1; backend's <c>CE-2469</c> steer point) — a BOUND takes its direction from the PRICED route, not the straight line: with the route
+        /// answer's steer point 45° east of the objective's line, the moving element's bound points lie east of its men; with no steer (control) straight north.
+        /// ✅ Red-proof: <c>Aim</c> back to the objective ⇒ the bound goes north ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE2466_R3_ABound_FollowsThePricedRoute_NotTheStraightLine()
+        {
+            foreach (bool steer in new[] { false, true })
+            {
+                var s = new Squad(members: 4);
+                s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(6f, 0f, 0f), Rotation = Quaternion.Identity });
+                var sensor = AreaAhead(s, distanceAlongRoute: 500f);
+                void Stamp()
+                {
+                    ref var b = ref s.Repo.GetComponentRW<Fdp.Toolkit.Squad.DangerArea.DangerAreaCognitiveBuffer>(sensor);
+                    b.Count = 0; b.LastUpdateTick = 1;
+                    b.LastUpdateTimeSeconds = (float)((ISimulationView)s.Repo).Time;
+                    b.HasSteer = steer ? (byte)1 : (byte)0;
+                    b.SteerPoint = new Vector3(26f, 20f, 0f);   // 20 m along a route bending east (45°)
+                }
+                Stamp();
+                s.Order("{\"Objective\":[6,100,0],\"BoundMetres\":20}");
+                for (int i = 0; i < 6; i++) { Stamp(); s.Tick(); }
+                var moves = s.LastOrders().Where(kv => kv.Value.Intent == BehaviorNames.AdvanceTo).ToList();
+                Assert.NotEmpty(moves);
+                foreach (var (m, o) in moves)
+                {
+                    float east = o.Objective.X - s.At(m).X;
+                    if (steer) Assert.True(east > 5f, $"along the route: east of the man ({east:0.0} m)");
+                    else Assert.True(MathF.Abs(east) < 3f, $"no route: straight at the objective ({east:0.0} m)");
+                }
+            }
+        }
     }
 }
