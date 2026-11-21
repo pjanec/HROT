@@ -7,7 +7,7 @@ stale-below: nothing yet
 known-rot: none
 known-conflict: none
 related-designs:
-  - ../IG/DESIGN_External_Renderer_Director.md — OWNS the director's EXTERNAL renderer (a node extension as the frame sink and sound source, DD-022's HROT half; CE-11017, Q113)
+  - ../IG/DESIGN_Linked_Client_Director.md — OWNS the director's LINKED CLIENT (a node extension as the frame sink and sound source, DD-022's HROT half; CE-11017, Q113)
   - DESIGN_Vehicle_Appearance_State.md — OWNS the look library itself (§7, LK-1…LK-7: Hrot.Look, no presentation reference, the map and a gateway call the same functions; R-4296). THIS design extends it with the rules that still live only in the map
   - ../../DESIGN_Map_3D_Mode.md — OWNS how the 3-D map draws (§6u the burst stream B-1/B-2, §6n the bodies, the aimed upper body WL-6, the motion tracker S-4); the map keeps the drawing, the rules move out
   - ../../DESIGN_Visual_Effects.md — OWNS the effect entities and the spawner (VE-A…VE-M, LR-E lightweight rounds); RR-4 and RR-7 move rules beside its spawner, never a second spawner

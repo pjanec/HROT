@@ -23,7 +23,7 @@ known-conflict: DESIGN_Terrain_Zones_And_Assets.md §2.1e ④ ("it must NOT ride
   handler") argued the opposite of §4 here. Its PREMISE is confirmed by measurement (§2.3) but its
   CONCLUSION is superseded — see §4.3. That section is marked SUPERSEDED in its own file.
 related-designs:
-  - designs/IG/DESIGN_External_Renderer_Director.md — OWNS the external renderer for the director; proposes an ExternalRendererLoadStep beside MapBuildLoadStep (Q113-I) and that a replay open resolve the chain's Terrain / Map3D / renderer parts for the recording's terrain (F-H3, Q113-J)
+  - designs/IG/DESIGN_Linked_Client_Director.md — OWNS the linked client for the director; proposes an LinkedClientLoadStep beside MapBuildLoadStep (Q113-I) and that a replay open resolve the chain's Terrain / Map3D / renderer parts for the recording's terrain (F-H3, Q113-J)
   - docs/DESIGN_Terrain_Authoring.md — OWNS the editor's live terrain overlay (§18e-2); §11.10d here makes the load wait for its first bake (CE-5039)
   - docs/DESIGN_Node_Features.md — R-1046 / CE-3354 ③'s MapInLoad is migrated into the feature map3d.in-load (its S1)
   - docs/DESIGN_Player_Join.md — the join screens follow §11.8's lobby (the join starts once the Player is caught up)
