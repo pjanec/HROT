@@ -206,25 +206,11 @@ namespace Hrot.AI.Behaviors.Brains
         public const int DangerSensorSite = 0x21590001;
 
         /// <summary>
-        /// ⭐ <c>CE-2159</c> X-a (Squad Tactics §7.7.6) — the march owns the commander's route sensor: the route from where the squad
-        /// stands to the objective, answered every 2 s. A crossing reaction pauses the march and keeps it (the SOP row and the crossing
-        /// read it); back from a pause the march RE-POINTS it, so the answer it reads next is from where the squad now stands — past the
-        /// area it crossed.
+        /// ⭐ <c>CE-2159</c> X-a (Squad Tactics §7.7.6) — the march owns the commander's route sensor (<see cref="DangerRouteWatch"/>, the one
+        /// implementation bounding overwatch shares, CE-2462).
         /// </summary>
         private static void WatchRoute(in SquadMarchParams p, in SquadPlayState ws, in SquadPlayContext ctx)
-        {
-            var settings = Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(p.Objective);
-            // ⭐ CE-2161 — open ground too, when the order asks (the crossings alone otherwise: CE-3081 A5);
-            // ⭐ CE-4583 (AQ101 §R D) — and always a shelled area: a march holds or crosses where the shells keep landing
-            settings.Kinds = Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.StreetCrossing
-                           | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection
-                           | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled
-                           | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Minefield   // ⭐ CE-4624 MS-B4 — and a minefield its side knows (KG-7)
-                           | (p.OpenGround != 0 ? Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.OpenGround : 0);
-            var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(ctx.World, ctx.Commander, DangerSensorSite);
-            if (sensor.IsNull) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(ctx.World, ctx.Commander, DangerSensorSite, in settings);
-            else if (ws.Reissue != 0) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Configure(ctx.World, sensor, in settings);
-        }
+            => DangerRouteWatch.Watch(in ctx, p.Objective, p.OpenGround != 0, ws.Reissue != 0);
 
         public NodeStatus Outcome(ref SquadMarchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
@@ -342,5 +328,42 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         private static float Flat(Vector3 d) { d.Z = 0f; return d.Length(); }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2159</c> X-a (Squad Tactics §7.7.6) — the commander's ROUTE sensor: the danger areas (street crossings, intersections, shelled
+    /// areas, a known minefield — open ground when asked) on the route from where the squad stands to <paramref name="objective"/>, answered
+    /// every 2 s. A crossing reaction (the squad SOP's "danger area ahead" row) pauses the task and keeps the sensor (the row and the crossing
+    /// read it); back from a pause the task RE-POINTS it, so the answer it reads next is from where the squad now stands — past the area it
+    /// crossed. ⭐ <c>CE-2462</c> — one implementation for every task that watches its route: the march, and bounding overwatch (Urban Fight
+    /// Suite U2: a bounding squad walked into a junction's field of fire with no halt).
+    /// </summary>
+    public static class DangerRouteWatch
+    {
+        /// <summary>The commander's danger-area sensor's site (the task that watches owns it).</summary>
+        public const int Site = SquadMarchPlay.DangerSensorSite;
+
+        public static void Watch(in SquadPlayContext ctx, Vector3 objective, bool openGround, bool repoint)
+        {
+            var settings = Fdp.Toolkit.Squad.DangerArea.DangerAreaSettings.ToPoint(objective);
+            // ⭐ CE-2161 — open ground too, when the order asks (the crossings alone otherwise: CE-3081 A5);
+            // ⭐ CE-4583 (AQ101 §R D) — and always a shelled area: a squad holds or crosses where the shells keep landing
+            settings.Kinds = Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.StreetCrossing
+                           | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection
+                           | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled
+                           | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Minefield   // ⭐ CE-4624 MS-B4 — and a minefield its side knows (KG-7)
+                           | (openGround ? Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.OpenGround : 0);
+            var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(ctx.World, ctx.Commander, Site);
+            if (sensor.IsNull) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Ensure(ctx.World, ctx.Commander, Site, in settings);
+            else if (repoint) Fdp.Toolkit.Squad.DangerArea.DangerAreaChildSensor.Configure(ctx.World, sensor, in settings);
+        }
+
+        /// <summary>⭐ <c>CE-2462</c> — the task that watched ENDED (not paused): the sensor goes, so an idle squad never runs a crossing drill
+        /// for a route it no longer walks.</summary>
+        public static void Drop(EntityRepository world, Entity commander)
+        {
+            var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(world, commander, Site);
+            if (!sensor.IsNull) Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Destroy(world, sensor);
+        }
     }
 }

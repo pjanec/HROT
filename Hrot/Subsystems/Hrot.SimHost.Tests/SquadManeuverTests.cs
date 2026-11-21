@@ -7901,6 +7901,48 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
         }
+        /// <summary>⭐⭐ <c>CE-2462</c> (Urban Fight Suite U2, user `2026-11-20`) — BOUNDING OVERWATCH watches its route as the march does: it owns the
+        /// commander's route sensor (to its objective, the crossings and a shelled area — no open ground) while it runs, and the sensor goes when
+        /// the bound ENDS. ✅ Red-proof: the watch removed from <c>BoundingOverwatchPlay.Update</c> ⇒ no sensor ⇒ red.</summary>
+        [Fact]
+        public void CE2462_BoundingOverwatch_WatchesItsRoute_AndDropsTheSensorWhenDone()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundTimeoutSeconds\":0.1}");
+            s.Tick(); s.Tick(); s.Repo.FlushCommandBuffers();
+            var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, DangerRouteWatch.Site);
+            Assert.False(sensor.IsNull, "the bound watches its route");
+            var settings = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings;
+            Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerRouteSource.ToPoint, settings.RouteSource);
+            Assert.Equal(new Fdp.Core.WorldPoint(0f, 100f, 0f), settings.RoutePoint);
+            Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(settings.Kinds, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Intersection));
+            Assert.False(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(settings.Kinds, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));
+            bool done = false;
+            for (int i = 0; i < 60 && !done; i++) { s.Tick(); done = s.Finished(out _); }   // nobody moves: two stalls ⇒ set where it stands (CE-2284)
+            Assert.True(done);
+            s.Repo.FlushCommandBuffers();
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, DangerRouteWatch.Site).IsNull, "the bound ended: its route sensor is gone");
+        }
+
+        /// <summary>⭐⭐ <c>CE-2462</c> — the shipped squad SOP: a danger area ahead of a BOUNDING squad starts the crossing drill, which PAUSES the
+        /// bound (the march's own row, X-c — no new row). 📐 Before: <c>uf-corner-fight</c>, the front element bounded into the junction's field
+        /// of fire 26 m out with no halt.</summary>
+        [Fact]
+        public void CE2462_BasicSquadSop_ADangerAreaAheadOfABoundingSquad_CrossesIt()
+        {
+            var s = new Squad(members: 6);
+            s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(10f, 5f, 0f), Rotation = Quaternion.Identity });
+            s.Order("{\"Objective\":[10,100,0],\"BoundMetres\":20}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 10; i++) s.Tick();
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);
+            AreaAhead(s, distanceAlongRoute: 12f);
+            for (int i = 0; i < SopReactionFrames + 1; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadDangerCrossing, s.TaskName);
+            Assert.Equal(BehaviorNames.BoundingOverwatch, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
+            Assert.Equal(DangerAreaCrossingManeuver.ManeuverKind, s.Kind);
+        }
+
         /// <summary>⭐⭐ <c>CE-4624</c> MS-B4 (Minefields KG-7) — a MINEFIELD area ahead is never a crossing: <c>DangerAreaAhead</c> is false for it,
         /// <c>MinefieldAhead</c> true within 30 m along the route (false beyond). ✅ Red-proof: the exclusion dropped ⇒ DangerAreaAhead true ⇒ red.</summary>
         [Fact]

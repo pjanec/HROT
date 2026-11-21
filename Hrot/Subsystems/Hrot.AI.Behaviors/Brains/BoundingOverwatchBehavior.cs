@@ -133,6 +133,10 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.ThreatPoint = new Vector3(contact.PositionX, contact.PositionY, contact.PositionZ);
             }
             else if (ws.ThreatId != 0) { ws.ThreatId = 0; ws.Reissue = 1; }   // the contact is down: the watchers go back to watching
+            // ⭐⭐ CE-2462 (Urban Fight Suite U2) — the bound watches its ROUTE as the march does: a junction / street crossing ahead ⇒ the squad
+            //   SOP's crossing row pauses the bound for the crossing drill (halt short, overwatch, cross). 📐 Before: the front element bounded
+            //   into a junction's field of fire 26 m out with no halt, its overwatch 60 m back behind the houses
+            DangerRouteWatch.Watch(in ctx, p.Objective, openGround: false, repoint: ws.Reissue != 0);
             byte next = (byte)(1 - BoundingOverwatchManeuver.GetMovingElement(ctx.Squad.PhaseId));
             if (!SquadCover.IsReady(in p.Cover, next))
                 SquadCover.Make(ref p.Cover, ref ws, in ctx, CoverSite, next, p.Objective, p.BoundMetres * CoverStretch,
@@ -145,6 +149,13 @@ namespace Hrot.AI.Behaviors.Brains
         public const int StallsToSet = 2;
 
         public NodeStatus Outcome(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
+        {
+            var outcome = OutcomeOf(ref p, ref ws, in ctx);
+            if (outcome != NodeStatus.Running) DangerRouteWatch.Drop(ctx.World, ctx.Commander);   // ⭐ CE-2462 — the bound ended: its route sensor goes
+            return outcome;
+        }
+
+        private static NodeStatus OutcomeOf(ref BoundingOverwatchParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
             // ⭐ CE-2284 — the objective cannot be reached from here (📌 pc-urban-ambush: the assault's flank point lay behind the buildings
             //   north of Main Street; both elements walked to the wall face and every bound re-issued the same blocked line for 9 minutes,
