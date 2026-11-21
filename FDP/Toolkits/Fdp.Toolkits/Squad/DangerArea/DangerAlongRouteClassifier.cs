@@ -12,7 +12,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// a JUNCTION when it lies within the widest band of a node with three or more segments.</para>
     /// <para>v1 kinds: <see cref="DangerAreaKind.StreetCrossing"/> — the route is on a road for a run no longer than
     /// <see cref="MaxCrossingLength"/> (a longer run is walking ALONG the street, not crossing it) — and
-    /// <see cref="DangerAreaKind.Intersection"/> — such a run through a junction. ⚠ OpenGround, ChokePoint and CrestLine are
+    /// <see cref="DangerAreaKind.Intersection"/> — such a run through a junction. ⭐ <c>CE-2463</c>: a run too long to be a crossing (walking
+    /// ALONG a street) still reports each junction on it as an Intersection, its near handle <see cref="JunctionStandOff"/> short of the junction. ⚠ OpenGround, ChokePoint and CrestLine are
     /// <c>CE-3081</c>.</para>
     /// <para>⭐⭐ <c>CE-3081</c> (§10.7b) — <see cref="DangerAreaKind.OpenGround"/>: an OFF-ROAD run of at least <see cref="MinOpenRun"/> with no
     /// cover within the corridor — no point of the terrain's cover map (<see cref="Fdp.Toolkit.Spatial.Eqs.ICoverProvider"/>, the one the
@@ -30,6 +31,12 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public const float MaxCrossingLength = 40f;
         /// <summary>How far before / after the run the near / far handles stand (m).</summary>
         public const float StandOff = 4f;
+        /// <summary>⭐ <c>CE-2463</c> — a junction met while walking ALONG a street: its near handle stands this far before the junction's band (m),
+        /// back at the building line, not out in the cross street's field of fire. 📐 demo-city <c>d_5_4</c>: band 6 m from the centre, the corner
+        /// posts held in <c>uf-corner-fight</c> 16 m from it ⇒ the halt 18 m out, short of the corners (the crossing's 4 m would be past them).</summary>
+        public const float JunctionStandOff = 12f;
+        /// <summary>⭐ <c>CE-2463</c> — at most this many junctions are reported from one long road run.</summary>
+        public const int MaxJunctionsPerRun = 8;
         /// <summary>Sampling step along the route (m).</summary>
         public const float Step = 1f;
         /// <summary>The grid the FeatureId quantises the exit point to (m).</summary>
@@ -86,6 +93,15 @@ namespace Fdp.Toolkit.Squad.DangerArea
             float gasStart = 0f;
             long gasCloud = 0;
             var gasKind = DangerAreaKind.GasCloud;   // ⭐ CE-4583 — the footprint's kind: a cloud or a shelled area
+            // ⭐ CE-2463 — the junctions inside the current road run: a run too long to be a crossing (walking ALONG a street) still
+            //   reports each junction it passes through as an Intersection — the cross street's field of fire
+            Span<float> jStarts = stackalloc float[MaxJunctionsPerRun];
+            Span<float> jEnds = stackalloc float[MaxJunctionsPerRun];
+            Span<ulong> jMasks = stackalloc ulong[MaxJunctionsPerRun];
+            int jCount = 0;
+            bool inJunction = false;
+            float jStart = 0f;
+            ulong jMask = 0;
             for (float d = 0f; ; d += Step)
             {
                 bool last = d >= total;
@@ -122,8 +138,18 @@ namespace Fdp.Toolkit.Squad.DangerArea
                     inOpen = false;
                 }
 
-                if (mask != 0 && !inRun) { inRun = true; runStart = at; runMask = mask; }
+                if (mask != 0 && !inRun) { inRun = true; runStart = at; runMask = mask; jCount = 0; }
                 else if (mask != 0) runMask |= mask;
+
+                bool junction = (mask & JunctionBit) != 0;
+                if (junction && !inJunction) { inJunction = true; jStart = at; jMask = mask; }
+                else if (junction) jMask |= mask;
+                if (inJunction && (!junction || last))
+                {
+                    float jEnd = junction ? at : at - Step * 0.5f;
+                    if (jCount < MaxJunctionsPerRun) { jStarts[jCount] = jStart; jEnds[jCount] = MathF.Max(jStart, jEnd); jMasks[jCount] = jMask; jCount++; }
+                    inJunction = false;
+                }
 
                 if (inRun && (mask == 0 || last))
                 {
@@ -135,8 +161,18 @@ namespace Fdp.Toolkit.Squad.DangerArea
                             (runMask & JunctionBit) != 0 ? DangerAreaKind.Intersection : DangerAreaKind.StreetCrossing);
                         if (written == areas.Length) return written;
                     }
+                    else
+                    {
+                        for (int k = 0; k < jCount; k++)   // ⭐ CE-2463 — walking along the street: each junction on the way, halted at the building line
+                        {
+                            areas[written++] = Describe(route, cumulative, total, terrain, jStarts[k], jEnds[k], jMasks[k], corridorHalfWidth,
+                                DangerAreaKind.Intersection, JunctionStandOff);
+                            if (written == areas.Length) return written;
+                        }
+                    }
                     inRun = false;
                     runMask = 0;
+                    jCount = 0;
                 }
                 if (last) break;
             }
@@ -144,7 +180,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
         }
 
         private static DangerAreaDescriptor Describe(ReadOnlySpan<Vector3> route, ReadOnlySpan<float> cumulative, float total,
-            Fdp.Toolkit.World.IWorldQuery? terrain, float start, float end, ulong mask, float corridor, DangerAreaKind kind)
+            Fdp.Toolkit.World.IWorldQuery? terrain, float start, float end, ulong mask, float corridor, DangerAreaKind kind, float nearStandOff = StandOff)
         {
             float mid = (start + end) * 0.5f;
             var center = PointAt(route, cumulative, mid);
@@ -162,7 +198,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 AngleRad           = dir.LengthSquared() > 1e-6f ? MathF.Atan2(dir.Y, dir.X) : 0f,
                 ZFloor             = ground - 1f,
                 ZCeiling           = ground + 3f,
-                NearSideHandle     = Grounded(terrain, PointAt(route, cumulative, MathF.Max(0f, start - StandOff))),
+                NearSideHandle     = Grounded(terrain, PointAt(route, cumulative, MathF.Max(0f, start - nearStandOff))),
                 FarSideHandle      = Grounded(terrain, PointAt(route, cumulative, MathF.Min(total, end + StandOff))),
                 DistanceAlongRoute = start,
             };

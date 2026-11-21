@@ -520,7 +520,201 @@ public sealed class ScenarioChecksTests
         Assert.True(v["the squad is all in the open"].Ok);
         Assert.False(v["the squad all STANDS in the open"].Ok);
         Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "near", "who": "A", "point": [0,0], "upright": true}] }""", out var bad);
-        Assert.Contains(bad, p => p.Contains("upright belongs to a cover cue", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("upright belongs to a cover or exposed cue", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2455</c> (the urban fight suite, R-4277) — <c>still</c>, <c>for</c> and <c>fighting</c>: a man who stays within 1 m for 20 s holds "still for 15 s";
+    /// one who keeps moving never does; a DOWNED man lying still is not counted with <c>fighting</c> (📌 the stair "stand-off" of 2026-11-20 was a dead man);
+    /// <c>for</c> on <c>cover</c> counts a man only after HE has been in the open that long — a one-sample break starts his time again.
+    /// 🔴 Red-proofs: <c>Lasted</c> ignoring <c>For</c> ⇒ the walker's "still" and the broken "open 10 s" hold ⇒ red; <c>InTheFight</c> always true ⇒ the downed man counts ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE2455_StillForAndFighting_JudgeAManOverTime()
+    {
+        var checks = Parse("""
+            { "runFor": 30, "expect": [
+                {"name": "the sentry stood still 15 s", "on": "still", "who": "Sentry", "m": 1, "for": 15},
+                {"name": "the walker stood still 15 s", "on": "still", "who": "Walker", "m": 1, "for": 15},
+                {"name": "someone in the fight stood still 15 s", "on": "still", "who": "*Down", "m": 1, "for": 15, "fighting": true},
+                {"name": "the gappy man was in the open 10 s", "on": "cover", "who": "Gappy", "is": "open", "m": 2, "for": 10},
+                {"name": "the open man was in the open 10 s", "on": "cover", "who": "Open", "is": "open", "m": 2, "for": 10}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(new Fdp.Toolkit.Spatial.Eqs.ManualCoverProvider(new[]
+            { new Fdp.Toolkit.Spatial.Eqs.CoverPoint { PositionX = 500, PositionY = 0, PositionZ = 0, DirectionX = 1, Quality = 1 } }));
+        var w = new FakeWorld { World = world };
+        void Man(string name, int id, double hp, double x)
+        {
+            w.U.Ids[name] = id;
+            w.Comps[id] = new JsonObject
+            {
+                ["Health"] = new JsonObject { ["Current"] = hp, ["Max"] = 100 },
+                ["InjuryThresholds"] = new JsonObject { ["IncapacitatedBelow"] = 0.3 },
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, 0, 0) },
+            };
+        }
+        var book = new ConditionBook(checks, w, 0);
+        for (int t = 0; t <= 25; t++)
+        {
+            Man("Sentry", 1, 100, 10 + 0.02 * t);         // shuffles 0.5 m in 25 s: still
+            Man("Walker", 2, 100, 50 + 2.0 * t);          // 2 m every second: never still
+            Man("Man Down", 3, 10, 90);                   // incapacitated, lying still
+            Man("Gappy", 4, 100, t == 6 ? 500 : 130);     // in the open, but in cover for one sample at 6 s
+            Man("Open", 5, 100, 170);                     // in the open all the time
+            book.Observe(t);
+        }
+        book.Finish(26);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["the sentry stood still 15 s"].Ok);
+        Assert.Equal(15, v["the sentry stood still 15 s"].Time!.Value, 3);
+        Assert.False(v["the walker stood still 15 s"].Ok);
+        Assert.False(v["someone in the fight stood still 15 s"].Ok);   // the only one is down
+        Assert.True(v["the gappy man was in the open 10 s"].Ok);
+        Assert.Equal(17, v["the gappy man was in the open 10 s"].Time!.Value, 3);   // his time started again at 7 s
+        Assert.Equal(10, v["the open man was in the open 10 s"].Time!.Value, 3);
+
+        // ⭐ CE-2458 — a broken never row over units names the man who broke it
+        var nev = Parse("""{ "runFor": 30, "expect": [{"name": "nobody stands still 15 s", "never": {"on": "still", "who": "*Squad ", "m": 1, "for": 15}}] }""", out var np);
+        Assert.Empty(np);
+        var w2 = new FakeWorld { World = world };
+        void Man2(string name, int id, double x)
+        {
+            w2.U.Ids[name] = id;
+            w2.Comps[id] = new JsonObject { ["Health"] = new JsonObject { ["Current"] = 100, ["Max"] = 100 },
+                                            ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, 0, 0) } };
+        }
+        var nb = new ConditionBook(nev, w2, 0);
+        for (int t = 0; t <= 20; t++) { Man2("Squad Walker", 2, 50 + 2.0 * t); Man2("Squad Sentry", 1, 10); nb.Observe(t); }
+        var broken = nb.Verdicts().Single();
+        Assert.False(broken.Ok);
+        Assert.Equal("Squad Sentry", broken.By);
+
+        Parse("""{ "runFor": 1, "expect": [{"name": "a", "on": "still", "who": "A", "m": 1}, {"name": "b", "on": "shot", "by": "A", "for": 3}, {"name": "c", "on": "near", "who": "A", "point": [0,0], "fighting": true}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("a still cue needs for", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("for belongs to a state cue", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("fighting belongs to a cover, still, field, bunched or exposed cue", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2456</c> (U1, the car shootout) — the <c>cover</c> cue reads a STANDING vehicle's sides as cover, as the AI's own cover search does
+    /// (<c>VehicleCover.StandingPoints</c>, CE-3142): a man crouched beside a parked car is not "in the open"; a man 30 m away is; the same car DRIVING is no cover.
+    /// 🔴 Red-proof: drop the vehicle loop in <c>CoverHolds</c> ⇒ the man by the car reads open ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE2456_Cover_AStandingCarIsCover_AsTheAiReadsIt()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "the man by the car is in the open", "on": "cover", "who": "By Car", "is": "open", "m": 1.5},
+                {"name": "the man far off is in the open", "on": "cover", "who": "Far Off", "is": "open", "m": 1.5}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+        world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
+        world.RegisterComponent<global::CarKinem.Core.VehicleState>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.StaticObstacle>();
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider.Build(new Fdp.Toolkit.Terrain.TerrainWorld()));
+        var car = world.CreateEntity();
+        world.AddComponent(car, new SimTransform { Position = new Vector3(30, 0, 0), Rotation = System.Numerics.Quaternion.Identity });
+        world.AddComponent(car, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 2.4f, Height = 1.5f, CollisionLayer = 1 });
+        world.AddComponent(car, new global::CarKinem.Core.VehicleParams { Class = global::CarKinem.Core.VehicleClass.PersonalCar, Length = 4.5f, Width = 1.8f });
+        world.AddComponent(car, new global::CarKinem.Core.VehicleState { Speed = 0f });
+        var w = new FakeWorld { World = world };
+        void Man(string name, int id, double x, double y)
+        {
+            w.U.Ids[name] = id;
+            w.Comps[id] = new JsonObject
+            {
+                ["Health"] = new JsonObject { ["Current"] = 100, ["Max"] = 100 },
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, y, 0) },
+            };
+        }
+        Man("By Car", 101, 30, -1.6);
+        Man("Far Off", 102, 60, 0);
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.False(v["the man by the car is in the open"].Ok);
+        Assert.True(v["the man far off is in the open"].Ok);
+
+        world.SetComponent(car, new global::CarKinem.Core.VehicleState { Speed = 5f });   // driving: no cover
+        var moving = new ConditionBook(checks, w, 0);
+        moving.Observe(1);
+        Assert.True(moving.Verdicts().Single(x => x.Name == "the man by the car is in the open").Ok);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-2456</c> (U1) — <c>exposed</c>: a man an enemy SEES now (the AI's own sight, <c>SightNow.Sees</c> — the observer's visual track) holds; a man no
+    /// enemy tracks does not (behind or inside a building, whatever cover points lie near); with <c>upright</c> a prone man does not; a DOWN enemy's eyes do not
+    /// count. 🔴 Red-proof: <c>ExposedHolds</c> ignoring the observers (always seen) ⇒ the unseen man holds ⇒ red.
+    /// </summary>
+    [Fact]
+    public unsafe void CE2456_Exposed_IsWhatAnEnemySeesNow()
+    {
+        var checks = Parse("""
+            { "runFor": 10, "expect": [
+                {"name": "seen", "on": "exposed", "who": "Seen Man", "by": "*Red "},
+                {"name": "unseen", "on": "exposed", "who": "Hidden Man", "by": "*Red "},
+                {"name": "prone, upright", "on": "exposed", "who": "Prone Man", "by": "*Red ", "upright": true},
+                {"name": "prone", "on": "exposed", "who": "Prone Man", "by": "*Red "},
+                {"name": "seen by the dead only", "on": "exposed", "who": "Watched By Dead", "by": "*Red "},
+                {"name": "seen beside cover, cover counted", "on": "exposed", "who": "Seen Man", "by": "*Red ", "m": 2},
+                {"name": "seen in the open, cover counted", "on": "exposed", "who": "Open Man", "by": "*Red ", "m": 2}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var world = new EntityRepository();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<Fdp.Toolkit.Perception.Components.ActiveSensorTracks>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        world.SetSingletonManaged<Fdp.Toolkit.Spatial.Eqs.ICoverProvider>(new Fdp.Toolkit.Spatial.Eqs.ManualCoverProvider(new[]
+            { new Fdp.Toolkit.Spatial.Eqs.CoverPoint { PositionX = 10, PositionY = 0, PositionZ = 0, DirectionX = 1, Quality = 1 } }));   // beside the Seen Man
+        var w = new FakeWorld { World = world };
+        Entity Unit(string name, int nid, string stance = "Standing", float hp = 100f, double x = 10)
+        {
+            var e = world.CreateEntity();
+            world.AddComponent(e, new NetworkIdentity { Value = nid });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 100f });
+            w.U.Ids[name] = nid;
+            w.Comps[nid] = new JsonObject
+            {
+                ["Health"] = new JsonObject { ["Current"] = hp, ["Max"] = 100 },
+                ["StanceStatus"] = new JsonObject { ["CurrentStance"] = stance },
+                ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(x, 0, 0) },
+            };
+            return e;
+        }
+        var seen = Unit("Seen Man", 101); Unit("Hidden Man", 102);
+        var prone = Unit("Prone Man", 103, "Prone"); var watched = Unit("Watched By Dead", 104);
+        var open = Unit("Open Man", 105, x: 60);
+        var red = Unit("Red Eye", 201, x: 100); var dead = Unit("Red Dead", 202, hp: 0f, x: 100);
+        void Track(Entity eye, params Entity[] targets)
+        {
+            var t = new Fdp.Toolkit.Perception.Components.ActiveSensorTracks { Count = targets.Length };
+            for (int i = 0; i < targets.Length; i++)
+            {
+                t.EntityIds[i] = (long)targets[i].PackedValue;
+                t.Modalities[i] = (byte)Fdp.Toolkit.Perception.Components.SensorModality.Visual;
+            }
+            world.AddComponent(eye, t);
+        }
+        Track(red, seen, prone, open);
+        Track(dead, watched);
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        var v = book.Verdicts().ToDictionary(x => x.Name);
+        Assert.True(v["seen"].Ok);
+        Assert.False(v["unseen"].Ok);
+        Assert.False(v["prone, upright"].Ok);
+        Assert.True(v["prone"].Ok);
+        Assert.False(v["seen by the dead only"].Ok);
+        Assert.False(v["seen beside cover, cover counted"].Ok);   // ⭐ CE-2459 — firing over cover is a firing position
+        Assert.True(v["seen in the open, cover counted"].Ok);
+        Parse("""{ "runFor": 1, "expect": [{"name": "x", "on": "exposed", "who": "A"}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("an exposed cue needs by", StringComparison.Ordinal));
     }
 
     /// <summary>

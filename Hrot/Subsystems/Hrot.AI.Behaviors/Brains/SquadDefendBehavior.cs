@@ -348,7 +348,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ D-2l (DA-78) — the BuildingSurvey that gives each window post its window's frame.</summary>
         public const int FrameSite  = 0x22750005;
         public const int CoverageSite = 0x22750006;   // ⭐ CE-2373 (D-2m)
-        /// <summary>⭐ D-2m (DL-4) — a lone man's time on each round post once he reached it (s).</summary>
+        /// <summary>⭐ D-2m (DL-4) — a lone man's time on each round post once he reached it (s). ⭐ 30 s. 📐 12 s was tried (user `2026-11-20`, CE-3463:
+        /// "window rotation drop from 30 s per window to about 12 s") and MEASURED WORSE: ia-area-clear 4/4 → 2/4 (House B never entered, Red 1 alive) and
+        /// ia-area-defend 6/6 → 4/6 (the guard first fired at Blue East at 238 s, not 118 s) — a man who moves every 12 s is on the stairs more than at a
+        /// window, so he meets an attacker less often, not more. Reverted the same day (Defend &amp; Attack DL-4).</summary>
         public const double RoundDwellSeconds = 30.0;
         /// <summary>⭐ D-2m — a round move he has not finished in this long counts as arrived (s).</summary>
         public const double RoundMoveSeconds = 60.0;

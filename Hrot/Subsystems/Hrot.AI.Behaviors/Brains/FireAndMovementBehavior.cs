@@ -198,14 +198,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void Release(ref SquadPlayState ws, EntityRepository world) => SquadManeuverRunner.DropSensor(ref ws, world);
 
-        /// <summary>No cover ahead: one rush straight toward the objective.</summary>
-        private static Vector3 OneRush(ref FireAndMovementParams p, Vector3 at)
-        {
-            var to = new Vector2(p.Objective.X - at.X, p.Objective.Y - at.Y);
-            float dist = to.Length();
-            float step = dist > 1e-3f ? MathF.Min(p.RushMetres, dist) / dist : 0f;
-            return new Vector3(at.X + to.X * step, at.Y + to.Y * step, at.Z);
-        }
+        /// <summary>No cover ahead: one rush straight toward the objective (<see cref="SquadCover.OneRush"/>).</summary>
+        private static Vector3 OneRush(ref FireAndMovementParams p, Vector3 at) => SquadCover.OneRush(at, p.Objective, p.RushMetres);
     }
 
     /// <summary>

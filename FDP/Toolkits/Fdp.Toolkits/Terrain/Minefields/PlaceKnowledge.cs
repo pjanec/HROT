@@ -5,13 +5,13 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Terrain
 {
     /// <summary>What a place-knowledge record is about (DESIGN_Minefields.md KR-1).</summary>
-    public enum SubjectKind : byte { NoSubject = 0, Entity = 1, TerrainObject = 2 }   // ⚠ unique member names: the DDS generator scopes a file's enums together
+    public enum SubjectKind : byte { NoSubject = 0, Entity = 1, TerrainObject = 2, Place = 3 }   // ⭐ CE-2468 (§9b.1 K7) — a place: a derived stable key, no entity   // ⚠ unique member names: the DDS generator scopes a file's enums together
 
     /// <summary>The kinds of place knowledge (MF-17, KG-5) — only <see cref="Minefield"/> is built.</summary>
-    public enum PlaceKnowledgeKind : byte { NoKind = 0, Minefield = 1 }
+    public enum PlaceKnowledgeKind : byte { NoKind = 0, Minefield = 1, UnderFire = 2 }   // ⭐ CE-2468 (§9b) — the second kind: a place under fire
 
     /// <summary>How a side learned it.</summary>
-    public enum KnowledgeSource : byte { NoSource = 0, Strike = 1, Recon = 2, Marking = 3, KnownAtStart = 4, Report = 5 }
+    public enum KnowledgeSource : byte { NoSource = 0, Strike = 1, Recon = 2, Marking = 3, KnownAtStart = 4, Report = 5, Contact = 6, Burst = 7 }   // ⭐ CE-2468 — a broken contact (Direct), a witnessed shelling (Indirect)
 
     /// <summary>
     /// ⭐ <c>CE-4624</c> MS-T2 (MF-17, KR-1, KR-4, KR-7, KR-13) — the header EVERY place-knowledge kind shares: the subject (an entity's stable <see cref="Guid"/>, or a

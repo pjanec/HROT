@@ -206,7 +206,16 @@ namespace Hrot.AI.Behaviors.Brains
                         .Comment("Security watches the near side; the rest cross by pairs on new lanes; the far side watches; security follows; reform. The march resumes after."),
                     Id("c2123000-0000-0000-0000-000000000060"))
                     .Label("Danger area ahead → cross it")
-                    .Comment("CE-2159 X-c (Squad Tactics §7.7.6): the march's route sensor shows a danger area within 30 m and the squad is not past it — cross it as a drill (Alert: any contact row replaces it)."),
+                    .Comment("CE-2159 X-c (Squad Tactics §7.7.6): the march's route sensor shows a danger area within 30 m and the squad is not past it — cross it as a drill (Alert: any contact row replaces it).")
+                .Sequence(row => row
+                    .Condition(SquadSopConditions.KnowsAnEnemy, Id("c2457000-0000-0000-0000-000000000001"))
+                        .Label("An enemy still known")
+                    .DoWhenIdle(BehaviorNames.SquadHold, Id("c2457000-0000-0000-0000-000000000002"))
+                        .Label("When idle: SquadHold")
+                        .Comment("Every man fights from cover where he is, eyes out; the lull row above still brings a casualty in."),
+                    Id("c2457000-0000-0000-0000-000000000000"))
+                    .Label("No task, an enemy still known → hold (consolidate)")
+                    .Comment("CE-2457 (Urban Fight Suite U1): a squad whose contact reaction ended with nothing to resume (no order) HOLDS instead of its men standing in the street. Do-when-idle: any order or contact row replaces it."),
                 Id("c2123000-0000-0000-0000-000000000002"))
                 .Label("Rows — first true wins")
                 .Comment("The squad leader's standing orders: each row is a SQUAD edge (published on the leader by SquadCoordinationSystem) → React. The reaction pauses the leader's task; when it ends, the task resumes (CE-2123 S2).");

@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: ⛔ 2026-10-27 (CE-1410, R-1042): the shipped trees named here as `*.btree.json` (Library/Sop · Library/Tactics · Demos/HillAttack) are C#-built since — `Hrot.AI.Behaviors/Brains/{BasicInfantrySop,BasicSquadSop,BasicPlatoonSop,BasicVehicleSop,CivilianInertPilotSops,LibraryTactics,DangerCrossing,HillAttackTrees}.cs`, same names, ids and AssetIds (blueprints/DESIGN_Behavior_Self_Registration.md §10d); `.btree.json` is what the EDITOR saves. Read those file paths as history. · ⛔ 2026-10-18 R-2037 — BR-1's "a read-only query seam the brains can call (like the door queries)" is overturned: the room graph is DERIVED by the survey sensor on the muscle from the building's current geometry — never authored or terrain-provided (R-2038) — and reaches the brain as a BuildingSurvey answer (docs/blueprints/batches/NOTE_Behaviors_To_Backend_Geometry_On_The_Muscle.md). (the first draft's one-squad "support team outside" CB-2 and squad-held room state CB-9 are SUPERSEDED — §⛔ HISTORY)
 known-conflict: none — IsolateAndClear (CB-17/CB-18, PL-1) IS the ClearBuilding preset of AttackPositionPlay (docs/designs/group-maneuvers/DESIGN_Defend_And_Attack_Position.md §10, R-2035); the clearing stays its own order.
 related-designs:
+  - DESIGN_Urban_Fight_Suite.md — OWNS the urban fight suite; its U3 (house defence v clearing) judges the room drill for realism
   - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: its platoons clear blocks with these plays in phase 4
   - docs/blueprints/Architect_Question_102_Responsive_Fighting_Reflexes.md — (behaviors) I-4 (as built, CE-2360): the weapon brain's hidden-target throw reads the same GrenadeRules (kind, lethal radius) as GrenadeCheck — no frag near a KNOWN civilian, a stun only into a building (Precision); GrenadeCheck.Choose keeps the room drill's HighIntensity
   - docs/designs/group-maneuvers/DESIGN_Platoon_Attack_Defend_Clear.md — the platoon attack HSM whose Clear phase runs ClearBuildingPlay; NoFire per cleared room by the staff (PC-5)
@@ -1049,6 +1050,18 @@ Rails: `SquadManeuverTests.CE2260_BC4_*` ×3 (the choice and the friend check, p
 entry after the bang · no grenade into an unsuspected room or where it would stun the stack) and `CE2261_BC5_*` ×2 (contact holds the entry, the
 first two pie on frame posts, 3 s quiet resumes · a man down before the entry, the next takes his place); the nine BC-1 / BC-3 rails pass on the
 gate unchanged.
+
+#### 7.3b ⭐ CE-2453 — the SOP leaves contact INSIDE the building to the drill *(behaviors, `2026-11-20`, realism)*
+
+📐 **Measured** (`ia-area-defend`, live, the commander's `/squad` dump): a one-man `ClearArea` at House A's door (`StackAndRoomEntry` Entering) HEARD the
+guard upstairs ⇒ `BasicSquadSop`'s contact row paused the clear with `ReactToContact`, whose choice was `SquadHold` ⇒ the clearer stood at the entry
+60 s+ (other runs: walked back out; idled below the guard). CB-66 / CB-72 / CB-73 above were meant to answer exactly this, and the SOP pre-empted them.
+
+| ⭐ as built | why |
+|---|---|
+| a 5th condition on the SOP's four contact rows, beside `NotDefending`: **`RoomSuspicion.NotClearingItsContact`** — false (the row is skipped) when the squad's ORDER kind is `ClearBuilding` (`CurrentOrders`, CE-4612; `ClearArea` declares `Fulfils = ClearBuilding`) and EVERY pooled contact is indoors (`GrenadeRules.Indoors`) in a building one of its men is in, or within 12 m of (the stack at its door) | the precedent: a play that answers contact is spared by the SOP (CE-2359 `NotDefending`, DA-55); the drill's gate is CB-72, its suspicion CB-66 |
+| ⛔ a contact in the STREET, or in ANOTHER building, still pauses the clear | between buildings the clear only walks — nothing in the play answers fire there |
+| rail `SquadManeuverTests.CE2453_AClearingSquad_KeepsClearing…` (inside ⇒ no reaction, the condition false; street ⇒ `ReactToContact`), red-proved | — |
 
 ### 7.4 `ClearArea` — a squad clears an AREA, building after building *(`CE-2374`, behaviors — AQ104 B ✅ approved 2026-10-25, R-2079; build-state: BUILDING)*
 

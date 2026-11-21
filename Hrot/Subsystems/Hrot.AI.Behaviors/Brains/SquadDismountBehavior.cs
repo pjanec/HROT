@@ -166,6 +166,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no round at the squad for this long (s) is a LULL: the squad brings its wounded in itself.</summary>
         public const double LullSeconds = 10d;
 
+        /// <summary>
+        /// ⭐ <c>CE-2457</c> (the urban fight suite U1) — the squad still knows an enemy (its pool holds one; a heard contact counts — <see cref="SquadContacts.AnyEnemy"/>,
+        /// the rule the contact reaction's "nothing to fight" reads). The SOP's last row: with no task and an enemy known, the squad HOLDS (consolidates)
+        /// instead of its men standing about. 📐 uf-car-shootout: both squads broke contact and their survivors stood idle in the street for 60–120 s.
+        /// </summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool KnowsAnEnemy(Entity self, EntityRepository world)
+            => world.HasComponent<SquadCognitiveState>(self) && SquadContacts.AnyEnemy(world, in world.GetComponentRO<SquadCognitiveState>(self).Contacts);
+
         /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no near miss or hit on the squad for <see cref="LullSeconds"/> — ⭐ <c>CE-2351</c> and no NEW
         /// contact in that time: the quiet is counted from the fight's start, not from before it. 📐 Live <c>ua-casualty-care-heavy</c>: the
         /// reaction chose 4 s after the contact, before the first enemy round (5.5 s), so "no round for 10 s" held and it went for the man.</summary>

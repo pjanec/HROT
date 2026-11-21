@@ -89,11 +89,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 ref var c = ref repo.GetComponentRW<AreaEffectCloud>(e);
                 if (c.Ending != 0) return;   // asked already; the teardown is under way
                 c.Ending = 1;
-                repo.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
-                {
-                    NetworkId = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value,
-                    Reason    = "AreaEffectCloud ended",
-                });
+                Fdp.Toolkit.NetworkSpawning.NetworkEntityDestroy.Request(repo, e, "AreaEffectCloud ended");   // ⭐ CE-2468 UF-1 — the one network destroy
                 return;
             }
             cmd.DestroyEntity(e);

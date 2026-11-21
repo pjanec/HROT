@@ -1392,6 +1392,9 @@ namespace Fdp.Core
         /// <c>dtMinefield</c> 191 · <c>dtMinefieldStrikes</c> 192 · <c>dtMinefieldKnowledge</c> 193. ⚠ 318 / 319 / 323: the terrain block's free ids, measured free on every lane 2026-11-16
         /// (500–511 are full: animals 500–507, test-local types 508–511). NOTE_Terrain_To_All_Minefield_Contract.md.</summary>
         public const int Minefield = 318, MinefieldStrikes = 319, MinefieldKnowledge = 323;
+        /// <summary>⭐ CE-2468 (DESIGN_Minefields.md §9b, R-2140) — <c>UnderFireKnowledge</c>: one side's knowledge of a place under fire (the second place-knowledge kind, TKB 7211,
+        /// <c>dtUnderFireKnowledge</c> 210). ⚠ 171: backend's block 434–449 is full; 171 measured free on every branch (the catalogue rail's FREE list + a grep), 2026-11-21.</summary>
+        public const int UnderFireKnowledge = 171;
 
         /// <summary>⭐ CE-4624 MS-T4 (DESIGN_Minefields.md MR-11, MR-15, MR-18) — <c>MinefieldLanes</c> (a runtime record of the lanes a deciding node CLEARED through one field;
         /// <c>dtMinefieldLanes</c> 194, TKB 7208) and <c>MineClearing</c> (a mine-clearer's "my plough / flail / line charge is working": Brain group, <c>dtMineClearing</c> 195 — the
