@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-21
-build-state: READY-TO-BUILD — Q113 A–J approved (R-11009; C R-11008), the concept named LINKED CLIENT
+build-state: BUILDING — CE-11018 BUILT (§3a); CE-11019, CE-11022, CE-11023, CE-11024, CE-11025 in backend's batch (STATUS_Backend_Linked_Client.md)
 current-answer: §2 the diagrams, §3 the items H-1 … H-8 with their CE ids, §4 the decisions (leans; the questions are Q113)
 stale-below: nothing
 known-rot: none
@@ -259,6 +259,24 @@ frame count, the client's PNGs, the client's tone track muxed, the samples total
 forced map; `Card` never reaches the linked client; a faulted frame fails the job with the reason; `FilmFrameSink` behaviour unchanged
 (the existing `FilmTests` / `FilmFrameRail` under `xvfb-run -a`); the scale re-anchor in `MasterSyncControllerTests` + the cross-node
 invariant in `SimTimeSyncIntegrationTests`.
+
+### 3a. ✅ As built — CE-11018 (backend, `2026-11-21`; the contract: [NOTE_Backend_To_Ui_Linked_Client_Frames.md](../../blueprints/batches/NOTE_Backend_To_Ui_Linked_Client_Frames.md))
+
+⭐ Built as §2b / §2c draw it. Where it deviated or chose, this is the current answer:
+
+| | as built | why |
+|---|---|---|
+| `ILinkedClient` film members | `CanFilm`, `BeginFilm`, `Frame`, `EndFilm` — **default interface members** (a world-only client compiles unchanged, films nothing) | ⛔ §2b's `Ready` / `Begin` / `End`: beside `BeginWorld` a bare `Begin` reads as a world call; `CanFilm` is read at a job's start only |
+| the camera | `FilmCamera(Position, Forward, Up, FovDeg)` — a forward + up basis | ⛔ §2b's `CameraRot` quaternion: a basis leaves no axis convention to agree with the gateway |
+| every frame index reaches the client | `FilmFrameKind.Scene` · `Repeat` (slow motion repeats the last scene; HROT copies the PNG) · `Silence` (one per card frame; the card stays the map's, D-4) | the client's track stays frame for frame (CE-11021 checks the samples) |
+| the pose (D-3) | `FilmCaptureRequest.PoseOnly`: the map's film layer places the camera exactly as for a render and hands back `FilmFrame.Camera` — nothing drawn or written; refused FIRST on a 2-D view with `RoutingFrameSink.TwoDRefused` | the same mailbox as a map frame |
+| order | `RoutingFrameSink` chains every client call (a frame waiting for its pose never overtakes a repeat); a fault ends the chain with the first reason | — |
+| the job | `IFrameSink.Begin` / `Frame(…, FilmFrameContext)` / `Advance` / `End` (defaults = the map's behaviour); the runner begins at the capture's start (the first frame waits for it), ends once — Ok at the encode, Stopped on Stop, Failed with the run's error; the stills begin / end their own `Still` job | — |
+| wiring | `DirectorPackHost.LinkedClients` = a `Func<LinkedClients?>` (the editor passes `() => _node?.LinkedClients`: its node can be rebuilt); the Replay Browser passes none (R-11008) | the silent-default rule — rail `DirectorPackTests.CE11018_ThePack_*` |
+| `frames: auto \| map` | `CaptureOptions.Frames`, `RenderRequest.Frames`, parsed by the one capture reader (`CaptureFieldsOf`) | — |
+| ⚠ not carried yet | `FilmJob.Sound` is always `Hrot` (the `sound` field and the mux are CE-11021) | — |
+
+📐 **Rails:** `DirectorRunnerTests.CE11018_*` ×4 (every frame in order with the REAL film layer's pose, the cards the map's · no client / `frames: map` · a client fault · a 2-D take) · `DirectorPackTests.CE11018_*` ×2 · `FilmFrameRail.CE11018_*` (xvfb).
 
 ## 4. Decisions — the leans (the questions with their blast radius: [Architect_Question_113](../../blueprints/Architect_Question_113_Linked_Client_For_The_Director.md))
 
