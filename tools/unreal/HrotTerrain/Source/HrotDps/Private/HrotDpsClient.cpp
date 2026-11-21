@@ -27,6 +27,16 @@ namespace
 }
 
 FHrotDpsClient::FHrotDpsClient() {}
+
+bool FHrotDpsClient::IsWorldTopic(const FString& Topic)
+{
+	// DD-022 D-B4: not SimClock, ClockStep, ClockEcho, the render topics or GizmoFrame; and the client-written topics are nobody's step
+	static const TSet<FString> NotWorld = {
+		TEXT("DPS_SimClock"), TEXT("DPS_ClockStep"), TEXT("DPS_ClockEcho"), TEXT("DPS_RenderJob"), TEXT("DPS_FrameRequest"), TEXT("DPS_GizmoFrame"),
+		TEXT("DPS_JoinRequest"), TEXT("DPS_ControlFrame"), TEXT("DPS_Leave"), TEXT("DPS_GizmoView"), TEXT("DPS_ClockProbe"), TEXT("DPS_StepAck"),
+		TEXT("DPS_ClientWorld"), TEXT("DPS_RenderClient"), TEXT("DPS_FrameDone"), TEXT("DPS_RenderJobResult") };
+	return !NotWorld.Contains(Topic);
+}
 FHrotDpsClient::~FHrotDpsClient() { Stop(); }
 
 TArray<FString> FHrotDpsClient::TopicNames()
@@ -131,6 +141,7 @@ int32 FHrotDpsClient::Poll()
 			}
 			dds_return_loan(It.Value.Handle, Buf, N);
 			Counts.FindOrAdd(It.Key) += N;
+			if (IsWorldTopic(It.Key)) WorldTaken += N;   // U-18q: the barrier's count
 			Total += N;
 			if (N < Batch) break;
 		}

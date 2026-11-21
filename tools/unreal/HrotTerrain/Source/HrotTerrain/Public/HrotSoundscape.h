@@ -51,6 +51,11 @@ public:
 	void Step(const FVector& Foot, bool bRun, float Loud = 1.f);
 	/** the falloff for a sound of this reach (metres): full volume within `Inner`, gone at `Reach` */
 	USoundAttenuation* Falloff(float Inner, float Reach);
+	/** U-18q — a render job's soundtrack: every falloff attenuates (distance, LPF) but does NOT spatialize. ⚠ measured: on Unreal's
+	 *  non-real-time device every SPATIALIZED sound mixes to digital zero (Epic UE-381932, "spatialized audio … the MRQ audio file is silent";
+	 *  the platform reports an 8-speaker layout on a 2-channel device) while attenuated-only sounds play — so the film gets distance and
+	 *  air absorption but no stereo panning yet */
+	void SetSpatialize(bool bOn);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Sound") bool bEnabled = true;
 	/** 0 by default: the free library's ambience beds are held back for now (user, 2026-11-21: "put those sounds aside for now (will be
@@ -102,6 +107,7 @@ private:
 	UPROPERTY(Transient) TMap<FString, TObjectPtr<USoundBase>> Cache;
 	TSet<FString> Missing, Reported;
 	UPROPERTY(Transient) TArray<TObjectPtr<USoundAttenuation>> Falloffs;
+	bool bSpatialize = true;
 	/** every component this made (the beds, the engines, the trots) — held so nothing collects them while they play */
 	UPROPERTY(Transient) TArray<TObjectPtr<UAudioComponent>> Owned;
 	UAudioComponent* Hold(UAudioComponent* C) { if (C) Owned.Add(C); return C; }

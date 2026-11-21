@@ -64,7 +64,89 @@ bool UHrotDpsSubsystem::FakeStationStart(double OffsetSeconds)
 			W.State == SimNetGateway_Protocol_DdsPlayer_ClientWorldStateFailed ? TEXT("Failed") : TEXT("Unknown");
 		FakeWorld = FString::Printf(TEXT("%llx epoch %u %s '%s' wait %d"), W.ClientId, W.WorldEpoch, St, UTF8_TO_TCHAR(W.Step), W.WaitForMe ? 1 : 0);
 	});
+	// U-18q: what the render client answers
+	Dps.Subscribe(TEXT("DPS_FrameDone"), [this](const FHrotDpsSample& S)
+	{
+		if (!S.bValid) return;
+		const auto& D = *static_cast<const SimNetGateway_Protocol_DdsPlayer_FrameDone*>(S.Data);
+		++FakeDoneCount;
+		FakeDone = FString::Printf(TEXT("%d done, last: %d %s '%s' %.0f ms audio %d step %lld '%s'"), FakeDoneCount, D.FrameIndex,
+			D.Status == SimNetGateway_Protocol_DdsPlayer_FrameStatusWritten ? TEXT("Written") : TEXT("Failed"), UTF8_TO_TCHAR(D.File), D.RenderMs, D.AudioSamples,
+			D.StepSeq, UTF8_TO_TCHAR(D.Reason));
+	});
+	Dps.Subscribe(TEXT("DPS_StepAck"), [this](const FHrotDpsSample& S) { if (S.bValid) ++FakeAcks; });
+	Dps.Subscribe(TEXT("DPS_RenderClient"), [this](const FHrotDpsSample& S)
+	{
+		if (!S.bValid) return;
+		const auto& R = *static_cast<const SimNetGateway_Protocol_DdsPlayer_RenderClient*>(S.Data);
+		FakeClient = FString::Printf(TEXT("'%s' ready %d max %dx%d x%d formats %u audio %u rate %d readyJob '%s'"), UTF8_TO_TCHAR(R.Name), R.Ready ? 1 : 0, R.MaxWidth,
+			R.MaxHeight, int32(R.MaxSupersample), R.Formats, R.AudioFormats, R.MaxSampleRate, UTF8_TO_TCHAR(R.ReadyJobId));
+	});
+	Dps.Subscribe(TEXT("DPS_RenderJobResult"), [this](const FHrotDpsSample& S)
+	{
+		if (!S.bValid) return;
+		const auto& R = *static_cast<const SimNetGateway_Protocol_DdsPlayer_RenderJobResult*>(S.Data);
+		FakeResult = FString::Printf(TEXT("%s %s track '%s' %lld samples '%s'"), UTF8_TO_TCHAR(R.JobId),
+			R.Status == SimNetGateway_Protocol_DdsPlayer_FrameStatusWritten ? TEXT("Written") : TEXT("Failed"), UTF8_TO_TCHAR(R.TrackFile), R.TrackSamples, UTF8_TO_TCHAR(R.Reason));
+	});
 	return true;
+}
+
+bool UHrotDpsSubsystem::FakeStationRenderJob(const FString& JobId, int32 State, int32 Fps, int32 Width, int32 Height, int32 Supersample, const FString& Dir,
+	bool bAudio, int32 SampleRate)
+{
+	SimNetGateway_Protocol_DdsPlayer_RenderJob J{};
+	FCStringAnsi::Strncpy(J.JobId, TCHAR_TO_UTF8(*JobId), sizeof(J.JobId));
+	J.ClientId = GetClientId(); J.Kind = SimNetGateway_Protocol_DdsPlayer_RenderKindMovie;
+	FCStringAnsi::Strncpy(J.What, "fake reel", sizeof(J.What));
+	J.Fps = Fps; J.Width = Width; J.Height = Height; J.Supersample = uint8(Supersample);
+	FCStringAnsi::Strncpy(J.Dir, TCHAR_TO_UTF8(*Dir), sizeof(J.Dir));
+	J.Audio = bAudio; J.SampleRate = SampleRate; J.Channels = 2;
+	J.State = SimNetGateway_Protocol_DdsPlayer_RenderState(State);
+	return Dps.Write(TEXT("DPS_RenderJob"), &J);
+}
+
+bool UHrotDpsSubsystem::FakeStationRenderStep(int64 StepSeq, double TargetSimTime, int64 TimelineEpoch, int32 Samples)
+{
+	SimNetGateway_Protocol_DdsPlayer_ClockStep C{};
+	C.StepSeq = StepSeq; C.FixedDelta = 1.f / 30.f; C.TargetSimTime = TargetSimTime; C.TimeScale = 1.f; C.TimelineEpoch = TimelineEpoch;
+	C.AckRequired = true; C.Samples = uint32(Samples);
+	return Dps.Write(TEXT("DPS_ClockStep"), &C);
+}
+
+bool UHrotDpsSubsystem::FakeStationFrame(const FString& JobId, int32 Index, int32 Kind, int64 StepSeq, double SimTime, FVector PositionM, float YawDeg, float PitchDeg,
+	float FovDeg, int32 Width, int32 Height, const FString& File, const FString& Subtitle, FVector RingAt, float RingRadius)
+{
+	SimNetGateway_Protocol_DdsPlayer_FrameRequest F{};
+	FCStringAnsi::Strncpy(F.JobId, TCHAR_TO_UTF8(*JobId), sizeof(F.JobId));
+	F.FrameIndex = Index; F.Kind = SimNetGateway_Protocol_DdsPlayer_FrameKind(Kind); F.StepSeq = StepSeq; F.SimTime = SimTime; F.FilmRate = 1.f;
+	F.Position = { PositionM.X, PositionM.Y, PositionM.Z };
+	const FQuat4d Q = FQuat4d(FVector3d::ZAxisVector, FMath::DegreesToRadians(double(YawDeg))) * FQuat4d(FVector3d::YAxisVector, -FMath::DegreesToRadians(double(PitchDeg)));
+	F.Orientation = { float(Q.X), float(Q.Y), float(Q.Z), float(Q.W) };
+	F.FovDeg = FovDeg; F.Width = Width; F.Height = Height; F.Supersample = 1;
+	FCStringAnsi::Strncpy(F.File, TCHAR_TO_UTF8(*File), sizeof(F.File));
+	FCStringAnsi::Strncpy(F.Subtitle, TCHAR_TO_UTF8(*Subtitle), sizeof(F.Subtitle));
+	F.SubtitlePosition = SimNetGateway_Protocol_DdsPlayer_SubtitlePositionBottom; F.SubtitleAlpha = 1.f;
+	SimNetGateway_Protocol_DdsPlayer_FilmGraphic G{};
+	SimNetGateway_Protocol_DdsPlayer_Vec3d P{ RingAt.X, RingAt.Y, RingAt.Z };
+	if (RingRadius > 0)
+	{
+		G.Kind = SimNetGateway_Protocol_DdsPlayer_FilmGraphicKindRing; G.Radius = RingRadius; G.ColourRgb = 0xFFC020; G.Alpha = 1.f;
+		FCStringAnsi::Strncpy(G.Text, "objective", sizeof(G.Text));
+		G.Points._length = G.Points._maximum = 1; G.Points._buffer = &P; G.Points._release = false;
+		F.Graphics._length = F.Graphics._maximum = 1; F.Graphics._buffer = &G; F.Graphics._release = false;
+	}
+	return Dps.Write(TEXT("DPS_FrameRequest"), &F);
+}
+
+bool UHrotDpsSubsystem::FakeStationFire(double SimTime, FVector OriginM, FVector VelocityMs)
+{
+	SimNetGateway_Protocol_DdsPlayer_Fire F{};
+	F.SimTime = SimTime; F.ShooterId = 0; F.TargetId = 0;
+	F.Origin = { OriginM.X, OriginM.Y, OriginM.Z };
+	F.Velocity = { float(VelocityMs.X), float(VelocityMs.Y), float(VelocityMs.Z) };
+	F.WeaponCategory = SimNetGateway_Protocol_DdsPlayer_WeaponCategorySmallArms;
+	return Dps.Write(TEXT("DPS_Fire"), &F);
 }
 
 bool UHrotDpsSubsystem::FakeStationClock(bool bStepped, double AnchorSimTime, float TimeScale, int64 TimelineEpoch, int64 StepSeq)

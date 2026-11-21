@@ -123,7 +123,7 @@ USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach)
 	USoundAttenuation* A = NewObject<USoundAttenuation>(this);
 	FSoundAttenuationSettings& S = A->Attenuation;
 	S.bAttenuate = true;
-	S.bSpatialize = true;
+	S.bSpatialize = bSpatialize;
 	S.AttenuationShape = EAttenuationShape::Sphere;
 	S.AttenuationShapeExtents = FVector(Inner * 100.f, 0, 0);
 	S.FalloffDistance = (Reach - Inner) * 100.f;
@@ -133,6 +133,12 @@ USoundAttenuation* UHrotSoundscape::Falloff(float Inner, float Reach)
 	S.LPFRadiusMax = Reach * 100.f;
 	Falloffs.Add(A);
 	return A;
+}
+
+void UHrotSoundscape::SetSpatialize(bool bOn)
+{
+	bSpatialize = bOn;
+	for (USoundAttenuation* A : Falloffs) A->Attenuation.bSpatialize = bOn;   // the shared ones already handed out too
 }
 
 void UHrotSoundscape::Drop(TWeakObjectPtr<UAudioComponent>& C)

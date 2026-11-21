@@ -66,6 +66,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationView(double SimTime, int32 Mode, int32 TargetId, float Distance, FVector PositionM,
 		FVector VelocityM, float YawDeg, float YawRateDeg, float PitchDeg, float FovDeg, int32 CutSeq);
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationEchoes() const { return FakeEchoes; }
+	// U-18q — the render side: a job, a step with its barrier, a frame, a shot; what the render client answered
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationRenderJob(const FString& JobId, int32 State, int32 Fps, int32 Width, int32 Height,
+		int32 Supersample, const FString& Dir, bool bAudio, int32 SampleRate);
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationRenderStep(int64 StepSeq, double TargetSimTime, int64 TimelineEpoch, int32 Samples);
+	/** a FrameRequest: Kind 1 scene / 2 silence; the camera as FakeStationView's; a subtitle and one ring (RingAt, radius m) */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationFrame(const FString& JobId, int32 Index, int32 Kind, int64 StepSeq, double SimTime,
+		FVector PositionM, float YawDeg, float PitchDeg, float FovDeg, int32 Width, int32 Height, const FString& File, const FString& Subtitle, FVector RingAt, float RingRadius);
+	/** a rifle shot (Fire, small arms) from OriginM at SimTime */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") bool FakeStationFire(double SimTime, FVector OriginM, FVector VelocityMs);
+	/** "<n> done, last: <index> <Written|Failed> '<file>' <ms> ms audio <n> '<why>'" */
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") FString FakeStationFrameDone() const { return FakeDone; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationFramesDone() const { return FakeDoneCount; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") int32 FakeStationStepAcks() const { return FakeAcks; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") FString FakeStationRenderClient() const { return FakeClient; }
+	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") FString FakeStationJobResult() const { return FakeResult; }
 	/** the last ClientWorld the fake station read: "<client hex> epoch <e> <Ready|Loading|Failed> '<step>' wait <0|1>", "" = none yet */
 	UFUNCTION(BlueprintCallable, Category = "HROT|DPS|Test") FString FakeStationClientWorld() const { return FakeWorld; }
 
@@ -75,7 +90,8 @@ private:
 	double FakeTickReal = 0;
 	bool bFake = false;
 	int32 FakeEchoes = 0;
-	FString FakeWorld;
+	FString FakeWorld, FakeDone, FakeClient, FakeResult;
+	int32 FakeDoneCount = 0, FakeAcks = 0;
 	FHrotDpsClient Dps;
 	uint64 ClientId = 0;
 	FTSTicker::FDelegateHandle Tick;

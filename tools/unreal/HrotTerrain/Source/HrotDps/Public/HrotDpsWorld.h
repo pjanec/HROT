@@ -176,6 +176,8 @@ public:
 		float FovDeg = 60;                     // VERTICAL (HROT's FovyDegrees)
 	};
 	FViewNow ViewNow() const;
+	/** U-18q — the station's TimelineEpoch now (0 before an anchor) */
+	int64 TimelineEpochNow() const { return Clock.GetTimelineEpoch(); }
 
 	virtual bool DoesSupportWorldType(const EWorldType::Type T) const override { return T == EWorldType::Game || T == EWorldType::PIE; }
 	virtual void Deinitialize() override;

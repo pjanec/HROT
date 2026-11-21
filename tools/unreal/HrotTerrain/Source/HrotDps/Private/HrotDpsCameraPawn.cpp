@@ -101,6 +101,13 @@ void AHrotDpsCamera::Free()
 	Mode = EHrotCameraMode::Free; FollowId = 0; FlyVelocity = FVector::ZeroVector;
 }
 
+void AHrotDpsCamera::PlaceAt(const FVector& At, const FQuat& Rotation, float HFovDeg)
+{
+	if (Mode != EHrotCameraMode::Free) Free();
+	Cam->SetWorldLocationAndRotation(At, Rotation);
+	Cam->SetFieldOfView(HFovDeg);
+}
+
 void AHrotDpsCamera::Director()
 {
 	if (AActor* H = HiddenBody.Get()) HideBody(H, false);

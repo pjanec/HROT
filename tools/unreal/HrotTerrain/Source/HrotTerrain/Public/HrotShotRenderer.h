@@ -89,6 +89,8 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "HROT|Shots") int32 SoundsPlayed = 0;
 	/** log every sound as it starts: game time, how far, how late (the speed of sound), the device's active sounds — a test reads it */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") bool bLogSounds = false;
+	/** U-18q — the clock the sound delays run on (DD-022 §3f rule 4: sim time during a render job); unset = the world's real time */
+	TFunction<double()> TimeSource;
 	/** which near extras are drawn at all (measurement: what each costs) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") bool bNearSmoke = true;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "HROT|Shots") bool bNearShell = true;

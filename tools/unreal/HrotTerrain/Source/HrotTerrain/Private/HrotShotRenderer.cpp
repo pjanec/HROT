@@ -49,7 +49,11 @@ UHrotShotRenderer* UHrotShotRenderer::Get(const UObject* WorldContext)
 
 TStatId UHrotShotRenderer::GetStatId() const { RETURN_QUICK_DECLARE_CYCLE_STAT(UHrotShotRenderer, STATGROUP_Tickables); }
 
-float UHrotShotRenderer::Now() const { return GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.f; }
+float UHrotShotRenderer::Now() const
+{
+	if (TimeSource) return float(TimeSource());   // U-18q: a render job's sim clock
+	return GetWorld() ? GetWorld()->GetRealTimeSeconds() : 0.f;
+}
 
 bool UHrotShotRenderer::EnsureComponents()
 {

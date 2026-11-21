@@ -10,7 +10,8 @@ public class HrotDps : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		CppCompileWarningSettings.UndefinedIdentifierWarningLevel = WarningLevel.Off;   // the generated .c and CycloneDDS headers test __GNUC__ etc. with #if
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
-		PrivateDependencyModuleNames.AddRange(new string[] { "Projects", "HrotTerrain", "Niagara", "Json", "InputCore" });   // the actors (AHrotVehicle); ⚠ HrotTerrain is an EDITOR module today (the importers share it) — fine for the editor-run IG, a split is needed before a packaged game
+		PrivateDependencyModuleNames.AddRange(new string[] { "Projects", "HrotTerrain", "Niagara", "Json", "InputCore",
+			"RenderCore", "AudioMixer", "AudioMixerCore", "NonRealtimeAudioRenderer" });   // U-18q: the render client (capture, the non-real-time mixer)   // the actors (AHrotVehicle); ⚠ HrotTerrain is an EDITOR module today (the importers share it) — fine for the editor-run IG, a split is needed before a packaged game
 
 		string Third = Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "ThirdParty", "CycloneDDS"));
 		string Gen = Path.Combine(ModuleDirectory, "Private", "Generated");

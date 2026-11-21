@@ -55,6 +55,11 @@ public:
 	int32 MakeRawReader(const FString& Topic);
 	int32 MakeRawWriter(const FString& Topic);
 
+	/** U-18q — samples taken so far on the WORLD topics (the D-B4 barrier's count: every topic the gateway writes in a step's gather but
+	 *  the clock's, the render topics and GizmoFrame; and never the topics clients write) */
+	int64 GetWorldTaken() const { return WorldTaken; }
+	static bool IsWorldTopic(const FString& Topic);
+
 	/** samples taken per topic since Start */
 	const TMap<FString, int64>& GetCounts() const { return Counts; }
 
@@ -72,5 +77,6 @@ private:
 	TMap<FString, FReader> Readers;
 	TMap<FString, int32> Writers;
 	TMap<FString, int64> Counts;
+	int64 WorldTaken = 0;
 	int32 TopicOf(const FString& Name, const struct FHrotDpsTopicDef*& OutDef);
 };
