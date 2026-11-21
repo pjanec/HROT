@@ -210,7 +210,9 @@ sequenceDiagram
 *What the picture shows that prose hid:* the renderer joins the SAME readiness the cluster already uses for the filming node's 3-D map
 (R-3075, `DESIGN_Cluster_Load_Phase.md` §11.10) — the same `ILoadPartProvider` shape as `MapBuildLoadStep` (poll a status, fail with its
 reason, report its step), required while a renderer is offered: the node is play-ready only after BOTH HROT's 3-D map and the renderer's world;
-the master, live play and the director all wait through one path. ⛔ SUPERSEDED (same day): a first version had the director's runner wait on its own — a second readiness path the
+the master, live play and the director all wait through one path. ⚠ Every load that changes the world (user: *"any terrain load … It must work
+also in the live"*): a live / edit load runs the chain; a replay open runs `ReferenceReplayLoadHandler` instead (`LoadPhaseChain.cs:160`), so its
+prepare must resolve the same providers (Q113-I) — to measure with the build. ⛔ SUPERSEDED (same day): a first version had the director's runner wait on its own — a second readiness path the
 master and live play could not see.
 
 ## 3. The items — HROT's requests from DD-022, with their ids
