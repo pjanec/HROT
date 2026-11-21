@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-21
-current-answer: §2 the sub-questions with recommended answers (awaiting the user)
+current-answer: §2 the sub-questions as revised by the independent review (§2a; rev 2, 2026-11-21) — the user approved subject to that review
 stale-below: nothing
 related-designs:
   - ../DESIGN_Entity_Control.md — OWNS C-8 ("one operator per node — the station id is the node id"), which A amends
@@ -39,7 +39,7 @@ It overturns a standing rule (C-8, and Seats and Hats §2.1's "one seat per node
   `StationReservations`), the editor's station (`PossessionStation`), the screens (`DeployScreen`, `DeployAreaMapLayer`, `DeployAreaChoice`);
   plus unrelated `WeaponDeploy*`.
 - `search_graph` `name_pattern=".*(Deploy|Gameplay|Station|Possess).*"`, `label=Interface`: **total 1** (`IDeployFlow`).
-- grep `StationNodeId` in production C# (generated code excluded): 15 files; the possession types `Possession.cs:44, 57, 73, 130`.
+- grep `StationNodeId` in production C# (generated code excluded): 14 files (rev 1 said 15; the review's count); the possession types `Possession.cs:44, 57, 73, 130`.
 - ⚠ Coverage could not be checked (the CLI has no `check_index_coverage`).
 
 | the lean rests on | code — how it IS | design — how it was MEANT |
@@ -68,6 +68,27 @@ It overturns a standing rule (C-8, and Seats and Hats §2.1's "one seat per node
 **Build order once approved:** A (the type, the retype, C-8 amended, the possession rails with two stations on one node) → C + D (the local
 wire, the flag; the existing deploy rails run over the local wire too) → B + E (the editor composes the server; a seat leaves; a role's man
 spawns in the editor — the first run of that path) → the gateway's DD-023. Tracker: CE-11027.
+
+## 2a. Rev 2 — the independent review (`2026-11-21`), folded
+
+🔒 User, `2026-11-21`: *"approved, but pls run an independent review before committing to it"*. A read-only reviewer checked every claim
+against the code. What it changed, per sub-question (the table above stays as the rev-1 record; where this section differs, THIS wins):
+
+| # | the finding (verified) | the revised answer |
+|---|---|---|
+| **A** | ⛔ *"byte-identical, so recordings are unchanged"* is FALSE: the recording schema hash folds in each field's TYPE NAME (`ComponentLayoutHasher.cs:61`) and an EVENT whose hash differs refuses playback (`SchemaValidator.cs:141-147`; components only warn, `:88-93`) ⇒ retyping the three possession events breaks every existing recording | **a layout alias:** `[LayoutAs(typeof(NodeId))]` on `StationId`, honoured by `ComponentLayoutHasher`, so a field retyped to it hashes as before; a rail plays a recording made before the retype. The member for the station's index on its node is **`Index`** (not `Seat`: the possession code already has vehicle seats, `FreeSeatOf`, `SeatSwitch`); `StationId` gets the JSON and type converters `NodeId` has (`NodeId.cs:24-25`); a node hosts at most 1024 stations |
+| **A′** | ⛔ the node-departed release compares the WHOLE station with the node id (`Possession.cs:294`, `DeployProcessorSystem.cs:397`) ⇒ a departed node would keep its seats | **both compare `station.Node`** — then "a node leaving frees every station on it" holds |
+| **B** | the editor passes no election ⇒ it always serves | ✅ kept: the editor is networkless, so no second server can exist by construction; a rail pins that the editor composes no election |
+| **C** | ⚠ the readers rely on DDS behaviour: disposed instances' keys from the native sample (`DeployFlowSystem.cs:267-269`, `PlayerSlotReaderSystem.cs:50-54`), "writer gone ⇒ an invalid sample" (`PlayerSlotReaderSystem.cs:12`), transient-local history for an end created late (`DeployFlowSystem.cs:238, :256`); and the flow has no `Side` readout | **the local wire is specified, not a wrapper:** last value per key with dispose (a disposed key delivered once as not-alive), "writer gone" when a client end closes, and the current last values handed to an end created late; offers, status AND slots broadcast (each end its own copy); the existing `PlayerSlotReaderSystem` reads slots over it (rev 1's "`TryGetSlot` directly" dropped — it returns only state + unit, `DeployProcessorSystem.cs:120`); the flow gains a `Side` readout. Rejected (added): the ECS event bus (per-frame, not last-value); reading the server's tables directly (a second reader shape beside the wire's) |
+| **D** | ⚠ `/deploy` would 404 for seats (`DeployFlowApi.cs:128`) | the flag stays, plus **`DeployFlowSystem.Of(world, station)`** over a per-world list of all flows; `/deploy?station=` reads a seat's |
+| **E** | ⛔ leave and death release ONE unit (`HrotPlayerStation.cs:632-637` — SimNetGateway; `Possession.cs:274-280`) ⇒ a seat that rode and drove leaves the vehicle held for good | **`PossessionSystem.ReleaseStation(station)`**: every unit whose `PossessedBy` names it (the shape of `ReleaseDeparted`, keyed by station) — used by the leave verb AND when a station's Riding man is killed (today's cluster has the same hole: a node does not depart when its man dies) |
+| **G** | ⚠ two seats can overfill a role: `RoleFull` counts finished spawns only (`DeployProcessorSystem.cs:226, :274`) | **count pending spawns too**; a rail requests one role from two stations in one frame |
+| **H** | ⛔ the server's tables are session state nothing resets (`DeployProcessorSystem.cs:63-78`), on the old clock after a load; and it runs during a replay (no `IReplayRestoreGated`) | **forget the tables at the world boundary (`WorldEpoch.Moved`); gate the server off while replaying** |
+| **I** | `PlayerMessage` per station must reuse `PlayerMessages.Addressed` (`Hrot.Presentation/Map3D/PlayerMessages.cs:45-52`), which the gateway cannot reference | **move the addressing rule below `Hrot.Presentation`** (Hrot.Core), one rule for the map and the gateway |
+| **J** | role spawn points are unseeded (`DeployProcessorSystem.cs:105`, `GameplayServerPack.cs:191`) ⇒ scenarios differ run to run | **seed the spawn choice from the scenario**, so the feature scenarios (DD-023 D-16) are regression tests |
+| **K** | the editor's edit gate applies to every station (`Edits.cs:27-32`) | **to measure in the build:** that a seat's possess / release, which are player actions, are not refused by the editor's edit mode — or route them past it as the editor user's already are |
+
+**Build order (rev 2):** A + A′ (with the old-recording rail) → C + D → E + G + H → B + I + J → the gateway's DD-023. Tracker: CE-11027.
 
 ## 3. What would change the recommendation
 
