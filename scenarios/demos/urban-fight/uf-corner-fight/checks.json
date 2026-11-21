@@ -115,7 +115,8 @@
           630,
           384
         ],
-        "m": 15
+        "m": 15,
+        "fighting": true
       },
       "after": "Blue breaks contact+30"
     },
@@ -128,7 +129,8 @@
           668,
           386
         ],
-        "m": 15
+        "m": 15,
+        "fighting": true
       },
       "after": "Blue breaks contact+30"
     }

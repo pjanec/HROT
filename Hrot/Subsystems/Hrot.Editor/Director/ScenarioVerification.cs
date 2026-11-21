@@ -342,6 +342,7 @@ namespace Hrot.Editor.Director
             bool far = c.On == "far";
             foreach (var id in UnitsNamed(who))
             {
+                if (c.Fighting && !InTheFight(id)) continue;   // ⭐ CE-2466 — a dead man cannot walk back in: only the men still in the fight
                 if (PositionOf(id) is not { } at) continue;
                 float d = float.MaxValue;
                 if (c.From != null)

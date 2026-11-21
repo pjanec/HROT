@@ -184,6 +184,32 @@ public sealed class ScenarioChecksTests
         Assert.Contains(stray, p => p.Contains("belong to a between cue"));
     }
 
+    /// <summary>⭐ <c>CE-2466</c> (Urban Fight Suite U2) — <c>close</c> / <c>far</c> take <c>fighting: true</c>: a DEAD man lying at the point does not break "never a man
+    /// within 15 m" (a dead man cannot walk back in); without the flag he does. ✅ Red-proof: the fighting filter removed from <c>DistanceHolds</c> ⇒ the flagged row breaks ⇒ red.</summary>
+    [Fact]
+    public void CE2466_Close_WithFighting_IgnoresTheDead()
+    {
+        var checks = Parse("""
+            {"runFor":5,"expect":[
+              {"name":"plain","never":{"on":"close","who":"*Blue ","point":[630,384],"m":15}},
+              {"name":"fighting","never":{"on":"close","who":"*Blue ","point":[630,384],"m":15,"fighting":true}}]}
+            """, out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld();
+        w.U.Ids["Blue Rifleman 1"] = 1;
+        w.Comps[1] = new JsonObject
+        {
+            ["SimTransform"] = new JsonObject { ["Position"] = new JsonArray(627, 388, 0) },
+            ["Health"] = new JsonObject { ["Current"] = 0, ["Max"] = 100 },
+        };
+        var book = new ConditionBook(checks, w, 0);
+        book.Observe(1);
+        book.Finish(5);
+        var v = book.Verdicts().ToDictionary(x => x.Name, x => x.Ok);
+        Assert.False(v["plain"], "a dead man at the corner breaks the plain row");
+        Assert.True(v["fighting"], "but not the row over the men in the fight");
+    }
+
     private sealed class Units : IShotWorld
     {
         public readonly Dictionary<string, int> Ids = new(StringComparer.Ordinal);
