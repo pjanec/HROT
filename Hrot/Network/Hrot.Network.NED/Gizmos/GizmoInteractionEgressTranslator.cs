@@ -23,6 +23,7 @@ namespace Hrot.Network.NED.Gizmos
         private readonly byte _nodeId;
         private readonly IDdsWriter<GizmoInteractionBatch>? _writer;
         private readonly FdpEventBus _interactionBus;
+        [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): wire sequence number for gizmo batches; debug-UI egress only")]
         private uint _sequenceNumber;
 
         // 🔴 §6.7 — `NetworkEntityMap? _entityMap` DELETED. S2 used it for the Entity -> network id

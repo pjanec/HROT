@@ -54,8 +54,10 @@ namespace Fdp.Toolkit.Physics.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class HitResolutionSystem : IEcsModuleSystem
     {
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly System.Collections.Generic.HashSet<Entity> _resolved = new();   // ⭐ CE-2204 — the rounds resolved this frame
 
         public void Execute(ISimulationView view, float deltaTime)

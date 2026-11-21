@@ -33,10 +33,23 @@ namespace Hrot.AI.Behaviors.Brains
         public const float MinProgressMetres = 3f;
         /// <summary>Two movers' picks at least this far apart (m).</summary>
         public const float PickSpacingMetres = 2f;
+        /// <summary>⭐ <c>CE-2461</c> (Urban Fight Suite U2) — a pick at most this far above or below the mover (m): a bound is a ground move, and a
+        /// cover point on a building's ledge or upper storey (📐 live: Z = 3 beside <c>res-bw-17</c>) left the mover standing under it.</summary>
+        public const float MaxClimbMetres = 1.5f;
         /// <summary>The query gives up after this long; the movers keep the play's geometric points (s).</summary>
         public const float PickTimeoutSeconds = 5f;
 
         public static bool IsReady(in SquadCoverPicks picks, byte element) => (picks.Ready & (1 << element)) != 0;
+
+        /// <summary>A mover with no cover pick: ONE rush of at most <paramref name="metres"/> straight toward <paramref name="objective"/> —
+        /// never the whole way at once (fire and movement's rush; ⭐ <c>CE-2460</c> break contact's bound — the one rule both share).</summary>
+        public static Vector3 OneRush(Vector3 at, Vector3 objective, float metres)
+        {
+            var to = new Vector2(objective.X - at.X, objective.Y - at.Y);
+            float dist = to.Length();
+            float step = dist > 1e-3f ? MathF.Min(metres, dist) / dist : 0f;
+            return new Vector3(at.X + to.X * step, at.Y + to.Y * step, at.Z);
+        }
 
         public static unsafe bool Has(in SquadCoverPicks picks, int slot, out Vector3 point)
         {
@@ -110,6 +123,7 @@ namespace Hrot.AI.Behaviors.Brains
                 {
                     var pt = new Vector2(answers[k].PositionX, answers[k].PositionY);
                     if (Vector2.Distance(pt, me) > reachMetres) continue;
+                    if (MathF.Abs(answers[k].PositionZ - me3.Z) > MaxClimbMetres) continue;   // ⭐ CE-2461 — never a point on another storey or a ledge
                     float progress = dist - Vector2.Distance(pt, obj);
                     if (progress < bestProgress || Near(taken[..takenCount], pt)) continue;
                     best = k; bestProgress = progress;

@@ -37,6 +37,11 @@ namespace Hrot.NED.Messages
         // ⭐ B-5 S3 (R-4137; docs/UX/DESIGN_Initial_State.md §3a) — make a unit know of another (target = the perceiver, actor = the seeded unit; applied by
         //   the node that owns the perceiver's TargetMemory).
         SeedTarget      = 14,
+        // ⭐ CE-4670 (vehicle appearance VA-4; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §6a) — a crewman's head out / in (target = the
+        //   vehicle, actor = the crewman; applied by the vehicle's boarding arbiter, the PassengerBuffer owner).
+        OpeningRequest  = 15,
+        // ⭐ CE-4670 (VA-3, §6b) — a station's light switch (target = the vehicle, actor = who switched; applied by the dtVehicleLights owner).
+        LightsRequest   = 16,
     }
 
     /// <summary>⭐ The <see cref="EInteractionKind.Door"/> case: what the actor does to the door.</summary>
@@ -209,6 +214,23 @@ namespace Hrot.NED.Messages
         public System.Guid RequestId;
     }
 
+    /// <summary>⭐ CE-4670 (VA-4) — the <see cref="EInteractionKind.OpeningRequest"/> case: 0 head out · 1 head in (the wire's own byte, R-4295).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct OpeningRequestInteractionPayload
+    {
+        public byte Verb;
+    }
+
+    /// <summary>⭐ CE-4670 (VA-3) — the <see cref="EInteractionKind.LightsRequest"/> case: the discipline switched to — 0 Normal · 1 Convoy · 2 Blackout · 3 Off
+    /// (the wire's own byte, R-4295).</summary>
+    [DdsStruct]
+    [DdsIdlFile("hrot-sim-msgs")]
+    public partial struct LightsRequestInteractionPayload
+    {
+        public byte Discipline;
+    }
+
     /// <summary>⭐ CE-3235 — the <see cref="EInteractionKind.PickUpGrant"/> case (target = the man): what he now holds.</summary>
     [DdsStruct]
     [DdsIdlFile("hrot-sim-msgs")]
@@ -285,6 +307,12 @@ namespace Hrot.NED.Messages
 
         [DdsCase(EInteractionKind.SeedTarget)]
         public SeedTargetInteractionPayload SeedTarget;   // ⭐ B-5 S3
+
+        [DdsCase(EInteractionKind.OpeningRequest)]
+        public OpeningRequestInteractionPayload OpeningRequest;   // ⭐ CE-4670 (VA-4)
+
+        [DdsCase(EInteractionKind.LightsRequest)]
+        public LightsRequestInteractionPayload LightsRequest;   // ⭐ CE-4670 (VA-3)
     }
 
     /// <summary>

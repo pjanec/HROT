@@ -49,7 +49,7 @@ namespace Hrot.Network.NED.SimHost
                     ShooterEntityId = shooterId, X = evt.X, Y = evt.Y, Z = evt.Z,
                     NormalX = evt.NormalX, NormalY = evt.NormalY, NormalZ = evt.NormalZ,
                     TravelX = evt.TravelX, TravelY = evt.TravelY, TravelZ = evt.TravelZ,
-                    MunitionType = evt.Ammo, Kind = evt.Kind, SourceNodeId = _localNodeId,
+                    MunitionType = evt.Ammo, Kind = evt.Kind, Material = evt.Material, SourceNodeId = _localNodeId,   // ⭐ CE-11009 (RR-9)
                 });
                 SentSampleCount++;
             }
@@ -105,7 +105,7 @@ namespace Hrot.Network.NED.SimHost
             cmd.PublishEvent(new RoundImpactNotification
             {
                 Shooter = shooter, X = d.X, Y = d.Y, Z = d.Z, NormalX = d.NormalX, NormalY = d.NormalY, NormalZ = d.NormalZ,
-                TravelX = d.TravelX, TravelY = d.TravelY, TravelZ = d.TravelZ, Ammo = d.MunitionType, Kind = d.Kind, IsRemote = true,
+                TravelX = d.TravelX, TravelY = d.TravelY, TravelZ = d.TravelZ, Ammo = d.MunitionType, Kind = d.Kind, Material = d.Material, IsRemote = true,   // ⭐ CE-11009 (RR-9)
             });
         }
 

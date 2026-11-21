@@ -25,25 +25,31 @@ namespace CarKinem.Systems
         /// <summary>The grid's current placement — a rail reads it; consumers read <c>SpatialGridData</c>.</summary>
         public GridGeometry Geometry => new(_grid.OriginX, _grid.OriginY, _grid.CellSize);
 
+        [Fdp.Core.WorldDerived("grid cleared and refilled from world every frame")]
         private SpatialHashGrid _grid;
 
         // ⭐ CE-10006 (R-10029) — the aircraft beyond the grid this frame (rounds still meet them); fixed capacity, never reallocated
+        [Fdp.Core.FrameScratch("the airborne entities outside the grid: refilled from index 0 each run and published with this frame's grid")]
         private Fdp.Core.Collections.NativeArray<Entity> _airOutside = new(SpatialHashConstants.MaxAirOutside, Allocator.Persistent);
 
         /// <summary>⭐ CE-10006 — aircraft beyond the grid this frame, still met by rounds (not counted in <see cref="Dropped"/>).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic count of air-outside entities, assigned each pass and read by rails")]
         public int AirOutside { get; private set; }
 
         // ⭐ CE-3018 — the terrain this grid was last fitted to (reference compare: a commit swaps the singleton object).
         private TerrainWorld? _fittedTo;
 
         // ⭐ CE-2193 — the colliders already warned about since the last fit: one warning per entity per terrain fit, never per frame.
+        [Fdp.Core.FrameScratch("a warn-once log set (cleared on a new terrain fit); changes no behaviour")]
         private readonly System.Collections.Generic.HashSet<Entity> _warned = new();
 
         /// <summary>⭐ <c>CE-2193</c> — colliders the grid could NOT place this frame (outside it, or over its capacity): no round, near
         /// miss, avoidance or radius search can meet them. 0 when every collider is in.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int Dropped { get; private set; }
 
         /// <summary>⭐ <c>CE-2193</c> — warnings logged so far (one per dropped entity per terrain fit).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int Warnings { get; private set; }
 
         public SpatialHashSystem()

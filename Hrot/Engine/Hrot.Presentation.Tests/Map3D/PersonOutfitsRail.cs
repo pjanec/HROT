@@ -49,6 +49,8 @@ public sealed class PersonOutfitsRail
         ("niqab",       O("Abaya", Black),      O("Hidden"),   O("None"),     O("Niqab", Black),                   O("Short", HairBlack), O("None"), O("None")),
         ("chestrig",    O("Shirt", Khaki),      O("Trousers", Grey), O("ChestRig", Olive), O("None"),              O("Short", HairBlack), O("None"), O("None")),
         ("facewrap",    O("Shirt", Khaki),      O("Trousers", Grey), O("ChestRig", Olive), O("ShemaghFaceWrap", Khaki), O("Short", HairBlack), O("None"), O("None")),
+        // ⭐ user 2026-11-18 — the plain-clothes fighter of the user's photo: an olive jacket, the baggy shalwar, no rig, the black face wrap
+        ("me-plainclothes", O("Jacket", Olive), O("Tunban", Khaki), O("None"), O("ShemaghFaceWrap", Black), O("Short", HairBlack), O("None"), O("None")),
         ("buckskin",    O("Buckskin", Buck),    O("Shorts", Skin), O("None"), O("None"),                           O("Short", HairBlack), O("None"), O("None")),
         ("breechcloth", O("TShirt", Skin),      O("Breechcloth", BuckD), O("None"), O("None"),                     O("Short", HairBlack), O("None"), O("None")),
         ("headband",    O("TShirt", Skin),      O("Shorts", Skin), O("None"), O("Headband", Red),                  O("Short", HairBlack), O("None"), O("None")),
@@ -199,15 +201,20 @@ public sealed class PersonOutfitsRail
         Outfit Of(long type, long seed) { var look = EntityBodyLayer3D.Resolve(tkb.GetByType(type)!); return Outfits.For(seed, type, look.Soldier, look.Child, null, ForceId.Hostile, look.Kit, look.Elderly, look.Sex, look.Wardrobe); }
         foreach (long type in Fighters)
         {
-            int covered = 0, rigged = 0;
+            int covered = 0, rigged = 0, baggy = 0, blackWrap = 0;
             for (int s = 1; s <= 500; s++)
             {
                 var o = Of(type, s);
                 if (o.HeadKind is OutfitHead.Shemagh or OutfitHead.ShemaghFaceWrap or OutfitHead.Skullcap) covered++;
                 if (o.OverKind == OutfitOver.ChestRig) rigged++;
+                if (o.Legwear == Legwear.Tunban) baggy++;
+                if (o.HeadKind == OutfitHead.ShemaghFaceWrap && o.HeadCloth.R < 60 && o.HeadCloth.G < 60 && o.HeadCloth.B < 60) blackWrap++;
             }
             Assert.True(covered >= 375, $"type {type}: head cover in {covered}/500");
-            Assert.True(rigged >= 300, $"type {type}: a chest rig in {rigged}/500");
+            // ⭐ user 2026-11-18 (the plain-clothes fighter photo): a rig in ~60 % (not a large majority), the baggy shalwar under a shirt / jacket, the black face wrap
+            Assert.InRange(rigged, 250, 350);
+            Assert.True(baggy >= 60, $"type {type}: the baggy shalwar in {baggy}/500");
+            Assert.True(blackWrap >= 15, $"type {type}: a black face wrap in {blackWrap}/500");
         }
         int thobes = 0;
         for (int s = 1; s <= 500; s++) if (Of(1107, s).TopKind == OutfitTop.Robe) thobes++;
@@ -225,11 +232,11 @@ public sealed class PersonOutfitsRail
                 1113 => o.HeadKind == OutfitHead.Pakol,
                 1114 => o.HeadKind == OutfitHead.Hijab,
                 1115 => o.HeadKind == OutfitHead.Turban && o.ExtraKind == OutfitExtra.Patu,
-                2016 or 2017 or 2018 => o.HeadKind is OutfitHead.Turban or OutfitHead.Pakol && o.OverKind == OutfitOver.ChestRig,
+                2019 or 2020 or 2021 => o.HeadKind is OutfitHead.Turban or OutfitHead.Pakol && o.OverKind == OutfitOver.ChestRig,
                 _ => o.HeadKind is OutfitHead.Shemagh or OutfitHead.ShemaghFaceWrap && o.OverKind == OutfitOver.ChestRig,
             };
             var json = new System.Text.StringBuilder("{\n");
-            long[] types = [1105, 1107, 1109, 1111, 1112, 1113, 1114, 1115, 1116, 2003, 2010, 2011, 2012, 2016, 2017, 2018];
+            long[] types = [1105, 1107, 1109, 1111, 1112, 1113, 1114, 1115, 1116, 2003, 2010, 2011, 2012, 2019, 2020, 2021];
             for (int k = 0; k < types.Length; k++)
             {
                 var seeds = new List<long>();
@@ -249,7 +256,7 @@ public sealed class PersonOutfitsRail
     {
         var tkb = HrotEnvironment.CreateTkb();
         Outfit Of(long type, long seed) { var look = EntityBodyLayer3D.Resolve(tkb.GetByType(type)!); return Outfits.For(seed, type, look.Soldier, look.Child, null, ForceId.Hostile, look.Kit, look.Elderly, look.Sex, look.Wardrobe); }
-        foreach (long type in new long[] { 2016, 2017, 2018 })
+        foreach (long type in new long[] { 2019, 2020, 2021 })
         {
             int covered = 0, rigged = 0, layered = 0;
             for (int s = 1; s <= 500; s++)
@@ -391,6 +398,115 @@ public sealed class PersonOutfitsRail
     }
 
     private const float Side = 1.45f;   // the camera swung to the figure's lit side
+    /// <summary>
+    /// ⭐⭐ <c>CE-1976</c> (docs/designs/weapons/DESIGN_Bows_And_Crossbows.md BW-3 / BW-10; mockup <c>docs/designs/weapons/bows-visuals.svg</c>, R-4146) — the bows in the REAL frame: the archer standing (carried, then aiming:
+    /// the string drawn to the cheek), the crossbowman, the warrior on his horse with his bow, an arrow in flight, arrows stuck at their angle. Frames <c>bows-*.png</c> go to <c>HROT_RAIL_SHOTS</c> (never committed); it SKIPS
+    /// without a display (<c>xvfb-run -a</c>). 🔴 Red-proof: without <c>HeldLook.Bow</c> the aimed frame equals the carried frame (the rifle line) — the pixel-difference assert fails.
+    /// </summary>
+    [SkippableFact]
+    public void TheBows_AreDrawnByTheRealFrame_TheArcherAimsAndCarries_TheWarriorRidesWithHisBow_ArrowsFlyAndStick()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
+        Directory.CreateDirectory(shots);
+        var terrain = Map3DTests.TestTown();
+        var world = Map3DTests.WorldWith(terrain);
+        world.RegisterComponent<SimTransform>(); world.RegisterComponent<TkbIdentity>(); world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(); world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
+        world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>(); world.RegisterComponent<SimVelocity>(); world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
+        var tkb = HrotEnvironment.CreateTkb();
+        world.SetSingletonManaged<ITkbDatabase>(tkb);
+        double clock = 0.0;
+        void Clock(double dt) { clock += dt; world.SetSingletonUnmanaged(new GlobalTime { TotalTime = clock }); }
+        Clock(0.0);
+        var query = WorldQuery.Of(world)!;
+        var spot = Map3DFrameRail.FindOpenGround(terrain, query);
+        float G(float x, float y) => query.GroundHeightAt(x, y);
+        Entity Spawn(long type, float dx, float dy, float yaw = 0f)
+        {
+            var e = world.CreateEntity();
+            float x = spot.X + dx, y = spot.Y + dy;
+            world.AddComponent(e, new SimTransform { Position = new Vector3(x, y, G(x, y)), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw) });
+            world.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)type });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            return e;
+        }
+        var target = Spawn(TkbEntityTypes.Infantry_Rifleman, 30f, 0f);
+        var archer = Spawn(UrbanCombatTkbCatalog.TkbArcher, 0f, 0f);
+        var crossbow = Spawn(UrbanCombatTkbCatalog.TkbCrossbowman, -3f, 3f);
+        var horse = Spawn(703, -6f, 7f);
+        var warrior = Spawn(FunTkbCatalog.TkbNativeWarrior, -6f, 7f);
+        world.AddComponent(warrior, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = horse, Exposed = 1, Seat = 0 });
+        foreach (var m in new[] { archer, crossbow, warrior }) world.AddComponent(m, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase });
+        // an arrow in flight (nose along its velocity, pitched over its arc), and arrows stuck at their angle
+        void Arrow(long ammo, Vector3 at, Vector3 velocity, bool stuck)
+        {
+            var e = world.CreateEntity();
+            var flight = Vector3.Normalize(velocity);
+            var axis = Vector3.Cross(Vector3.UnitX, flight);
+            var rot = axis.LengthSquared() > 1e-6f ? Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), MathF.Acos(Vector3.Dot(Vector3.UnitX, flight))) : Quaternion.Identity;
+            world.AddComponent(e, new SimTransform { Position = at, Rotation = rot });
+            world.AddComponent(e, new SimVelocity { Linear = stuck ? Vector3.Zero : velocity });
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+            {
+                Ammo = ammo, PreviousPosition = at - velocity * 0.016f,
+                Warhead = stuck ? (byte)(Fdp.Toolkit.Combat.Components.WarheadRound.Landed | Fdp.Toolkit.Combat.Components.WarheadRound.Sticks) : (byte)0,
+            });
+        }
+        float gz = G(spot.X + 4f, spot.Y + 5f);
+        Arrow(MunitionTkbCatalog.TkbArrow, new Vector3(spot.X + 4f, spot.Y + 5f, gz + 1.6f), new Vector3(40f, 0f, 3f), false);
+        Arrow(MunitionTkbCatalog.TkbCrossbowBolt, new Vector3(spot.X + 4f, spot.Y + 5.6f, gz + 1.5f), new Vector3(60f, 0f, -2f), false);
+        for (int i = 0; i < 4; i++)
+        {
+            float x = spot.X + 8f + i * 0.5f, y = spot.Y + 1.0f;
+            Arrow(i == 3 ? MunitionTkbCatalog.TkbCrossbowBolt : MunitionTkbCatalog.TkbArrow, new Vector3(x, y, G(x, y) + 0.1f), new Vector3(0.9f, 0.1f * i, -0.35f - 0.1f * i), true);
+        }
+
+        using var frame = UiFrameHarness.Begin(1280, 800);
+        LitShader.Reset();
+        var canvas = new MapCanvas(input: null);
+        var two = new MapCamera(); canvas.Camera = two;
+        var pose = ArticulationPose.Neutral;
+        var bodies = new EntityBodyLayer3D(() => world, () => tkb, (w, e) => pose);
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Camera3D.GroundHeight = (x, y) => G(x, y);
+        var rounds = new Hrot.UI.Common.Effects.ProjectileLayer(() => world, () => tkb, () => sw.Camera3D) { GroundHeight = G };
+        canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
+        canvas.AddLayer(bodies);
+        canvas.AddLayer(rounds);
+        sw.Set(true, animate: false);
+        AirCombatLooksRail.Pixels Shot(Vector3 look, float dist, float yaw, float pitch, string name)
+        {
+            sw.Camera3D.Pose = new CameraPose(look, dist, yaw, pitch);
+            Clock(0.05);
+            var px = AirCombatLooksRail.ScreenOf(frame, () => { frame.Step(canvas.Draw); frame.Step(canvas.Draw); });
+            frame.Screenshot(Path.Combine(shots, name));
+            return px;
+        }
+        const float Side = MathF.PI * 0.5f;
+        for (int i = 0; i < 6; i++) { Clock(0.1); frame.Step(canvas.Draw); }
+        Vector3 Eye(float dx, float dy, float up) => new(spot.X + dx, spot.Y + dy, G(spot.X + dx, spot.Y + dy) + up);
+        // carried first (the bow hangs in the left hand), then aiming (the string drawn to the cheek): the frames must differ
+        var carried = Shot(Eye(0f, 0f, 1.0f), 4.2f, Side, -0.04f, "bows-1-archer-carried-side.png");
+        Shot(Eye(0f, 0f, 1.0f), 4.2f, 0.4f, -0.04f, "bows-1b-archer-carried-back.png");   // the quiver, from behind
+        Shot(Eye(0f, 0f, 1.0f), 4.2f, Side + 0.9f, -0.1f, "bows-1c-archer-carried-34.png");
+        world.SetComponent(archer, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Target = target });
+        world.SetComponent(crossbow, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Target = target });
+        world.SetComponent(warrior, new Fdp.Toolkit.Combat.Components.WeaponPosture { Kind = Fdp.Toolkit.Combat.Components.WeaponPostureKind.Aimed, Target = target });
+        for (int i = 0; i < 8; i++) { Clock(0.1); frame.Step(canvas.Draw); }
+        var aimed = Shot(Eye(0f, 0f, 1.0f), 4.2f, Side, -0.04f, "bows-2-archer-aiming-side.png");
+        Shot(Eye(0f, 0f, 1.2f), 3.2f, Side + 0.9f, -0.1f, "bows-2b-archer-aiming-34.png");
+        Shot(Eye(-3f, 3f, 1.0f), 4.2f, Side, -0.04f, "bows-3-crossbowman-aiming-side.png");
+        Shot(Eye(-6f, 7f, 1.3f), 6f, Side, -0.04f, "bows-4-warrior-on-horse-aiming-side.png");
+        Shot(Eye(-6f, 7f, 1.4f), 5f, Side + 0.7f, -0.1f, "bows-4b-warrior-on-horse-34.png");
+        Shot(Eye(4f, 5.3f, 1.5f), 3.2f, Side, -0.03f, "bows-5-arrow-and-bolt-in-flight.png");
+        Shot(Eye(9f, 1f, 0.3f), 3.0f, Side, -0.08f, "bows-6-stuck-arrows.png");
+        Shot(Eye(9f, 1f, 0.3f), 3.0f, Side + 0.9f, -0.2f, "bows-6b-stuck-arrows-34.png");
+        Assert.True(AirCombatLooksRail.Diff(carried, aimed) > 600, $"the bow drawn to the cheek differs from the carried one on screen: {AirCombatLooksRail.Diff(carried, aimed)} px");
+        Assert.True(bodies.BodiesDrawn >= 5, "the target, the archer, the crossbowman, the horse and the warrior are drawn");
+        Assert.Equal(6, rounds.Drawn);   // the arrow and the bolt in flight, four stuck
+    }
+
     private static readonly (int X0, int Y0, int X1, int Y1) TorsoBlock = (160, 225, 192, 250), HeadBand = (160, 140, 260, 175);
     private static double Lum(Color c) => 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
     private static double Mean(AirCombatLooksRail.Pixels p, (int X0, int Y0, int X1, int Y1) r)
@@ -404,5 +520,45 @@ public sealed class PersonOutfitsRail
         double m = 0;
         for (int y = r.Y0; y < r.Y1; y++) for (int x = r.X0; x < r.X1; x++) m = Math.Max(m, Lum(p.Colours[y * p.W + x]));
         return m;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4671 LK-S2 (DESIGN_Vehicle_Appearance_State.md §7c) — the look library's <c>PersonLook.Of</c> (what a gateway calls) dresses EVERY person type exactly as the map
+    /// does: for each person type in the TKB, four men — plain, with a network id, on a side, with an authored colour — the library's outfit equals the map's
+    /// (<c>EntityBodyLayer3D.Resolve</c> + its own-colour and side reads + <c>Outfits.For</c>). 🔒 Red-proved: <c>PersonLook.Of</c> passing Neutral for the side ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE4671_LKS2_ThePersonLook_IsWhatTheMapDresses_ForEveryPersonType()
+    {
+        var tkb = HrotEnvironment.CreateTkb();
+        using var world = new EntityRepository();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<NetworkIdentity>();
+        world.RegisterComponent<EntityInfo>();
+        world.RegisterComponent<EntityAppearance>();
+        int people = 0, checkedMen = 0;
+        foreach (var t in tkb.GetAll())
+        {
+            if (Hrot.Look.People.PersonLook.FactsOf(t) is null) continue;
+            people++;
+            long type = (long)t.TkbType;
+            var look = EntityBodyLayer3D.Resolve(t);
+            for (int v = 0; v < 4; v++)
+            {
+                var e = world.CreateEntity();
+                world.AddComponent(e, new TkbIdentity { TkbType = t.TkbType });
+                if (v >= 1) world.AddComponent(e, new NetworkIdentity(5000 + people * 4 + v));
+                if (v >= 2) world.AddComponent(e, new EntityInfo { ForceId = v == 2 ? ForceId.Hostile : ForceId.Friend });
+                if (v == 3) world.AddComponent(e, new EntityAppearance { ColorRgba = 0x28503CFFu });
+                long seed = world.HasComponent<NetworkIdentity>(e) ? world.GetComponentRO<NetworkIdentity>(e).Value : e.Index;
+                var side = world.HasComponent<EntityInfo>(e) ? world.GetComponentRO<EntityInfo>(e).ForceId : ForceId.Neutral;
+                var map = Outfits.For(seed, type, look.Soldier, look.Child, EntityBodyLayer3D.OwnColourOf(world, e, look).ToRgba(), side, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
+                var lib = Hrot.Look.People.PersonLook.Of(world, e, tkb);
+                Assert.True(lib is { } l && l.Outfit == map, $"type {type} variant {v}: the look library dresses him differently from the map");
+                checkedMen++;
+            }
+        }
+        Assert.True(people >= 10, $"only {people} person types found");
+        Assert.Equal(people * 4, checkedMen);
     }
 }

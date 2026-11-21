@@ -291,6 +291,10 @@ namespace Hrot.Map.Definitions.Tkb
                 ArmorTopCe   = combatDef.ArmorTopCe,
                 BlastSusceptibility = combatDef.BlastSusceptibility,   // ⭐ R-2019 D-M2
                 PresentedAreaM2 = combatDef.PresentedAreaM2,           // ⭐ CE-3203
+                // ⭐ CE-4670 (VA-S1) — the type's own stowage / smoulder when it states them (else the body class's, bodies.json)
+                AmmoStowage = combatBuilder.AmmoStowage is { } ammo ? new List<int>(ammo) : null,
+                FuelStowage = combatBuilder.FuelStowage is { } fuel ? new List<int>(fuel) : null,
+                SmoulderSeconds = combatBuilder.SmoulderSeconds,
             });
 
             // Derived capability DTO for the general TKB pipeline.
@@ -378,7 +382,7 @@ namespace Hrot.Map.Definitions.Tkb
                             Kind = Fdp.Toolkit.Perception.Components.SensorModality.Thermal,
                             Template = Fdp.Toolkit.Perception.Sensors.ThermalPerception.AssetGuid,
                             SearchRadius = combatDef.ThermalRange,
-                            Thermal = new ThermalSensorDto { Range = combatDef.ThermalRange, FieldOfViewDegrees = 360f },
+                            Thermal = new ThermalSensorDto { Range = combatDef.ThermalRange, FieldOfViewDegrees = 360f, MinContrastK = combatDef.ThermalMinContrastK },   // ⭐ CE-4658
                         });
                     if (combatDef.RadarRange > 0f)
                         listed.Add(Fdp.Toolkit.Perception.Sensors.RadarPerception.Entry(combatDef.RadarRange));

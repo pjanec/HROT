@@ -130,6 +130,31 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(NavResult.FailedBlocked, lastResult);
         }
 
+        /// <summary>
+        /// ⭐ CE-5040 — a move COMMANDED slow (0.2 m/s, detector pace) walking at 0.18 m/s is not frustrated: the threshold is half its own target speed; the same
+        /// move standing still still fails blocked. ✅ Red-proof: the fixed threshold back ⇒ the slow walker fails ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE5040_AMoveCommandedSlow_WalkingAtItsPace_IsNotBlocked_StoppedItStillIs()
+        {
+            using var repo = CreateWorld();
+            var system = new NavigationExecutionSystem();
+            var walker = AddNavigatingEntity(repo, position: Vector2.Zero, destination: new Vector2(1000f, 0f), arrivalRadius: 0.5f, velocityX: 0.18f, intentId: 1);
+            var stopped = AddNavigatingEntity(repo, position: new Vector2(0f, 50f), destination: new Vector2(1000f, 50f), arrivalRadius: 0.5f, velocityX: 0f, intentId: 2);
+            foreach (var e in new[] { walker, stopped })
+            {
+                var intent = repo.GetComponent<NavigationIntent>(e);
+                intent.TargetSpeed = 0.2f;
+                repo.SetComponent(e, intent);
+            }
+            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit * 3; i++) system.Execute(repo, 0.016f);
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(walker).Result);
+            Assert.Equal(0, repo.GetComponent<FrustrationTicks>(walker).Ticks);
+            Assert.Equal(NavResult.FailedBlocked, repo.GetComponent<NavigationStatus>(stopped).Result);
+            Assert.Equal(0.1f, NavigationExecutionSystem.FrustrationSpeedFor(new NavigationIntent { TargetSpeed = 0.2f }), 4);
+            Assert.Equal(NavigationExecutionSystem.FrustrationSpeedThreshold, NavigationExecutionSystem.FrustrationSpeedFor(new NavigationIntent { TargetSpeed = 15f }));
+        }
+
         // ── Test 3: Intent ID mismatch resets status ──────────────────────────────────────────────
 
         /// <summary>
@@ -400,6 +425,52 @@ namespace CarKinem.Tests.Systems
         /// ⭐ Buildings 5d-3 — a DELIBERATE hold (<see cref="NavState.IsBlocked"/>, the agent waiting at a door it is opening) is not being
         /// stuck: however long it lasts it neither fails the move nor counts toward a replan; the count starts from zero when it ends.
         /// </summary>
+        [Theory]
+        [InlineData(NavMode.PathToPoint)]
+        [InlineData(NavMode.DirectPoint)]
+        public void CE167_APointMoveToWhereTheBodyAlreadyStands_Arrives_NeverFailsBlocked(NavMode mode)
+        {
+            // 📌 hill-attack (2026-11-19): a tank 3.9 m from its baseline slot (radius 5) got a move there; the drive never started, the kinematics
+            //   never latched HasArrived, and the speed watchdog failed it as blocked ⇒ the platoon waited on it for good.
+            using var repo = CreateWorldWithNavState();
+            repo.RegisterEvent<MoveStartedEvent>();
+            repo.RegisterEvent<MoveCompletedEvent>();
+            repo.RegisterEvent<MoveBlockedEvent>();
+            var system = new NavigationExecutionSystem();
+            var entity = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f);
+            repo.SetComponent(entity, new SimVelocity { Linear = Vector3.Zero });
+            var intent = repo.GetComponent<NavigationIntent>(entity);
+            intent.Mode = mode; intent.FinalDestination = new Vector3(3f, 2f, 0f);   // 3.6 m away, radius 5
+            repo.SetComponent(entity, intent);
+
+            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 2; i++) system.Execute(repo, 0.016f);
+
+            Assert.Equal(NavResult.Arrived, repo.GetComponent<NavigationStatus>(entity).Result);
+        }
+
+        /// <summary>⭐ CE-167 — the counterpart: a body standing OUTSIDE the radius has not arrived (the watchdog still fails it), and a body
+        /// MOVING through the radius is left to the kinematics' own latch (no early Arrived mid-drive).</summary>
+        [Fact]
+        public void CE167_StandingOutsideTheRadius_OrMovingInside_IsNotAnArrival()
+        {
+            using var repo = CreateWorldWithNavState();
+            repo.RegisterEvent<MoveStartedEvent>();
+            repo.RegisterEvent<MoveCompletedEvent>();
+            repo.RegisterEvent<MoveBlockedEvent>();
+            var system = new NavigationExecutionSystem();
+
+            var outside = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f);
+            repo.SetComponent(outside, new SimVelocity { Linear = Vector3.Zero });
+            var a = repo.GetComponent<NavigationIntent>(outside); a.Mode = NavMode.PathToPoint; a.FinalDestination = new Vector3(6f, 0f, 0f); repo.SetComponent(outside, a);
+
+            var moving = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f, intentId: 2);
+            var b = repo.GetComponent<NavigationIntent>(moving); b.Mode = NavMode.PathToPoint; b.FinalDestination = new Vector3(3f, 0f, 0f); repo.SetComponent(moving, b);
+
+            system.Execute(repo, 0.016f);
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(outside).Result);
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(moving).Result);
+        }
+
         [Fact]
         public void Stage5d_AHoldAtADoor_IsNotFrustration()
         {

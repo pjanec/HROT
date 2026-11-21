@@ -32,7 +32,7 @@ public sealed class AnimalModelRail
 
     [Theory]
     [InlineData(1, 200, VisualFamily.Cattle)] [InlineData(1, 201, VisualFamily.Sheep)] [InlineData(1, 202, VisualFamily.Horse)] [InlineData(1, 203, VisualFamily.Dog)]
-    [InlineData(1, 204, VisualFamily.Cat)] [InlineData(2, 205, VisualFamily.Bird)] [InlineData(1, 206, VisualFamily.Poultry)] [InlineData(1, 207, VisualFamily.Pig)] [InlineData(1, 208, VisualFamily.Goat)]
+    [InlineData(1, 204, VisualFamily.Cat)] [InlineData(2, 205, VisualFamily.Bird)] [InlineData(1, 206, VisualFamily.Poultry)] [InlineData(1, 207, VisualFamily.Pig)] [InlineData(1, 208, VisualFamily.Goat)] [InlineData(1, 209, VisualFamily.Rabbit)]
     public void EveryAnimalDisType_ResolvesToItsFamily_NeverThePerson_AndHasAPickerGlyph(byte domain, byte category, VisualFamily family)
     {
         Assert.Equal(family, VisualFamilies.Of(Dis(domain, category)));
@@ -98,7 +98,7 @@ public sealed class AnimalModelRail
 
     // ── the kits ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-    private static readonly VisualFamily[] All = [VisualFamily.Cattle, VisualFamily.Sheep, VisualFamily.Horse, VisualFamily.Dog, VisualFamily.Cat, VisualFamily.Bird, VisualFamily.Poultry, VisualFamily.Pig, VisualFamily.Goat];
+    private static readonly VisualFamily[] All = [VisualFamily.Cattle, VisualFamily.Sheep, VisualFamily.Horse, VisualFamily.Dog, VisualFamily.Cat, VisualFamily.Bird, VisualFamily.Poultry, VisualFamily.Pig, VisualFamily.Goat, VisualFamily.Rabbit];
 
     [Fact]
     public void TheKits_LieInsideTheirBox_OnTheGround_HaveFourNamedLegs_AndAHeadThatPitches()
@@ -219,6 +219,47 @@ public sealed class AnimalModelRail
         Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
     }
 
+    // ── ⭐ AN-21e: the rabbit — a rabbit, never the child ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void TheRabbit_Type715_IsARabbitNotAChild_SizedByItsTkb_EarsAreTheHighestPart_AndItHopsInPairs()
+    {
+        var db = WithAnimals();
+        var t = db.GetByType((TkbTypeId)715)!;
+        Assert.Equal(VisualFamily.Rabbit, VisualFamilies.Of(t));
+        Assert.NotEqual(VisualFamily.Person, VisualFamilies.Of(t));
+        Assert.True(VisualFamilies.IsAnimal(VisualFamily.Rabbit) && VisualFamilies.IsQuadruped(VisualFamily.Rabbit));
+        var look = EntityBodyLayer3D.Resolve(t);
+        Assert.Equal(VisualFamily.Rabbit, look.Family);
+        Assert.False(look.Child || look.Soldier);
+        Assert.InRange(look.Size.X, 0.39f, 0.41f);   // the TKB's 0.4 m length
+        // the kit's ears (the two highest parts) are above the haunch and the head
+        var kit = AnimalKits.For(VisualFamily.Rabbit);
+        var size = ShapeKits.DefaultSize(VisualFamily.Rabbit);
+        float Top(KitPart p) { var m = p.BodyTransform(size); float z = float.MinValue; for (int i = 0; i < 8; i++) z = MathF.Max(z, Vector3.Transform(new Vector3((i & 1) - 0.5f, ((i >> 1) & 1) - 0.5f, ((i >> 2) & 1) - 0.5f), m).Z); return z; }
+        float highest = kit.Parts.Max(Top);
+        int nearTop = kit.Parts.Count(p => Top(p) > highest - 0.02f);
+        Assert.Equal(2, nearTop);   // exactly the two ears
+        Assert.InRange(size.Z, 0.25f, 0.36f);
+        Assert.InRange(size.Y, 0.10f, 0.22f);
+        // crouched: the low kit (lower than standing); a hop moves the fore pair together and the hind pair together
+        Assert.NotSame(kit, AnimalKits.For(VisualFamily.Rabbit, AnimalMode.Crouch));
+        Assert.Same(kit, AnimalKits.For(VisualFamily.Rabbit, AnimalMode.Calm));
+        Assert.Equal(QuadrupedGaits.Offset(QuadGait.Hop, 0), QuadrupedGaits.Offset(QuadGait.Hop, 1));
+        Assert.Equal(QuadrupedGaits.Offset(QuadGait.Hop, 2), QuadrupedGaits.Offset(QuadGait.Hop, 3));
+        var tr = new MotionTracker(); var e = new Entity(9, 1); double sim = 0; float x = 0f;
+        MotionPose Run(float v) { sim += 0.016; x += v * 0.016f; return tr.Advance(e, new Vector3(x, 0, 0), Quaternion.Identity, VisualFamily.Rabbit, size, sim, false, sim, AnimalMode.Calm, 0f); }
+        for (int i = 0; i < 100; i++) Run(2.5f);
+        Assert.Equal(QuadGait.Hop, Run(2.5f).Gait);
+        for (int i = 0; i < 100; i++) Run(0.5f);
+        Assert.Equal(QuadGait.Walk, Run(0.5f).Gait);
+        // ⭐ HOT PATH — 0 B per steady frame
+        for (int i = 0; i < 300; i++) Run(2.5f);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 2000; i++) Run(2.5f);
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
     // ── ⭐ AU-4: the flock in closed form ────────────────────────────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -270,7 +311,7 @@ public sealed class AnimalModelRail
         canvas.Camera = two;
         var bodies = new EntityBodyLayer3D(() => world, () => tkb, (w, e) => pose);
         (VisualFamily F, long Type)[] species = [(VisualFamily.Cattle, 700), (VisualFamily.Sheep, 701), (VisualFamily.Horse, 702), (VisualFamily.Dog, 705), (VisualFamily.Cat, 706),
-                                                 (VisualFamily.Poultry, 709), (VisualFamily.Pig, 710), (VisualFamily.Goat, 711), (VisualFamily.Bird, 708), (VisualFamily.Bird, 707)];
+                                                 (VisualFamily.Poultry, 709), (VisualFamily.Pig, 710), (VisualFamily.Goat, 711), (VisualFamily.Rabbit, 715), (VisualFamily.Bird, 708), (VisualFamily.Bird, 707)];
         var sw = new MapViewSwitch(canvas, two);
         sw.Camera3D.GroundHeight = (x, y) => G(x, y);
         canvas.AddLayer(new TerrainLayer3D(() => WorldQuery.RenderGeometryOf(world)));
@@ -301,6 +342,12 @@ public sealed class AnimalModelRail
         Assert.Equal(row.Count, bodies.BodiesDrawn);
         Cam(spot.X - 6f, spot.Y, 0.9f, 7f, Side + 0.6f, -0.2f); Screen("animals-1b-big34.png");
         Cam(spot.X + 4f, spot.Y, 0.5f, 6f, Side + 0.6f, -0.2f); Screen("animals-1c-small34.png");
+        // ⭐ AN-21e — a rabbit beside a dog (and a crouched one): long ears, a white tail, small
+        var pair = new[] { Spawn(705, 0f, 6f), Spawn(715, 0.55f, 6f), Spawn(715, 1.0f, 6.0f, mode: AnimalMode.Crouch), Spawn(715, 1.4f, 6f, yaw: MathF.PI) };
+        for (int i = 0; i < 4; i++) { Clock(0.1); Render(); }
+        Cam(spot.X + 0.7f, spot.Y + 6f, 0.12f, 1.9f, Side, -0.05f); Screen("rabbit-side.png");
+        Cam(spot.X + 0.7f, spot.Y + 6f, 0.12f, 1.6f, Side + 0.7f, -0.2f); Screen("rabbit-34.png");
+        foreach (var e in pair) world.DestroyEntity(e);
 
         // a frightened one: the same horse, alert (head up) against calm and grazing (head down): the frames differ
         foreach (var e in row) world.DestroyEntity(e);
@@ -393,7 +440,7 @@ public sealed class AnimalModelRail
     {
         var db = WithAnimals();
         (long Type, VisualFamily F)[] expect = [(700, VisualFamily.Cattle), (701, VisualFamily.Sheep), (702, VisualFamily.Horse), (703, VisualFamily.Horse), (704, VisualFamily.Horse), (705, VisualFamily.Dog),
-                                                (706, VisualFamily.Cat), (707, VisualFamily.Bird), (708, VisualFamily.Bird), (709, VisualFamily.Poultry), (710, VisualFamily.Pig), (711, VisualFamily.Goat)];
+                                                (706, VisualFamily.Cat), (707, VisualFamily.Bird), (708, VisualFamily.Bird), (709, VisualFamily.Poultry), (710, VisualFamily.Pig), (711, VisualFamily.Goat), (715, VisualFamily.Rabbit)];
         foreach (var (type, f) in expect)
         {
             var t = db.GetByType((TkbTypeId)type)!;
@@ -404,7 +451,7 @@ public sealed class AnimalModelRail
             var length = t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.VehicleParametersDto>()?.Length;
             if (length is > 0f) Assert.InRange(look.Size.X, length.Value - 0.01f, length.Value + 0.01f);   // a cow is as long as its TKB says; its proportions are the kit's
         }
-        foreach (var name in new[] { "Cattle", "Sheep", "Horse", "Dog", "Cat", "Bird", "Poultry", "Pig", "Goat" }) Assert.True(VisualFamilies.FamilyOfClass.ContainsKey(name));
+        foreach (var name in new[] { "Cattle", "Sheep", "Horse", "Dog", "Cat", "Bird", "Poultry", "Pig", "Goat", "Rabbit" }) Assert.True(VisualFamilies.FamilyOfClass.ContainsKey(name));
         // the saddle: the rider's hips (backend's seat 0) sit on the horse's back (the kit's torso top, scaled by the type's length), the second rider behind him
         var horse = EntityBodyLayer3D.Resolve(db.GetByType((TkbTypeId)703)!);
         var kit = ShapeKits.For(VisualFamily.Horse);
@@ -504,6 +551,13 @@ public sealed class AnimalModelRail
         for (int i = 0; i < 6; i++) { Clock(0.1); Render(); }
         var riding = Screen("animals-6-rider-riding.png");
         Assert.Equal(3, bodies.BodiesDrawn);   // the horse, the rider, the target
+        // ⭐ CE-1974 — the station drives the horse once the possessed soldier mounts (the horse is its FirstPerson): the horse is still drawn —
+        //   an animal has no cab, so no crew eye. 🔒 User, 2026-11-17: "it is rendered as sitting on the horse, but the horse is not rendered at all".
+        //   ✅ Red-proof: without EntityBodyLayer3D.OpenCarrier ⇒ 2 bodies (the horse dropped).
+        bodies.FirstPerson = horse;
+        Render();
+        Assert.Equal(3, bodies.BodiesDrawn);
+        bodies.FirstPerson = Entity.Null;
         world.SetComponent(rider, new WeaponPosture { Kind = WeaponPostureKind.Aimed, Target = target });
         for (int i = 0; i < 8; i++) { Clock(0.1); Render(); }
         var firing = Screen("animals-6b-rider-fires.png");

@@ -218,5 +218,76 @@ namespace Hrot.SimHost.Tests
             }
             Assert.Equal(0, count);
         }
+    
+        /// <summary>
+        /// ⭐⭐ <c>CE-4661</c> (thermal drivers TD-S5, TD-7; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4h) — a body's time of death crosses the wire to a
+        /// LATE JOINER: the reader is created AFTER the sample was written and still gets <c>StateSince</c> (TransientLocal); and a change of
+        /// <c>StateSince</c> alone republishes (the change gate covers the whole sample). 🔴 Red-proof: drop the <c>StateSince</c> line in <c>ScanState</c> ⇒ 0.
+        /// </summary>
+        [Fact]
+        public void CE4661_ABodysTimeOfDeath_ReachesALateJoiner()
+        {
+            const uint domainId = 213u;
+            using var participant = new DdsParticipant(domainId);
+            var translator = new EntityDamageEgressTranslator(participant, new NetworkEntityMap());
+            var body = SpawnEntity(netId: 4661, currentHealth: 0f);
+            _world.GetComponentRW<Health>(body).StateSince = 41.5;
+            translator.ScanAndPublish(_world);
+            Thread.Sleep(200);
+
+            using var lateJoiner = new DdsReader<EntityDamage>(participant);   // joins AFTER the write
+            Assert.Equal(41.5, LastStateSince(lateJoiner, 4661));
+
+            _world.GetComponentRW<Health>(body).StateSince = 50.0;   // Current and Max unchanged
+            translator.ScanAndPublish(_world);
+            Assert.Equal(50.0, LastStateSince(lateJoiner, 4661));
+        }
+
+        /// <summary>⭐ <c>CE-4670</c> (VA-S1, VA-12) — a wreck's kill kind travels in <c>EntityDamage</c> (the wire's own byte) and reaches a reader created
+        /// after the write; a kind changed alone (Current, Max and the time unchanged) is sent again. 🔴 Red-proof: without the egress copy it reads 0.</summary>
+        [Fact]
+        public void CE4670_AWrecksKillKind_ReachesALateJoiner()
+        {
+            const uint domainId = 214u;
+            using var participant = new DdsParticipant(domainId);
+            var translator = new EntityDamageEgressTranslator(participant, new NetworkEntityMap());
+            var wreck = SpawnEntity(netId: 4670, currentHealth: 0f);
+            _world.GetComponentRW<Health>(wreck).Destruction = DestructionKind.Catastrophic;
+            translator.ScanAndPublish(_world);
+            Thread.Sleep(200);
+
+            using var lateJoiner = new DdsReader<EntityDamage>(participant);   // joins AFTER the write
+            Assert.Equal((byte)3, LastDestruction(lateJoiner, 4670));
+
+            _world.GetComponentRW<Health>(wreck).Destruction = DestructionKind.BurntOut;
+            translator.ScanAndPublish(_world);
+            Assert.Equal((byte)2, LastDestruction(lateJoiner, 4670));
+        }
+
+        private static byte LastDestruction(DdsReader<EntityDamage> reader, int id)
+        {
+            int found = -1;
+            for (int tries = 0; tries < 20 && found < 0; tries++)
+            {
+                Thread.Sleep(100);
+                using var loan = reader.Take();
+                foreach (var sample in loan)
+                    if (sample.IsValid && sample.Data.EntityId == id) found = sample.Data.Destruction;
+            }
+            return (byte)Math.Max(found, 0);
+        }
+
+        private static double LastStateSince(DdsReader<EntityDamage> reader, int id)
+        {
+            double found = double.NaN;
+            for (int tries = 0; tries < 20 && double.IsNaN(found); tries++)
+            {
+                Thread.Sleep(100);
+                using var loan = reader.Take();
+                foreach (var sample in loan)
+                    if (sample.IsValid && sample.Data.EntityId == id) found = sample.Data.StateSince;
+            }
+            return found;
+        }
     }
 }

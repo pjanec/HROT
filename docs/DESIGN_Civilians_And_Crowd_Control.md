@@ -14,6 +14,7 @@ known-conflict: ⭐ RESOLVED 2026-10-17 (CE-2235) — docs/TUTORIAL_Behaviour_Co
   Tier 0 is for entities that only move (traffic) and civilians run one CivilianHsm (R-263). ⚠ AQ93 §8 P5 named a single "PanickedCivilian" type — SUPERSEDED here by CV-1
   (one civilian family whose panic is a MODE, not a type).
 related-designs:
+  - designs/animals/DESIGN_Animals.md — §10 OWNS the shared creature components (`Fear`, `Home`, `GroupMember` / `Group`, `Mood`) civilians now keep their fear, home and crowd membership on (CE-4628); `CivilianState` keeps only the civilian's own mind
   - designs/weapons/DESIGN_Bows_And_Crossbows.md — bows and crossbows reuse the thrown blades' arc and lie time (CE-4649)
   - designs/person-looks/DESIGN_Person_Outfits.md — the outfits finally read `PersonDto.Sex` (F-4) and the type's own wardrobe; Middle-East civilian types 1105–1110 (CE-4648)
   - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: civilians curious at a distance (a NEW Watch mode, some film), panic only when the danger is close (CIV-2), fear spreads (CIV-3), a boldness trait for the few who stay filming; no organised evacuation
@@ -1153,6 +1154,8 @@ neutral-in-line hold in the ladder and the weapon brain's hold (`CE-2239`), the 
 `LineOfFire.BlockedByNeutral(world, shooter, target | point, σ)`: a living PERSON (`PhysicsColliderReaders.IsPerson`) whom
 `ThreatDanger.IsNeutral` calls neutral (the CE-2233 test, reused), other than the target, whose collider — widened by σ (`HitModel.Sigma`,
 the shooter's spread) × his distance along the line — the line crosses; a held round is `ActionReason.HoldNeutralOnLine` (posture stays Aimed).
+
+⭐⭐ **`CE-8308` (D-14, user-approved `2026-11-20`: *"one rule for friends and civilians"*) — the FRIEND check now uses the same circle**: `LineOfFire.BlockedByFriendly(world, shooter, target | point, σ)` widens each friend's strike radius by σ × his distance along the line, exactly as above; σ is a required argument (every caller passes `HitModel.Sigma` for its mount; the air-to-air missile, guided, passes 0). 📐 Found by `pc-corridor-fight`: a burst at a point 172 m out was released with a friend 0.65 m off its line 45 m out, and the spread hit him. ⛔ SUPERSEDED: the friend held only on the LINE (CE-321's strike radius). Rail `AimAndFireExecutorTests.CE8308_*`.
 
 | caller | as built |
 |---|---|

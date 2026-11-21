@@ -105,7 +105,8 @@ namespace Hrot.SimHost.Tests
             var entity = _world.CreateEntity();
             _entityMap.Register(42, entity);
             var sent = new SetRoeEvent { Fire = RoeFire.HoldFire, Reactions = RoeReactions.StayOnTask,
-                                         ReturnFireWindowSeconds = 4f, ForceLevel = RoeForceLevel.Warn };
+                                         ReturnFireWindowSeconds = 4f, ForceLevel = RoeForceLevel.Warn,
+                                         Incendiary = RoeIncendiary.IncendiaryForbidden };   // ⭐ CE-3486 — crosses with the rest
 
             var sample = new TacticalIntentRequest
             {
@@ -123,6 +124,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(RoeReactions.StayOnTask, roe.Reactions);
             Assert.Equal(4f, (float)(roe.ReturnFireWindowSeconds));
             Assert.Equal(RoeForceLevel.Warn, roe.ForceLevel);
+            Assert.Equal(RoeIncendiary.IncendiaryForbidden, roe.Incendiary);   // ⭐ CE-3486 (flame F-9)
         }
 
         /// <summary>⭐ CE-3251 — a directive kind this node does not know (a newer sender) is counted and dropped — ⛔ before BR-13 any

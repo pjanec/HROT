@@ -1,0 +1,512 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: the ground-shaping tools on a FLAT terrain (bt-range has no height grid, only groundZ): a 2 m 'Raise' area (x 20-50, y 10-40), a 1 m 'Lower' area (x 80-110, y 10-40) and a 'Ditch' line drawn across the whole range at y = 60; a rifleman is ordered onto the raised ground, one into the hollow and one down into the ditch, and a car is ordered across the ditch. Judge: (1) Hill Rifle ends standing about 2 m up; (2) Hollow Rifle ends about 1 m down; (3) Ditch Rifle ends about 1 m down in the ditch; (4) the car never crosses the ditch (a ditch keeps vehicles out) and ends south of it. Fail: either man stands at 0 m (the shape did not carve the ground - CE-1963 / CE-1964) or the car drives across."
+  },
+  "entities": {
+    "e1963000-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 13,
+        "Template": "ditch",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 27100001
+      },
+      "SimTransform": {
+        "Position": [
+          -10,
+          60,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 220,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      },
+      "EntityInfo": {
+        "Name": "Ditch",
+        "ForceId": "Neutral"
+      }
+    },
+    "e1963000-0000-4000-8000-000000000002": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 13,
+        "Template": "raise",
+        "HeadingDeg": 0,
+        "Pad": 2,
+        "Seed": 27100002
+      },
+      "SimTransform": {
+        "Position": [
+          20,
+          10,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 30,
+            "Y": 0
+          },
+          {
+            "X": 30,
+            "Y": 30
+          },
+          {
+            "X": 0,
+            "Y": 30
+          }
+        ],
+        "Version": 0
+      },
+      "EntityInfo": {
+        "Name": "Hill",
+        "ForceId": "Neutral"
+      }
+    },
+    "e1963000-0000-4000-8000-000000000003": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 13,
+        "Template": "lower",
+        "HeadingDeg": 0,
+        "Pad": 1,
+        "Seed": 27100003
+      },
+      "SimTransform": {
+        "Position": [
+          80,
+          10,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 30,
+            "Y": 0
+          },
+          {
+            "X": 30,
+            "Y": 30
+          },
+          {
+            "X": 0,
+            "Y": 30
+          }
+        ],
+        "Version": 0
+      },
+      "EntityInfo": {
+        "Name": "Hollow",
+        "ForceId": "Neutral"
+      }
+    },
+    "e1963000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          35,
+          52,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hill Rifle",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000001",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "5"
+                }
+              ]
+            },
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000002",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 2,
+                "arrivalRadius": 1,
+                "target": [
+                  35,
+                  25,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000003",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "e1963000-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          95,
+          52,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Hollow Rifle",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000004",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "5"
+                }
+              ]
+            },
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000005",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 2,
+                "arrivalRadius": 1,
+                "target": [
+                  95,
+                  25,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000006",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "e1963000-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          180,
+          45,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 106
+      },
+      "EntityInfo": {
+        "Name": "Ditch Car",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 300,
+        "Max": 300
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000007",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "5"
+                }
+              ]
+            },
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000008",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 6,
+                "arrivalRadius": 1,
+                "target": [
+                  180,
+                  75,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000009",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "e1963000-0000-4000-8000-000000000100": {
+      "SimTransform": {
+        "Position": [
+          60,
+          52,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Ditch Rifle",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "MissionPlan": {
+        "PlanData": {
+          "activeTaskId": "00000000-0000-0000-0000-000000000000",
+          "tasks": [
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000100",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "TimerElapsed",
+                  "params": "5"
+                }
+              ]
+            },
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000101",
+              "executingEngine": "",
+              "behaviorName": "MoveToLocation",
+              "behaviorParams": {
+                "speed": 2,
+                "arrivalRadius": 1,
+                "target": [
+                  60,
+                  60,
+                  0
+                ]
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            },
+            {
+              "taskId": "e1963000-0000-4000-9000-000000000102",
+              "executingEngine": "",
+              "behaviorName": "HoldStance",
+              "behaviorParams": {
+                "stance": "Standing"
+              },
+              "triggers": [
+                {
+                  "type": "BehaviorFinished",
+                  "params": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

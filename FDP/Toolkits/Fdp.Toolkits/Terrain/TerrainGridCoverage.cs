@@ -45,11 +45,10 @@ namespace Fdp.Toolkit.Terrain
         {
             var min = new Vector2(g.OriginX, g.OriginY);
             var max = min + new Vector2(width * g.CellSize, height * g.CellSize);
-            if (!(world.BoundsMax.X > world.BoundsMin.X && world.BoundsMax.Y > world.BoundsMin.Y)) return;   // empty world
-            if (world.BoundsMin.X >= min.X && world.BoundsMin.Y >= min.Y
-                && world.BoundsMax.X <= max.X && world.BoundsMax.Y <= max.Y) return;
+            if (!SpatialGridFit.Covered(world, out var lo, out var hi)) return;   // empty world
+            if (lo.X >= min.X && lo.Y >= min.Y && hi.X <= max.X && hi.Y <= max.Y) return;
             problems.Add(
-                $"terrain bounds [{world.BoundsMin.X},{world.BoundsMin.Y}]..[{world.BoundsMax.X},{world.BoundsMax.Y}] leave the "
+                $"terrain bounds (and the ground beyond, CE-1959) [{lo.X},{lo.Y}]..[{hi.X},{hi.Y}] leave the "
               + $"fitted {name} grid [{min.X},{min.Y}]..[{max.X},{max.Y}] — entities outside it are invisible "
               + $"to {(name == "perception" ? "sight" : "collision avoidance")} (CE-3018).");
         }

@@ -69,7 +69,9 @@ check("a shoot-out converts pedestrians into OUR civilians (K4/K5)", converted, 
 if converted:
     c = converted[0]
     e = comps(c)
-    mind = e.get("CivilianState") or {}
+    mind = dict(e.get("CivilianState") or {})
+    fear_c = e.get("Fear") or {}   # ⭐ CE-4628: his fear fields live on the shared Fear component now (were CivilianState's) — merged under their old names
+    mind.update({"Fear": fear_c.get("Value"), "HasFrightFrom": fear_c.get("HasFrightFrom"), "FrightFrom": fear_c.get("FrightFrom")})
     check("he keeps the pedestrian's network id", c in peds, {"id": c, "wasReplica": c in peds})
     check("he is in panic (fear ≥ 0.6, or his HSM in Panic/Shelter)", (mind.get("Fear") or 0) >= 0.6 or str(mind.get("Mode")) in ("Panic", "Shelter", "4", "5"),
           {k: mind.get(k) for k in ("Fear", "Mode", "HasFrightFrom", "FrightFrom")})

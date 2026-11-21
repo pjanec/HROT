@@ -46,10 +46,12 @@ namespace Hrot.SimHost
             world.RegisterComponent<Fdp.Toolkit.Civilians.Crowd>();           // ⭐ CE-2237 — a crowd of civilians (brain-local, never replicated)
             // ⭐ CE-4623 AB-10 — the animals' brain-local state. 📐 Measured: until now only the RAILS registered these, so in the product every
             //   'is it registered' guard was false — no fear, no herds, no areas populated (the silent-default pattern)
-            world.RegisterComponent<Fdp.Toolkit.Animals.Fear>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Fear>();           // ⭐ CE-4628 — the ONE fear of a civilian and an animal (brain-local)
+            world.RegisterComponent<Fdp.Toolkit.Animals.AnimalTasks>();      // ⭐ CE-4628 — an animal's intruder / handler / quarry / bolt (brain-local)
             world.RegisterComponent<Fdp.Toolkit.Animals.HerdState>();
-            world.RegisterComponent<Fdp.Toolkit.Animals.HerdMember>();
-            world.RegisterComponent<Fdp.Toolkit.Animals.AnimalHome>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.GroupMember>();    // ⭐ CE-4628 — a herd's or crowd's member
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Group>();          // ⭐ CE-4628 — the header of a herd / crowd entity
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Home>();           // ⭐ CE-4628 — a creature's home (was AnimalHome)
             world.RegisterComponent<SopState>();       // CE-3035 — the SOP slot (R-189, R-198)
             world.RegisterComponent<BehaviorFaultLatch>();   // CE-482
             world.RegisterComponent<SimTier>();

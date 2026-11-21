@@ -275,6 +275,13 @@ toolkit undo stack, which nothing calls and which this design does not revive.
 | **the gizmo look** | every gizmo is reviewed for a 2-D look and a 3-D look (§2.6) | user |
 | **every station** | a tool that cannot run here is greyed with the reason (R-4119) — never missing, never silently empty (e.g. box select on CGF today) | R-4119 |
 
+⭐ **`2026-11-18` (ui, CE-1977) — leaving an armed tool by MOUSE, and naming it at the cursor** (🔒 user: *"what if I don't want the tool anymore? … there should be some mouse-driven way"* · *"before I start clicking, I'd like to have an indicator"*):
+
+| | as built |
+|---|---|
+| the way back | a **Select** (arrow) tile first in every tool strip, lit while no tool is armed; a click on a **lit** tool's icon turns it off; the drawing menu's **Stop drawing** (alone while no point is placed) — all through `IToolController.DisarmAll`, the one disarm (the hat change uses it too). Esc twice (TE-2) is unchanged |
+| the cursor label | TWO lines under the cursor: the armed tool's **name** (`ToolController.ActiveTitle` — a terrain pick says *Ditch*, not *Draw Area*) over the hint; style `GizmoTextStyle.Cursor`, which the 3-D map never hides behind the ground (⛔ it did: drawn below the cursor but depth-tested at the cursor's own point, CE-4582) |
+
 ### 2.6 The gizmo look — a review list, decided per gizmo in the lane
 
 | gizmo | today | target |
@@ -549,6 +556,8 @@ classDiagram
 | ⚠ not done / not verified live: the rotator toggles on `Tab` as the layer's typed-key stream delivers it (verified on the gizmo level, not with a live key); no live preview of the rotate (the arrow and ring only, as the single rotate); the 3-D map has no group ring (the rotate gizmo draws on the 2-D map) | |
 
 Rails: `GroupTransformTests` (Presentation.Tests/Edits) — drag moves 3 of the selected by the same delta and only them · cancel puts all back · writer gets one write per unit · rotate 5 **each** (headings +θ, positions unchanged) and **about the group centre** (rigid swing about the centroid, headings +θ), each **one undo step** that restores all 5 · single unit = the ordinary rotate · the hint names Tab · the pack registers the one selection · frame `P5_AGroupRotate_OnARealFrame_ShowsTheRingRoundTheGroup` (`group-rotate.png` under `HROT_RAIL_SHOTS`, never committed; the ring present in group mode, absent in each mode); `SelectionInteractionSystemTests` `B17P5_*` (Shift adds · Ctrl toggles · Shift-band adds, plain band replaces · an empty Shift-drag clears nothing · Alt-click cycles 3 overlapped and wraps · narrow-at-release / drag keeps the selection).
+
+⭐ **CE-1954 (`2026-11-18`, ui; DECIDED A by the user) — a press on an UNSELECTED unit selects it AND the same drag moves it, in the serial and the threaded editor alike.** 📐 Measured cause: a body press on an unselected unit hits the presentation's pick box (`EntityPresentationGizmoShared.EmitPickBox`, drawn for every unit, no gizmo type); `DataDrivenGizmoSystem` routed a typeless pick to the entity's FIRST gizmo, while `EntityDragGizmo`'s own typed box is drawn for SELECTED units only (`IsSelectedPredicate`) — so the serial press only selected. ⭐ Now the move gizmo carries `IBodyPressDragGizmo` and the ONE Started routing sends a plain LEFT, typeless press to it (never a right press, never Shift / Ctrl / Alt); `SelectionInteractionSystem` selects on the same event, and the drag (`ForGrab` on a unit not yet selected) moves that unit alone — P5's `P5_ADragOnAnUnselectedUnit_MovesOnlyThatUnit`. Rail `DataDrivenGizmoSystemRoutingTests.CE1954_…`.
 
 ### ⭐ AS-BUILT — CE-4342 reopened *(ui, `2026-11-15`)* — the group drag made real in the PRODUCT
 

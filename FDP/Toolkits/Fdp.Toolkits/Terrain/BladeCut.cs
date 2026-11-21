@@ -55,13 +55,17 @@ namespace Fdp.Toolkit.Terrain
         /// <summary><c>EDescriptorType.dtWorldPos</c> (NED) — the descriptor whose owner moves the hull. ⚠ A rail pins the two equal.</summary>
         public const long WorldPosOrdinal = 2;
 
+        [Fdp.Core.SimulationMemory("per-entity accumulated blade push seconds toward a cut (BladeCut.cs:95-96); lost progress restarts")]
         private readonly Dictionary<int, (Vector3 At, float Seconds)> _progress = new();
+        [Fdp.Core.FrameScratch("cut events list: cleared at 116 before each use")]
         private readonly List<BuildingDamageEvent> _cut = new();
+        [Fdp.Core.FrameScratch("nearby prism index list: cleared at 124 before each use")]
         private readonly List<int> _near = new();
         private EntityQuery? _query;
         private EntityRepository? _queryRepo;
 
         /// <summary>Cuts made (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of cuts made")]
         public int Cuts { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

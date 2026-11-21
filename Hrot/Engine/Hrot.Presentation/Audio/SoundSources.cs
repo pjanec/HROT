@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Animals;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Terrain;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.Core.Tkb;
@@ -51,7 +52,7 @@ namespace Hrot.UI.Common.Audio
         private readonly Dictionary<Entity, double> _lastBurst = new();
         private readonly Dictionary<Entity, Vector3> _lastPos = new();
         private readonly RoundPasses _passes = new();   // ⭐ CE-1216 — the rounds passing the ear (was _lastRound / _cracked)
-        private readonly List<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority, bool Flail)> _movers = new();
+        private readonly List<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority, byte Loop)> _movers = new();
         private int _ownMagazines = -1;
         private float _rumble;
         private float _recentNear;
@@ -96,6 +97,7 @@ namespace Hrot.UI.Common.Audio
                 foreach (var s in events.Shots) Shot(world, tkb, own, ear, now, s);
                 foreach (var b in events.Bursts) Burst(tkb, ear, now, b);
                 foreach (var c in events.Crashes) Crash(tkb, ear, now, c);   // ⭐ CE-4600 (B-3b)
+                foreach (var g in events.Glasses) Glass(tkb, ear, now, g);   // ⭐ CE-5034 (GW-3)
                 events.Clear();
             }
             Movers(world, tkb, own, ear, dt, output);
@@ -104,6 +106,7 @@ namespace Hrot.UI.Common.Audio
             Doors(world, ear, now);
             Voices(world, own, ear, now);
             Animals(world, ear, now);   // ⭐ CE-4623 AU-8
+            Dragons(world, ear, now);   // ⭐ CE-4634 (DESIGN_Dragon §8.2 S)
             Boarding(world, own, ear, now);
             Town(world, ear);
             Beds(ear, dt, output);
@@ -187,6 +190,19 @@ namespace Hrot.UI.Common.Audio
             _mixer.Request(SoundTkbCatalog.Crash, c.At, true, Spatializer.Gain(d, s.ReferenceM, s.RangeM) * Volume(s) * (c.Heavy ? 1f : 0.6f), Jitter(s), s.Priority, now, Spatializer.Delay(d));
         }
 
+        /// <summary>⭐ CE-5034 (glass windows GW-3, D-8) — a pane shattered: the breaking glass, by distance.</summary>
+        private void Glass(ITkbDatabase? tkb, in Ear ear, double now, in SoundEvents.Glass g)
+        {
+            if (SoundTkbCatalog.SoundOf(tkb, SoundTkbCatalog.Glass) is not { } s) return;
+            float d = Vector3.Distance(g.At, ear.Position);
+            if (s.RangeM > 0f && d >= s.RangeM) return;
+            GlassHeard++;
+            _mixer.Request(SoundTkbCatalog.Glass, g.At, true, Spatializer.Gain(d, s.ReferenceM, s.RangeM) * Volume(s), Jitter(s), s.Priority, now, Spatializer.Delay(d));
+        }
+
+        /// <summary>⭐ CE-5034 — panes heard shattering (a rail).</summary>
+        public int GlassHeard { get; private set; }
+
         /// <summary>⭐ CE-4600 — crashes played (a rail).</summary>
         public int CrashesHeard { get; private set; }
 
@@ -224,14 +240,23 @@ namespace Hrot.UI.Common.Audio
         private ITkbDatabase? _acousticTkb;
         private readonly Dictionary<long, AcousticSignatureDto?> _acoustic = new();
         private readonly List<Entity> _goneMovers = new();
-        private static readonly Comparison<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority, bool Flail)> LouderFirst = (x, y) => y.Gain.CompareTo(x.Gain);
+        private static readonly Comparison<(Entity E, long Clip, float Gain, Vector3 At, Vector3 Vel, byte Priority, byte Loop)> LouderFirst = (x, y) => y.Gain.CompareTo(x.Gain);
 
         /// <summary>⭐ CE-4560 — the farthest a body of <paramref name="type"/> can be heard moving (m): the type's own range when it names one; else the widest its
         /// bodies' LOCOMOTION has given so far (a rifleman's steps: 60 m — measured: with the jet's 4 km for every man, a street ear searched the whole army);
         /// else, before any body of it was looked at, the loudest locomotion's (a jet).</summary>
         private float ReachOf(ITkbDatabase? tkb, long type)
-            => AcousticCached(tkb, type) is { MovingAudibleRange: > 0f } a ? a.MovingAudibleRange
-             : _typeReach.TryGetValue(type, out float seen) ? seen : MaxDefaultRange;
+        {
+            var ac = AcousticCached(tkb, type);
+            float moving = ac is { MovingAudibleRange: > 0f } a ? a.MovingAudibleRange
+                         : _typeReach.TryGetValue(type, out float seen) ? seen : MaxDefaultRange;
+            return MathF.Max(moving, FlameRangeOf(ac));   // ⭐ CE-4635 — a flamer is heard roaring beyond his steps (a man's 60 m)
+        }
+
+        /// <summary>⭐ CE-4635 — how far this type's FLAME roar is heard (m): its firing audible range when its firing class is <see cref="Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Flame"/>
+        /// (backend's contract: the FlamethrowerSoldier, 200 m); else 0. Read from the cached signature — no TKB walk per entity.</summary>
+        private static float FlameRangeOf(AcousticSignatureDto? a)
+            => a is { FiringClass: Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Flame, FiringAudibleRange: > 0f } ? a.FiringAudibleRange : 0f;
 
         private readonly Dictionary<long, float> _typeReach = new();
 
@@ -273,6 +298,7 @@ namespace Hrot.UI.Common.Audio
             }
             bool embarked = w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             bool flight = w.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>();
+            double simNow = Fdp.Toolkit.Time.SimClock.TotalTimeOf(w);   // ⭐ CE-4635 — the boxing-free reader
             foreach (var e in _moverQuery!)
             {
                 var at = w.GetComponentRO<SimTransform>(e).Position;
@@ -290,19 +316,27 @@ namespace Hrot.UI.Common.Audio
                 // ⭐ CE-4560 — what this type's bodies are heard at, learned from the bodies themselves (a silent locomotion counts as 0)
                 float heard = a?.MovingAudibleRange ?? 0f;
                 if (!_typeReach.TryGetValue(type, out float known) || heard > known) _typeReach[type] = heard;
-                if (a == null) continue;
                 float d = Vector3.Distance(at, ear.Position);
-                if (d >= a.MovingAudibleRange) continue;
                 // ⭐ CE-1305 TE-11 — the velocity per SIM second (span is wall time): an engine keeps its natural pitch in slow motion
                 double rate = _mixer.Rate;
                 var vel = had && rate > 1e-9 && double.IsFinite(rate) ? (at - before) / (span * (float)rate) : Vector3.Zero;
+                // ⭐ CE-4635 (flame weapons §8) — a flamer whose JET is lit (FlameJets.TryGet, the one reader the picture uses too) is HELD as a roar loop — one roar for the burst, not a sample per
+                //   fuel shot — under its own mixer key beside the engine's (the flail's precedent), heard standing still and out to the type's FLAME range (200 m), past his steps' 60 m
+                if (FlameRangeOf(AcousticCached(tkb, type)) is > 0f and var flameRange && d < flameRange
+                    && Fdp.Toolkit.Combat.FlameJets.TryGet(w, e, simNow, out _) && SoundTkbCatalog.SoundOf(tkb, SoundTkbCatalog.FlameRoar) is { } rs)
+                {
+                    float rg = Spatializer.Gain(d, rs.ReferenceM, flameRange) * Volume(rs) * (e == own ? OwnMoverShare : 1f);
+                    if (rg > 1e-3f) _movers.Add((e, SoundTkbCatalog.FlameRoar, rg, at, vel, rs.Priority, LoopFlame));
+                }
+                if (a == null) continue;
+                if (d >= a.MovingAudibleRange) continue;
                 // ⭐ CE-4624 (MS-U4) — a mine clearer's FLAIL is a loop of its own while the flail is ON (FlailActivity, the one reader — the drum spins on the same answer), heard even standing,
                 //   louder than the engine and at FlailPitch; the engine below is held beside it. ⚠ No sound asset of its own yet: it is the tracked-engine loop, pitched up (a finding).
                 if (Hrot.UI.Common.Map3D.FlailActivity.IsOn(w, e) && SoundTkbCatalog.SoundOf(tkb, SoundTkbCatalog.TrackedEngine) is { } fs)
                 {
                     float fg = Spatializer.Gain(d, fs.ReferenceM, a.MovingAudibleRange) * Volume(fs) * FlailLoudness * (e == own ? OwnMoverShare : 1f);
                     if (fg > 1e-3f)
-                        _movers.Add((e, SoundTkbCatalog.TrackedEngine, fg, at, vel, fs.Priority, true));
+                        _movers.Add((e, SoundTkbCatalog.TrackedEngine, fg, at, vel, fs.Priority, LoopFlail));
                 }
                 float speed = vel.Length();
                 bool airborne = flight && w.HasComponent<Fdp.Toolkit.Motion.FlightState>(e) && w.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(e).Airborne != 0;
@@ -314,7 +348,7 @@ namespace Hrot.UI.Common.Audio
                 if ((animalMover ? AnimalSoundCatalog.SoundOf(tkb, clip) : SoundTkbCatalog.SoundOf(tkb, clip)) is not { } s) continue;
                 float g = Spatializer.Gain(d, s.ReferenceM, a.MovingAudibleRange) * (0.35f + 0.65f * level) * Volume(s) * (e == own ? OwnMoverShare : 1f);
                 if (g <= 1e-3f) continue;
-                _movers.Add((e, clip, g, at, vel, e == own ? SoundTkbCatalog.PriorityOwn : s.Priority, false));
+                _movers.Add((e, clip, g, at, vel, e == own ? SoundTkbCatalog.PriorityOwn : s.Priority, LoopEngine));
             }
             // forget the gone
             if (_lastPos.Count > 4 * Math.Max(16, _movers.Count))
@@ -331,9 +365,12 @@ namespace Hrot.UI.Common.Audio
         private void HoldMovers(EntityRepository w, Entity own, in Ear ear, float dt, IAudioOutput output)
         {
             double rate = _mixer.Rate;
+            double simNow = Fdp.Toolkit.Time.SimClock.TotalTimeOf(w);
             for (int i = 0; i < _movers.Count && i < MaxMovers; i++)
             {
                 var m = _movers[i];
+                // ⭐ CE-4635 — the roar follows the JET, not the search: the moment it goes out (≤ 0.25 s after the last fuel shot) the loop is no longer held
+                if (m.Loop == LoopFlame && !Fdp.Toolkit.Combat.FlameJets.TryGet(w, m.E, simNow, out _)) continue;
                 // between searches the held few follow their source: where it is now and how fast it moves (pan, Doppler) — at most MaxMovers reads
                 if (dt > 0f && w.IsAlive(m.E) && w.HasComponent<SimTransform>(m.E))
                 {
@@ -341,9 +378,11 @@ namespace Hrot.UI.Common.Audio
                     var vel = rate > 1e-9 && double.IsFinite(rate) ? (now - m.At) / (dt * (float)rate) : Vector3.Zero;
                     _movers[i] = m = m with { At = now, Vel = vel };   // (_lastPos keeps the search's sample: the next search measures over its own span)
                 }
-                float pitch = (0.9f + 0.25f * MathF.Min(1f, m.Vel.Length() / 15f)) * (m.E == own ? 1f : Spatializer.Doppler(ear, m.At, m.Vel));
-                // ⭐ CE-4624 — the flail loop: its own mixer key (FlailKey, beside the engine's), the engine clip a third higher and louder
-                _mixer.Hold(output, m.Flail ? FlailKey(m.E) : m.E.Index + 1L, m.Clip, m.Gain, m.E == own ? 0f : Spatializer.Pan(ear, m.At), m.Flail ? pitch * FlailPitch : pitch, m.Priority);
+                float doppler = m.E == own ? 1f : Spatializer.Doppler(ear, m.At, m.Vel);
+                float pitch = (m.Loop == LoopFlame ? 1f : 0.9f + 0.25f * MathF.Min(1f, m.Vel.Length() / 15f)) * doppler;   // ⭐ CE-4635 — the roar keeps its own pitch (+ Doppler)
+                // ⭐ CE-4624 — the flail loop: its own mixer key (FlailKey, beside the engine's), the engine clip a third higher and louder; ⭐ CE-4635 — the flame roar: FlameKey
+                long key = m.Loop == LoopFlail ? FlailKey(m.E) : m.Loop == LoopFlame ? FlameKey(m.E) : m.E.Index + 1L;
+                _mixer.Hold(output, key, m.Clip, m.Gain, m.E == own ? 0f : Spatializer.Pan(ear, m.At), m.Loop == LoopFlail ? pitch * FlailPitch : pitch, m.Priority);
                 MoversHeard++;
             }
         }
@@ -358,6 +397,12 @@ namespace Hrot.UI.Common.Audio
 
         /// <summary>The mixer key of an entity's flail loop (a key range apart from the engines' <c>Index + 1</c> and the beds' negatives).</summary>
         private static long FlailKey(Entity e) => (1L << 40) + e.Index;
+
+        /// <summary>⭐ CE-4635 — the mixer key of a flamer's roar loop (its own range, beside the engine's and the flail's).</summary>
+        public static long FlameKey(Entity e) => (2L << 40) + e.Index;
+
+        /// <summary>The kind of a held mover loop: its body's engine / steps, a mine clearer's flail (CE-4624), a flamethrower's roar (CE-4635).</summary>
+        private const byte LoopEngine = 0, LoopFlail = 1, LoopFlame = 2;
 
         public static AcousticSignatureDto? MovingDefault(LocomotionClass loco) => loco switch
         {
@@ -553,6 +598,96 @@ namespace Hrot.UI.Common.Audio
             return l >= 0f ? VoiceTkbCatalog.ContactSide.Left : VoiceTkbCatalog.ContactSide.Right;
         }
 
+        // ═══ ⭐ CE-4634 (DESIGN_Dragon §8.2 S) — what a DRAGON sounds like ═════════════════════════════════════════════════════════════════════════════════════════════════
+
+        private struct DragonSeen { public long Strokes, Calls; public byte Airborne; public bool Dead; public float Health; public double Burst, LastRoar, Sim; public Vector3 At; }
+        private readonly Dictionary<Entity, DragonSeen> _dragonSeen = new();
+        private readonly List<Entity> _dragonGone = new();
+        private EntityRepository? _dragonWorld;
+        private EntityQuery? _dragonQuery;
+        private int _dragonFrame;
+
+        /// <summary>⭐ CE-4634 — the dragons' sounds played so far (rails): a whoosh per down-stroke, a roar, a dying roar.</summary>
+        public int DragonWhooshes { get; private set; }
+        public int DragonRoars { get; private set; }
+        public int DragonDeathRoars { get; private set; }
+
+        /// <summary>A dragon roars on its own now and then in flight — about once in this many sim seconds (its phase seeded by its id) — and never twice inside <see cref="RoarQuietSeconds"/> (a death roar always plays).</summary>
+        public const double RoarEverySeconds = 20.0, RoarQuietSeconds = 3.0;
+
+        /// <summary>
+        /// ⭐ CE-4634 (DESIGN_Dragon §8.2 S; NOTE_Backend_To_Ui_Dragon_Visuals) — a winged beast (a type whose own acoustic MOVING class is <see cref="SoundSourceClass.Roar"/>: the TKB says what it is, not
+        /// a type id) as the operator hears it, every sound from sim state: ⭐ a WHOOSH on each down-stroke while it beats its wings (the stroke count is <see cref="Hrot.UI.Common.Map3D.DragonPoses"/>' sim-time
+        /// phase and its beat rule — the same the look draws, so the whoosh lands on the drawn stroke; gliding and landed: none); a ROAR when it starts to breathe fire (beside the flame's own roar), when it
+        /// takes off (<c>Airborne</c> 0 → 1), when it is hit (a <c>Health</c> drop), and now and then in flight (a closed-form count, so a seek or a late join hears the same); a DYING ROAR once, when it dies.
+        /// The first frame only learns its state. 0 B in the steady state.
+        /// </summary>
+        private void Dragons(EntityRepository w, in Ear ear, double now)
+        {
+            var tkb = _tkb();
+            if (!w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) { _dragonSeen.Clear(); return; }
+            if (!ReferenceEquals(w, _dragonWorld))
+            {
+                _dragonWorld = w; _dragonSeen.Clear();
+                _dragonQuery = w.Query().With<Fdp.Toolkit.Replication.Components.TkbIdentity>().With<SimTransform>().Build();
+            }
+            double sim = Fdp.Toolkit.Time.SimClock.TotalTimeOf(w);
+            bool flight = w.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>();
+            bool health = w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>();
+            bool netId = w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            foreach (var e in _dragonQuery!)
+            {
+                long type = w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType;
+                if (AcousticCached(tkb, type) is not { MovingClass: SoundSourceClass.Roar }) continue;
+                var at = w.GetComponentRO<SimTransform>(e).Position;
+                bool known = _dragonSeen.TryGetValue(e, out var seen);
+                var fs = flight && w.HasComponent<Fdp.Toolkit.Motion.FlightState>(e) ? w.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(e) : default;
+                bool airborne = fs.Airborne != 0;
+                float hp = health && w.HasComponent<Fdp.Toolkit.Combat.Components.Health>(e) ? w.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Current : 1f;
+                bool dead = health && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(w, e);
+                double burst = Fdp.Toolkit.Combat.FlameJets.TryGet(w, e, sim, out var jet) ? jet.BurstStartedAt : seen.Burst;
+                uint key = netId && w.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e) && w.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value is int nid && nid != 0 ? (uint)nid : (uint)e.Index;
+                double phase = (key * 2654435761u % 1000u) / 1000.0 * RoarEverySeconds;
+                long calls = (long)Math.Floor((sim + phase) / RoarEverySeconds);
+                long strokes = (long)Math.Floor(sim * Hrot.UI.Common.Map3D.DragonPoses.BeatHz - 0.25);   // a down-stroke begins a quarter beat in (the wing at its top)
+                double dt = sim - seen.Sim;
+                float speed = known && dt > 1e-4 ? new Vector2(at.X - seen.At.X, at.Y - seen.At.Y).Length() / (float)dt : 0f;
+                var next = new DragonSeen { Strokes = strokes, Calls = calls, Airborne = fs.Airborne, Dead = dead, Health = hp, Burst = burst, LastRoar = seen.LastRoar, Sim = sim, At = at };
+                if (known && !seen.Dead)
+                {
+                    float d = Vector3.Distance(at, ear.Position);
+                    if (dead) { if (DragonSound(tkb, SoundTkbCatalog.DragonDeathRoar, at, d, now)) DragonDeathRoars++; }
+                    else
+                    {
+                        bool roar = (airborne && seen.Airborne == 0)                         // a take-off
+                                    || hp < seen.Health - 0.5f                               // hit
+                                    || burst > seen.Burst + 0.5                              // a new breath
+                                    || (airborne && calls > seen.Calls);                     // now and then in flight
+                        if (roar && sim - seen.LastRoar >= RoarQuietSeconds && DragonSound(tkb, SoundTkbCatalog.DragonRoar, at, d, now)) { DragonRoars++; next.LastRoar = sim; }
+                        if (airborne && strokes > seen.Strokes && Hrot.UI.Common.Map3D.DragonPoses.BeatTarget(speed, fs.VerticalSpeed) > 0f
+                            && DragonSound(tkb, SoundTkbCatalog.DragonWhoosh, at, d, now)) DragonWhooshes++;
+                    }
+                }
+                _dragonSeen[e] = next;
+            }
+            if (_dragonSeen.Count > 16 && ++_dragonFrame % 300 == 0)
+            {
+                _dragonGone.Clear();
+                foreach (var g in _dragonSeen.Keys) if (!w.IsAlive(g)) _dragonGone.Add(g);
+                foreach (var g in _dragonGone) _dragonSeen.Remove(g);
+            }
+        }
+
+        /// <summary>Plays a dragon's one-shot <paramref name="clip"/> at <paramref name="at"/>, <paramref name="d"/> m from the ear; false when out of its reach.</summary>
+        private bool DragonSound(ITkbDatabase? tkb, long clip, Vector3 at, float d, double now)
+        {
+            if (SoundTkbCatalog.SoundOf(tkb, clip) is not { } s) return false;
+            float g = Spatializer.Gain(d, s.ReferenceM, s.RangeM) * Volume(s);
+            if (g <= 1e-3f) return false;
+            _mixer.Request(clip, at, true, g, Jitter(s), s.Priority, now, Spatializer.Delay(d));
+            return true;
+        }
+
         // ═══ ⭐ CE-4623 (animals AU-8, AN-19) — what the animals SAY, as the operator hears it ════════════════════════════════════════════════════════════════════════════
 
         private readonly Dictionary<Entity, (long Calls, AnimalMode Mode, FlockMode Flock, long Barks)> _animalSeen = new();
@@ -623,7 +758,8 @@ namespace Hrot.UI.Common.Audio
                 foreach (var e in _animalQuery)
                 {
                     ref readonly var st = ref w.GetComponentRO<AnimalState>(e);
-                    int species = (int)st.Species;
+                    if (!AnimalSpeciesOf.TryOf(w, tkb, e, out var animalSpecies)) continue;   // ⭐ CE-4628 — the species is the TKB type's (a per-type table), not state
+                    int species = (int)animalSpecies;
                     var at = w.GetComponentRO<SimTransform>(e).Position;
                     float d = Vector3.Distance(at, ear.Position);
                     bool known = _animalSeen.TryGetValue(e, out var seen);
@@ -633,7 +769,7 @@ namespace Hrot.UI.Common.Audio
                     if (species == (int)AnimalSpecies.Bird && st.Mode == AnimalMode.Calm && d < PerchedReach) PerchedNear += 1f;
                     _animalSeen[e] = (calls, st.Mode, seen.Flock, barks);
                     if (!known || d > AnimalSoundCatalog.CallRange(species) * 1.5f) continue;
-                    var herd = w.IsComponentTypeRegistered<HerdMember>() && w.HasComponent<HerdMember>(e) ? w.GetComponentRO<HerdMember>(e).Herd : Entity.Null;
+                    var herd = w.IsComponentTypeRegistered<GroupMember>() && w.HasComponent<GroupMember>(e) ? w.GetComponentRO<GroupMember>(e).Group : Entity.Null;
                     if ((st.Mode == AnimalMode.Alert || st.Mode == AnimalMode.Flee) && seen.Mode != st.Mode && seen.Mode is AnimalMode.Calm or AnimalMode.Recover or AnimalMode.Rest)
                     {
                         Speak(w, tkb, e, herd, species, AnimalSoundCatalog.Alarm, ear, at, now);

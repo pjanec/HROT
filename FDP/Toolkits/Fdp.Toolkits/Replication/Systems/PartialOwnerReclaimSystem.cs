@@ -41,7 +41,9 @@ namespace Fdp.Toolkit.Replication.Systems
         private readonly NodeId              _localNodeId;
         private readonly OwnershipApplier _applier;
 
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<(Entity Entity, long Key, int NewOwner)> _moves = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _emptied = new();
         private EntityQuery? _recorded;
         private EntityQuery? _pending;
@@ -54,6 +56,7 @@ namespace Fdp.Toolkit.Replication.Systems
         }
 
         /// <summary>Diagnostics: keys moved back to a primary owner (including grants taken back).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public int KeysReclaimed { get; private set; }
 
         public void Execute(ISimulationView view, float dt)

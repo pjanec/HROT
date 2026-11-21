@@ -208,7 +208,7 @@ namespace Fdp.Toolkit.Terrain
                 int n = cnx * cny;
                 Prisms = New(n); Walkables = New(n); Water = New(n);
                 for (int k = 0; k < world.Prisms.Count; k++)
-                    if (!IsVolumeEffect(world.Prisms[k])) Prisms[Of(world.Prisms[k].Min, world.Prisms[k].Max)].Add(k);
+                    if (IsDrawn(world.Prisms[k])) Prisms[Of(world.Prisms[k].Min, world.Prisms[k].Max)].Add(k);   // ⭐ CE-4656 — never a self-drawn entity's box
                 for (int k = 0; k < world.Walkables.Count; k++) Walkables[Of(world.Walkables[k].Min, world.Walkables[k].Max)].Add(k);
                 for (int k = 0; k < world.Surfaces.Count; k++)
                     if (world.Surfaces[k].Type == TerrainSurfaceType.Water) Water[Of(world.Surfaces[k].Min, world.Surfaces[k].Max)].Add(k);

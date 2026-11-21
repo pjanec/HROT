@@ -94,7 +94,9 @@ namespace Hrot.Map.Common.Tests
                 Assert.Equal(eye, t.GetDescriptor<SensorCapabilitiesDto>()!.EyeHeightStanding);
 
                 var mounts = t.GetDescriptor<WeaponSuiteDto>()!.Mounts;
-                Assert.Equal(2, mounts.Count);
+                Assert.Equal(3, mounts.Count);   // ⭐ CE-4670 (VA-S5) — the gun, the coax, the smoke dischargers (last)
+                Assert.Equal(WeaponCategory.SmokeDischarger, mounts[2].Category);
+                Assert.Equal(unchecked((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbVehicleSmokeGrenade), mounts[2].AmmoGuid);
                 var gun = mounts[0];
                 Assert.Equal(unchecked((ulong)apfsds), gun.AmmoGuid);
                 Assert.Equal(gun.InitialAmmunition, System.Linq.Enumerable.Sum(gun.Loadout, l => l.Rounds));   // the same rounds, now sorted
@@ -601,6 +603,30 @@ namespace Hrot.Map.Common.Tests
             var warhead = hydra.GetDescriptor<WarheadDto>()!;
             Assert.True(warhead.HasAreaEffect && !warhead.Indirect);
             Assert.Equal(1.04f, warhead.ExplosiveKg, 3);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3490</c> BA-9 — the FLAME HELICOPTER (412) is the AH-64 airframe with a flame projector on its chin turret: the same flight, body,
+        /// turret, Hydra pod and dispenser as 406 (one definition), its mount 0 a flamethrower firing the flame tank's fuel (60 m), from a nozzle; DIS the
+        /// AH-64's with specific 1. 🔴 Red-proof: the chin mount not passed through (the M134 kept) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3490_TheFlameHelicopter_IsTheAh64Airframe_WithAFlameProjectorOnItsChin()
+        {
+            var db = BuildDatabase();
+            var gun = db.GetByType(TkbEntityTypes.Heli_AH64)!;
+            var flame = db.GetByType(TkbEntityTypes.Heli_AH64Flame)!;
+            Assert.Equal((gun.DisType.Kind, gun.DisType.Domain, gun.DisType.Country, gun.DisType.Category), (flame.DisType.Kind, flame.DisType.Domain, flame.DisType.Country, flame.DisType.Category));
+            Assert.Equal((byte)1, flame.DisType.Specific);
+            Assert.Equal(gun.GetDescriptor<FlightParamsDto>()!.MaxSpeedMps, flame.GetDescriptor<FlightParamsDto>()!.MaxSpeedMps);
+            Assert.Equal(LocomotionClass.Rotorcraft, flame.GetDescriptor<LocomotionDto>()!.Class);
+            var mounts = flame.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+            Assert.Equal(gun.GetDescriptor<WeaponSuiteDto>()!.Mounts.Count, mounts.Count);
+            Assert.Equal((WeaponCategory.Flamethrower, 0), (mounts[0].Category, mounts[0].TurretIndex));
+            Assert.Equal((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel, mounts[0].AmmoGuid);
+            Assert.True(mounts[0].MuzzleOffsetX > 0f, "the jet leaves the nozzle, not the crew's eye");
+            Assert.Equal((WeaponCategory.Rocket, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket), (mounts[1].Category, mounts[1].AmmoGuid));
+            Assert.Equal(WeaponCategory.MachineGun, gun.GetDescriptor<WeaponSuiteDto>()!.Mounts[0].Category);   // the gun ship keeps its M134
         }
 
         /// <summary>

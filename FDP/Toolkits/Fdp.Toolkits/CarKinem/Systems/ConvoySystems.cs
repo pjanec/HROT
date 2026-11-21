@@ -25,6 +25,15 @@ namespace CarKinem.Systems
         private EntityQuery? _leads;
         private EntityQuery? _followers;
 
+        // ⭐ CE-3425 — the followers grouped by the leader their slot names, built ONCE a frame (one pass), so a lead looks at its own followers only.
+        //   📐 scale-1, 1 000 men: every kinematic body carries a default FormationController (Type 0 = Column) and every slotted man a FormationFollower,
+        //   so the per-lead scan over all followers was ~1 060 × ~1 000 a frame — 683 ms of SimHost's 1 069. Order within a leader's list = query order,
+        //   so Gather's last-writer-wins on a shared rank is unchanged. Arrays keyed by the leader's entity index, grown and never shrunk (0 B steady).
+        private int[] _stamp = Array.Empty<int>(), _head = Array.Empty<int>(), _tail = Array.Empty<int>();
+        private Entity[] _col = new Entity[64];
+        private int[] _next = new int[64];
+        private int _frame;
+
         /// <summary>A column's spacing and minimum gap (m) when its <see cref="FormationParams"/> name none.</summary>
         public const float DefaultGap = 15f, DefaultMinGap = 7f;
 
@@ -88,6 +97,7 @@ namespace CarKinem.Systems
             _leads ??= repo.Query().With<FormationController>().With<SimTransform>().Build();
             _followers ??= repo.Query().With<FormationFollower>().With<SimTransform>().Build();
 
+            IndexFollowers(repo);
             foreach (var lead in _leads)
             {
                 ref readonly var c = ref repo.GetComponentRO<FormationController>(lead);
@@ -106,10 +116,38 @@ namespace CarKinem.Systems
             }
         }
 
-        private bool HasFollower(EntityRepository repo, Entity lead)
+        private void IndexFollowers(EntityRepository repo)
         {
+            if (++_frame == int.MaxValue) { Array.Clear(_stamp); _frame = 1; }
+            int need = repo.MaxEntityIndex + 1;
+            if (_stamp.Length < need)
+            {
+                int n = Math.Max(need, _stamp.Length * 2);
+                Array.Resize(ref _stamp, n); Array.Resize(ref _head, n); Array.Resize(ref _tail, n);
+            }
+            int count = 0;
             foreach (var e in _followers!)
             {
+                ref readonly var f = ref repo.GetComponentRO<FormationFollower>(e);
+                int li = f.Leader.Index;
+                if (f.IsInFormation == 0 || f.SlotIndex == 0 || f.Leader.IsNull || li < 0 || li >= _stamp.Length) continue;
+                if (count == _col.Length) { Array.Resize(ref _col, count * 2); Array.Resize(ref _next, count * 2); }
+                _col[count] = e; _next[count] = -1;
+                if (_stamp[li] != _frame) { _stamp[li] = _frame; _head[li] = count; }
+                else _next[_tail[li]] = count;
+                _tail[li] = count;
+                count++;
+            }
+        }
+
+        /// <summary>The first follower slot of <paramref name="lead"/>'s list this frame, or -1.</summary>
+        private int FirstOf(Entity lead) => lead.Index >= 0 && lead.Index < _stamp.Length && _stamp[lead.Index] == _frame ? _head[lead.Index] : -1;
+
+        private bool HasFollower(EntityRepository repo, Entity lead)
+        {
+            for (int i = FirstOf(lead); i >= 0; i = _next[i])
+            {
+                var e = _col[i];
                 if (e == lead) continue;
                 ref readonly var f = ref repo.GetComponentRO<FormationFollower>(e);
                 if (f.IsInFormation != 0 && f.SlotIndex != 0 && f.Leader == lead) return true;   // a road column's slot names its leader explicitly
@@ -128,8 +166,9 @@ namespace CarKinem.Systems
                 trail.RankV[0] = repo.HasComponent<VehicleState>(lead) ? repo.GetComponentRO<VehicleState>(lead).Speed : 0f;
                 trail.RankX[0] = leadPos.X; trail.RankY[0] = leadPos.Y;
                 trail.RankValid = 1u;
-                foreach (var e in _followers!)
+                for (int i = FirstOf(lead); i >= 0; i = _next[i])
                 {
+                    var e = _col[i];
                     if (e == lead) continue;
                     ref readonly var f = ref repo.GetComponentRO<FormationFollower>(e);
                     int rank = f.SlotIndex;

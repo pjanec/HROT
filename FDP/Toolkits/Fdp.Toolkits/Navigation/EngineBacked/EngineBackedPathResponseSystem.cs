@@ -14,6 +14,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class EngineBackedPathResponseSystem : IEcsModuleSystem
     {
         private readonly EngineBackedPathRegistry _registry;

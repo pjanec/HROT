@@ -22,18 +22,23 @@ namespace Hrot.UI.Common.Audio
         /// <summary>⭐ CE-4600 (B-3b, V-17) — a barrier a vehicle broke (or bumped open, <paramref name="Heavy"/> false): where.</summary>
         public readonly record struct Crash(Vector3 At, bool Heavy);
 
+        /// <summary>⭐ CE-5034 (glass windows GW-3, D-8) — a pane shattered at <paramref name="At"/> (the window's centre).</summary>
+        public readonly record struct Glass(Vector3 At);
+
         /// <summary>The most of each kept between two frames.</summary>
         public const int Cap = 256;
 
         public List<Shot> Shots { get; } = new();
         public List<Burst> Bursts { get; } = new();
         public List<Crash> Crashes { get; } = new();
+        public List<Glass> Glasses { get; } = new();
 
         public void Add(in Shot s) { if (Shots.Count < Cap) Shots.Add(s); }
         public void Add(in Burst b) { if (Bursts.Count < Cap) Bursts.Add(b); }
         public void Add(in Crash c) { if (Crashes.Count < Cap) Crashes.Add(c); }
+        public void Add(in Glass g) { if (Glasses.Count < Cap) Glasses.Add(g); }
 
-        public void Clear() { Shots.Clear(); Bursts.Clear(); Crashes.Clear(); }
+        public void Clear() { Shots.Clear(); Bursts.Clear(); Crashes.Clear(); Glasses.Clear(); }
 
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, SoundEvents> ByWorld = new();
 

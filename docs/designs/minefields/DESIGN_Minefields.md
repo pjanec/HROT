@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-17
+updated: 2026-11-21 (§9b the UnderFire kind — the shelled area + the ground a known enemy covers, ONE store; KG-8's shelled line superseded; R-2140, DESIGN) · 2026-11-19
 build-state: READY-TO-BUILD (R-4270…R-4274; reviews §8 and §10 approved and folded) — dispatched 2026-11-16 to terrain, behaviors, ui (§4)
-current-answer: §3 decisions · §11 behaviors as built · §12 the approved deviations (R-4278) · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
+current-answer: §3 decisions · §3g the route area as built after the scenarios · §11 behaviors as built · §12 the approved deviations (R-4278) · §3a the fixed ids · §3b UML · §4 slices per lane · §6.1 the contract · §8 + §10 the reviews (approved) · §9 the generalization's reasoning
 stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - ../group-maneuvers/DESIGN_Squad_Tactics.md §7.9 — OWNS what a squad does after a broken contact (R1–R4): the Direct detector of §9b's UnderFire kind and the reader in Firm()
   - ../../reference/NED_DDS_Protocol.md — OWNS the wire as an outsider sees it: this design's messages and descriptors are listed there (kept current by scripts/protocol-doc-check.py)
   - ../../DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS `GroundDamage` (a replicated record of what blasts did to the ground) and the navmesh areas (crater area) — the minefield's record and area follow both
   - ../../DESIGN_Vehicle_Breaching.md — OWNS the bulldozer's clear order (B-4, CE-4601) and the breach-record pattern the mine-clearing vehicle reuses
@@ -55,7 +56,7 @@ through a minefield, which will basically cut the zone into parts."*
 | # | question | ⭐ lean | why · blast radius |
 |---|---|---|---|
 | **MF-1** | what is a minefield? | ⭐ ONE entity: a closed polyline, a mine TYPE (AP / AT / mixed), a SPACING (or density), a ROW ORIENTATION, a seed, and per side whether it is KNOWN at start (own fields are known and marked; enemy fields usually not) | thousands of mines cost one entity; saved, replicated, recorded once |
-| **MF-2** | how are mines placed? | ⭐ DERIVED, never stored one by one: rows at the spacing along the orientation, each row offset by half a spacing (staggered), clipped to the polygon — the SAME points on every node from the field's parameters (a seed only for an optional small jitter, 0 by default) | 🔒 user: *"deterministically and equidistantly placed"* |
+| **MF-2** | how are mines placed? | ⭐ DERIVED, never stored one by one: rows at the spacing along the orientation, each row offset by half a spacing (staggered), clipped to the polygon — ✏ CE-4655 `2026-11-18`: ⭐ **and kept `max(spacing/2, 1 m)` INSIDE the outline** (`MinePattern.Laid`, the ONE test the pattern, the trigger and the clearing pass share; a laid field's mines keep off its marked edge). 📐 Before, clipped to the outline itself: a squad skirting a struck field along its edge (the route the ×20 / ×200 pricing gives) walked onto the edge mines (user observation). ⚠ The route itself still hugs the outline — the inset is what makes that safe; a clearance band in the pricing was not needed for it — the SAME points on every node from the field's parameters (a seed only for an optional small jitter, 0 by default) | 🔒 user: *"deterministically and equidistantly placed"* |
 | **MF-3** | struck and cleared mines | ⭐ a replicated, recorded per-field RECORD of the mine indices that went off or were cleared (a bitset, the `GroundDamage` / breach-record pattern) — a struck mine never goes off twice | every node agrees; replay restores it |
 | **MF-4** | the trigger | ⭐ one serial system: for each mover INSIDE a field's bounds, the derived mines under its footprint (a per-field point grid built once); AP ⇒ any person or vehicle; AT ⇒ a vehicle over a weight only (a man walks over it). The burst: AP = a small area effect at the foot; AT = under the hull — the BOTTOM facing (Urban Armour M1, built here), a track / wheel ⇒ mobility kill | the user's *"steps on the mine and explodes"*; cheap (only movers inside a field) |
 | **MF-5** | the victim's reaction | ⭐ a reaction **MineStrike**: halt, do not move, the casualty cared for in place, back out along the unit's OWN recent track; report a SPOT of the field to the chain (the existing report path) | the battle drill; the conduct gate (R-4263) keeps a "Dash" from overriding it? — no: a struck unit HALTS (a mine is not fire) |
@@ -242,6 +243,7 @@ node writes another node's entity.*
 | AP / AT | AP: a person's foot within `FootRadius` 0.4 m of the segment; a vehicle's footprint (`EntityFootprint.Dimensions`, turned by its heading, swept along the step) covering the mine (MF-4: any person or vehicle). AT: a vehicle whose footprint covers it AND mass ≥ 1500 kg (read once through the TKB `VehicleParametersDto.Mass`, as `ContactBreach` does); a man walks over it; livestock: AP yes, AT with a hash chance 5 % per (mine, animal) (MR-16) | 1500 kg and 5 % are starter values (the user's call on animals, R-4272); a vehicle setting off AP is the approved MF-4 lean |
 | once per mine | a per-frame fired set, a pending set (struck, its record not yet landed; 20 sim s) and a memo of mines found in a strikes record (`MinefieldStrikesSystem.IsGone`, cold) | the pending window is the record's latency across nodes; a record that never lands lets the mine fire again after 20 s |
 | the burst (MR-17) | `MineStruck { Field, Row, Col, By, X, Y, At }` AND a `DetonationNotification` at the mine: Ammo 6051 (AP: no target, the area effect at the foot) / 6052 (AT: Target = the vehicle, the round travelling UP so the armour model reads the BOTTOM; Penetration 120 mm / Damage 250 from the munition's TKB entry); effects, sound, hearing and craters follow from that path | `ammo.json` gains "anti-personnel mine" (frag 0.1 kg), "anti-tank mine" (HE 7.5 kg), "line charge" (HE 60 kg per ~8 m detonation, MS-T4): starter blasts |
+| ✏ CE-2446 `2026-11-18` the burst's DAMAGE | each mine munition's own `WarheadDto` (6051 / 6052 / 6053, `MunitionTkbCatalog`) states its blast radii AND `BlastLethalDamage` = the reference library's one blast value (`ReferenceLibrary.BlastLethalDamage`, `coefficients.json` `blast.lethalDamage` 150); ⛔ no `ExplosiveKg` (that would add craters, breaches and felled trees — the line charge's lane must stay drivable) | 📐 the warheads of `0573b3a82` had radii and 0 damage ⇒ an AP mine under a man hurt nobody (`mf-strike-and-halt`); rail `MineClearerTkbTests.AnAntiTankMine_*` (≥ 100 at 0.3 m) |
 | MR-10 the armour BOTTOM | `Facing.Bottom` (4); `ArmorModel.FacingOfArrival` returns it for a round travelling UP ≥ 45° (so the area-effect path's burst under a hull reads it too); `CombatPlatformDefDto.ArmorBottom` / `ArmorBottomCe` (0 ⇒ the rear / the belly's kinetic value), `SimCombatDef.ArmorBottom`; zones carry five faces (`Armour[4]`, 0 ⇒ the zone's rear; `bottom` in `bodies.json`, `ArmourBottom` in `BodyZonesDto`); `BodyPartHit.FaceOf` (a normal pointing DOWN) and `ArcFaceOf` (travelling UP) return it | ⚠ a steep round FROM BELOW at any target (an AA gun at close range) now reads the belly — the rear value by default, so only a platform that states `ArmorBottom` changes; `ThreatDanger`'s thinnest face keeps its four faces (nothing aims at a belly) |
 | registration | components `Minefield` / `MinefieldStrikes` / `MinefieldKnowledge` and the four events in `HrotSharedComponentRegistry`; TKB 8830 "Minefield" (DIS 5.0.0.91, a map graphic like a terrain feature) in `NedTkbCatalog`; bare record types 7206 / 7207 in `MinefieldRecordTkb` (beside `GroundDamageTkb`, called from `HrotEnvironment`); munitions 6051–6053 in `MunitionTkbCatalog` | the `Minefield` component is added when a field is placed / loaded (no translator DTO yet: the authoring tool, MS-U, adds it) |
 
@@ -280,6 +282,7 @@ graph TD
 |---|---|---|
 | the data | `MinefieldSet` (`Terrain/Minefields/MinefieldSet.cs`): per field its guid, parameters, world outline and lanes (authored + every node's `MinefieldLanes` record, side + 1); `TerrainWorld.Minefields` on the derived world; `TerrainObstacles.With(…, MinefieldSet?)` | gathered only on a node that does world queries (`TerrainResidency.BakesDamage`, the building damage's rule): a display node's terrain is never queried |
 | bake signature, dirty region | `MinefieldSet.SignatureOf(world)` (cached queries, index loops — 0 B) joins `StaticObstacleBakeSystem`'s input hash; `TerrainResidency.MinefieldDirt` adds the box (±3 m) of every field new, gone or changed (old and new place, by `TerrainMinefield.Hash`): only those tiles rebake | a lane record gone in a seek changes the hash ⇒ the same rebake |
+| ✏ CE-4655 `2026-11-18` the CLEARANCE RING | ⭐ a field's navmesh area reaches `MinePattern.RouteClearance` = max(spacing, 5 m) OUTSIDE its outline: `NavDoorways.AddClearanceRing` adds per edge the outward band and per vertex the corner parallelogram to the field's pieces (so the wood / crater composites and the lane restores apply to it too); a lane's strip runs on through it (`LaneStrip(lane, clearance)`, `LaneAt(…, extend)`); a ring polygon takes the knowledge of the nearest edge cells (`CellsOf` clamps); the field hash and the dirty box include the clearance | 📐 behaviors' measurement (`NOTE_Behaviors_To_Terrain_NoWayRound_EdgeClearance.md`): the route round a known field hugged the outline (y 110.1 vs 110) and the squad trailed inside it. With the mines' edge inset (MF-2) a man ON the edge is safe; the ring keeps the route off it. Rail `MinefieldNavTests.CE4655_ARouteRoundAKnownField_KeepsItsClearance`. What would change it: a doctrine distance per field (an authored clearance) |
 | composite areas | `MinefieldArea 5` (plain), **`MinefieldWoodsArea 6`**, **`MinefieldCraterArea 7`** (ids 6 and 7 measured free: only 2, 3, 4, 5 and Recast's 63 are used). ⚠ A Recast area is per SPAN and a later stamp wins, so a composite needs the underlying area known at stamp time: **cut by geometry** — the field's ear-clipped triangles clipped against each wood triangle / crater (and ditch) piece (convex ∩ convex, `NavDoorways.Clip`) | a masked `RcAreaModification` cannot do it (ground is 63, all bits set); a per-span "if area == X" stamp does not exist in DotRecast. Cost: field triangles × wood triangles at bake time, bbox-rejected |
 | stamp order | woods · craters + ditches · **field 5 · composites 6 (wood), 7 (crater, wins over wood) · lane restores (63, then 3, 4)** · doorways | a crater wins over a wood as the plain stamps do |
 | every area test | `NavDoorways.IsWoods / IsCrater / IsMinefield`; `PassFilter` (wheels out of a wood and of a mined wood; every vehicle out of a crater and a mined crater) and `GetCost` (the wood factor) use them | a new area that is "a kind of X" must add itself there, one place |
@@ -324,6 +327,18 @@ sequenceDiagram
 | catalogue | the three munitions got a relative cost (10 / 60 / 400) and the class table the `Minefield` class (5.0.*.91): two pre-existing reds of MS-T1 in `Hrot.Core.Tests` (`CE2186_EveryBuiltInMunition_HasACost…`, `CE2138_EveryBuiltInType_ResolvesToANamedClassPath`) | |
 
 *Rails (`MineTriggerTests` 4 new, `PlaceKnowledgeTests.AMinesCleared_…`, `MineClearerTkbTests`): a flail leaves only seeded survivors, bursts at every cleared mine and never at the flail, one lane with the right segment / side / width, the same set on a second run, a man on a cleared mine ⇒ nothing; a plough clears silently; a line charge ⇒ 11 bursts 8 m apart, its whole strip cleared, on the edge only; 0 B steady frames with clearers; a `MinesCleared` is recorded as Cleared and teaches nobody; TKB 116 in the catalogue, heavier than the dozer.*
+
+### 3g. As built — the route's minefield area, after the scenarios *(`2026-11-19`, terrain, CE-2443, KG-7, MF-10)*
+
+| piece | as built | why · measured |
+|---|---|---|
+| which cells report | ⭐ `DangerAlongRouteSolve.MinefieldAreas`: the first route sample inside a field the side knows of (`KnowsAny`) whose cell the side does **not know CLEAR** — unknown cells included | 📌 `mf-clear-lane-and-cross`: after a strike the side only SUSPECTS the cells round the blast; the route back in sidestepped them through unknown cells ⇒ no area, no halt, a second mine. ⛔ SUPERSEDED: "a cell it knows as suspected or mined" (`31872471f`) |
+| a cleared lane | ⭐ a sample inside a **lane record of the unit's side** (`InKnownLane`, MF-10) reports nothing — the lane is subtracted from the field | ⚠ a MARKED field reads every cell known-mined in `PlaceKnowledgeTable.Knows`, the lane's included ⇒ without this a squad halted inside its own lane. 📌 `mf-knowledge-survives`: `never MinefieldAhead` while crossing (`e342aef7c`) |
+| the checks | `knowledge` cue `is: "Lane"` (the count of the side's lane records — assert a lane with it, never `KnownClear`); `field` cue `also` (conditions on the same unit: "inside the field AND outside the lane band") | `docs/DESIGN_Scenario_Regression.md` §3 |
+| the save → load | a scenario's `Knowledge` section written by `PlaceKnowledgeSection.Write` (marked, the lane, its six cleared mines) loads back as the side's knowledge; Hostile still knows nothing | `mf-knowledge-survives` 15 / 15 — ⚠ no HTTP path saves a LIVE world yet (`/scenario/save` is edit-only; *"take a checkpoint, then make a scenario from it"* is not built), so the section was produced by the real writer over records built by hand, not by a run; ⭐ the REPLAY: `--verify-replay` REPLAY + PLAYBACK same (121 snapshots, the three records carried); and ⭐ the shuffled SEEKs same after backend's CE-5041 (`e0321b64f`) — 121 snapshots, `1 of 1 pass` |
+
+*Rails: `DangerAreaSensorSystemTests.CE2443_*` (2, red-proved), `ScenarioChecksTests.CE2443_*` (2, red-proved).* ⏳ The chain end to end (`mf-clear-lane-and-cross`)
+is red at S3 — a squad under an HQ never reacts `MinefieldAhead` (CE-5040, behaviors).
 
 ## 4. Slices — ✅ dispatched `2026-11-16` *(backend busy with the animals ⇒ the ENGINE work goes to `terrain`, which built the record family, the crater table on `DoorStates` and the navmesh areas)*
 
@@ -431,8 +446,205 @@ field's own rotated lattice).
 |---|---|
 | KG-6 | ⛔ NOT rebuilt every tick ⚠ *(reworded by KR-8: not a version — it rides on `DoorStates.Of`, which returns the previous table when nothing changed)*: the per-side minefield table is VERSIONED like `DoorStates.Of` — rebuilt only when a `PlaceKnowledge` record of that side changes (a strike, a swept cell: rare), otherwise the same table; a query's cost is one array lookup per polygon (MR-4 amended) |
 | KG-7 | TWO mechanisms, kept distinct on purpose: **avoid** (the planner's per-side cost / closure — known-mined closed, suspected priced) and **cross with care** (the danger-area sensor along the planned route + the squad's cross-or-hold decision). A minefield uses both: the planner goes round it when it can; when it cannot (no way round, or the order goes through), the route's danger sensor reports a `Minefield` area and the squad halts and calls engineers (MR-9) |
-| KG-8 | the UNIFICATION point is the planner's ONE per-side area-cost table, not the danger kinds: minefields fill it now; a shelled or gas area MAY later add a cost through the same table (go round when cheap, else cross with care) — ⛔ not built now (AQ101 ruled cross-or-hold). Junction / crossing / open-ground areas are route GEOMETRY, not knowledge: they stay in the sensor. The shelled area stays node-level and short-lived (not a `PlaceKnowledge` kind); ⚠ its missing SIDE (every side's squads see every shelling) is a gap, filed, not fixed here |
+| KG-8 | ⛔ *its "the shelled area stays node-level … not a `PlaceKnowledge` kind" is SUPERSEDED by §9b (R-2140, `2026-11-21`): the shelled area and the ground a known enemy covers are ONE kind, `UnderFire`.* the UNIFICATION point is the planner's ONE per-side area-cost table, not the danger kinds: minefields fill it now; a shelled or gas area MAY later add a cost through the same table (go round when cheap, else cross with care) — ⛔ not built now (AQ101 ruled cross-or-hold). Junction / crossing / open-ground areas are route GEOMETRY, not knowledge: they stay in the sensor. The shelled area stays node-level and short-lived (not a `PlaceKnowledge` kind); ⚠ its missing SIDE (every side's squads see every shelling) is a gap, filed, not fixed here |
 | KG-9 | ⭐ the navigation node (the Muscle, where the danger solve and the planner run) HAS the knowledge: `PlaceKnowledge` and `Minefield` replicate through the shared translator pack every node role installs — the `GroundDamage` precedent (`SharedTranslatorPack.cs:14-16, :86-87`); the sensor's unit side comes from the replicated affiliation (`EntityInfo`, the same pack). The solve adds a `Minefield` area when the route enters a cell the UNIT'S SIDE knows as mined or suspected; the march asks for the kind (`SquadMarchBehavior.cs:218-222`) |
+
+### 9b. The second kind — UNDER FIRE: the shelled area and the ground a known enemy covers, ONE store *(`2026-11-21`, behaviors, `CE-2466`, R-2140; build-state: READY-TO-BUILD `2026-11-21` — reviewed (§9b.1), dispatched to `backend`)*
+
+🔒 User, `2026-11-21`: *"Remembering the place which is covered by fire is also a good idea. Just it resembles the place where explosions are happening. So this is
+something we might already have. So I hope that knowledge is of the same kind, or that we unify these two somehow using the same storage mechanism to avoid
+duplication."* · then *"Approved, go ahead with the design."*
+
+⛔ **SUPERSEDES KG-8's sentence** *"The shelled area stays node-level and short-lived (not a `PlaceKnowledge` kind)"* and closes its filed gap `CE-4626` (the shelled
+area has no side). ⭐ KG-8's unification point is unchanged and now USED: the planner's one per-side area-cost table gets its second filler. KG-5 is unchanged:
+the ENEMY stays in contact knowledge — this kind is the GROUND, not the man.
+
+| | today | after |
+|---|---|---|
+| the shelled area | `ShelledAreas` — node-level, no side, 8 points, 120 s, unsaved; read only by the danger solve | `ShelledAreas` stays the DETECTOR (heat per burst, local); when a point BECOMES shelled (and every `RefreshSeconds` 20 s while it stays so) it emits `Learn(side, Indirect, point, RadiusM)` for each WITNESS side (KG-3: a live unit of that side within `WitnessMetres` 300 m) |
+| the ground a known enemy covers | nothing (the squad walked back in — `DESIGN_Squad_Tactics.md` §7.9) | a won break contact emits `Learn(side, Direct, threat point, RangeM)` (Squad Tactics R1) |
+| storage, sharing, save, replicate | — | ⭐ ONE `UnderFireKnowledge` record per (subject, side): the shared `PlaceKnowledgeHeader` + payload `Cause` · `Point` · `RangeM` · `EnemyStrength` (Direct: the enemy danger seen at the break, read by Squad Tactics R4); `LearnedAt` = the last evidence (merge: newest); subject = a stable key from (cause, point on a 25 m grid) |
+| how long | 120 s | per cause, read-side: `Indirect` cools `CoolSeconds` 120 s after its last evidence (as now), `Direct` `DirectCoolSeconds` 600 s; a cooled record is ignored, and dropped by the writer after 2 × its cool time |
+| what it covers | a circle of `RadiusM` | `Indirect`: the circle (as now) · `Direct`: the cells within `RangeM` the point SEES — `UnderFireSight`, a 5 m grid derived on each node from (point, range) through `TerrainWorld.SegmentBlocked`, never stored (the `MinePattern` precedent: derived the same on every node) |
+| who reads it *(⚠ revised by the review below — K8: `Indirect` is NOT priced)* | the danger solve (`ShelledAreas.Footprints`) | ⭐ the danger solve (the unit's side: `Indirect` → `Shelled` area as now, `Direct` → a new `CoveredByFire` area) **and** the per-side route cost (`NavDoorways.GetCost`: a polygon whose centre is under fire for the mover's side ×`UnderFireCost` 8 — priced, never closed: KG-7, go round when cheap) **and** the squad's `Firm()` (Squad Tactics R4) |
+
+⭐⭐ **NOTHING LASTS FOREVER** (🔒 user, `2026-11-21`: *"let's make sure that the knowledge can age. So nothing lasts forever."*): every `UnderFire` record has a finite life from its `LearnedAt` — the cause's cool time, after which every reader ignores it, and 2 × that, after which the writer DESTROYS it (in the serial `PlaceKnowledgeSystem`, by sim time, so a replay and every node agree). Only NEW evidence (a burst at a shelled point, a new contact from the position) moves `LearnedAt`; a reader, a route or a save never refreshes it. ⭐ **As reviewed (K1):** a save writes each record's AGE (now − `LearnedAt`), and a load REBASES it on the load's clock (`LearnedAt` = load time − age) — ⛔ never the absolute sim time (a plain scenario load may start at 0, an exercise load jumps the clock: an absolute value would read as fresh for thousands of seconds). ⭐ **(K4) cooling is a CHANGE:** when a record passes its cool time the writer sets its `State` to `Cooled` (a record change), so the per-side table — rebuilt only on a change — drops it from the cost and the sensor; the 2 × cool time then RETIRES it (K2). ⚠ This is the `UnderFire` kind's rule; the minefield kind keeps its knowledge (a laid field does not move) — R-4273 unchanged.
+
+📐 **Measured — `UnderFireSight` cost** (demo-city, `2026-11-21`, a scratch rail, not committed): `SegmentBlocked` ~2 µs a ray; a 150 m range on a 5 m grid =
+2 821 rays = **4–5 ms**, once per record per node (the 2 m grid: 30–40 ms). Red's two corners in `uf-corner-fight` see 32 % / 48 % of the circle. ⇒ cold, once
+per new record; ⛔ never per frame — cached by (subject, `LearnedAt` unchanged). A 300 × 300 m grid at 5 m is 3 600 bits = 450 B.
+
+```mermaid
+classDiagram
+  class PlaceKnowledgeHeader {
+    <<existing, shared by every kind>>
+  }
+  class MinefieldKnowledge {
+    <<existing kind 1>>
+    Header
+    Grid2bit
+  }
+  class UnderFireKnowledge {
+    <<new kind 2>>
+    Header
+    Cause - Indirect or Direct
+    Point
+    RangeM
+  }
+  class PlaceKnowledgeSystem {
+    <<existing - the one serial writer>>
+  }
+  class ShelledAreas {
+    <<existing - becomes the Indirect DETECTOR, stays node-level>>
+    AddBurst()
+  }
+  class ReactToContactBehavior {
+    <<existing - the Direct detector, Squad Tactics R1>>
+  }
+  class PlaceKnowledgeTable {
+    <<existing - per side>>
+    UnderFireAt(side, point, now) (new)
+  }
+  class UnderFireSight {
+    <<new - seen-cell grid, derived and cached per node>>
+  }
+  class NavDoorways {
+    <<existing - per-side GetCost, the minefield factor>>
+  }
+  class DangerAlongRouteSolve {
+    <<existing - Shelled from the table, CoveredByFire new>>
+  }
+  MinefieldKnowledge *-- PlaceKnowledgeHeader
+  UnderFireKnowledge *-- PlaceKnowledgeHeader
+  ShelledAreas ..> PlaceKnowledgeSystem : Learn Indirect per witness side
+  ReactToContactBehavior ..> PlaceKnowledgeSystem : Learn Direct
+  PlaceKnowledgeSystem --> UnderFireKnowledge : writes
+  PlaceKnowledgeTable ..> UnderFireKnowledge : union
+  UnderFireSight ..> UnderFireKnowledge : derives
+  NavDoorways ..> PlaceKnowledgeTable
+  NavDoorways ..> UnderFireSight
+  DangerAlongRouteSolve ..> PlaceKnowledgeTable
+  DangerAlongRouteSolve ..> UnderFireSight
+```
+*What it shows that prose hid: two DETECTORS (bursts, a broken contact), ONE record, ONE writer, ONE table, and the same two readers the minefield kind already
+has — the shelled area stops being a second store; only its heat counter stays node-local, because a burst is evidence, not knowledge.*
+
+```mermaid
+graph TD
+  subgraph MUS["Muscle node - navmesh, ballistics"]
+    SA[ShelledAreas detector] -->|Learn Indirect| EV[knowledge events - batch buffer]
+    DS[DangerAlongRouteSolve] -->|reads| TB
+    NF[NavDoorways per-side cost] -->|reads| TB
+    US[UnderFireSight cache] --> DS
+    US --> NF
+  end
+  subgraph BRN["Brain node"]
+    RC[ReactToContact - won break contact] -->|Learn Direct| EV2[knowledge events - batch buffer]
+    FM[Firm - R4] -->|reads| TB2
+  end
+  EV --> PK[PlaceKnowledgeSystem - serial, owning node]
+  EV2 --> PK
+  PK --> REC[(UnderFireKnowledge records - replicated, saved, recorded)]
+  REC --> TB[PlaceKnowledgeTable on the Muscle]
+  REC --> TB2[PlaceKnowledgeTable on the Brain]
+```
+*What it shows that prose hid: the two detectors run on DIFFERENT nodes (the bursts where the ballistics run, the broken contact where the brain runs) and meet
+only in the replicated record — which is why the knowledge must be the replicated `PlaceKnowledge` record (KG-9's translator pack) and could never stay in
+`ShelledAreas`' node-local table.*
+
+#### 9b.1 The independent review — `2026-11-21` *(read-only reviewer; ✅ = verified against the code by the author)*
+
+🔒 User, `2026-11-21`: *"We should not leave anything for the build to check … let's make sure that the knowledge can age. So nothing lasts forever."*
+
+| # | finding | sev | ⭐ resolution — folded, binding on the build |
+|---|---|---|---|
+| K1 | a saved absolute `LearnedAt` reads as fresh after a load at another clock — ✅ `PlaceKnowledgeSection.cs:180` writes the absolute value | BLOCKER | save the AGE, rebase at load (above) |
+| K2 | nothing can destroy a record — ✅ `RecordWriterCore.cs` creates / updates only | BLOCKER | ⭐ a `Retire(key)` step in `RecordWriterCore` (owned entities only; drops a pending creation), the DDS dispose to the ghosts, the recorder records the destroy (replay agrees); an ORPHAN (its owner node gone) is retired by the node that inherits its ownership (the existing handover) — and readers ignore it from its cool time regardless |
+| K3 | the sight grid is not the same everywhere: `SegmentBlocked` reads live `DoorStates` (craters, collapse, breaches, doors) | BLOCKER | ⭐ `UnderFireSight` uses the AUTHORED terrain (`doors: null`, the `Height` grid), eye 1.6 m, target 1.0 m — deterministic on every node. ⚠ A building destroyed after the record is not reflected (stated limitation; the record ages out within 600 s) |
+| K4 | `GetCost` has no `now`; a per-call record scan per A* expansion | MAJOR | cooling is a record change (above) ⇒ no `now` in the filter; ⭐ a per-side `UnderFirePolyMap` (polyRef → factor), built once per table rebuild — the `MinefieldPolyMap` shape; a query is one lookup. A polygon's factor = 1 + 7 × its COVERED SHARE (its vertices + centre sampled against the grid), not its centre alone |
+| K5 | where / which thread builds the 4–5 ms grid | MAJOR | in the serial pre-pass on each node after the table changes; published immutable; cleared on `WorldEpoch.Moved` |
+| K6 | the 20 s refresh re-stamps `LearnedAt` | MAJOR | a refresh carries `At` = the last BURST time (`p.T0`): no new burst, no change |
+| K7 | the subject key does not fit `KnowledgeKey` / `SubjectKind`; a running-mean centre drifts across grid lines | MAJOR | ⭐ `SubjectKind.Place`; the Guid derived deterministically (name-based, from cause + the cell of the FIRST centre — frozen at first learn); later evidence for a point within `MergeM` of a record's frozen point updates THAT record |
+| K8 | pricing `Indirect` overrides AQ101 R-4227 ("crossed or held, never routed around"); the witness rule hides shelling from far squads | MAJOR | ⭐ **`Indirect` is NOT priced** — it stays cross-or-hold (the ruling unchanged); only `Direct` is priced. ⭐ `WitnessMetres` **1 500 m** (a burst is heard far) — a side with no unit within 1.5 km does not know of it: an intended change, ⏭ `agg-shelled-unit` and every scenario with shelling re-run |
+| K9 | the second kind's plumbing was not listed | MAJOR | the build list in the handoff (`HANDOFF_Behaviors_To_Backend_UnderFire.md`): its own writer subclass + claims, registration (`DamageAssessmentModule.cs:42`, `CgfLogicPack.cs:354`), a `GlobalComponentIds` entry, a TKB id, a descriptor ordinal, the DDS type + translators (`SharedTranslatorPack.cs:91-99`), `PlaceKnowledgeKind.UnderFire`, `KnowledgeSource.Contact` / `.Burst`, the save shape + load arms (`PlaceKnowledgeSection.cs:57`, `ScenarioLoadStep.cs:293`) — ⭐ ids allocated by the building lane (rule 3) and published in its first note |
+| K10 | `CoveredByFire` needs more than an enum value | MINOR | `DangerAreaSettings.Wants` cap raised, a `CoveredByFireAreas` pass (the `MinefieldAreas` shape) with its own cap, a stable id from the Guid |
+| K11 | every refresh rebuilds the minefield table too | MINOR | ⭐ its OWN table on `DoorStates` (`UnderFireTable`), beside the minefield one |
+| K12 | `EnemyStrength` missing from the UML; road legs skip `GetCost` | MINOR | UML below; ⭐ road legs priced too — a road segment whose midpoint is covered costs × the same factor in `RoadGraphRouter` |
+| K13 | several SimHosts would each write a record per key | MINOR | accepted — the union merges them (newest) |
+
+```mermaid
+classDiagram
+  class RecordWriterCore {
+    <<existing>>
+    Retire(key) (new - K2)
+  }
+  class UnderFireKnowledge {
+    <<new kind 2>>
+    Header - SubjectKind.Place, State incl Cooled
+    Cause - Indirect or Direct
+    Point - frozen at first learn
+    RangeM
+    EnemyStrength
+  }
+  class UnderFireWriter {
+    <<new - RecordWriterCore subclass, serial, cools and retires>>
+  }
+  class UnderFireTable {
+    <<new - per side, on DoorStates, its own cache>>
+  }
+  class UnderFireSight {
+    <<new - authored terrain, eye 1.6 m, built in the serial pre-pass>>
+  }
+  class UnderFirePolyMap {
+    <<new - polyRef to factor per side, Direct only>>
+  }
+  class NavDoorways {
+    <<existing - GetCost one lookup>>
+  }
+  class RoadGraphRouter {
+    <<existing - road legs priced too>>
+  }
+  class DangerAlongRouteSolve {
+    <<existing - Shelled from the table, CoveredByFireAreas>>
+  }
+  UnderFireWriter --|> RecordWriterCore
+  UnderFireWriter --> UnderFireKnowledge
+  UnderFireTable ..> UnderFireKnowledge
+  UnderFireSight ..> UnderFireTable
+  UnderFirePolyMap ..> UnderFireSight
+  NavDoorways ..> UnderFirePolyMap
+  RoadGraphRouter ..> UnderFireSight
+  DangerAlongRouteSolve ..> UnderFireTable
+  DangerAlongRouteSolve ..> UnderFireSight
+```
+*What it shows that prose hid (as reviewed): the build is a writer SUBCLASS, a table, a sight grid and a polygon map — the minefield kind's four pieces, one each; and the
+only change to the shared core is `Retire`, which the minefield kind never needed because a laid field never goes away.*
+
+**Rejected:** covered-by-fire inside `ShelledAreas` — no side, unsaved, 8 points, 120 s, node-local · two stores (one per cause) — duplication (the user's ruling)
+· every burst as knowledge — replication churn for evidence no other node needs · storing the seen-cell grid in the record — derivable, 450 B per record on
+the wire for nothing.
+
+**Rails:** the kind's merge (newest `LearnedAt`) and both cool times · a witness side learns a shelling, a far side does not (CE-4626) · `UnderFireSight`
+equal on two loads of the same terrain (derived = the same everywhere) · the per-side cost (a polygon under fire priced ×8 for its side only) · the danger solve
+reads the table, not `ShelledAreas` (the shelled scenarios unchanged: `ua-*` / `ia-*` with shelling) · save → load keeps a `Direct` record.
+
+#### 9b.2 As built — backend, `2026-11-21` (CE-2468, `STATUS_Backend_UnderFire.md`)
+
+⭐ Built as §9b.1 binds it. Where the build chose or deviated, this table is the current answer; the §9b table above stays the intent.
+
+| | as built | ⛔ supersedes / why |
+|---|---|---|
+| witnesses (UF-7) | `ShelledAreas.WitnessMetres` **1 500 m** (2-D), `RefreshSeconds` 20 s; a side witnesses when ANY live `EntityInfo` + `SimTransform` entity of its `ForceId` is in range (Neutral included); `Teach` runs in `ShelledAreaSystem` before `Cool` | ⛔ the §9b table's "300 m" — K8 |
+| Shelled area (UF-6) | one circle per FRESH `Indirect` record of the unit's side, radius = the record's `RangeM` (the detector teaches `ShelledAreas.RadiusM` 25 m), id = the subject's hash; a sensor with NO side sees no shelling | ⛔ `ShelledAreas.Footprints` in the solve (CE-4583) — it stays only as the detector's own state, read by its rails |
+| `CoveredByFire` (UF-6) | `DangerAreaKind` 9, `DangerAreaKinds` bit `1 << 9`, `Wants` bound to 9; one area per `Direct` grid of the side the route enters (≤ 4): centre = entry, near handle = the last unseen sample, far handle = where the route leaves the grid; rated **1** by the sensor, as shelling and gas | the rating: the ground IS the threat — a contact rating would read 0 once the contact is forgotten, while the record lives 600 s |
+| route price (UF-5) | `UnderFirePolyMap` samples a polygon's vertices + centre; a long open-ground polygon whose corners lie outside the range is only partly priced (measured: a 150 m enemy priced a 560 m street ×1.5, a 400 m one diverted the side round a 900 m detour) | K4 as written — the share, not the centre; ⚠ coarse polygons under-price |
+| road legs (UF-5, K12) | `RoadGraphRouter.Route(…, sight, sidePlus1)`: a segment whose curve MIDPOINT is covered costs × `FactorOf(1)` = 8, the entry / exit partial segments included; `RoutePlanner` passes `doors.UnderFireSight` and the query's side bits | — |
+| save (UF-3) | `StateLoaded` = 2 holds the AGE in `LearnedAt` until the owning writer's next tick rebases it (every tick, so a later load is caught too) | — |
+| ⭐ the sight on a SNAPSHOT (behaviors' note, `2026-11-21`) | published as `UnderFireSightHolder` (component 158, a derived managed singleton, never recorded); `SyncFrom` COPIES its value into every snapshot (`CopySingletonValueById`) — the background danger solve and path solver see the sight of their snapshot's moment | ⛔ a per-world weak table: a snapshot is another instance, so every background query read Empty — no CoveredByFire, no route price (K5 as built missed the background readers) |
+| the strength (K7) | `EnemyStrength` is the MOST seen while the record is fresh; a woken (Cooled) record starts from the new evidence | ⛔ "newest wins" for the strength — a later, smaller contact lowered the force Squad Tactics R4 remembers |
+
+📐 **Rails:** `RecordRetireTests` (UF-1) · `UnderFireKnowledgeTests` (UF-2 kind, UF-3 rebase, UF-7 witnesses) · `TerrainObjectRequestsTests.CE2468_*` (UF-3 save/load) ·
+`UnderFireNavTests` (UF-4 sight equal on two loads + 0 B + serial-only, UF-5 two streets + road legs, UF-6 the solve by side) · `EntityGroundDamageTranslatorTests.CE2468_*` (UF-2 wire).
 
 ## 10. ✅ The independent review of the generalization (MF-17) — `2026-11-16`
 
@@ -470,6 +682,7 @@ in `EjectionSystemTests.cs:26` only).
 | slice | as built | deviation from §3 / §8 |
 |---|---|---|
 | MS-B1 | `MineStrikeReflexSystem` (CGF pack, before the brain tick): a `MineStruck` ⇒ the drill as a REACTION (urgency Hit), once per (unit, field) a minute — a struck VEHICLE itself; a struck MAN's live commander, else the man. `MineStrike` (Halts \| LeavesRoute): every live man of the unit ordered to hold (`PersonHold`), the unit stops (a vehicle's crew stays aboard); Success once the side has MARKED the field (`PlaceKnowledgeTable.Marked`) or after `Hold` (120 s). The report up the chain is the knowledge path itself | ⛔ SUPERSEDED `2026-11-17` by the next row — R-2125's interim was: NO back-out along breadcrumbs (MR-5's per-mover record did not exist yet), the unit held in place; the followers of a struck vehicle do not reverse in its tracks (no convoy context) |
+| CE-4654 / D-3 the casualty *(`2026-11-18`, behaviors — user: "the trigger man is MAIMED, not killed")* | ⭐ AS BUILT: an AP mine's burst (munition 6051) treats the man standing on it — the nearest living PERSON within 1.5 m of the burst (`AreaEffectSystem.TriggerManOf`) — by its own rule (`Maim`): his damage goes to his two SHINS (half each, `HasBodyPart`), leaving him at 0.75 of his incapacitation line (no thresholds: of 30 %) — out of the fight, alive, bleeding; the squad's casualty care carries him (MF-5). Everyone else near the burst gets the ordinary blast and fragments. ⛔ SUPERSEDED: the whole-body blast law killed him outright (measured after CE-2446: Health 0). Cross-lane edit in `AreaEffectSystem` (said in the commit) | rail `AreaEffectSystemTests.CE4654_AnApMine_MaimsTheManOnIt…` (red-proved) · `mf-strike-and-halt` rows (2b) + (2c), 8 / 8 · `mf-at-vs-vehicle`, `mf-recon-and-mark`, `mf-way-round` still pass |
 | MS-B1 back-out *(MR-5, `2026-11-17`, behaviors — R-2125's interim ENDED on terrain's `MineBreadcrumbs`, MS-T2)* | ⭐ `TrailWalk` (one shared walker, fixed buffers, 0 B): copies the mover's OWN breadcrumbs once (newest first — the live trail keeps growing as it walks), cut after the first point OUTSIDE the struck field's outline; then one short leg (≤ ~2 m) per point, `MoveGait.Upright`, 1.2 m/s a man / 2 m/s a vehicle with REVERSE allowed (it keeps its facing), a failed leg skips to the next point (still on the safe trail); stops at the last. `MineStrike` orders every live man `BackOut {Field}` (he walks out, then holds there — never ends by itself; no track ⇒ holds where he stands); a unit with no roster (a struck VEHICLE, a lone man) walks itself inside the drill. The drill's end is unchanged (the field MARKED, or `Hold`) | ⚠ each leg is an ordinary move: the side's very high price on a KNOWN field (MS-T3) cannot route a 2 m leg elsewhere — a direct (unplanned) move for men does not exist in navigation, and was not needed. ⚠ Still not built: a struck vehicle's FOLLOWERS reversing in its tracks; the medic coming in along the casualty's trail (MR-5's second half) |
 
 | MS-B2 | `ReconMinefield` (a man's behaviour; a commander orders it to his engineer): the field's parameters, outline (≤ 24 points) and knowledge grid read ONCE into the blackboard; **seek** — one 4-neighbour cell at a time toward `At`; every step a **probe** at detector pace (half a cell's length): a cell holding a live-by-geometry mine (the lattice inside the outline, not in a lane — arithmetic, 0 B) is KNOWN-MINED and never entered, else KNOWN-CLEAR and walked into; the first mined cell starts the **trace** (the mine on the LEFT; left · straight · right · back) on swept-clear cells only, until back at its start (closed ⇒ `MinefieldMarked`) or `MaxCells`; `Mark` marks an unclosed walk. Every probe raises `MinefieldCellsSwept` (one cell) through the batch buffer; `Minefield` is a declared brain read | the start is the man's OWN cell (seek toward the strike), not "the cell nearest the strike" — that cell is mined; a struck mine counts as a mine to the detector (conservative; `MinefieldStrikes` not read) |
@@ -503,3 +716,92 @@ in `EjectionSystemTests.cs:26` only).
 | MS-U3 authoring | `MinefieldOps` (`AddEntity/`): type · spacing 2…100 · orientation wrapped to [0,360) · seed · anti-handling · known-at-start side · `AddLane` (≤ 8, width 4.5) · `DeleteLane` (compacts) — each ONE undo step, no-op when unchanged; `ShapeLock` (a Struck entry of a `MinefieldStrikes` keyed by the field's `EntityGuid`) and `Counts` (cached per field, 0 B steady). The ONE area tool: `PlacementToolRegistry.Graphics` has "Minefield" (8830); `AreaAuthoringArm.BornWith` drops the `MapOverlayStyle` (MR-8) and adds `MinefieldOps.Default()` (Mixed, 10 m, 0°, seed 1). Form: `MinefieldDetailsView` (`details.minefield`, rank 39, `Hrot.Editor.AiShared/Shell`), the mockup's rows + Lanes (trash = `DeleteLane`) + Add lane. **Add lane = the area tool in LINE mode**: `ScenarioSpawnAdapter.StartLaneAuthoringMode` arms the same `AreaAuthoringArm` (MinPoints 2, open) with a sink that calls `AddLane` with the line's first and last points (click A, click B, Enter / ✓) — no entity is spawned. **Shape lock** through ONE hook, `OutlineEditPolicy` (`ScenarioEditor/Gizmos`): `VertexEditGizmo` asks `ReasonFor(world, entity)` before a move / centre drag / insert / delete and puts the reason on the hint line; the minefield registers `MinefieldOps.OutlineRefusal`. Cross-lane, one line each: `HrotSharedComponentRegistry` registers `Minefield` (terrain's MS-T1 had not); `Icons` keys `minefield/field` (FA land-mine-on, red) and `minefield/lanes` | `MinefieldOpsTests` (7) · `MinefieldDetailsViewTests` (3, frame rail under xvfb) |
 | bound to terrain's MS-T1 / MS-T2 / MS-T4 (part), `2026-11-16` | `FlailActivity.IsOn` = the clearer's `MineClearing` active with the FLAIL (a plough / line charge never turns the drum) · the gizmo draws terrain's RUNTIME lanes (`MinefieldLanes` records, a cached query, 0 B): all for the truth, a side only those it cut (MF-10), known field or not · the mines' bursts (`EffectTkbCatalog`): AP → `ExplosionMedium` + a small scorch, AT and the line charge → `ExplosionHuge` + a large one · the knowledge cells are real (MS-T2) | `MinefieldGizmoRail.ARuntimeLane_…`, `MineClearerModelRail` (the switch) |
 | re-bind ✅ DONE `2026-11-16` | `["MineClearer"]` in `FamilyOfClass`, type 116 through the real catalogue, the picker thumbnail (`Mine_Clearer__engineer_tank_`, atlas 91), the catalog goldens | `MineClearerModelRail.TheRealType116_…`, `EntityTypeCatalogTests` |
+
+## 13. MS-B5 — the HQ answers `Engineers` *(D-2, CE-2442 — ✅ decided `2026-11-18`, user via coordinator; behaviors; build-state: BUILT `2026-11-18`)*
+
+> 🔒 **Decided (D-2 ①):** *"`SupportAsset.Engineers` (a free unit with a TKB 116 clearer or an engineer squad); the HQ answers with `ReconMinefield` at
+> the request's point, then the clearer's `Breach` along the requester's route once the field is marked. Add a demo scenario with checks."*
+
+**INVENTORY** (`2026-11-18`): `scripts/cbm.sh search_graph '.*(Engineer|MinefieldKnowledge|Breach|SupportAsset|RequestKind).*' Class` → 3 hits, all
+`BreachDoor*` (⚠ the index predates the minefield code — grep is the record here) · grep: `SupportCommandBehavior.Command` answers `FireSupport` (`:90`)
+and `Reinforce` (`:131`) only; `SupportAsset` {AttackHelicopter, StrikePlane, Battery, GroundUnit}; the request is `MinefieldAheadBehavior.Tick`'s
+`RequestKind.Engineers` at the field's NEAR side (`At`, radius 30); `ReconMinefield` (a MAN's, `{Field, At, Mark}`) and `Breach` (a UNIT's with a
+clearer vehicle + a crossing man, `{Field, Start, End, Width}`) exist; `PlaceKnowledgeTable.Marked(side, field)` answers "known in full" (marked or
+known at start); `TkbEntityTypes.Engineer_MineClearer` = 116. ⇒ **reuse all of it**; new: one asset kind, one answer branch, the far-side point.
+
+```mermaid
+classDiagram
+  class SupportCommandBehavior { <<existing, grows>> +Command() +KindOf() Engineers ; +EngineersAnswer() NEW }
+  class SupportCommandState { <<existing, grows>> +EngPhase +EngFieldNetId +EngUnit +EngNear +EngFar }
+  class SupportAsset { <<existing enum, grows>> Engineers = 5 }
+  class MinefieldAheadBehavior { <<existing>> queues RequestKind.Engineers at the near side }
+  class ReconMinefieldBehavior { <<existing>> a man: Field, At, Mark }
+  class BreachBehavior { <<existing>> a unit: clearer + crossing man }
+  class PlaceKnowledgeTable { <<existing>> +Marked(side, field) }
+  class EngineersAnswer { <<NEW static>> +FieldAt(world, at) +FarSide(world, field, from, near) }
+  MinefieldAheadBehavior ..> SupportCommandBehavior : REQUEST Engineers (up the chain)
+  SupportCommandBehavior --> SupportCommandState
+  SupportCommandBehavior ..> EngineersAnswer
+  SupportCommandBehavior ..> ReconMinefieldBehavior : assigns to the engineer unit's man
+  SupportCommandBehavior ..> BreachBehavior : assigns to the engineer unit
+  SupportCommandBehavior ..> PlaceKnowledgeTable : marked for the HQ's side?
+```
+*What the picture shows that prose hid:* nothing new runs the work — the HQ only CHOOSES and ORDERS two behaviours that already exist; its one
+new piece of state is which phase its single engineer job is in.
+
+```mermaid
+sequenceDiagram
+  participant S as Squad (MinefieldAhead)
+  participant H as HQ (SupportCommand)
+  participant E as Engineer unit
+  participant M as its man
+  S->>H: REQUEST Engineers at the near side
+  H->>H: the field at the point, the far side along the requester's line
+  alt the field is not marked for the HQ's side
+    H->>M: ReconMinefield Field, At, Mark
+    M-->>H: the field marked (the side's knowledge) or his walk ends
+  end
+  H->>E: Breach Field, Start = near side, End = far side
+  E->>E: support by fire, the clearer cuts the lane, the crossing
+  H->>H: the job ends when the Breach order no longer runs
+```
+
+```mermaid
+graph TD
+  BP[BrainPhase - per entity, parallel] --> HQ[SupportCommand tree on the HQ]
+  HQ -->|CommandOrders.Assign| EU[Engineer unit's Breach tree]
+  HQ -->|CommandOrders.Assign| EM[its man's ReconMinefield tree]
+  BP --> EU
+  BP --> EM
+```
+*Caption:* every node ticks in the brains' per-entity phase; the HQ writes only orders (commands, next tick) — no cross-entity write (the
+parallel rule).
+
+| decision | why | rejected |
+|---|---|---|
+| an Engineers asset = a UNIT whose roster holds a TKB 116 clearer; `KindOf` names it BEFORE `GroundUnit` | the decided definition; a clearer's unit must not be sent to reinforce a line | a per-entity "engineer" flag — no such component; the TKB type already says it |
+| the field = the nearest `Minefield` whose outline lies within the request's 30 m of its point | the request carries a point only (D-2: "derived, not added") | a field id in the request — a wire change |
+| the far side = where the line from the REQUESTER through the point leaves the outline, + 5 m | "along the requester's route": he came along that line | the field's centroid side — not his way |
+| marked for the HQ's side (`Marked`: marked or known at start) ⇒ Breach at once; else ReconMinefield {Mark} first, Breach when marked or his walk ends | the decided order; a known field needs no recon | waiting only for the mark — a recon that ends unmarked would stall the job for good |
+| ONE engineer job at a time (the state's phase) | an HQ has few engineers; a second request waits in the picture | a job list — no scenario needs two |
+
+**As built (`2026-11-18`)** — matches the diagrams; three findings folded:
+
+| what | as built | 📐 found |
+|---|---|---|
+| the answer | `SupportCommandBehavior.Engineers` / `AdvanceEngineers` / `OrderBreach` + `EngineersAnswer` (`FieldAt`, `FarSide`, `KnowsInFull`, `HasClearer`, `ManOf`); `SupportAsset.Engineers` named by `KindOf` before `GroundUnit`; the job's phase in `SupportCommandState` (`EngPhase` …) | — |
+| the recon man | `ManOf` = the unit's first live man on foot — ⭐ inside a sub-unit when the unit holds TEAMS (a unit is never sent on `ReconMinefield`) | the demo's engineer unit holds its crossing element as a team |
+| ⚠ the crossing element is a UNIT | `Breach` gives `CrossLane` (a unit play: its roster crosses in single file) to its LAST member on foot — authored as a TEAM, not a lone man | 📐 a lone sapper as that member: `CrossLane` failed at once, the Breach ended "Success" and cancelled the clearer's lane mid-way. ⚠ Breach itself does not refuse a lone man — a later hardening (not in D-2's scope) |
+| the demo | `mf-engineers-answer`: the squad STARTS in `MinefieldAhead` 15 m short of the field (a march's route skirts the field's edge today — CE-2447, blocked on terrain); the HQ's Engineers (a TKB 116 clearer 18 m clear of the sappers — a man inside a moving clearer's hull is run over, CE-1967 — 'Sapper 3' supporting, the 'Sapper Team' crossing) | 7 / 7: MinefieldAhead 0 s · Breach + ClearLane 3.25 s · CrossLane 22.25 s · nobody hurt |
+
+**Rails** (`SquadManeuverTests`, the HQ's suite): `CE2442_Engineers_ReconTheUnknownField_ThenTheUnitBreachesAlongTheRequestersLine` (recon at the
+point with Mark, the request answered; the breach after his walk, from the point to the far edge + 5 m along the requester's line) ·
+`CE2442_AnEngineerUnit_IsNeverSentToReinforce`. ✅ Red-proofs: the Engineers branch removed ⇒ the first red; `KindOf`'s engineer test removed ⇒
+both red. Strict parallel env (`HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 HROT_WORLD_GUARD=1`): 5 / 0.
+
+**CE-2447 (`2026-11-18`, behaviors) — `mf-no-way-round` re-authored.** 📐 Once a route keeps its clearance round a KNOWN field (terrain's CE-4655 ring),
+a march to (185, 80) simply went ROUND Field B (130–150, 50–110), so no `Minefield` area was ever reported — on test-town the field never blocked the
+way. Making it span the whole map did not work either (the planner wandered north looking for a way). ⭐ The scenario now uses KG-7's other case,
+*"the order goes through"*: the march's objective is INSIDE the field (145, 80), so every route enters it, the route sensor reports it, and the squad
+halts short (MinefieldAhead at 111 s) and stays halted. "Nobody enters the field" is three never-`near` rows down the field's centre line (x 140; y 60 /
+80 / 100; 10 m) — ⛔ the old `x > 130` row also caught a man walking the clearance ring OUTSIDE the field (measured: the leader at (131, 114.9)). 10 / 10.

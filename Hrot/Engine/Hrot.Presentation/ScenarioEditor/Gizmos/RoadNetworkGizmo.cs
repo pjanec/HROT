@@ -31,27 +31,42 @@ public sealed class RoadNetworkGizmo : IGlobalStatelessGizmo
     {
         if (view is not EntityRepository repo || !repo.HasSingleton<ZoneEnvironmentData>()) return;
         var network = repo.GetSingleton<ZoneEnvironmentData>().RoadNetwork;
-        Draw(network, draw);
+        var terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
+        Draw(network, draw, terrain);
     }
 
+    /// <summary>⭐ CE-4401 — how far above the ground a road is drawn (m): on the surface, never inside it.</summary>
+    public const float GroundLift = 0.05f;
+
     /// <summary>Draws <paramref name="network"/>; nothing when it holds no roads.</summary>
-    public static void Draw(in RoadNetworkBlob network, IDebugDrawBuilder draw)
+    public static void Draw(in RoadNetworkBlob network, IDebugDrawBuilder draw) => Draw(network, draw, null);
+
+    /// <summary>
+    /// Draws <paramref name="network"/> laid ON <paramref name="terrain"/>'s ground (<see cref="Fdp.Toolkit.Terrain.TerrainWorld.GroundHeightAt"/>), at z 0 with no terrain.
+    /// ⭐ CE-4401 — the road graph is 2-D (SUMO's net, <see cref="RoadNetworkBlob"/>); 📐 before, every point was drawn at z 0, so on a terrain at ≈ 500 m
+    /// (the scale rig's <c>scale-1</c>) the roads hung 500 m under the ground (user finding). Per frame: an index loop and a height lookup per point, 0 B.
+    /// </summary>
+    public static void Draw(in RoadNetworkBlob network, IDebugDrawBuilder draw, Fdp.Toolkit.Terrain.TerrainWorld? terrain)
     {
         if (!network.Segments.IsCreated || !network.Nodes.IsCreated) return;
         for (int i = 0; i < network.Segments.Length; i++)
         {
             var seg = network.Segments[i];
             float width = seg.LaneWidth * seg.LaneCount;
-            var a = new Vector3(seg.P0, 0f);
+            var a = On(terrain, seg.P0);
             for (int k = 1; k <= CurveSamples; k++)
             {
-                var b = new Vector3(RoadGraphNavigator.EvaluateHermite(k / (float)CurveSamples, seg.P0, seg.T0, seg.P1, seg.T1), 0f);
+                var b = On(terrain, RoadGraphNavigator.EvaluateHermite(k / (float)CurveSamples, seg.P0, seg.T0, seg.P1, seg.T1));
                 draw.DrawLine(a, b, RoadColor, width, SizeMode.WorldMeters, layer: DebugTraceLayers.Roads);
                 draw.DrawLine(a, b, CentreColor, 1f, SizeMode.ScreenPixels, layer: DebugTraceLayers.Roads);
                 a = b;
             }
         }
         for (int i = 0; i < network.Nodes.Length; i++)
-            draw.DrawSphere(new Vector3(network.Nodes[i].Position, 0f), 2f, NodeColor, layer: DebugTraceLayers.Roads, fillColor: NodeColor);
+            draw.DrawSphere(On(terrain, network.Nodes[i].Position), 2f, NodeColor, layer: DebugTraceLayers.Roads, fillColor: NodeColor);
     }
+
+    /// <summary>A road point on the ground (z 0 with no terrain).</summary>
+    public static Vector3 On(Fdp.Toolkit.Terrain.TerrainWorld? terrain, Vector2 p)
+        => new(p, terrain == null ? 0f : terrain.GroundHeightAt(p.X, p.Y) + GroundLift);
 }

@@ -96,6 +96,8 @@ namespace Hrot.AI.Behaviors.Brains
         public const int FallBackSite  = 0x20930001;
         /// <summary>⭐ <c>CE-2108</c> — see <see cref="TakeCoverSite"/>.</summary>
         public const int FlankSite = 0x21080001, FiringPositionSite = 0x21080002;
+        /// <summary>⭐ <c>CE-8311</c> (D-15) — the Suppress branch's firing position on the hidden threat's last-known spot.</summary>
+        public const int SuppressFromSite = 0x21080003;
         /// <summary>⭐ WL-4 W-12f — see <see cref="TakeCoverSite"/>.</summary>
         public const int CloseToThrowSite = 0x40120001;
 
@@ -191,6 +193,18 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus FiringPosition(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
             => Run(ref p, ref ws, self, world, FindOpenFiringPosition.BlueprintId, FiringPositionSite,
                    Mode.EndOnArrival | Mode.RepositionOnThreatMove | Mode.NeedsEntity);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8311</c> (D-15) — moves to a FIRING POSITION on the top threat's LAST-KNOWN spot (<see cref="FindOpenFiringPosition"/> on the
+        /// remembered point: a nearby point that sees it), crouched; Success on arrival. Its own fire is the params' (the Suppress branch passes
+        /// it off and fires itself). Running while it waits for an answer; Failure with nothing remembered to aim at.
+        /// </summary>
+        internal static NodeStatus FiringPositionOnRemembered(ref EqsTacticsParams p, ref EqsTacticsState ws, Entity self, EntityRepository world)
+            => Run(ref p, ref ws, self, world, FindOpenFiringPosition.BlueprintId, SuppressFromSite,
+                   Mode.EndOnArrival | Mode.NeedsEntity | Mode.AtLastKnownPoint);
+
+        /// <summary>⭐ <c>CE-8311</c> — drops the node's sensor and its weapon claim, leaving a finished move alone.</summary>
+        internal static void ReleaseSensor(ref EqsTacticsState ws, Entity self, EntityRepository world) => Release(ref ws, self, world, stopMoving: false);
 
         /// <summary>
         /// ⭐⭐ <c>WL-4</c> W-12f (📄 docs/DESIGN_Weapon_Layers.md §5f) — closes to within a THROW of where the hidden top threat was

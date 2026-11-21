@@ -10,6 +10,9 @@ known-conflict: DESIGN_Terrain_World.md §2 / §6 L459 — "building = solid pri
   v2 that note deferred ("enterable buildings need doors/stairs"); solid prisms stay valid for walls and non-enterable
   buildings.
 related-designs:
+  - designs/weapons/DESIGN_Flame_Weapons.md — the flame cone, a sibling of §3k's area-effect laws, entering rooms through openings; a roof fire on the building damage record
+  - DESIGN_Glass_Windows.md — OWNS glass in windows (CE-5026): a window opening's `glazed` flag, the pane piece, cracks and shattering
+  - DESIGN_Terrain_Base_Edits.md — OWNS making a solid baked-in building enterable / adding a door in the editor (the template written by the importer's generator)
   - docs/DESIGN_Map_View_Filter.md — OWNS the map's view filter (CE-4388): what is on screen and close enough to draw, decided ONCE per entity before any gizmo rule, in 2-D and 3-D
   - DESIGN_Terrain_Import_UTM.md — the importer GENERATES ~2 000 enterable *.building.json templates; ⭐ its §8 PROPOSES E3 wall breaching (a breach = an extra opening, world state) for every building
   - docs/blueprints/Architect_Question_106_Sound_Paths.md — B-6 v2 (portal propagation) as approved, R-3050
@@ -1610,6 +1613,23 @@ point-for-point identical (count + checksum pinned).
 
 ⛔ **Not built here, as decided:** C8 — a behaviour taking the point's stance → `CE-3135` (behaviors lane). C9 — cover
 `Quality` from the wall's material → stays ⏭ with the penetration tables.
+
+### 3l.8 Measured — the cover along a 30 m open corridor *(terrain, `2026-11-19`, `CE-4673`; the street fight, `CE-4672`)*
+
+The question (HANDOFF_Coordinator_To_Terrain_Street_Fight_Scenario): Red's posts on a street's centreline (`SearchRadius` 10) found no cover — is that the DATA or the SEARCH?
+Measured on `wide-corridor` (a 30 m open corridor between detached houses, `scripts/gen-wide-corridor.py`) through this provider:
+
+| measured | value | so |
+|---|---|---|
+| cover points within 10 m of a post ON the centreline | **0** (8 posts) | ⭐ the SEARCH: the corridor's edges are 15 m from its centre — a 10 m radius cannot reach them |
+| within 25 m | **40+** per post (70–100 measured at five) | the data is there one step further out |
+| the nearest point to a post | **13.5–16 m** — the garden walls, fences and hedges at the corridor's edge | |
+| a house front facing the corridor | ≥ 4 ground points, no gap over 3 m (the door's span is the widest, 2.8 m), none more than 1.5 m in from a corner | no facade or corner gap (C1's per-face points) |
+| imported facades (`city-battle` 474 records, `demo-city` 169) | every WALLED building carries points round it; the only two bare records are `city-battle`'s river BRIDGES (a 40 m deck + two ramps — a structure with no walls, so no cover is right) | no import gap |
+
+⚠ **Still material-blind (C9, unchanged):** a 4 cm wooden fence or a hedge makes the same `Quality` 1 point as a brick garden wall — a man "in cover" behind a fence is concealed,
+not protected. ⏭ stays with the penetration tables (a tuning decision); the street fight's `cover` checks therefore count a fence as cover too.
+Rails: `CorridorCoverTests` (Fdp.Toolkits.Tests).
 
 ## 4. Change map — what each consumer must do
 

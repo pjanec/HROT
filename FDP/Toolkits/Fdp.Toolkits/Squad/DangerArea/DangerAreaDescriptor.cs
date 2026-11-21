@@ -24,6 +24,10 @@ namespace Fdp.Toolkit.Squad.DangerArea
         /// <summary>⭐ <c>CE-4624</c> (DESIGN_Minefields.md MR-9, KG-7) — a minefield the unit's SIDE knows (mined or suspected cells) on the route: NO-ENTER (like gas), never
         /// crossable — the squad halts and calls engineers. Derived from the side's knowledge, no circle store.</summary>
         Minefield     = 8,
+        /// <summary>⭐ <c>CE-2468</c> UF-6 (DESIGN_Minefields.md §9b, K10) — ground a known enemy of the unit's SIDE covers (a <c>Direct</c> under-fire record's
+        /// <c>UnderFireSight</c> grid) on the route: the route enters it at the centre; the near handle is the last unseen point before, the far one where it leaves.
+        /// Priced in the route already (K4), so a route here had no cheap way round — the crossing decision bounds or holds (rated 1, as shelling).</summary>
+        CoveredByFire = 9,
     }
 
     /// <summary>

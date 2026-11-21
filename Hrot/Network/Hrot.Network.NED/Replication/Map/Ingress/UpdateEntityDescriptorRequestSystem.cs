@@ -218,6 +218,9 @@ namespace Hrot.Map.Common.Replication.Ingress
             var repo = (EntityRepository)view;
             if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Weather.WeatherConditions>()) return;
             var weather = Hrot.Map.Common.Replication.Egress.EntityWeatherEgressTranslator.FromSample(in req.Payload.Weather);
+            if (repo.HasComponent<Fdp.Toolkit.Weather.WeatherConditions>(entity))   // ⭐ CE-4662 (TD-8) — the owner says when this weather began
+                weather.Restamp(repo.GetComponentRO<Fdp.Toolkit.Weather.WeatherConditions>(entity),
+                                (SimInstant)Fdp.Toolkit.Time.SimClock.Of(repo).TotalTime);
             repo.SetComponent(entity, weather);
 
             FdpLog<UpdateEntityDescriptorRequestSystem>.Info(

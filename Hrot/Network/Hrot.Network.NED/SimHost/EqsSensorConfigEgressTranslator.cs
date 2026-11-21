@@ -27,16 +27,21 @@ namespace Hrot.Network.NED.SimHost
         // ⭐ CE-490 — the brain READS its own topic too: TransientLocal hands a node every live instance, including the
         //   ones a previous owner wrote. Only keys and last configs are kept — ⛔ no carrier is ever built on a brain.
         private readonly DdsReader<EqsSensorConfigTopic>? _reader;
+        [Fdp.Core.ProtocolCache("mirror of what DDS holds for sensor instances; refilled by ReadWire/own writes")]
         private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), EqsSensorConfigTopic> _onWire = new();
         // Keys this node has already suspended and not seen re-activated since — one write per orphan, not one per scan.
+        [Fdp.Core.ProtocolCache("once-per-orphan suspend handshake marker; empty re-suspends once")]
         private readonly HashSet<(int ParentNetworkId, int LocalChildIndex)> _suspendedByUs = new();
+        [Fdp.Core.WorldDerived("scratch cleared and refilled in SweepOrphans")]
         private readonly List<(int ParentNetworkId, int LocalChildIndex)> _orphans = new();
         private readonly NetworkEntityMap _entityMap;
 
         // ⭐ CE-3002 / R-179 — the brain names each child sensor's solver. 📄 DESIGN_Ownership_Groups_And_Grants.md §5.8.
         private readonly Hrot.Network.Routing.IClusterStateCache? _clusterCache;
         private readonly NodeId _localNodeId;
+        [Fdp.Core.ProtocolCache("solver node picked per sensor; re-derived from wire SolverNodeId or re-picked")]
         private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), int> _solverOf = new();
+        [Fdp.Core.ProtocolCache("solver already written to ownership record; empty re-applies idempotently")]
         private readonly Dictionary<(int ParentNetworkId, int LocalChildIndex), int> _recordedSolver = new();
         private OwnershipApplier? _applier;
         private int _worldEpoch;   // ⭐ CE-3076 — per-key bookkeeping belongs to ONE world (WorldEpoch, CE-2101)
@@ -45,10 +50,13 @@ namespace Hrot.Network.NED.SimHost
         // carries a later parameter change (epoch bump, new area) to the Muscle — the old
         // SmartEgressUtil gate did exactly that, and the distributed rails worked around it by
         // removing and re-adding the sensor. Publishing on any change is what keeps the split right.
+        [Fdp.Core.ProtocolCache("last config written per sensor entity for egress change detection")]
         private readonly Dictionary<Entity, EqsSensorConfigTopic> _published = new();
         // The parent each child sensor was published under — an ended sensor is SUSPENDED while that parent lives and
         // disposed only once it is gone (CE-486).
+        [Fdp.Core.WorldDerived("parent entity per sensor, refreshed from world every scan")]
         private readonly Dictionary<Entity, Entity> _parentOf = new();
+        [Fdp.Core.WorldDerived("scratch cleared at top of each scan")]
         private readonly HashSet<Entity> _seen = new();
 
         // ⭐ POC 3 T-2 (the parallel-simulation experiment; POC 2 D-4: this translator was 17 of the CGF's ~39 ms of egress — it built every
@@ -56,16 +64,23 @@ namespace Hrot.Network.NED.SimHost
         //   sensor nothing touched — its own inputs declared; authority / ownership / parts writes, seek / restore / wipe (H3) and a structural
         //   change force a visit; the sweep visits every sensor at least once per SweepPeriod frames (the bound for the inputs no signal names:
         //   a solver re-pick from the cluster cache). A sensor HELD for a context slot's network id is visited every frame until it publishes.
+        [field: Fdp.Core.NotState("an experiment switch (`HROT_EQS_CONFIG_GATE`), fixed at start-up (exp/perf)")]
         internal static bool GateOn { get; set; } = EnvVars.Read(EnvVars.HrotEqsConfigGate) == "1";
+        [Fdp.Core.WorldDerived("the egress visit gate: a new world ⇒ it resets itself (`ReferenceEquals(repo)`), the clock going back ⇒ a full scan (exp/perf)")]
         private readonly EgressVisitGate _gate = new(typeof(EqsSensor), typeof(SensorConfigPayload), typeof(EqsContextPoints), typeof(PartMetadata));
+        [Fdp.Core.WorldDerived("sensors visited every frame until their slot's id exists; cleared per world, and an empty set only means one more gated visit (exp/perf)")]
         private readonly HashSet<Entity> _held = new();
+        [Fdp.Core.WorldDerived("scratch — the node ids read once per scan, nulled at its start (exp/perf)")]
         private IReadOnlyList<int>? _knownThisScan;
         /// <summary>The sensors the gate skipped since creation (a rail reads it).</summary>
+        [field: Fdp.Core.WorldDerived("a diagnostic counter (exp/perf)")]
         internal long GateSkipped { get; private set; }
         // The wire keys a LIVE local sensor holds this scan — every local sensor, with authority or not. CE-486: an ended
         // sensor whose key a live one now holds writes nothing (the same-scan write-then-end race, design §2 ①, cannot
         // happen). CE-490: an instance a local sensor holds is never an orphan.
+        [Fdp.Core.WorldDerived("scratch cleared at top of each scan")]
         private readonly HashSet<(int ParentNetworkId, int LocalChildIndex)> _liveKeys = new();
+        [Fdp.Core.WorldDerived("scratch cleared and refilled each scan")]
         private readonly List<Entity> _gone = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EqsSensorConfigTopic>();
@@ -437,7 +452,9 @@ namespace Hrot.Network.NED.SimHost
 
         // ⭐ CE-3272 (Q94 B) — the sensor's EqsContextPoints as the wire list, rebuilt only when the component changed (this egress runs
         //   for every sensor every frame — CE-3243's lesson): an unchanged component returns the list already published.
+        [Fdp.Core.WorldDerived("wire-list cache rebuilt from EqsContextPoints when component differs")]
         private readonly Dictionary<Entity, (Fdp.Toolkit.Spatial.Eqs.EqsContextPoints Points, List<EqsContextPointWire> Wire)> _points = new();
+        [Fdp.Core.NotState("static empty-list sentinel, never mutated")]
         private static readonly List<EqsContextPointWire> s_noPoints = new();
 
         private List<EqsContextPointWire> PointsOf(ISimulationView view, Entity entity)

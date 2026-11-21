@@ -33,6 +33,9 @@ public sealed class MapViewModeLayer : IMapLayer
     /// with the camera" (and <c>POST /view/follow</c>, through <see cref="ViewControl"/>) can follow its units. Null: following refuses.</summary>
     public Func<EntityRepository?>? World { get; set; }
 
+    /// <summary>⭐ CE-1984 (DESIGN_Sensor_View D-10) — the map's sensor view, so <c>GET/POST /view/sensor</c> reaches it through <see cref="ViewControl"/>.</summary>
+    public SensorView? Sensor { get; set; }
+
     /// <summary>⭐ CE-1293 — the drawn bodies, so the follow camera's eyes are the drawn head's.</summary>
     public EntityBodyLayer3D? Bodies { get; set; }
 
@@ -45,6 +48,8 @@ public sealed class MapViewModeLayer : IMapLayer
     {
         _switch.Update();   // ⭐ R-1046 — a 3-D request waiting for the map's build completes into 3-D the frame it is built
         if (World?.Invoke() is { } w && !ReferenceEquals(w, _registered)) { ViewControl.Register(w, this); _registered = w; }
+        // ⭐ CE-11006 (RR-6, R-11000) — the camera this node would show, for a node extension: written here, the one place every map host passes, while 3-D is on
+        if (_switch.Is3D && World?.Invoke() is { } cw) CameraSuggestions.Write(cw, _switch.Camera3D);
         foreach (ref readonly var _ in _bus.Read<ToggleMap3DEvent>())
             _switch.Toggle();
         foreach (ref readonly var _ in _bus.Read<ToggleShoulderViewEvent>())

@@ -322,6 +322,12 @@ references `StanceStatus`'s assembly or composes the stance runtime — folded i
 
 ### 4.4 W9 — the spatial grids follow the terrain (`CE-3018`, as built `2026-10-03`)
 
+⭐ **CE-1959 (`terrain` lane, `2026-11-17`) — the grids cover the GROUND ATTACHED BEYOND the terrain too:** `SpatialGridFit.Covered` = the bounds ∪ the
+footprint of `TerrainWorld.Beyond` (the SUMO net, attached by `SumoNetTerrainLoader` before the grids are fitted). ⛔ Was the bounds alone: on demo-city
+(bounds 800 m, its net to ~4.4 km) every body on the net past 850 m was outside the collider grid — no round could meet it (📐 live: 90 of 90 rounds at SUMO
+cars "StoppedByTerrain"), nor avoidance or sight. ⚠ The cells coarsen with the extent (demo-city: collider 16 m, perception 24 m — queries cost more, never
+wrong; the seven convoy scenarios pass). Rail `TerrainWorldTests.CE1959_*`.
+
 ```mermaid
 classDiagram
   class SpatialHashGrid {
@@ -913,7 +919,10 @@ were run (see the commit).
 **Rails (S2, S3):** a lone tree blocks sight, stops small arms, is a hole in the navmesh; a wood across the map stops a wheeled vehicle,
 not a tracked one, not infantry; with a gap at one end the tracked vehicle goes round (×4) and infantry cuts through (×1.5).
 
-**Not yet built:** felling a lone tree (the §8 / Nav v2 §14 state-on-fixed-geometry seam — a vehicle or a blast removes a trunk; T-4), and
-fragments in woods (a blast's fragments ignore the trunks — `FragmentTransmission` reads resistance only).
+**Not yet built:** felling a lone tree (the §8 / Nav v2 §14 state-on-fixed-geometry seam — a vehicle or a blast removes a trunk; T-4) — ✏ since built as CE-4603
+(Vehicle Breaching §7.7). ⛔ ~~fragments in woods (a blast's fragments ignore the trunks — `FragmentTransmission` reads resistance only)~~ — ✏ **BUILT `2026-11-18`
+(CE-3426, terrain):** `AreaEffect.FragmentTransmission` multiplies each crossing by `1 − Stop` as the round law does (W-10), so the woods crossing the fragment rays
+already get (they trace with the FIRE purpose) stops the same share of fragments as of rounds (100 m at 115 / ha ⇒ ≈ 0.71). The blast wave is unchanged (a wood is no
+closed barrier). Rail `TerrainWoodsTests.CE3426_*`.
 ⚠ A hand-drawn forest polygon over a road still closes it to a wheeled navmesh path (road-graph driving is not affected) — W-8 opens roads
 only in CLUSTERED woods. The shipped forests (test-town, highway-rest) carry no road.

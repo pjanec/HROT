@@ -85,7 +85,9 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         // ⭐⭐ CE-4007 (§8.3) — what this writer published (see above). A release (Held=0) stays remembered until the entity is destroyed.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityPossessedBy> _instances;
+        [Fdp.Core.WorldDerived("scratch cleared at top of each Scan")]
         private readonly HashSet<int> _seen = new();
+        [Fdp.Core.WorldDerived("scratch cleared and refilled each Scan")]
         private readonly List<int> _gone = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityPossessedBy>();

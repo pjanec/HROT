@@ -83,6 +83,47 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(3, replica.GetComponentRO<GroundDamage>(ghost).Count);
             Assert.False(EntityGroundDamageEgressTranslator.Matches(in sample, in newer));
         }
+        /// <summary>⭐ <c>CE-4664</c> — the heat marks' ordinal (the toolkit cannot reference NED) equals the wire's: 242, fixed at dispatch.</summary>
+        [Fact]
+        public void CE4664_TheHeatMarksOrdinal_IsTheDescriptorsOrdinal()
+            => Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtGroundHeatMarks, GroundHeatMarkSystem.DescriptorOrdinal);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4664</c> (thermal drivers TD-14) — a mark written on one node is on EVERY node, a late joiner included: the cell's record crosses the wire BYTE FOR BYTE
+        /// (the footprint, the hot end, the stand's times, the engine time, the power class) and reaches a GHOST — a node that never saw the entity made, as a late joiner reads
+        /// the TransientLocal sample; an unchanged record matches its last sample (no resend); the recorded owner never takes its own sample back.
+        /// 🔴 Red-proof: drop the <c>EngineOnSeconds</c> copy in <c>FromSample</c> ⇒ the bytes differ.
+        /// </summary>
+        [Fact]
+        public void CE4664_AHeatMark_IsOnEveryNode_ALateJoinerIncluded_ByteForByte()
+        {
+            using var lateJoiner = new EntityRepository();
+            lateJoiner.RegisterComponent<NetworkIdentity>(); lateJoiner.RegisterComponent<NetworkAuthority>(); lateJoiner.RegisterComponent<GhostStateTracker>();
+            lateJoiner.RegisterComponent<GroundHeatMarks>();
+            var original = new GroundHeatMarks { CellX = 1, CellY = -2 };
+            GroundHeatMarkRules.Add(ref original, new HeatMark(HeatMarkKind.VehicleStand, new Vector2(80f, -100f), 1.2f, 6.9f, 3.6f, HeatMarkEnd.Rear,
+                                                               (SimInstant)100.0, (SimInstant)1000.0, 900f, ThermalPowerClass.Tank), out _);
+            GroundHeatMarkRules.Add(ref original, new HeatMark(HeatMarkKind.VehicleStand, new Vector2(100f, -90f), -0.4f, 4.5f, 1.8f, HeatMarkEnd.Front,
+                                                               (SimInstant)1100.0, (SimInstant)1300.0, 120f, ThermalPowerClass.Car), out _);
+            var sample = EntityGroundHeatMarksEgressTranslator.ToSample(6200, in original);
+            Assert.True(EntityGroundHeatMarksEgressTranslator.Matches(in sample, in original));
+
+            var map = new NetworkEntityMap();
+            var ingress = new EntityGroundHeatMarksIngressTranslator(participant: null, map, new GhostCreationSystem(map), localNodeId: 3);
+            using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, lateJoiner); cmd.Playback(lateJoiner); }
+            Assert.True(map.TryGetEntity(6200, out var ghost));
+            Assert.True(SameBytes(in original, lateJoiner.GetComponentRO<GroundHeatMarks>(ghost)));
+
+            lateJoiner.AddComponent(ghost, new NetworkAuthority(primaryOwnerId: 3, localNodeId: 3));
+            var newer = original;
+            GroundHeatMarkRules.Add(ref newer, new HeatMark(HeatMarkKind.VehicleStand, new Vector2(70f, -70f), 0f, 5f, 2.5f, HeatMarkEnd.Rear,
+                                                            (SimInstant)1400.0, (SimInstant)1500.0, 100f, ThermalPowerClass.Truck), out _);
+            lateJoiner.SetComponent(ghost, newer);
+            using (var cmd = new EntityCommandBuffer()) { ingress.Receive(in sample, cmd, lateJoiner); cmd.Playback(lateJoiner); }
+            Assert.Equal(3, lateJoiner.GetComponentRO<GroundHeatMarks>(ghost).Count);
+            Assert.False(EntityGroundHeatMarksEgressTranslator.Matches(in sample, in newer));
+        }
+
         private static EntityRepository MineWorld()
         {
             var repo = new EntityRepository();
@@ -146,6 +187,47 @@ namespace Hrot.SimHost.Tests
             replica.SetComponent(kg, more);
             using (var cmd = new EntityCommandBuffer()) { ki.Receive(in ks, cmd, replica); cmd.Playback(replica); }
             Assert.Equal(MineCellKnowledge.KnownMined, replica.GetComponentRO<MinefieldKnowledge>(kg).Get(1, 1));
+        }
+
+        /// <summary>⭐ CE-2468 (UF-2) — the toolkit states the under-fire ordinal (it cannot reference NED); this pins it equal to the wire's.</summary>
+        [Fact]
+        public void CE2468_TheUnderFireOrdinal_MatchesTheWire()
+            => Assert.Equal((long)Hrot.NED.Descriptors.EDescriptorType.dtUnderFireKnowledge, Fdp.Toolkit.Terrain.UnderFireWriter.DescriptorOrdinal);
+
+        /// <summary>
+        /// ⭐ <c>CE-2468</c> UF-2 — a side's under-fire record (every field distinctive) crosses to a ghost BYTE FOR BYTE, an unchanged record matches its last sample (no resend), a change
+        /// (State 0 → 1) does not, and the recorded owner never takes its own sample back. A ghost's removal when the owner retires the record is the generic entity-destroy path
+        /// (DeleteEntityRequest), pinned by <c>DestroyEntityCommandEgressTranslatorTests</c> and <c>EntityDestroyIntegrationTests</c> — the descriptor ingress only applies Alive samples.
+        /// 🔴 Red-proof: drop the Point.Z copy in <c>FromSample</c> ⇒ the bytes differ; drop the State test in <c>Matches</c> ⇒ the change is not re-published; drop the owner guard ⇒ the owner takes its own back.
+        /// </summary>
+        [Fact]
+        public void CE2468_AnUnderFireRecord_RoundTripsByteForByte_ToAGhost_AndTheOwnerNeverTakesItsOwnBack()
+        {
+            using var replica = MineWorld();
+            replica.RegisterComponent<UnderFireKnowledge>();
+            var map = new NetworkEntityMap();
+            var ghosts = new GhostCreationSystem(map);
+
+            var know = new UnderFireKnowledge
+            {
+                Cause = UnderFireCause.Direct, Point = new Vector3(123.25f, 7.5f, -45.75f), RangeM = 61.5f, EnemyStrength = 3.25f,
+                Header = new PlaceKnowledgeHeader { SubjectKind = SubjectKind.Place, SidePlus1 = 3, Kind = PlaceKnowledgeKind.UnderFire, State = 0, Source = KnowledgeSource.Contact,
+                                                    Subject = new System.Guid("0a1b2c3d-1111-2222-3333-444455556666"), ObjectIndex = -1, LearnedAt = (SimInstant)1234.5 },
+            };
+            var ks = EntityUnderFireKnowledgeEgressTranslator.ToSample(7201, in know);
+            Assert.True(EntityUnderFireKnowledgeEgressTranslator.Matches(in ks, in know));
+            var ki = new EntityUnderFireKnowledgeIngressTranslator(participant: null, map, ghosts, localNodeId: 2);
+            using (var cmd = new EntityCommandBuffer()) { ki.Receive(in ks, cmd, replica); cmd.Playback(replica); }
+            Assert.True(map.TryGetEntity(7201, out var kg));
+            Assert.True(SameBytes(in know, in replica.GetComponentRO<UnderFireKnowledge>(kg)));
+
+            // a change is a new sample; the recorded owner never takes its own sample back
+            var cooled = know; cooled.Header.State = 1;
+            Assert.False(EntityUnderFireKnowledgeEgressTranslator.Matches(in ks, in cooled));
+            replica.AddComponent(kg, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 2));
+            replica.SetComponent(kg, cooled);
+            using (var cmd = new EntityCommandBuffer()) { ki.Receive(in ks, cmd, replica); cmd.Playback(replica); }
+            Assert.Equal(1, replica.GetComponentRO<UnderFireKnowledge>(kg).Header.State);
         }
 
         /// <summary>

@@ -121,7 +121,7 @@ namespace Hrot.Map.Common.Replication.Interactions
             toPayload:   static (in PossessRequestEvent e) => new InteractionPayload
                 { Possess = new PossessInteractionPayload { StationNodeId = e.StationNodeId, Mode = (byte)e.Mode, RequestId = e.RequestId } },   // ⭐ F4
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new PossessRequestEvent
-                { Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.Possess.StationNodeId), Mode = (PossessionMode)p.Possess.Mode, IsRemote = true, RequestId = p.Possess.RequestId });
+                { Unit = target, StationNodeId = (Fdp.Core.StationId)(p.Possess.StationNodeId), Mode = (PossessionMode)p.Possess.Mode, IsRemote = true, RequestId = p.Possess.RequestId });
 
         /// <summary>⭐ CE-3172 S4e — a station lets its unit go.</summary>
         public static readonly IInteractionCodec ReleasePossession = new InteractionCodec<ReleasePossessionEvent>(
@@ -133,7 +133,7 @@ namespace Hrot.Map.Common.Replication.Interactions
             toPayload:   static (in ReleasePossessionEvent e) => new InteractionPayload
                 { ReleasePossession = new ReleasePossessionInteractionPayload { StationNodeId = e.StationNodeId, RequestId = e.RequestId } },   // ⭐ F4
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new ReleasePossessionEvent
-                { Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.ReleasePossession.StationNodeId), IsRemote = true, RequestId = p.ReleasePossession.RequestId });
+                { Unit = target, StationNodeId = (Fdp.Core.StationId)(p.ReleasePossession.StationNodeId), IsRemote = true, RequestId = p.ReleasePossession.RequestId });
 
         /// <summary>⭐ CE-3172 / CE-3173 S4e — one frame of a station's controls.</summary>
         public static readonly IInteractionCodec ControlFrame = new InteractionCodec<OperatorControlFrameEvent>(
@@ -158,7 +158,7 @@ namespace Hrot.Map.Common.Replication.Interactions
             },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new OperatorControlFrameEvent
             {
-                Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.ControlFrame.StationNodeId), Seq = p.ControlFrame.Seq,
+                Unit = target, StationNodeId = (Fdp.Core.StationId)(p.ControlFrame.StationNodeId), Seq = p.ControlFrame.Seq,
                 Forward = p.ControlFrame.Forward, Lateral = p.ControlFrame.Lateral, Steer = p.ControlFrame.Steer, Yaw = p.ControlFrame.Yaw,
                 Gait = p.ControlFrame.Gait, Trigger = p.ControlFrame.Trigger, Mount = p.ControlFrame.Mount, Vertical = p.ControlFrame.Vertical,
                 AimPoint = new System.Numerics.Vector3(p.ControlFrame.AimX, p.ControlFrame.AimY, p.ControlFrame.AimZ), Stance = p.ControlFrame.Stance,
@@ -301,8 +301,33 @@ namespace Hrot.Map.Common.Replication.Interactions
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
                 => new Fdp.Toolkit.Perception.Events.SeedTargetCommand { Perceiver = target, Target = actor, ScoreBoost = p.SeedTarget.ScoreBoost, RequestId = p.SeedTarget.RequestId, IsRemote = true });
 
+        /// <summary>⭐ CE-4670 (VA-4, 📄 docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §6a) — a crewman's head out / in: to the vehicle's
+        /// boarding arbiter (the passenger list's owner), which writes the hatches.</summary>
+        public static readonly IInteractionCodec OpeningRequest = new InteractionCodec<Fdp.Toolkit.Behavior.OpeningRequestEvent>(
+            EInteractionKind.OpeningRequest,
+            target:      static (in Fdp.Toolkit.Behavior.OpeningRequestEvent e) => e.Vehicle,
+            actor:       static (in Fdp.Toolkit.Behavior.OpeningRequestEvent e) => e.Man,
+            isRemote:    static (in Fdp.Toolkit.Behavior.OpeningRequestEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, vehicle) => Fdp.Toolkit.Behavior.Embarkation.OwnsVehicle(repo, vehicle),
+            toPayload:   static (in Fdp.Toolkit.Behavior.OpeningRequestEvent e) => new InteractionPayload { OpeningRequest = new OpeningRequestInteractionPayload { Verb = (byte)e.Verb } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new Fdp.Toolkit.Behavior.OpeningRequestEvent { Vehicle = target, Man = actor, Verb = (Fdp.Toolkit.Behavior.OpeningVerb)p.OpeningRequest.Verb, IsRemote = true });
+
+        /// <summary>⭐ CE-4670 (VA-3, §6b) — a station's light switch: to the vehicle's lights owner (<c>dtVehicleLights</c>), which sets the discipline and the
+        /// mask by the rule.</summary>
+        public static readonly IInteractionCodec LightsRequest = new InteractionCodec<Fdp.Toolkit.Behavior.LightsRequestEvent>(
+            EInteractionKind.LightsRequest,
+            target:      static (in Fdp.Toolkit.Behavior.LightsRequestEvent e) => e.Vehicle,
+            actor:       static (in Fdp.Toolkit.Behavior.LightsRequestEvent e) => e.Actor,
+            isRemote:    static (in Fdp.Toolkit.Behavior.LightsRequestEvent e) => e.IsRemote,
+            ownsTarget:  static (repo, vehicle) => Fdp.Toolkit.Behavior.Systems.LightRuleSystem.OwnsLights(repo, vehicle),
+            toPayload:   static (in Fdp.Toolkit.Behavior.LightsRequestEvent e) => new InteractionPayload { LightsRequest = new LightsRequestInteractionPayload { Discipline = (byte)e.Discipline } },
+            fromPayload: static (Entity target, Entity actor, in InteractionPayload p)
+                => new Fdp.Toolkit.Behavior.LightsRequestEvent { Vehicle = target, Actor = actor, Discipline = (Fdp.Toolkit.Behavior.Components.LightDiscipline)p.LightsRequest.Discipline, IsRemote = true });
+
         public static IReadOnlyList<IInteractionCodec> All { get; } =
-            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation, DetonateCharge, Custody, SeedTarget };
+            new[] { Door, Embark, Disembark, EjectPassengers, Possess, ReleasePossession, ControlFrame, StartDescent, PickUpRound, PickUpGrant, Restation, DetonateCharge, Custody, SeedTarget,
+                    OpeningRequest, LightsRequest };
     }
 
     /// <summary>
@@ -314,6 +339,7 @@ namespace Hrot.Map.Common.Replication.Interactions
 
         private readonly IDdsWriter<EntityInteractionRequest> _writer;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.NotState("stateless codec list (delegates only), fixed in ctor")]
         private readonly IReadOnlyList<IInteractionCodec> _codecs;
         private readonly OutgoingSink _sink;
 
@@ -364,6 +390,7 @@ namespace Hrot.Map.Common.Replication.Interactions
 
         private readonly DdsReader<EntityInteractionRequest>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.NotState("kind-to-codec lookup filled once in ctor from stateless codecs")]
         private readonly Dictionary<EInteractionKind, IInteractionCodec> _byKind = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityInteractionRequest>();

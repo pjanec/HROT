@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "bt-range",
-    "description": "What: Temperament & Stress \u00a76 (CE-2272, R-2034) - bc-house-defended's six-man Veteran squad clears the CQB test house on bt-range from its front door against three insurgents (the Insurgent type, obedience 0.3), each held on his spot (CombatPosture, stay; ROE StayOnTask - only a break moves him): the 'Fanatic' (resolve 1, nerve 0.9) at the east end of the hallway facing the door, the 'Coward' (nerve 0.1) in room A, the 'Waverer' (resolve 0.2) in closet E. Judge (240 s): (1) the Coward breaks (to ground, or away to cover farther from the squad); (2) the Waverer, once broken with a rifle on him, surrenders (hands up, weapons down); (3) the Fanatic never breaks or surrenders and fires on the squad; (4) printed per insurgent: his peak stress, when he broke, what he did. Check: python3 scripts/utility-demo-check.py --launch ts-house-defenders. \ud83d\udcc4 docs/DESIGN_Temperament_And_Stress.md \u00a76"
+    "description": "What: Temperament & Stress \u00a76 (CE-2272, R-2034) - bc-house-defended's six-man Veteran squad clears the CQB test house on bt-range from its front door against three insurgents (the Insurgent type, obedience 0.3), each held on his spot (CombatPosture, stay; ROE StayOnTask - only a break moves him): the 'Fanatic' (resolve 1, nerve 0.9) at the east end of the hallway facing the door, the 'Coward' (nerve 0.1) in room A, the 'Waverer' (resolve 0.1, obedience 0.3: effective resolve 0.22, under the 0.3 surrender line) in closet E. Judge (240 s): (1) the Coward breaks (to ground, or away to cover farther from the squad); (2) the Waverer, once broken with a rifle on him, surrenders (hands up, weapons down); (3) the Fanatic never breaks or surrenders and fires on the squad; (4) printed per insurgent: his peak stress, when he broke, what he did. Check: python3 scripts/utility-demo-check.py --launch ts-house-defenders. \ud83d\udcc4 docs/DESIGN_Temperament_And_Stress.md \u00a76 The three insurgents run their type's default SOP under ROE StayOnTask (TS-6: StayOnTask refuses every reaction BUT the break; CE-3462) - not InertSop, which is the explicit none (R-2062) and so has no break."
   },
   "entities": {
     "bc000005-0000-4000-8000-000000000001": {
@@ -280,11 +280,6 @@
         "Params": {"Advance": {"Objective": [46.3, 109.3, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [46.3, 109.3, 0], "Radius": 2.0}},
         "Origin": "Superior"
       },
-      "Sop": {
-        "Name": "InertSop",
-        "Params": {},
-        "Origin": "Superior"
-      },
       "Roe": {
         "Fire": "FireAtWill",
         "Reactions": "StayOnTask",
@@ -328,11 +323,6 @@
       "Behavior": {
         "Name": "CombatPosture",
         "Params": {"Advance": {"Objective": [52.5, 105.0, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [52.5, 105.0, 0], "Radius": 1.0}},
-        "Origin": "Superior"
-      },
-      "Sop": {
-        "Name": "InertSop",
-        "Params": {},
         "Origin": "Superior"
       },
       "Roe": {
@@ -379,11 +369,6 @@
         "Params": {"Advance": {"Objective": [53.3, 100.7, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [53.3, 100.7, 0], "Radius": 1.0}},
         "Origin": "Superior"
       },
-      "Sop": {
-        "Name": "InertSop",
-        "Params": {},
-        "Origin": "Superior"
-      },
       "Roe": {
         "Fire": "FireAtWill",
         "Reactions": "StayOnTask",
@@ -392,7 +377,8 @@
       },
       "Proficiency": "Militia",
       "Temperament": {
-        "resolve": 0.2
+        "resolve": 0.1,
+        "obedience": 0.3
       }
     }
   }

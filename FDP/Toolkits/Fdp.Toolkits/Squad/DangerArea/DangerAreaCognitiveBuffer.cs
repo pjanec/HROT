@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
     /// <summary>
     /// Brain-side danger-area result cache written by <c>DangerAreaRefreshSystem</c>
     /// (squad danger-area pipeline, SS5.2).
-    /// Total size: 4 (Count) + 4 (LastUpdateTick) + 4 (LastUpdateTimeSeconds) + 8*72 (Slots) + 8 (the edge memory, R-3039) = 596 bytes.
+    /// Total size: 4 (Count) + 4 (LastUpdateTick) + 4 (LastUpdateTimeSeconds) + 8*72 (Slots) + 8 (the edge memory, R-3039, + HasSteer and its pad) + 12 (SteerPoint, CE-2469) = 608 bytes.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.DangerAreaCognitiveBuffer)]
@@ -59,6 +59,15 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public uint EdgeFeature;
         public byte EdgeThreatened;
         public byte EdgeRated;
+
+        /// <summary>⭐ <c>CE-2469</c> SP-1 (R-2140 R3) — 1 when <see cref="SteerPoint"/> holds the planned route's steer point; 0 = no plan (a straight leg) or no answer.</summary>
+        public byte HasSteer;
+
+        /// <summary>
+        /// ⭐ <c>CE-2469</c> SP-1 — the point ON the solver's planned route <c>DangerAlongRouteSolve.SteerMetres</c> (20 m, a bound) from its start, or the route's end
+        /// when shorter: the direction a priced path takes — round ground a known enemy of the unit's SIDE covers (UF-5). Read through <see cref="DangerRouteSteer.Of"/>.
+        /// </summary>
+        public System.Numerics.Vector3 SteerPoint;
 
         /// <summary>True once an answer arrived — ⭐ <c>CE-3072</c> B0: even an answer with NO areas (a clear route is an
         /// answer). It used to be <c>Count &gt; 0</c>, which read "no danger" as "not ready".</summary>

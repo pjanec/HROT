@@ -55,6 +55,7 @@ namespace Fdp.Toolkit.Replay
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
     [TickMode(TickPolicy.EveryFrame)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class PlaybackTickSystem : IEcsModuleSystem
     {
         /// <summary>
@@ -87,9 +88,11 @@ namespace Fdp.Toolkit.Replay
         /// ⭐ The replay timeline's zero, in wall-clock ticks — the CLUSTER's, set from each seek. 0 = not yet known: the
         /// node's own first frame is used.
         /// </summary>
+        [field: Fdp.Core.SessionState("session state (the replay controller's own clock and mode, driven by its commands — not the world): cluster replay anchor sent by master on each seek")]
         public long AnchorWallTicks { get; set; }
 
         /// <summary>What this node is doing for the current replay moment.</summary>
+        [field: Fdp.Core.SessionState("session state (the replay controller's own clock and mode, driven by its commands — not the world): replay span mode (listening/restoring), re-derived each tick")]
         public ReplaySpanState State { get; private set; } = ReplaySpanState.Unsettled;
 
         /// <summary>The anchor in use: the cluster's when known, else this recording's first frame, else 0.</summary>
@@ -127,12 +130,20 @@ namespace Fdp.Toolkit.Replay
             }
             State = ReplaySpanState.Restoring; ReplayState.SetListening(repo, false);   // ⭐ CE-3329 P2
 
-            if (_playback.IsAtEnd) return;
-
             long currentTicks = _playback.IsAtStart
                 ? long.MinValue
                 : _playback.GetFrameMetadata(_playback.CurrentFrame).WallClockTicks;
 
+            // ⭐⭐ CE-5041 — the clock stands BEHIND the frame shown (a seek back whose hold was released by an EARLIER round's late snap, so the
+            //   world was pulled forward first; 📌 measured in `--verify-replay`'s shuffled seeks: the clock trails the world by one or two
+            //   rounds): restore back to it. ⛔ Forward-only, the world stayed ahead for good. A clock behind by less than a frame is the frame
+            //   it names (the landing floors to a recorded frame).
+            if (currentTicks != long.MinValue && _playback.CurrentFrame > 0 && targetTicks < currentTicks - FrameToleranceTicks)   // frame 0: nothing earlier to show
+            {
+                Restore(repo, targetTicks);
+                return;
+            }
+            if (_playback.IsAtEnd) return;   // ⭐ CE-5041 — after the backward follow: a replay at its last frame still follows a clock sent back
             if (targetTicks <= currentTicks) return;
 
             // ⭐ CE-1479 — the frames due at this clock: ONE rule, shared with the Replay Browser (ReplayClockRule)
@@ -167,11 +178,17 @@ namespace Fdp.Toolkit.Replay
             return true;
         }
 
+        /// <summary>⭐ CE-5041 — how far behind the frame shown the clock may stand and still name it (half a 60 Hz frame).</summary>
+        public const long FrameToleranceTicks = TimeSpan.TicksPerSecond / 120;
+
         /// <summary>The moment the clock names, in wall ticks of the recording (the anchor + the clock's seconds after the zero).</summary>
-        private long ClockTicks() => EffectiveAnchorWallTicks + (long)(_timeController.GetCurrentState().TotalTime * TimeSpan.TicksPerSecond);
+        private long ClockTicks() => EffectiveAnchorWallTicks + (long)Math.Round(_timeController.GetCurrentState().TotalTime * TimeSpan.TicksPerSecond);
+        //   ⭐ CE-5041 — ROUNDED: a clock snapped exactly onto a frame reads its seconds back as a double, and truncation could name the tick
+        //   BEFORE the frame — the pull then stopped on the previous frame (📌 measured: `ua-civ-melee` stood at 26.9833 for 27)
 
         // ⭐ CE-4056 — the clock's reading (seconds after the zero) when a seek was applied; cleared once the clock moves. The clock's own
         //   reading, not anchor + clock: the anchor may be set around the seek.
+        [Fdp.Core.SessionState("session state (the replay controller's own clock and mode, driven by its commands — not the world): the clock reading while a seek round completes; cleared once the clock moves (CE-4056)")]
         private double? _heldWhileClockAt;
 
         private void HoldUntilTheClockMoves() => _heldWhileClockAt = _timeController.GetCurrentState().TotalTime;

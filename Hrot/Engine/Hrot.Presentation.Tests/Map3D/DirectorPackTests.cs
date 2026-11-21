@@ -83,6 +83,37 @@ public sealed class DirectorPackTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-11018</c> (DESIGN_Linked_Client_Director.md D-2, the silent-default rule) — the constructed pack holds ONE frame sink, a <see cref="RoutingFrameSink"/> over
+    /// the host's OWN linked-client registry (forwarded, read at each job), and the runner, the stills and the render queue all hold that one; a headless host has none.
+    /// 🔴 Mutations: <c>Attach</c> building <c>new FilmFrameSink()</c> again ⇒ not a routing sink; dropping <c>h.LinkedClients</c> ⇒ <c>Clients</c> null.
+    /// </summary>
+    [Fact]
+    public void CE11018_ThePack_HoldsOneRoutingSink_OverTheHostsLinkedClients_ForTheRunnerTheStillsAndTheQueue()
+    {
+        var store = new TakeStore(() => _root, () => Path.Combine(_root, "films"));
+        var registry = new Hrot.Common.Infrastructure.LinkedClients();
+        var pack = DirectorPack.Attach(new DirectorPackHost(new BareHost(store), () => null, () => null, Headless: false, Pilot: () => null,
+            Timeline: new Fdp.Presentation.Panels.Timeline.TimelinePanel(), LinkedClients: () => registry));
+        var routing = Assert.IsType<RoutingFrameSink>(pack.Runner.Sink);
+        Assert.Same(registry, routing.Clients);
+        Assert.Same(routing, pack.Stills.Sink);
+        Assert.Same(routing, pack.Renders.Sink);
+        var headless = DirectorPack.Attach(new DirectorPackHost(new BareHost(store), () => null, () => null, Headless: true, Pilot: () => null,
+            Timeline: new Fdp.Presentation.Panels.Timeline.TimelinePanel(), LinkedClients: () => registry));
+        Assert.Null(headless.Runner.Sink);
+    }
+
+    /// <summary>⭐ CE-11018 — the contract's enums carry the director's values one to one (the sink casts them): subtitle positions and graphic kinds by NAME and value.</summary>
+    [Fact]
+    public void CE11018_TheContractEnums_MatchTheDirectorsOneToOne()
+    {
+        Assert.Equal(Enum.GetNames<SubtitlePosition>(), Enum.GetNames<Hrot.Common.Infrastructure.FilmSubtitlePosition>());
+        foreach (var v in Enum.GetValues<SubtitlePosition>()) Assert.Equal(v.ToString(), ((Hrot.Common.Infrastructure.FilmSubtitlePosition)(byte)v).ToString());
+        Assert.Equal(Enum.GetNames<GraphicKind>(), Enum.GetNames<Hrot.Common.Infrastructure.FilmGraphicKind>());
+        foreach (var v in Enum.GetValues<GraphicKind>()) Assert.Equal(v.ToString(), ((Hrot.Common.Infrastructure.FilmGraphicKind)(byte)v).ToString());
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-1306</c> R4 (docs/DESIGN_Director_Timeline_Editor.md §11u D1, D3; success condition 1, the Director window's model) — the pack builds ONE reel
     /// composer and ONE render queue and the Director window draws THOSE (not copies of its own); with a reel being composed the window plays and renders the
     /// reel AS IT STANDS (unsaved: the picked saved reel is ignored); its render of one picked take is that take (rendered beside it), of a reel the composed

@@ -29,6 +29,10 @@ public enum HeldLook : byte
     /// <summary>A mortar the MAN carries as his own mount (MortarTeam 2005): deployed on the ground in front of him while his weapon is
     /// up, on his back at ease.</summary>
     Mortar,
+    /// <summary>⭐ CE-1976 (bows, BW-10) — a BOW (<c>WeaponCategory.Bow</c>, an arrow round): a stave and a string, drawn to the cheek when aimed; its quiver on his back.</summary>
+    Bow,
+    /// <summary>⭐ CE-1976 (bows, BW-10) — a CROSSBOW (<c>WeaponCategory.Bow</c> whose round is a bolt): a stock, a prod and a spanned string; a bolt case at his hip.</summary>
+    Crossbow,
 }
 
 /// <summary>⭐ CE-1173 / CE-1174 (People Display §5 U12, U13) — what a held weapon's colour must tell the truth about.</summary>
@@ -51,7 +55,9 @@ public static class HeldWeapons
         if (mount == null) return HeldLook.Rifle;
         if (mount.Appearance?.Look == ItemLook.Pistol) return HeldLook.Pistol;
         if (MunitionTkbCatalog.IsMortar(tkb, mount)) return HeldLook.Mortar;   // ⭐ CE-1238 — the one rule the brain reads too
-        var shape = MunitionTkbCatalog.VisualOf(tkb, unchecked((long)mount.AmmoGuid))?.Shape;
+        var visual = MunitionTkbCatalog.VisualOf(tkb, unchecked((long)mount.AmmoGuid));
+        var shape = visual?.Shape;
+        if (mount.Category == WeaponCategory.Bow) return visual?.Bolt == true ? HeldLook.Crossbow : HeldLook.Bow;   // ⭐ CE-1976 — one category, two looks: the round says which
         switch (mount.Category)
         {
             case WeaponCategory.Sam: return HeldLook.Manpads;
@@ -89,7 +95,7 @@ public static class HeldWeapons
     /// </summary>
     public static HeldMarking MarkingOf(EntityRepository world, WeaponMountDto? mount)
     {
-        if (mount == null || mount.Hands || mount.Category is WeaponCategory.Grenade or WeaponCategory.Countermeasure) return HeldMarking.None;
+        if (mount == null || mount.Hands || mount.Category is WeaponCategory.Grenade || mount.Category.IsSelfProtection()) return HeldMarking.None;
         if (IsToy(mount)) return HeldMarking.Toy;
         bool namesRound = mount.AmmoGuid != 0 || mount.Loadout.Any(l => l.AmmoGuid != 0);
         return namesRound && !Fdp.Toolkit.Combat.ItemAppearances.FiresLethal(world, mount) ? HeldMarking.LessLethal : HeldMarking.None;

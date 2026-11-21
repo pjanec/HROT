@@ -60,25 +60,28 @@ public sealed class GroundEffect
 
     /// <summary>
     /// The effect of a ground feature of <paramref name="mode"/> (<c>level</c> / <c>raise</c> / <c>lower</c>, or a ditch preset) and <paramref name="value"/> (its <c>Pad</c>) over
-    /// <paramref name="points"/> (terrain-local; an area ≥ 3, a ditch line ≥ 2) on <paramref name="base"/>. <see cref="None"/> when the base has no height grid or the shape is short.
+    /// <paramref name="points"/> (terrain-local; an area ≥ 3, a ditch line ≥ 2) on <paramref name="base"/>. <see cref="None"/> when the shape is short (a flat terrain is shaped on its flat grid, CE-1964).
     /// </summary>
     public static GroundEffect Of(TerrainWorld @base, TerrainRoads? roads, TerrainAssets assets, string mode, float value, IReadOnlyList<Vector2> points)
     {
         bool ditch = DitchPresets.Of(mode) is not null;
-        if (@base.Height == null || points.Count < (ditch ? 2 : 3)) return None;
+        if (points.Count < (ditch ? 2 : 3)) return None;   // ⭐ CE-1964 — ⛔ was also "no height grid ⇒ nothing": on a FLAT terrain the tool showed no tint and no hint
         var pts = new Vector2[points.Count];
         for (int i = 0; i < pts.Length; i++) pts[i] = points[i];
         var features = FeatureExpander.OfKind(TerrainFeature.Ground, "preview", mode, 0f, value, uint.MaxValue, Vector2.Zero, pts, @base, assets, Array.Empty<string?>());
         var overlay = TerrainWorldParser.Parse(OverlayExpansion.WorldDocument(@base, features, roads).ToJsonString(), @base.Name + "/preview", assets, @base.Height);   // ⭐ CE-5014
+        if (overlay.GroundShapes.Count == 0) return None;
         var merged = TerrainWorldMerge.Merge(@base, overlay);
-        if (merged.Height == null || overlay.GroundShapes.Count == 0) return None;
+        // ⭐ CE-1963 / CE-1964 — a flat terrain's ground is the flat grid the merge carves (the ONE rule, TerrainWorldMerge.FlatGrid)
+        var bare = @base.Height ?? TerrainWorldMerge.FlatGrid(@base, overlay.GroundShapes);
+        if (merged.Height == null) return None;
 
         // the reach: every shape's polygon + skirt
         var min = new Vector2(float.MaxValue); var max = new Vector2(float.MinValue);
         float area = 0f, grade = 0f;
         foreach (var s in overlay.GroundShapes)
         {
-            float skirt = GroundShapes.SkirtOf(s, @base.Height);
+            float skirt = GroundShapes.SkirtOf(s, bare);
             foreach (var q in s.Polygon) { min = Vector2.Min(min, q - new Vector2(skirt)); max = Vector2.Max(max, q + new Vector2(skirt)); }
             area += TerrainDrawOptions.Area(s.Polygon);
             grade = MathF.Max(grade, GroundShapes.SteepestRoadGrade(merged, overlay.RoadCorridors, in s));
@@ -96,14 +99,14 @@ public sealed class GroundEffect
 
         // the tint: ≤ 64 × 64 cells over the reach, at least the grid's own spacing
         float extent = MathF.Max(max.X - min.X, max.Y - min.Y);
-        float step = MathF.Max(@base.Height.CellSize, extent / 64f);
+        float step = MathF.Max(bare.CellSize, extent / 64f);
         var mins = new List<Vector2>(); var deltas = new List<float>();
         float change = 0f;
         for (float y = min.Y; y < max.Y; y += step)
             for (float x = min.X; x < max.X; x += step)
             {
                 float cx = x + step * 0.5f, cy = y + step * 0.5f;
-                float d = merged.Height.Sample(cx, cy) - @base.Height.Sample(cx, cy);
+                float d = merged.Height.Sample(cx, cy) - bare.Sample(cx, cy);
                 if (MathF.Abs(d) < 0.05f) continue;
                 mins.Add(new Vector2(x, y)); deltas.Add(d);
                 if (MathF.Abs(d) > MathF.Abs(change)) change = d;
@@ -111,7 +114,7 @@ public sealed class GroundEffect
         return new GroundEffect
         {
             CellMin = mins.ToArray(), CellDelta = deltas.ToArray(), CellSize = step, RoadGrade = grade, Area = area, Change = change,
-            HousesKept = houses, RoadsKept = overlay.RoadCorridors.Count, ObstacleParts = obstacles, IsDitch = ditch, GridCell = @base.Height.CellSize, Key = KeyOf(mode, value, points),
+            HousesKept = houses, RoadsKept = overlay.RoadCorridors.Count, ObstacleParts = obstacles, IsDitch = ditch, GridCell = bare.CellSize, Key = KeyOf(mode, value, points),
         };
     }
 }

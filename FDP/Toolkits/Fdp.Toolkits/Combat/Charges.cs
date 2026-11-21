@@ -80,16 +80,9 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         private static void End(EntityRepository world, Entity charge)
         {
-            if (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                && world.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(charge)
-                && world.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>())
+            if (Fdp.Toolkit.NetworkSpawning.NetworkEntityDestroy.Request(world, charge, "Charge detonated"))   // ⭐ CE-2468 UF-1 — the one network destroy
             {
                 world.GetComponentRW<WeaponSystemParams>(charge).Charge = 0;
-                world.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
-                {
-                    NetworkId = world.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(charge).Value,
-                    Reason    = "Charge detonated",
-                });
                 return;
             }
             world.DestroyEntity(charge);
@@ -169,6 +162,7 @@ namespace Fdp.Toolkit.Combat
     public sealed class ChargeSystem : IEcsModuleSystem
     {
         /// <summary>Charges set off on this node (rails read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Detonated { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -184,9 +178,11 @@ namespace Fdp.Toolkit.Combat
         private EntityQuery? _timers;
         private EntityRepository? _for;
         private int _epoch;
+        [Fdp.Core.FrameScratch("list of due charges: cleared at 203 and filled from this frame query")]
         private readonly System.Collections.Generic.List<Entity> _due = new();
 
         /// <summary>Timers that came due on this node (rails read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of fired charge timers")]
         public long TimersFired { get; private set; }
 
         private void TickTimers(EntityRepository world)

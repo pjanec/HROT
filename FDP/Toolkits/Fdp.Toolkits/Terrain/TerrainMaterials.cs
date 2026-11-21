@@ -16,7 +16,41 @@ namespace Fdp.Toolkit.Terrain
         float SightTransmittance,
         float ResistanceMmRhaPerMetre,
         float SoundAttenuationDb,
-        bool BlocksMovement);
+        bool BlocksMovement,
+        string? ThermalClass = null,   // ⭐ CE-4662 (Thermal Drivers TD-9) — one of TerrainThermalClass.All: what an image generator's thermal model makes of this surface
+        float? BurnSecondsOverride = null)   // ⭐ CE-4635 (R-3111, flame weapons F-7) — materials.json "burnSeconds": how long it burns once lit; null ⇒ by ThermalClass
+    {
+        /// <summary>⭐ CE-4635 / CE-4637 (flame weapons F-7) — how long this surface burns once a flame or napalm lights it (s); 0 = it does not burn.
+        /// The material's own <c>burnSeconds</c>, else by its thermal class (<see cref="TerrainBurn.SecondsOf"/>).</summary>
+        public float BurnSeconds => BurnSecondsOverride ?? TerrainBurn.SecondsOf(ThermalClass);
+    }
+
+    /// <summary>⭐ CE-4635 / CE-4637 (R-3111, flame weapons F-7) — the default burn time of a thermal class: wood burns long, grass and
+    /// dense vegetation briefly, everything else not at all. ONE table; a material may override it (<c>burnSeconds</c>).</summary>
+    public static class TerrainBurn
+    {
+        public const float WoodSeconds = 600f, VegetationSeconds = 120f;
+
+        public static float SecondsOf(string? thermalClass) => thermalClass switch
+        {
+            "wood" => WoodSeconds,
+            "grass" or "dense-vegetation" => VegetationSeconds,
+            _ => 0f,
+        };
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-4662 (📄 docs/designs/thermal/DESIGN_Thermal_Drivers.md TD-9) — the FIXED list of thermal classes a terrain material or surface names
+    /// (<c>materials.json</c> <c>thermalClass</c>, <c>surfaceThermalClasses</c>). A DRIVER, never a temperature (TD-1): the image generator solves the
+    /// temperature from the class, the sun and the weather. ⛔ A name outside the list fails the load.
+    /// </summary>
+    public static class TerrainThermalClass
+    {
+        public static readonly string[] All =
+            { "asphalt", "concrete", "brick", "metal", "glass", "wood", "soil-dry", "soil-wet", "sand", "grass", "dense-vegetation", "water", "snow" };
+
+        public static bool IsKnown(string? name) => name != null && Array.IndexOf(All, name) >= 0;
+    }
 
     /// <summary>
     /// ⭐ The material library: the shared data file (embedded <c>Terrain/Data/materials.json</c>, §3c's starter table)
@@ -40,6 +74,16 @@ namespace Fdp.Toolkit.Terrain
 
         public IReadOnlyCollection<TerrainMaterial> All => _byName.Values;
 
+        /// <summary>
+        /// ⭐ CE-4662 (TD-9, "per terrain material AND surface") — the thermal class of a ground SURFACE (<see cref="TerrainSurfaceType"/> by its lower-case
+        /// name, plus <c>ground</c> for bare ground with no surface): <c>materials.json</c> <c>surfaceThermalClasses</c>. Null when the library names none.
+        /// </summary>
+        public string? SurfaceThermalClass(string surface) => _surfaceClasses.TryGetValue(surface, out var c) ? c : null;
+
+        /// <summary>Every surface → thermal class pair the library names.</summary>
+        public IReadOnlyDictionary<string, string> SurfaceThermalClasses => _surfaceClasses;
+        private Dictionary<string, string> _surfaceClasses = new(StringComparer.Ordinal);
+
         /// <summary>The material called <paramref name="name"/>; throws naming <paramref name="where"/> when unknown.</summary>
         public TerrainMaterial Get(string name, string where)
             => _byName.TryGetValue(name, out var m)
@@ -55,7 +99,9 @@ namespace Fdp.Toolkit.Terrain
             if (string.IsNullOrWhiteSpace(overrideJson)) return this;
             var merged = new Dictionary<string, TerrainMaterial>(_byName, StringComparer.Ordinal);
             foreach (var m in ParseEntries(overrideJson, source)) merged[m.Name] = m;
-            return new TerrainMaterialLibrary(merged);
+            var surfaces = new Dictionary<string, string>(_surfaceClasses, StringComparer.Ordinal);
+            foreach (var (k, v) in ParseSurfaces(overrideJson, source)) surfaces[k] = v;
+            return new TerrainMaterialLibrary(merged) { _surfaceClasses = surfaces };
         }
 
         /// <summary>A library holding exactly the entries of <paramref name="json"/>.</summary>
@@ -63,7 +109,22 @@ namespace Fdp.Toolkit.Terrain
         {
             var d = new Dictionary<string, TerrainMaterial>(StringComparer.Ordinal);
             foreach (var m in ParseEntries(json, source)) d[m.Name] = m;
-            return new TerrainMaterialLibrary(d);
+            var surfaces = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (k, v) in ParseSurfaces(json, source)) surfaces[k] = v;
+            return new TerrainMaterialLibrary(d) { _surfaceClasses = surfaces };
+        }
+
+        private static IEnumerable<(string, string)> ParseSurfaces(string json, string source)
+        {
+            if (JsonNode.Parse(json)?["surfaceThermalClasses"] is not JsonObject o) yield break;
+            foreach (var (surface, node) in o)
+            {
+                if (surface.StartsWith('$')) continue;
+                var c = node?.GetValue<string>();
+                if (!TerrainThermalClass.IsKnown(c))
+                    throw new ArgumentException($"Material library '{source}': surfaceThermalClasses '{surface}' = '{c}' is not one of {string.Join(", ", TerrainThermalClass.All)}.");
+                yield return (surface, c!);
+            }
         }
 
         private static IEnumerable<TerrainMaterial> ParseEntries(string json, string source)
@@ -80,8 +141,14 @@ namespace Fdp.Toolkit.Terrain
                 float sight = F("sight", 0f);
                 if (sight < 0f || sight > 1f)
                     throw new ArgumentException($"Material library '{source}': '{name}'.sight must be 0..1 (got {sight.ToString(CultureInfo.InvariantCulture)}).");
+                string? thermal = o["thermalClass"]?.GetValue<string>();
+                if (thermal != null && !TerrainThermalClass.IsKnown(thermal))
+                    throw new ArgumentException($"Material library '{source}': '{name}'.thermalClass '{thermal}' is not one of {string.Join(", ", TerrainThermalClass.All)}.");
+                float? burn = o["burnSeconds"] is JsonNode b ? (float)b.GetValue<double>() : null;   // ⭐ CE-4635 (flame weapons F-7)
+                if (burn < 0f)
+                    throw new ArgumentException($"Material library '{source}': '{name}'.burnSeconds must be ≥ 0 (got {burn.Value.ToString(CultureInfo.InvariantCulture)}).");
                 yield return new TerrainMaterial(name, sight, F("resistanceMmRhaPerM", 0f), F("soundDb", 0f),
-                    o["blocksMovement"]?.GetValue<bool>() ?? true);
+                    o["blocksMovement"]?.GetValue<bool>() ?? true, thermal, burn);
             }
         }
 

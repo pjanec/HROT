@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: §8.1's NavRebuildRequester and P3-c / P3-d are superseded by §8.2 B-10 (the existing P-7a obstacle bake does both); §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
 related-designs:
+  - DESIGN_Terrain_Base_Edits.md — OWNS converting / removing a baked-in building in the editor; reuses this design's generator and adds its ≥ 1 door rule (the importer adopts it)
   - DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS the pads applied by the importer (P-1, CE-4403) and the crater as a third runtime record beside breaches and collapses (P-4)
   - PLAN_Large_Terrain.md — ORDERS this importer's stages beside the scale work (load, measure, optimise) so both lanes start at once
   - DESIGN_Terrain_Synth.md — OWNS hrot-terrain-synth, the deterministic SYNTHETIC input set: the importer's development and test terrain (§10.9)
@@ -485,7 +486,7 @@ are recorded here and left for later.
 | 5 | `BuildingDamageTable` (sorted breaches, a bit per panel, `Opens(panel, along, z)`, `HasBreaches`, `BreachesOf`), `DoorStates.Damage`, `TerrainWorld.HasLiveState` (doors OR buildings) widening the gates `TerrainWorldQuery.ForView`, `WorldSurveySolve`, `AcousticPerception`, `AreaEffectSystem`, `DoorStates.Of(view)` | `Terrain/BuildingDamageTable.cs:16`, `Terrain/TerrainObjects.cs:79`, `TerrainWorld.cs:179` | ✏ the gate is "doors OR buildings", not "doors OR damage" (whether there is damage is only known after the table is built). The other `Doors.Count > 0` sites are door-specific and stay. The table has its OWN `FrameStamp`; `DoorStates.Of` re-wraps the same door array when only the damage changed |
 | 6 | The traces: `SegmentBlockedCore`, `QuerySightCore`, `QueryFireCore` skip a WALL-PANEL crossing whose height-clipped mid-point lies in a breach (`CrossingBreached`); a door's own leaf is unaffected | `TerrainWorld.cs:581` | as B-8. 0 bytes warm (rail) |
 | 7 | `AreaEffectSystem.BreachWalls` (after `BreachDoors`), `DetonationRecord.BuildingBreaches` | `Combat/Systems/AreaEffectSystem.cs:386` | as B-5; timing slot `buildings.BreachWalls` |
-| 8 | `BuildingDamageEvent` (id `5101`, local) and `BuildingDamageSystem` (registered in `DamageAssessmentModule` after `AreaEffectSystem`): merge into this node's entity, else ask for one; breaches arriving while a request is in flight wait in a pending list keyed by the building (dropped after 3 600 ticks); skips a replay | `Terrain/BuildingDamageSystem.cs:20`, `:47` | ✏ the creation request names THIS node as the owner (`INetworkTopology.LocalNodeId`; 0 with none) — "the default processor" would put the entity on a node that did not decide the breach. `IsTransient` so a scenario never saves the entity (B-7's section does, S-4) |
+| 8 | `BuildingDamageEvent` (id `5101`, local) and `BuildingDamageSystem` (registered in `DamageAssessmentModule` after `AreaEffectSystem`): merge into this node's entity, else ask for one; breaches arriving while a request is in flight wait in a pending list keyed by the building (dropped after 3 600 ticks); skips a replay | `Terrain/BuildingDamageSystem.cs:20`, `:47` | ✏ the creation request names THIS node as the owner (`INetworkTopology.LocalNodeId`; 0 with none) — ✏ CE-5018 (`2026-11-18`): ⛔ until then NO production host published that singleton, so every cluster request went out as 0 and the brain node was asked to make the muscle's entity (a possessed bulldozer's bump made no breach in `--mode all`); ⭐ the shared node frame (`HrotNodeBuilder`) now publishes `LocalNodeTopology` on every node — "the default processor" would put the entity on a node that did not decide the breach. `IsTransient` so a scenario never saves the entity (B-7's section does, S-4) |
 | 9 | `dtBuildingDamage = 183`, `EntityBuildingDamage` (+ `DdsWallBreach`), `EntityBuildingDamageEgressTranslator` / `…IngressTranslator`, shared pack, `NedOwnershipGroupBinding` (no group); components + event registered in `HrotSharedComponentRegistry`; `BuildingDamageTkb` in `HrotEnvironment` | `Hrot.Network.NED/AllDescriptors.cs`, `SimDescriptors.cs`, `Replication/Map/EntityBuildingDamageTranslators.cs` | as B-11. The ordinal is stated in the toolkit (`BuildingDamageSystem.DescriptorOrdinal`) and pinned by a rail |
 | 10 | `EntityBodyLayer3D.LookOf` does not draw the damage entity as a box | `Hrot.Presentation/Map3D/EntityBodyLayer3D.cs:1713` | a one-line cross-lane edit (ui); drawing breaches is S-4 |
 | 11 | Systems count of the SimHost pack 10 → 11 | `SimHostCoreLogicPackTests.cs` | — |
@@ -547,6 +548,7 @@ sequenceDiagram
 | 6 | After the bake commits, the resident (derived) world has no pieces of a collapsed building, so `SurfaceZ` / `SurfacesAt` / `InsideFootprint` answer for the damaged building with no live-state parameter (they read the derived world). Until the bake: the base world | `StaticObstacles.cs` | ✏ replaces the "known limit" of §8.3 |
 | 7 | **P3-a**: `INavmeshTileKeys` / `INavmeshTileVersions`; `SwitchableNavmeshProvider.Publish` gives each tile a version, bumped ONLY for tiles whose key (the baker's content hash per tile) changed, new or vanished; one `ChangeSequence` step per publish. The Recast baker reports `LastTileKeys` (only with a tile cache) | `Navigation/INavmeshProvider.cs`, `SwitchableNavmeshProvider.cs`, `Recast/*` | as P3-a, by a per-path sequence stamp (below) |
 | 8 | **P3-b**: the solver records `ChangeSequence` before it plans (`PathfindingResultEvent.TileSequenceAtPlan` → `NavigationCorridorMuscle.TileSequence`, beside `NavmeshVersionAtPlan`); `NavigationExecutionSystem` compares it to the provider's current sequence per moving entity (one integer compare, 0 B); only when it moved does it walk the path (`CrossesChangedTile`, quarter-tile steps) and call the EXISTING `RequestReplan` (the one replan seam: frustration and door-locked also use it) | `CarKinem/Systems/NavigationExecutionSystem.cs`, `Navigation/*` | ✏ **deviation**: a per-path SEQUENCE (planned-at, also "last checked"), not a tile list per path: cheaper, no allocation. Before S-3 nothing replanned on a navmesh version change |
+| 8a | ⭐ **CE-4674** *(backend, `2026-11-19`; CE-5039's second half, user "approved")*: a move that FAILED because its target was unreachable re-plans ONCE when the mesh changes after it failed — the failure stamps `NavigationStatus.NavmeshVersionObserved` with the result's `TileSequenceAtPlan` (`PathfindingResultMaterializationSystem`); `NavigationExecutionSystem`, on a `PathToPoint` intent at `FailedUnreachable`, compares it with the provider's `ChangeSequence` and, when older, stamps the new one and calls the SAME `RequestReplan`. Not on a timer; a target still unreachable fails again at the new sequence and is not re-planned until the mesh moves on (one re-plan per version). ⚠ The whole mesh's sequence, not the target's tiles: any rebake re-plans every unreachable move once (a handful; a moving path is judged per tile as before). No new component, no wire change (the field was already on `NavigationStatus`) | `CarKinem/Systems/NavigationExecutionSystem.cs`, `Navigation/Systems/PathfindingResultMaterializationSystem.cs` | rails `BuildingNavTests.CE4674_*` (2) |
 | 9 | **P3-e**: a path request starting inside a collapsed footprint is answered `Unreachable` (no crash, no loop, no pending left); the casualties themselves are S-2's | `Navigation/Systems/PathfindingSolverSystem.cs` | as P3-e |
 
 ⚠ Said: (a) the path walk samples every quarter tile, so a path grazing a changed tile's corner can be missed; (b) a stamp 0 (road graph, remote solver) is never judged stale; (c) a tile-triggered replan counts in `ReplanCount`; (d) tile keys need a tile cache (no cache = no keys = no tile versions); (e) the factory's `_lastTileKeys` field is not atomic (one publisher at a time); (f) a derived world's rubble has `Building = -1`; (g) the leaves of a breached door stay (a closed leaf still blocks, as for any door); (h) the display node draws damage from the entities (S-4). **Not built:** save / load and drawing (S-4), the demo (S-5).
@@ -1188,7 +1190,79 @@ sequenceDiagram
 | what | value |
 |---|---|
 | the prefill at import | ⭐ **289 s** of a 293 s import (without it 18 s) — the whole bake, both layers |
-| `navtiles/` | 106 260 tiles (each layer counted) = 106 260 files in 106 263 folders; **115.5 MB of data, 788 MB on disk** (4 KB blocks) ⇒ ⚠ a staging cost by FILE COUNT — CE-3428 |
+| `navtiles/` | 106 260 tiles (each layer counted) = 106 260 files in 106 263 folders; **115.5 MB of data, 788 MB on disk** (4 KB blocks) ⇒ ⚠ a staging cost by FILE COUNT — CE-3428 ✏ PACKED, §12.4 |
 | the first load's navmesh (from `navtiles/`, `--verify`) | ⭐ **17.1 s, 0 tiles baked** (+ 1.4 s to parse the world) — inside R-4192's 30 s here; ⏳ `real-1`'s first open in the editor on Windows is the user's measurement |
 
 **Rails:** `NavmeshPrefillTests` (4: the first load bakes 0 tiles and reads the seed without touching or copying it; a stale seed is a miss where the geometry changed and the result's tile keys equal a seedless bake; a cancel during the bake leaves no folder; no prefill ⇒ no `navtiles/`) — red-proved (the baker ignoring the seed; the seed's files touched) · `UtmTransformTests` (7) · `TerrainLoadStepTests.CE4394_…` (red-proved: Commit not passing the frame).
+
+
+### 12.4 ✅ AS BUILT `2026-11-18` — the prefilled tiles PACKED (CE-3428, terrain)
+
+**INVENTORY** — `scripts/cbm.sh search_graph '{"name_pattern":".*(NavTile|Navpack|NavPack|TilePack|Prefill).*","label":"Class"}'` ⇒ **total 5**, `has_more` false: `NavTileCache`, `NavTileKey`, `NavmeshPrefill`, `NavmeshPrefillReport`, `NavmeshPrefillTests` — ⛔ no pack, no packed reader existed (grep `navtiles` agrees: the cache's loose files, the factory's seed folders, `NavmeshPrefill`, `OverlayCompiler`). ⚠ `check_index_coverage` is not available through the CLI.
+
+📐 **Measured first** (`full-1`, synth full seed 1, re-imported here: 542 s, of it 493 s the prefill): `navtiles/` = **106 260 files in 106 263 folders,
+142.8 MB of data, 847 MB on disk**. Staging (Artifact Staging ③, the per-file copier with its `(length, lastWriteTimeUtc)` skip) pays per ENTRY on every
+node: locally a stat walk of the folder alone is **0.94 s**, a copy **4.7 s** against **0.1 s** for one file of the same bytes; over a share it is per-file
+round trips (⏳ the Windows / NAS number is the user's measurement).
+
+```mermaid
+classDiagram
+  class NavTileKey { <<existing, unchanged>> Layer · TileX · TileZ · Hash }
+  class NavTileCache { <<existing, grows>> Mode: Normal | Seed | Prefill · TryGet(key, seed) · Put · Seal() NEW · ReadSeedOwn NEW }
+  class NavTilePack { <<NEW, static>> RegionTiles = 32 · PathOf(folder, key) · Pack(folder) · MergeOver(target, overlay) · ListTiles(folder) · ReadIndex(path) }
+  class NavTilePackReader { <<NEW>> Read(key): bytes? (index per pack, lazy, thread-safe) }
+  class RecastNavmeshFactory { <<existing>> Build(world) — calls TileCache.Seal() after the bake }
+  class NavmeshPrefill { <<existing>> the importer's bake into tmp/navtiles }
+  class OverlayCompiler { <<existing>> an overlay's bake into part/navtiles }
+  class TerrainBake { <<existing>> SaveAs: the base's navtiles + the overlay's, merged }
+  NavTileCache --> NavTilePackReader : a seed / prefill folder reads packs first, then loose files
+  NavTileCache ..> NavTilePack : Seal() = Pack(Folder) when Prefill
+  RecastNavmeshFactory --> NavTileCache : Seal() after every bake
+  NavmeshPrefill --> RecastNavmeshFactory
+  OverlayCompiler --> RecastNavmeshFactory
+  NavTilePackReader ..> NavTileKey : same keys
+```
+
+*What the picture shows that prose hid: the packing has ONE caller per kind of write — the factory, after a bake into a PREFILL cache (so both bakers,
+the importer and the overlay compiler, pack by construction), and `MergeOver` for the terrain SAVE, which merges two folders (📐 found by the full suite:
+the save's old per-file merge overwrote one pack with the other and its load baked 542 tiles — `TerrainBakeTests.TheSavedTerrainsNavmesh_BakesNothing_AtLoad`); the per-machine cache (`Normal`) never packs (it prunes per square), and the
+keys never change.*
+
+```mermaid
+sequenceDiagram
+  participant W as a writer (importer / overlay compiler)
+  participant F as RecastNavmeshFactory
+  participant C as NavTileCache (Prefill)
+  participant P as NavTilePack
+  participant L as a node's load (Seed)
+  W->>F: Build(world)  — TileCache = ForPrefill(folder/navtiles)
+  F->>C: Put(key, tile) ×N  (loose files, as before)
+  F->>C: Seal()
+  C->>P: Pack(folder) — per layer, per 32×32 region: one .navpack (index + bytes) · loose files and their folders deleted
+  L->>C: TryGet(key, seed)
+  C->>P: NavTilePackReader.Read(key) — the pack's index once, then a positional read
+  C-->>L: bytes, else the loose file (a terrain prefilled before the packs), else a miss (bake)
+```
+
+```mermaid
+graph TD
+  IMP["hrot-terrain-import / OSM wizard / random pipeline<br/>→ NavmeshPrefill"] --> FAC["RecastNavmeshFactory.Build"]
+  OVL["editor overlay save<br/>→ OverlayCompiler"] --> FAC
+  SAVE["Save terrain as …<br/>→ TerrainBake.SaveAs"] -->|"NavTilePack.MergeOver(base, overlay)"| PACK
+  FAC -->|"Seal() — Prefill only"| PACK["navtiles/<layer>/<rx>_<rz>.navpack"]
+  STG["Artifact Staging (per-file copy)"] -->|"~100 files instead of 106 260 entries"| NODE["each node's staged terrain"]
+  PACK --> STG
+  NODE -->|"Seed: packs, then loose"| LOAD["every node's first load (TerrainResidency → RecastNavmeshFactory)"]
+```
+
+*Caption: the module view — who calls the pack each time (only the two prefill writers, through the factory) and who reads it (every node's load); the
+per-machine cache (`HROT_NAVTILE_CACHE`) is not on this picture: it stays loose.*
+
+| decision | why | rejected |
+|---|---|---|
+| one pack per layer per **32 × 32 tiles** | `full-1` ⇒ about a hundred files (from 106 260 entries); a pack stays a few MB, and a re-bake of one region rewrites one file | ⛔ one file per terrain: a 143 MB rewrite for any change; ⛔ zip: a compressor's cost on 143 MB for a copy problem |
+| **packs first, then loose** in the seed | a terrain prefilled before this keeps working with no re-import | ⛔ requiring a re-import of every terrain |
+| `Seal()` called by **the factory** | both writers pack by construction (the shared-and-unified rule) | ⛔ each writer remembering to pack |
+
+Rails: `NavmeshPrefillTests.APrefilledTerrains_FirstLoad_*` (now also: no loose tile, packs ≪ tiles, the report counts the packs; 🔴 no `Seal()` ⇒ loose files) and
+`NavmeshPrefillTests.CE3428_ATerrainPrefilledLoose_*` (🔴 no loose fallback ⇒ every tile bakes).

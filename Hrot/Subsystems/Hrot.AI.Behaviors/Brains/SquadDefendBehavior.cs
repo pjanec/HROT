@@ -96,6 +96,9 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte Authored[Capacity];
         /// <summary>⭐ D-2g (DA-5, DA-22) — per candidate: 1 = a roof post (from the roof ask), fought prone behind the parapet.</summary>
         public fixed byte Roof[Capacity];
+        /// <summary>⭐ D-13 (CE-4666, the prone half) — per candidate: 1 = a DISPERSAL spot (<see cref="DefencePlan"/>'s Disperse: no cover in
+        /// reach), held PRONE.</summary>
+        public fixed byte Open[Capacity];
         public fixed float WatchX[Capacity];
         public fixed float WatchY[Capacity];
         public fixed float WatchZ[Capacity];
@@ -174,7 +177,7 @@ namespace Hrot.AI.Behaviors.Brains
             X[Count] = p.X; Y[Count] = p.Y; Z[Count] = p.Z;
             Window[Count] = window ? (byte)1 : (byte)0;
             Roof[Count] = roof ? (byte)1 : (byte)0;
-            Frame[Count] = Shallow[Count] = 0;   // ⭐ D-2l — a slot freed by the frame pass may hold an old candidate's flags
+            Frame[Count] = Shallow[Count] = Open[Count] = 0;   // ⭐ D-2l — a slot freed by the frame pass may hold an old candidate's flags
             Count++;
         }
 
@@ -345,7 +348,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ D-2l (DA-78) — the BuildingSurvey that gives each window post its window's frame.</summary>
         public const int FrameSite  = 0x22750005;
         public const int CoverageSite = 0x22750006;   // ⭐ CE-2373 (D-2m)
-        /// <summary>⭐ D-2m (DL-4) — a lone man's time on each round post once he reached it (s).</summary>
+        /// <summary>⭐ D-2m (DL-4) — a lone man's time on each round post once he reached it (s). ⭐ 30 s. 📐 12 s was tried (user `2026-11-20`, CE-3463:
+        /// "window rotation drop from 30 s per window to about 12 s") and MEASURED WORSE: ia-area-clear 4/4 → 2/4 (House B never entered, Red 1 alive) and
+        /// ia-area-defend 6/6 → 4/6 (the guard first fired at Blue East at 238 s, not 118 s) — a man who moves every 12 s is on the stairs more than at a
+        /// window, so he meets an attacker less often, not more. Reverted the same day (Defend &amp; Attack DL-4).</summary>
         public const double RoundDwellSeconds = 30.0;
         /// <summary>⭐ D-2m — a round move he has not finished in this long counts as arrived (s).</summary>
         public const double RoundMoveSeconds = 60.0;
@@ -394,13 +400,22 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < ctx.Roster.Count; i++) partition[i] = new MemberPartitionInput(1f, 0f);
             unsafe { for (int i = 0; i < DefencePosts.Capacity; i++) { p.Posts.PostOf[i] = DefencePosts.None; p.Posts.MovedAt[i] = double.NegativeInfinity; p.Posts.DwellFrom[i] = double.NegativeInfinity; } }
             p.Posts.Hunter = DefencePosts.None;   // ⭐ CE-2359
-            return SquadManeuverRunner.AnyLive(in ctx) ? PlayStart.Go : PlayStart.Fail;
+            if (!SquadManeuverRunner.AnyLive(in ctx)) return PlayStart.Fail;
+            var march = MarchTo(in p);
+            default(SquadMarchPlay).Start(ref march, ref ws, in ctx, partition);   // ⭐ D-13 — the move IN is the squad's march (a wedge on its lead)
+            return PlayStart.Go;
         }
 
         public void Update(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx)
         {
             AreaAlert.KeepInArea(in ctx, p.Position, MathF.Max(p.SearchRadius, AlertMinMetres));   // ⭐ CE-2371 (AQ104 D) — an enemy in the area stays known until down
             LiftOwnHold(ref p, ref ws, in ctx);
+            if (ctx.Squad.PhaseId == SquadDefendManeuver.PhaseMoving)
+            {
+                var march = MarchTo(in p);
+                default(SquadMarchPlay).Update(ref march, ref ws, in ctx);   // ⭐ D-13 — keeps the wedge, re-slots, waits for stragglers
+                return;
+            }
             if (ctx.Squad.PhaseId != SquadDefendManeuver.PhasePosting) return;
             if (p.Posts.Ready == 0) { Plan(ref p, ref ws, in ctx); return; }
             Manned(ref p, in ctx);
@@ -419,6 +434,8 @@ namespace Hrot.AI.Behaviors.Brains
             evt = PhaseEventKind.BoundComplete;
             if (ctx.Squad.PhaseId != SquadDefendManeuver.PhaseMoving || ws.Reissue != 0) return false;
             if (ctx.Now - ws.IssuedAt >= MoveTimeoutSeconds) { ws.CompletedByTimeout = 1; return true; }
+            var march = MarchTo(in p);
+            if (default(SquadMarchPlay).Outcome(ref march, ref ws, in ctx) == NodeStatus.Success) return true;   // ⭐ D-13 — the wedge is there
             for (int i = 0; i < ctx.Roster.Count; i++)
                 if (ctx.Live(i, out var m) && Flat(ctx.At(m) - p.Position) > ArrivedMetres) return false;
             return true;
@@ -426,14 +443,29 @@ namespace Hrot.AI.Behaviors.Brains
 
         public void BeginIssue(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx) { }
 
+        /// <summary>⭐ D-13 — the interval between the men of the march IN (m): the march's own default.</summary>
+        public const float MarchSpacingMetres = 5f;
+
+        /// <summary>⭐ D-13 — the march that carries the squad to its position: a wedge on its lead, arriving within half <see cref="ArrivedMetres"/>.</summary>
+        public static SquadMarchParams MarchTo(in SquadDefendParams p) => new()
+        {
+            Objective = p.Position, Shape = SquadMarchManeuver.ShapeWedge, Spacing = MarchSpacingMetres,
+            Speed = p.Speed > 0f ? p.Speed : 1.5f, ArrivalRadius = ArrivedMetres * 0.5f, MaxLagMetres = 10f,
+        };
+
         public unsafe MemberOrder OrderFor(ref SquadDefendParams p, ref SquadPlayState ws, in SquadPlayContext ctx, int member, byte element, Vector3 at)
         {
             if (ctx.Squad.PhaseId == SquadDefendManeuver.PhaseMoving)
-                return new MemberOrder
-                {
-                    Kind = MemberOrderKind.AdvanceTo, Point = p.Position, Speed = p.Speed, ArrivalRadius = ArrivedMetres * 0.5f,
-                    RoleId = SquadDefendManeuver.RoleMoving,
-                };
+            {
+                // ⭐⭐ D-13 (CE-4666, user-approved: dispersion) — the move IN is the squad's MARCH (SquadMarchPlay, CE-2123): the lead walks to the
+                //   position, the others keep their WEDGE slot on him (MarchSpacingMetres), a stuck man walks in file on the lead's trail. 📌 live
+                //   (pc-corridor-fight): two men sent to points 3.7 m apart still walked their 60 m side by side, 1–1.4 m apart — a spread DESTINATION
+                //   does not space the TRAVEL. ⛔ Was: every man AdvanceTo p.Position (then: MovingPoint, a spread destination — superseded)
+                var march = MarchTo(in p);
+                var order = default(SquadMarchPlay).OrderFor(ref march, ref ws, in ctx, member, element, at);
+                order.RoleId = SquadDefendManeuver.RoleMoving;
+                return order;
+            }
             bool hasEa = EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea);
             byte post = member < DefencePosts.Capacity ? p.Posts.PostOf[member] : DefencePosts.None;
             if (p.Posts.Ready == 0 || post == DefencePosts.None || post >= p.Posts.Count)
@@ -465,6 +497,7 @@ namespace Hrot.AI.Behaviors.Brains
                     Frame = p.Posts.Frame[post],   // ⭐ D-2l (DA-78) — beside the frame, leaning out
                     FrameA = p.Posts.FrameA(post), FrameB = p.Posts.FrameB(post), Opening = p.Posts.Opening(post),
                     Roof = p.Posts.Roof[post],   // ⭐ D-2g — prone behind the parapet, crouched to fire
+                    Open = p.Posts.Open[post],   // ⭐ D-13 — a dispersal spot: no cover, he lies prone on it
                     HasAlternate = alternate >= 0 ? (byte)1 : (byte)0, Alternate = alternate >= 0 ? p.Posts.Point(alternate) : default,
                 },
             };
@@ -481,9 +514,17 @@ namespace Hrot.AI.Behaviors.Brains
             byte post = member < DefencePosts.Capacity ? p.Posts.PostOf[member] : DefencePosts.None;
             if (post != DefencePosts.None && post < p.Posts.Count && p.Posts.Authored[post] != 0 && p.Posts.Watch(post) != Vector3.Zero)
                 return MemberArc.Around(LookAt.BearingTo(spot, p.Posts.Watch(post)), ArcHalfWidth);
-            return EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea)
-                ? MemberArc.Around(LookAt.BearingTo(spot, ea), ArcHalfWidth)
-                : MemberArc.Around(LookAt.BearingTo(p.Position, spot), AllRoundHalfWidth);
+            if (EngagementAreas.TryAllowPoint(ctx.World, ctx.Commander, out var ea)) return MemberArc.Around(LookAt.BearingTo(spot, ea), ArcHalfWidth);
+            // ⭐⭐ CE-3463 — all-round at a FRAME post: out through his window (DA-79 "his body is turned to face out"). ⛔ "Outward from the
+            //   centre" faced a window on the centre's side of its house INTO the house (📐 ia-area-defend: the guard at House A's south
+            //   frame looked and could fire only north, through the rooms, while Blue South walked up the open ground to the south)
+            if (post != DefencePosts.None && post < p.Posts.Count && p.Posts.Frame[post] != 0)
+            {
+                var mid = (p.Posts.FrameA(post) + p.Posts.FrameB(post)) * 0.5f;
+                var opening = p.Posts.Opening(post);
+                if (Flat(opening - mid) > 0.05f) return MemberArc.Around(LookAt.BearingTo(mid, opening), AllRoundHalfWidth);
+            }
+            return MemberArc.Around(LookAt.BearingTo(p.Position, spot), AllRoundHalfWidth);
         }
 
         // ── Posting: plan, manned, displace ─────────────────────────────────────────────────────────────────────────────────────

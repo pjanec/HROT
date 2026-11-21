@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Perception.Sensors
     /// union of the unit's acquired contacts over all its sensors (vision included since S5, <c>CE-3038</c>)
     /// CHANGED this tick. One sensor losing a target another still holds sends nothing.</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("per-call scratch maps, cleared each flush; memory is in components")]
     public sealed class SensorMemoryStage
     {
         private readonly List<(Entity Sensor, Entity Unit, SensorContactList List, bool Existed)> _observed = new();
@@ -111,6 +112,7 @@ namespace Fdp.Toolkit.Perception.Sensors
                     SourceClass = (byte)((r.Flags & AcousticPerception.ClassMask) >> AcousticPerception.ClassShift),
                     Family      = (byte)((r.Flags >> AcousticPerception.FamilyShift) & 0x7),   // ⭐ CE-3283 — the top 3 bits (the mask keeps the sign out)
                     Signature   = ring?.TypeOf(r.SignatureToken) ?? 0L,
+                    Via         = (r.Flags & AcousticPerception.ViaMask) != 0 ? (byte)1 : (byte)0,   // ⭐ CE-4666 (D-8)
                 });
             }
         }

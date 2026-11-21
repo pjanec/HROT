@@ -63,6 +63,9 @@ namespace Hrot.SimHost.Modules.Orchestration
 
         /// <summary>⭐ CE-4078 — where the 3-D map step reads the map's build from (resolved each poll: the map is attached after the node is composed). Null result ⇒ nothing to build (headless).</summary>
         public Func<Fdp.Toolkit.Orchestration.IMapBuildStatus?>? MapBuildStatus { get; init; }
+
+        /// <summary>⭐ CE-11026 (R-11009) — the node's linked-client registry (<c>HrotNodeContext.LinkedClients</c>): the load phase composes a <see cref="LinkedClientLoadStep"/> from it for EVERY ECS host. Null only on a host with no context (a rail); a node with no client offered resolves the step at once.</summary>
+        public Hrot.Common.Infrastructure.LinkedClients? LinkedClients { get; init; }
         /// <summary>The host's own scenario handlers (episode load), placed after the shared ones and before the chain.</summary>
         public IReadOnlyList<IClusterStateHandler> ScenarioHandlers { get; init; } = Array.Empty<IClusterStateHandler>();
         public IClusterStateHandler? ScenarioSaveHandler { get; init; }
@@ -176,15 +179,27 @@ namespace Hrot.SimHost.Modules.Orchestration
             if (h.MapBuildStatus != null && !h.LoadProviders.Any(p => p.Part == LoadPart.Map3D))
                 h.LoadProviders.Add(new MapBuildLoadStep(h.MapBuildStatus, () => Hrot.Common.Infrastructure.Map3dInLoadFeature.IsOn(h.Kernel.FeatureGate)));
             var chainParts = h.MapBuildStatus == null ? h.ProfileLoadParts : h.ProfileLoadParts.Append(LoadPart.Map3D).ToList();
+            // ⭐⭐ CE-11026 (R-11009, DESIGN_Linked_Client_Director §2d-1) — the node's LINKED CLIENT: its step is in EVERY host's chain, AFTER the terrain and the map (the client loads the world those commit). A node with no
+            //     client offered resolves it at once; an offered client is told at the commit (BeginWorld) and polled until its world is ready.
+            if (h.LinkedClients != null)
+            {
+                if (!h.LoadProviders.Any(p => p.Part == LoadPart.LinkedClient))
+                    h.LoadProviders.Add(new LinkedClientLoadStep(h.LinkedClients));
+                chainParts = chainParts.Append(LoadPart.LinkedClient).ToList();
+            }
 
-            slave.RegisterHandler(LoadPhaseChain.FromRoles(
+            var chain = LoadPhaseChain.FromRoles(
                 h.Role, h.LoadProviders, h.World,
                 profileParts:        chainParts,
                 recordingController: controller,
                 storageDirectory:    h.StagingRoot,
                 hostLabel:           h.HostLabel,
                 entityMap:           h.EntityMap,
-                changeCheck:         changeCheck));
+                changeCheck:         changeCheck);
+            slave.RegisterHandler(chain);
+            // ⭐⭐ CE-11025 (Q113-J) — a replay open makes the RECORDING's terrain resident through this chain's shared parts (terrain → map →
+            //     linked client), on every ECS host by construction (the silent-default rule: the handler built in step 1 is handed the chain).
+            replayLoad.WorldLoad = chain;
 
             // 8. Scenario save + recording archive (CE-279 Layer A). ⭐ CE-4093 — a save handler is wrapped so the node's part of a completed save
             //    round re-baselines the check.

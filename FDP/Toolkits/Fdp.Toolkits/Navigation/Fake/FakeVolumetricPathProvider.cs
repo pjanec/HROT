@@ -42,6 +42,7 @@ namespace Fdp.Toolkit.Navigation.Fake
     /// QueryVersion(BoundingBox3D): returns current version if any registered no-fly zone
     /// intersects <paramref name="region"/>.
     /// </summary>
+    [Fdp.Core.NotState("altitude bounds and no-fly zones are config; call counters diagnostic")]
     public sealed class FakeVolumetricPathProvider : IVolumetricPathProvider, IFakeVolumetricPathProviderTestApi
     {
         private const float GridStep = 5f;

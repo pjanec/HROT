@@ -18,9 +18,11 @@ namespace Fdp.Toolkit.Time
         private EntityQuery? _query;
 
         /// <summary>Timed entities still alive after the last tick — the rail's counter.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int Alive { get; private set; }
 
         /// <summary>Removed in the last tick — the rail's counter.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int Removed { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

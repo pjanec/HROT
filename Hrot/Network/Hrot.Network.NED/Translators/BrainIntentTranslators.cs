@@ -34,6 +34,7 @@ namespace Hrot.Network.Translators
         //   unregister) a hand-over.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityBrainIntent> _instances;
         private readonly BehaviorRegistry _registry;
+        [Fdp.Core.ProtocolCache("last-sent intent signature per entity for egress change detection")]
         private readonly Dictionary<int, Signature> _lastSignature = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityBrainIntent>();
@@ -108,7 +109,8 @@ namespace Hrot.Network.Translators
         internal readonly record struct Signature(
             int Hash, uint Instance, BehaviorOrigin Origin,
             int SopHash, uint SopInstance, BehaviorOrigin SopOrigin,
-            RoeFire Fire, RoeReactions Reactions, BehaviorOrigin RoeSetBy, float RoeReturnFireWindow, RoeForceLevel RoeForceLevel)
+            RoeFire Fire, RoeReactions Reactions, BehaviorOrigin RoeSetBy, float RoeReturnFireWindow, RoeForceLevel RoeForceLevel,
+            RoeIncendiary RoeIncendiary)
         {
             public static Signature Of(EntityRepository repo, Entity entity)
             {
@@ -120,7 +122,8 @@ namespace Hrot.Network.Translators
                 return new Signature(state.ActiveBehaviorHash, state.InstanceId, state.Origin,
                                      sop.SopHash, sop.SopInstanceId, sop.SopOrigin, roe.Fire, roe.Reactions, roe.SetBy,
                                      roe.ReturnFireWindowSeconds,   // CE-2095: a changed window re-publishes
-                                     roe.ForceLevel);               // CE-2239 part 1: and a changed force level
+                                     roe.ForceLevel,                // CE-2239 part 1: and a changed force level
+                                     roe.Incendiary);               // CE-3486 (F-9): and a changed incendiary rule
             }
         }
     }
@@ -137,6 +140,7 @@ namespace Hrot.Network.Translators
     {
         private readonly DdsReader<EntityBrainIntent>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("intent JSON held until its unit is known here; epoch-cleared")]
         private readonly Dictionary<int, string> _held = new();
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
 
@@ -211,6 +215,7 @@ namespace Hrot.Network.Translators
                     {
                         Fire = saved.Fire, Reactions = saved.Reactions, SetBy = saved.SetBy,
                         ReturnFireWindowSeconds = saved.ReturnFireWindowSeconds, ForceLevel = saved.ForceLevel,
+                        Incendiary = saved.Incendiary,   // CE-3486 (F-9)
                     };
                     if (repo.HasComponent<Roe>(entity)) cmd.SetComponent(entity, roe);
                     else cmd.AddComponent(entity, roe);

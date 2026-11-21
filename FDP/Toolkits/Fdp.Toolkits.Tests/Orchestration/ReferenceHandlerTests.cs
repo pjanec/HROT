@@ -705,5 +705,68 @@ public sealed class ReferenceHandlerTests
         public GlobalTime GetCurrentReplayTime() => default;
         public float ActiveReplayDurationSeconds => 0f;
         public int ActiveMaxNetworkId => 0;
+        /// <summary>⭐ CE-11025 — what the open recording's metadata names.</summary>
+        public string ActiveReplayTerrainName { get; set; } = string.Empty;
+        public string? ActiveReplayOverlayHash { get; set; }
+    }
+
+    // ── ⭐ CE-11025 (Q113-J) — a replay open makes the recording's world resident through the load chain ─────────────────────────────────────
+
+    private sealed class FakeWorldLoad : IReplayWorldLoad
+    {
+        public List<string> Calls { get; } = new();
+        public TaskCompletionSource<object?> Ready { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task PrepareAsync(Guid loadId, string terrainName, string? overlayHash, CancellationToken ct)
+        { Calls.Add($"prepare {terrainName} {overlayHash ?? "-"} {loadId}"); return Task.CompletedTask; }
+        public void Commit(Guid loadId, EntityRepository? world) => Calls.Add($"commit {loadId}");
+        public Task WhenReadyAsync(Guid loadId) { Calls.Add($"wait {loadId}"); return Ready.Task; }
+        public void Abort(Guid loadId) => Calls.Add($"abort {loadId}");
+    }
+
+    private static ExecuteNodeOpIntent Op(NodeOpType op, object? payload = null) => new()
+    {
+        TransactionId = Guid.NewGuid(), TargetNodeId = (Fdp.Core.NodeId)(1), Operation = op, DomainPayload = payload,
+    };
+
+    /// <summary>
+    /// ⭐ CE-11025 — the replay open prepares the RECORDING's terrain (name + additions) once the recording is open, commits it with the replay, and
+    /// the step into OperatingReplay waits until that world is ready; a recording that names no terrain (or a listener) asks for nothing — an empty
+    /// name would unload what is resident; a failed open drops what it staged.
+    /// </summary>
+    [Fact]
+    public async Task CE11025_AReplayOpen_LoadsTheRecordingsWorld_AndOperatesOnlyWhenItIsReady()
+    {
+        var controller = new SeekCapturingController { ActiveReplayTerrainName = "valley", ActiveReplayOverlayHash = "ab12" };
+        var world = new FakeWorldLoad();
+        var handler = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath()) { WorldLoad = world };
+
+        var open = Op(NodeOpType.PrepareReplay);
+        await handler.PrepareAsync(open, CancellationToken.None);
+        Assert.Equal(new[] { $"prepare valley ab12 {open.TransactionId}" }, world.Calls);
+        handler.Commit(open, null);
+        Assert.Equal($"commit {open.TransactionId}", world.Calls[^1]);
+
+        var operate = handler.PrepareAsync(Op(NodeOpType.PrepareState, new EditLoadHandlerPayload(ScenarioId: null, TargetState: ClusterState.OperatingReplay)), CancellationToken.None);
+        Assert.False(operate.IsCompleted);                    // held until the world is ready
+        Assert.Equal($"wait {open.TransactionId}", world.Calls[^1]);
+        world.Ready.SetResult(null);
+        await operate;
+
+        // no terrain named ⇒ nothing asked, and the step into OperatingReplay does not wait
+        var none = new FakeWorldLoad();
+        var bare = new ReferenceReplayLoadHandler(new SeekCapturingController(), null, null, null, null, null, Path.GetTempPath()) { WorldLoad = none };
+        var open2 = Op(NodeOpType.PrepareReplay);
+        await bare.PrepareAsync(open2, CancellationToken.None);
+        bare.Commit(open2, null);
+        await bare.PrepareAsync(Op(NodeOpType.PrepareState, new EditLoadHandlerPayload(ScenarioId: null, TargetState: ClusterState.OperatingReplay)), CancellationToken.None);
+        Assert.Empty(none.Calls);
+
+        // an open aborted before its commit drops the staged world
+        var failed = new FakeWorldLoad();
+        var h3 = new ReferenceReplayLoadHandler(new SeekCapturingController { ActiveReplayTerrainName = "valley" }, null, null, null, null, null, Path.GetTempPath()) { WorldLoad = failed };
+        var open3 = Op(NodeOpType.PrepareReplay);
+        await h3.PrepareAsync(open3, CancellationToken.None);
+        h3.Abort(open3, null);
+        Assert.Equal(new[] { $"prepare valley - {open3.TransactionId}", $"abort {open3.TransactionId}" }, failed.Calls);
     }
 }

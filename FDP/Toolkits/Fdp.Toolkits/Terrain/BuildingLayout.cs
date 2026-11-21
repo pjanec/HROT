@@ -19,6 +19,12 @@ namespace Fdp.Toolkit.Terrain
     {
         /// <summary>A person can pass it (a window cannot be walked through — it can be fired and looked through).</summary>
         public bool Walkable => Kind != BuildingPortalKind.Window;
+
+        /// <summary>⭐ CE-5033 — the wall opening it is (global panel, opening on it); −1 for a stair or a breach.</summary>
+        public int Panel { get; init; } = -1;
+        public int Opening { get; init; } = -1;
+        /// <summary>⭐ CE-5033 (glass windows D-5) — a window with a pane: closed to sound while the pane is intact.</summary>
+        public bool Glazed { get; init; }
     }
 
     /// <summary>An outside face of the building: a wall panel with OUTSIDE on its <see cref="Outward"/> side.</summary>
@@ -271,8 +277,9 @@ namespace Fdp.Toolkit.Terrain
                     face = faces.Count;
                     faces.Add(new BuildingFace(L, panel.A, panel.B, leftOut ? normal : -normal, panel.BaseZ, panel.TopZ, pi));
                 }
-                foreach (var o in panel.Openings)
+                for (int oi = 0; oi < panel.Openings.Count; oi++)
                 {
+                    var o = panel.Openings[oi];
                     var c2 = panel.A + dir * (o.At + o.Width / 2f);
                     int ra = SideRoom(layout, c2 + normal * off, L), rb = SideRoom(layout, c2 - normal * off, L);
                     if (ra == rb) continue;   // both sides the same room (or both outside)
@@ -285,7 +292,7 @@ namespace Fdp.Toolkit.Terrain
                     };
                     int door = o.DoorKey is null ? -1 : world.DoorIndexOf(o.DoorKey);
                     portals.Add(new BuildingPortal(kind, ra, rb, new Vector3(c2, (o.SillZ + o.HeadZ) / 2f), o.Width, o.SillZ, o.HeadZ, door,
-                        rb < 0 ? face : -1));
+                        rb < 0 ? face : -1) { Panel = pi, Opening = oi, Glazed = o.Glazed });
                 }
             }
             foreach (var ramp in ramps)

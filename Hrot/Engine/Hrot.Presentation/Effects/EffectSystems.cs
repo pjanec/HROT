@@ -44,8 +44,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     public const int DecalCap = 256;
 
     /// <summary>⭐ CE-1113 (§6v AD-V6) — the highest a burst may be above the ground and still scorch it (m).</summary>
-    public const float DecalMaxBurstHeight = 2f;
+    public const float DecalMaxBurstHeight = Hrot.Look.Effects.EffectRules.DecalMaxBurstHeight;   // ⭐ CE-4671 LK-S1 — the rule's
 
+    [Fdp.Core.FrameScratch("scratch — rebuilt from the query on every housekeeping pass")]
     private readonly List<(double BornAt, Entity Entity)> _decals = new();
     private EntityRepository? _queryWorld;
     private EntityQuery? _query;
@@ -60,13 +61,8 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// <summary>Is the hit memory kept on this node right now?</summary>
     internal bool RecordsHits => Hrot.Common.Infrastructure.HudFeatures.RecordsHitFeedback(FeatureGate?.Invoke());
 
-    /// <summary>⭐ CE-1461 W-M7 — are the player's messages kept on this node right now (<c>hud.messages</c>)?</summary>
-    internal bool RecordsMessages => Hrot.Common.Infrastructure.HudFeatures.IsOn(FeatureGate?.Invoke(), Hrot.Common.Infrastructure.HudFeatures.Messages);
-
-    /// <summary>⭐ H2 / PH-5 (CE-4228) — is the kill feed kept on this node right now (<c>hud.kill-feed</c>)?</summary>
-    internal bool RecordsKills => Hrot.Common.Infrastructure.HudFeatures.IsOn(FeatureGate?.Invoke(), Hrot.Common.Infrastructure.HudFeatures.KillFeed);
-
     /// <summary>Effects made in the last tick, by kind — the rail's counter.</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
     public int Spawned { get; private set; }
 
     /// <summary>
@@ -88,26 +84,8 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         }
     }
 
-    /// <summary>⭐ CE-1461 W-M7 (SR-106) — every <see cref="Fdp.Toolkit.ScenarioRules.PlayerMessageEvent"/> of this frame goes into the world's <see cref="Hrot.UI.Common.Map3D.PlayerMessages"/> (the subtitle and the log read that one store).</summary>
-    private void TrackMessages(ISimulationView view, EntityRepository world)
-    {
-        if (!RecordsMessages || !world.Bus.IsRegisteredManaged<Fdp.Toolkit.ScenarioRules.PlayerMessageEvent>()) return;
-        foreach (var m in view.ReadManagedEvents<Fdp.Toolkit.ScenarioRules.PlayerMessageEvent>())
-            Hrot.UI.Common.Map3D.PlayerMessages.In(world).Record(m);
-    }
-
-    /// <summary>
-    /// ⭐ H2 / PH-5 (CE-4228) — every <see cref="Fdp.Toolkit.Combat.Events.ManDownedEvent"/> of this frame (behaviors' ONE kill authority, once per downing on every node) goes into the
-    /// world's <see cref="Hrot.UI.Common.Map3D.KillFeed"/>. Presentation memory, so it runs in a replay too (the recorded events come back on the bus).
-    /// </summary>
-    private void TrackKills(ISimulationView view, EntityRepository world, double now)
-    {
-        if (!RecordsKills || !world.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.ManDownedEvent>()) return;
-        foreach (ref readonly var down in view.ReadEvents<Fdp.Toolkit.Combat.Events.ManDownedEvent>())
-            Hrot.UI.Common.Map3D.KillFeed.In(world).Record(world, in down, now);
-    }
-
     /// <summary>⭐ CE-4600 — barriers broken / bumped open whose dust was spawned (a rail).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of contact-break effects")]
     public int ContactBreaks { get; private set; }
 
     /// <summary>
@@ -123,11 +101,31 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             var kind = (Fdp.Toolkit.Terrain.ContactBreachKind)b.Kind;
             ContactCues.In(world).Record(b.Vehicle, kind, b.Progress, now);
             if (kind is not (Fdp.Toolkit.Terrain.ContactBreachKind.Broke or Fdp.Toolkit.Terrain.ContactBreachKind.Bumped)) continue;
-            bool heavy = kind == Fdp.Toolkit.Terrain.ContactBreachKind.Broke;
-            var at = new Vector3(b.X, b.Y, b.Z);
-            Spawn(cmd, tkb, heavy ? EffectTkbCatalog.ImpactPuffLarge : EffectTkbCatalog.ImpactPuffMedium, at, null, now);
-            Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Crash(at, heavy));
+            _specs.Clear();
+            Hrot.Look.Effects.EffectRules.ForContactBreach(in b, tkb, _specs);
+            SpawnAll(cmd, now);   // ⭐ CE-4671 LK-S1 — the dust from the shared rule
+            Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Crash(new Vector3(b.X, b.Y, b.Z), kind == Fdp.Toolkit.Terrain.ContactBreachKind.Broke));
             ContactBreaks++;
+        }
+    }
+
+    /// <summary>⭐ CE-5034 — panes heard shattering this frame (a rail).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of broken-window effects, reset at 121")]
+    public int WindowsBroken { get; private set; }
+
+    /// <summary>
+    /// ⭐ CE-5034 (glass windows GW-3, D-8; 📄 docs/DESIGN_Glass_Windows.md §6a) — every <see cref="Fdp.Toolkit.Terrain.WindowBrokenEvent"/> of this frame (raised where the window
+    /// was decided, carried to every node by its event id) queues the breaking glass for the player's audio. The shards' flight is the 3-D map's (<c>GlassLayer3D</c>, a state
+    /// change it sees); the AI's hearing is the sim's own (<c>SoundEmissionSystem</c>).
+    /// </summary>
+    private void TrackWindows(ISimulationView view, EntityRepository world)
+    {
+        WindowsBroken = 0;
+        if (!world.Bus.IsRegistered<Fdp.Toolkit.Terrain.WindowBrokenEvent>()) return;
+        foreach (ref readonly var g in view.ReadEvents<Fdp.Toolkit.Terrain.WindowBrokenEvent>())
+        {
+            Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Glass(new Vector3(g.X, g.Y, g.Z)));
+            WindowsBroken++;
         }
     }
 
@@ -135,9 +133,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     {
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()) return;
+        _causeRegistered = world.IsComponentTypeRegistered<EffectCause>();   // ⭐ CE-11010 (RR-10)
         double now = SimClock.Of(world).TotalTime;
-        TrackMessages(view, world);   // ⭐ CE-1461 W-M7 — presentation memory too, so before the replay gate as well
-        TrackKills(view, world, now); // ⭐ CE-4228 — and the kill feed
+        // ⭐ CE-4671 LK-S1 — the player messages and the kill feed moved to HudFeedSystem (they are not effects)
         TrackStrikes(view, world, now, RecordsHits);   // ⭐ CE-4062 — BEFORE the replay gate: a replay's blows are drawn too
         if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) return;   // ⭐ CE-3329 P2 — the world says it is a replay
         var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
@@ -145,6 +143,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
         Housekeep(world, cmd, tkb);
         MoveDecoys(world, now);   // ⭐ CE-1115
         TrackContacts(view, world, cmd, tkb, now);   // ⭐ CE-4600 (B-3b, V-17)
+        TrackWindows(view, world);   // ⭐ CE-5034 (GW-3, D-8)
 
         if (world.Bus.IsRegistered<WeaponFireNotification>())
         {
@@ -157,42 +156,24 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 var mount = CombatTkb.MountOf(world, fire.Shooter, fire.WeaponIndex);
                 // ⭐ CE-1115 (§9 DV-5, BS-1 §5.4b F3) — the round actually FIRED (the fire carries it); the mount's only from an older sender
                 long fired = fire.AmmoGuid != 0 ? fire.AmmoGuid : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
-                var set = EffectTkbCatalog.EffectsFor(tkb, fired, mount?.DamagePerHit ?? 0f);
                 var at = view.GetComponentRO<SimTransform>(fire.Shooter).Position;
-                var toward = fire.Target != Entity.Null && view.IsAlive(fire.Target) && view.HasComponent<SimTransform>(fire.Target)
-                    ? view.GetComponentRO<SimTransform>(fire.Target).Position : Fdp.Core.WorldPoint.Zero;
-                var anchor = new EffectAnchor { Shooter = fire.Shooter, WeaponIndex = fire.WeaponIndex, Toward = toward };
-                // ⭐ CE-1090 — the 3-D bodies: a launcher on the shoulder; ⭐ CE-1105 — and where it was aimed (the burst stream)
-                RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now,
-                    StreamToward(toward, AimPointOf(view, fire.Shooter), fire.Origin != Vector3.Zero ? fire.Origin : at, fire.Velocity, mount?.Range ?? 0f));   // ⭐ CE-1357
+                // ⭐ CE-1090 — the 3-D bodies: a launcher on the shoulder; ⭐ CE-1105 — and where it was aimed (the burst stream). ⭐ CE-11001 (LR-1) —
+                //   where it points is the SHARED rule (Hrot.Look.Effects.FireStreams), so an external renderer's stream is this one
+                RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now, Hrot.Look.Effects.FireStreams.TowardOf(in fire, world));
                 // ⭐ CE-3248 (Civilians §7.17a TC-6) — a THROW is recorded (the body's pose reads RecentShots) and is otherwise no gunshot: no
                 //   flash at a hand, no shot sound, no blast. 📐 Before: a stone has no effects of its own, so it drew the default small flash.
                 if (Fdp.Toolkit.Combat.PersonHands.Threw(view, in fire)) continue;
                 // ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md AU-10) — the sound of it, queued only while an FPS station listens
-                if (Hrot.UI.Common.Audio.SoundEvents.Of(world) is { } heard && mount?.Category != WeaponCategory.Bomb)
+                if (Hrot.UI.Common.Audio.SoundEvents.Of(world) is { } heard && mount?.Category != WeaponCategory.Bomb
+                    && !Hrot.Look.Effects.EffectRules.IsFuelShot(mount))   // ⭐ CE-4635 — a flamethrower's fuel shot is no gunshot: its roar is a held loop (SoundSources.Movers)
                     heard.Add(new Hrot.UI.Common.Audio.SoundEvents.Shot(fire.Shooter, fire.WeaponIndex, fire.Origin != Vector3.Zero ? fire.Origin : at,
-                        fired, mount?.DamagePerHit ?? 0f, FireStreams.IsAutomatic(mount),
+                        fired, mount?.DamagePerHit ?? 0f, Hrot.Look.Effects.FireStreams.IsAutomatic(mount),
                         view.HasComponent<TkbIdentity>(fire.Shooter) ? view.GetComponentRO<TkbIdentity>(fire.Shooter).TkbType : 0L));
-                // ⭐ CE-1094 (§6n N-10) — a bomb leaves its rack: no fire at the nose
-                // ⭐ CE-4649 (bows BW-9) — and an arrow or a bolt leaves no muzzle flash (its soft twang is audio only, queued above)
-                if (mount?.Category != WeaponCategory.Bomb && !Fdp.Toolkit.Combat.Munitions.IsSilent(world, fire.AmmoGuid)) Spawn(cmd, tkb, set.MuzzleFlash, at, anchor, now);
-                // ⭐ CE-1090 (§6n N-4) — a recoilless launcher throws dust BEHIND its tube; a howitzer raises a ground blast round it
-                switch (Hrot.UI.Common.Map3D.WeaponKits.BlastOf(world, tkb, fire.Shooter, mount))
-                {
-                    case Hrot.UI.Common.Map3D.FiringBlast.Backblast:
-                    {
-                        var aimAt = toward != Vector3.Zero ? (Vector3)toward : AimPointOf(view, fire.Shooter);
-                        var back = Hrot.UI.Common.Map3D.WeaponKits.BackblastPoint(at, view.GetComponentRO<SimTransform>(fire.Shooter).Rotation, aimAt);
-                        Spawn(cmd, tkb, EffectTkbCatalog.Backblast, back, null, now);
-                        break;
-                    }
-                    case Hrot.UI.Common.Map3D.FiringBlast.Ground:
-                        Spawn(cmd, tkb, EffectTkbCatalog.GunBlast, at + new Vector3(0f, 0f, 0.3f), null, now);
-                        break;
-                    case Hrot.UI.Common.Map3D.FiringBlast.Launch:   // ⭐ CE-4618 — a SAM's smoke where the round left (the shot's origin = the canister's mouth), staying there
-                        Spawn(cmd, tkb, EffectTkbCatalog.MissileLaunchSmoke, fire.Origin != Vector3.Zero ? fire.Origin : at, null, now);
-                        break;
-                }
+                // ⭐ CE-4671 LK-S1 — the flash (none for a bomb, CE-1094, or a silent weapon, CE-4649) and what the shot throws (backblast, ground blast,
+                //   launch smoke) come from the SHARED rule; the spawner only makes the entities
+                _specs.Clear();
+                Hrot.Look.Effects.EffectRules.ForShot(in fire, world, tkb, _specs);
+                SpawnAll(cmd, now);
                 // ⛔ LR-4 (DESIGN_Visual_Effects.md §8.5 LR-E, R-271) — no decorative tracer any more: a tracer is a REAL round now (a
                 //   tracer munition, replicated by the muscle), drawn along its actual flight by ProjectileLayer. The effect type 7131
                 //   stays registered, so recordings made before this still draw theirs.
@@ -207,31 +188,18 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 
         if (world.Bus.IsRegistered<DetonationNotification>())
         {
-            var ground = Fdp.Toolkit.World.WorldQuery.Of(view);
             foreach (ref readonly var hit in view.ReadEvents<DetonationNotification>())
             {
-                var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, hit.Damage);
                 var point = new Vector3(hit.HitX, hit.HitY, hit.HitZ);
                 // ⭐ CE-1215 (§8j H-1, H-2) — a round that met someone: the first-person hit marker and damage arc read it
                 if (hit.Target != Entity.Null && RecordsHits)   // ⭐ CE-4148 — nothing recorded while every HUD reader of it is off
                     HitFeedback.In(world).Record(hit.Shooter, hit.Target, point, new Vector3(hit.TravelX, hit.TravelY, hit.TravelZ), hit.Damage, now);
-                // ⭐ CE-1194 — a thrown stone or blade LANDS, it does not burst: a little dust, no scorch, no bang
-                if (IsInertHandItem(tkb, hit.Ammo))
-                {
-                    Spawn(cmd, tkb, EffectTkbCatalog.ExplosionSmall, point, null, now);   // the impact puff — dust
-                    InertLandings++;
-                    continue;
-                }
-                Spawn(cmd, tkb, set.Explosion, point, null, now);
-                // ⭐ VE-M — a decal marks the static world only: none when the round hit a vehicle or a person.
+                _specs.Clear();
+                Hrot.Look.Effects.EffectRules.ForDetonation(in hit, world, tkb, _specs);   // ⭐ CE-4671 LK-S1 — the explosion and its ground mark, or a landing's dust
+                SpawnAll(cmd, now);
+                if (Hrot.Look.Effects.EffectRules.IsInertHandItem(tkb, hit.Ammo)) { InertLandings++; continue; }   // ⭐ CE-1194 — it landed: no bang
                 bool hitABody = hit.Target != Entity.Null && view.IsAlive(hit.Target);
                 Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Burst(point, hit.Ammo, hit.Damage, hitABody));   // ⭐ CE-1120
-                if (!hitABody)
-                {
-                    float gz = ground?.GroundHeightAt(point.X, point.Y) ?? 0f;
-                    // ⭐ CE-1113 (DESIGN_Map_3D_Mode.md §6v AD-V6) — a burst in the AIR (a SAM's proximity fuze) scorches nothing below it
-                    if (point.Z - gz <= DecalMaxBurstHeight) Spawn(cmd, tkb, set.Decal, new Vector3(point.X, point.Y, gz), null, now);
-                }
             }
         }
     }
@@ -243,74 +211,32 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     /// </summary>
     private void SpawnImpact(IEntityCommandBuffer cmd, ITkbDatabase? tkb, EntityRepository world, in RoundImpactNotification hit, double now)
     {
-        var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, ImpactDamage(world, tkb, hit));   // ⭐ CE-1199 — sized by its round
-        var point = new Vector3(hit.X, hit.Y, hit.Z);
-        var normal = SurfaceOf(hit);
-        Spawn(cmd, tkb, set.Explosion, point + normal * 0.05f, null, now);
-        Spawn(cmd, tkb, set.Decal, point, null, now, MarkRotation(normal));
+        _specs.Clear();
+        Hrot.Look.Effects.EffectRules.ForImpact(in hit, world, tkb, _specs);   // ⭐ CE-4671 LK-S1 — the puff and the mark from the shared rule
+        SpawnAll(cmd, now);
         ImpactsDrawn++;
         if (hit.Kind == (byte)ImpactKind.Stop)
-            Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Burst(point, hit.Ammo, 0f, false));   // the ricochet
+            Hrot.UI.Common.Audio.SoundEvents.Of(world)?.Add(new Hrot.UI.Common.Audio.SoundEvents.Burst(new Vector3(hit.X, hit.Y, hit.Z), hit.Ammo, 0f, false));   // the ricochet
     }
 
     /// <summary>⭐ <c>CE-1194</c> — landings drawn as dust only in the last tick (the rail's counter).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostics counter")]
     public int InertLandings { get; private set; }
 
-    /// <summary>
-    /// ⭐ <c>CE-1194</c> — a round a hand THROWS and that carries no explosive: a hand item (<see cref="HandItemDto"/> — the stone, the thrown
-    /// hatchet / spear / star, CE-3247) whose warhead says <c>Kinetic</c> or <c>Blunt</c> (no warhead stated is NOT inert: the M67 states none). Its "detonation" is where it lands: dust, not
-    /// a burst. ⛔ A hand GRENADE is a hand item too, but its warhead bursts — it keeps its explosion.
-    /// </summary>
-    public static bool IsInertHandItem(ITkbDatabase? tkb, long ammo)
-    {
-        if (tkb == null || ammo == 0 || !tkb.TryGetByType(ammo, out var t) || t == null || t.GetDescriptor<HandItemDto>() == null) return false;
-        return t.GetDescriptor<WarheadDto>() is { Kind: WarheadKind.Kinetic or WarheadKind.Blunt };   // ⚠ the M67 states no warhead here, and bursts
-    }
+    /// <summary>⭐ <c>CE-1194</c> — a thrown inert item (moved to the shared rule, CE-4671 LK-S1: <see cref="Hrot.Look.Effects.EffectRules.IsInertHandItem"/>).</summary>
+    public static bool IsInertHandItem(ITkbDatabase? tkb, long ammo) => Hrot.Look.Effects.EffectRules.IsInertHandItem(tkb, ammo);
 
-    /// <summary>
-    /// ⭐ <c>CE-1199</c> (VE-D) — how hard the round that made <paramref name="hit"/> strikes, so its puff and mark take its calibre class: the
-    /// shooter's mount firing that ammo (its own round or one of its loadout, <see cref="CombatTkb.RoundOf(ITkbDatabase?, WeaponMountDto?, long)"/>
-    /// — a tank's 120 mm round carries no damage of its own, its gun does), else the round's own number, else 0 (the small class).
-    /// 📐 Before: 0 always ⇒ a tank shell's mark was a bullet's.
-    /// </summary>
-    public static float ImpactDamage(EntityRepository world, ITkbDatabase? tkb, in RoundImpactNotification hit)
-    {
-        if (hit.Ammo == 0) return 0f;
-        if (!hit.Shooter.IsNull && world.IsAlive(hit.Shooter) && CombatTkb.TryGetTemplate(world, hit.Shooter, out var t)
-            && t.GetDescriptor<WeaponSuiteDto>() is { } suite)
-            foreach (var mount in suite.Mounts)
-            {
-                bool fires = unchecked((long)mount.AmmoGuid) == hit.Ammo;
-                foreach (var load in mount.Loadout) fires |= unchecked((long)load.AmmoGuid) == hit.Ammo;
-                if (fires) return CombatTkb.RoundOf(tkb, mount, hit.Ammo).Damage;
-            }
-        if (tkb != null && tkb.TryGetByType(hit.Ammo, out var ammo) && ammo != null)
-            foreach (var (type, _, data) in ammo.GetAllDescriptors())
-                if (type == typeof(AmmoWeaponBallisticsDto) && data is AmmoWeaponBallisticsDto b && b.Damage > 0f) return b.Damage;
-        return 0f;
-    }
+    /// <summary>⭐ <c>CE-1199</c> — how hard an impact's round strikes (moved to the shared rule, CE-4671 LK-S1).</summary>
+    public static float ImpactDamage(EntityRepository world, ITkbDatabase? tkb, in RoundImpactNotification hit) => Hrot.Look.Effects.EffectRules.ImpactDamage(world, tkb, in hit);
 
-    /// <summary>⭐ CE-1129 (IM-4) — the face a mark lies on: the impact's normal, else back along the round's travel, else up.</summary>
-    public static Vector3 SurfaceOf(in RoundImpactNotification hit)
-    {
-        var n = new Vector3(hit.NormalX, hit.NormalY, hit.NormalZ);
-        if (n.LengthSquared() > 1e-6f) return Vector3.Normalize(n);
-        var back = -new Vector3(hit.TravelX, hit.TravelY, hit.TravelZ);
-        return back.LengthSquared() > 1e-6f ? Vector3.Normalize(back) : Vector3.UnitZ;
-    }
+    /// <summary>⭐ CE-1129 (IM-4) — the face a mark lies on (moved to the shared rule, CE-4671 LK-S1).</summary>
+    public static Vector3 SurfaceOf(in RoundImpactNotification hit) => Hrot.Look.Effects.EffectRules.SurfaceOf(in hit);
 
-    /// <summary>⭐ CE-1129 (IM-6) — the rotation that turns a mark's +Z onto <paramref name="normal"/> (identity for a mark facing up).</summary>
-    public static Quaternion MarkRotation(Vector3 normal)
-    {
-        var n = Vector3.Normalize(normal);
-        float d = Vector3.Dot(Vector3.UnitZ, n);
-        if (d > 0.9999f) return Quaternion.Identity;
-        if (d < -0.9999f) return Quaternion.CreateFromAxisAngle(Vector3.UnitX, MathF.PI);
-        var axis = Vector3.Normalize(Vector3.Cross(Vector3.UnitZ, n));
-        return Quaternion.CreateFromAxisAngle(axis, MathF.Acos(Math.Clamp(d, -1f, 1f)));
-    }
+    /// <summary>⭐ CE-1129 (IM-6) — a mark's rotation onto its face (moved to the shared rule, CE-4671 LK-S1).</summary>
+    public static Quaternion MarkRotation(Vector3 normal) => Hrot.Look.Effects.EffectRules.MarkRotation(normal);
 
     /// <summary>Impact marks made in the last tick — the rail's counter (CE-1129).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostics counter")]
     public int ImpactsDrawn { get; private set; }
 
     /// <summary>
@@ -356,36 +282,26 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     private EntityRepository? _flightWorld;
     private EntityQuery? _flights;
 
-    /// <summary>Where <paramref name="shooter"/>'s weapon posture aims (its target, else its point); zero when it aims at nothing.</summary>
-    /// <summary>
-    /// ⭐ <c>CE-1357</c> — where a shot's burst stream points: its target unit; else the shooter's aim posture; else ALONG THE ROUND'S OWN
-    /// LAUNCH (<paramref name="origin"/> + its velocity's direction × the weapon's range, 50…1000 m, 300 when unstated); else nowhere.
-    /// 🔴 A weapon SYSTEM (a door M134, a pintle gun) fired at a POINT has no target and no posture of its own, so the stream was drawn to
-    /// (0,0,0): the bright stream from the door ran to the map's corner while only its real tracers flew to the aim. 🔒 User, 2026-10-25:
-    /// "the majority of the stream of tracers is rendered to the corner of the terrain (maybe 0,0,0 or something) and just few are flying to
-    /// where the aim point is". Pure.
-    /// </summary>
-    public static Vector3 StreamToward(Vector3 target, Vector3 posture, Vector3 origin, Vector3 velocity, float range)
-    {
-        if (target != Vector3.Zero) return target;
-        if (posture != Vector3.Zero) return posture;
-        if (velocity.LengthSquared() < 1e-4f) return Vector3.Zero;   // nothing known: no stream (FireStreams draws none toward zero)
-        return origin + Vector3.Normalize(velocity) * (range > 0f ? Math.Clamp(range, 50f, 1000f) : 300f);
-    }
+    [Fdp.Core.FrameScratch("effect specs list: cleared before each rule output (103,172,195,212)")]
+    private readonly List<Hrot.Look.Effects.EffectSpec> _specs = new();   // ⭐ CE-4671 LK-S1 — the rule's output, reused (0 B steady)
+    [Fdp.Core.FrameScratch("re-read from the world at the top of every Execute")]
+    private bool _causeRegistered;   // ⭐ CE-11010 (RR-10) — the world knows EffectCause
 
-    private static Vector3 AimPointOf(ISimulationView view, Entity shooter)
-        => view is EntityRepository world && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, shooter, out var p) ? p : Vector3.Zero;
-
-    private void Spawn(IEntityCommandBuffer cmd, ITkbDatabase? tkb, long type, Vector3 at, EffectAnchor? anchor, double now, Quaternion? rotation = null)
+    /// <summary>⭐ CE-4671 LK-S1 — an effect entity for every spec the shared rule gave, in its order (the order effects were always made).</summary>
+    private void SpawnAll(IEntityCommandBuffer cmd, double now)
     {
-        if (type == 0 || EffectTkbCatalog.VisualOf(tkb, type) is not { } look) return;
-        var e = cmd.CreateEntity();
-        cmd.AddComponent(e, new SimTransform { Position = at, Rotation = rotation ?? Quaternion.Identity });
-        cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
-        cmd.AddComponent(e, Lifespan.Starting(now, look.Duration));
-        if (anchor is { } a) cmd.AddComponent(e, a);
-        cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario
-        Spawned++;
+        for (int i = 0; i < _specs.Count; i++)
+        {
+            var spec = _specs[i];
+            var e = cmd.CreateEntity();
+            cmd.AddComponent(e, new SimTransform { Position = spec.At, Rotation = spec.Rotation });
+            cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(spec.EffectType) });
+            cmd.AddComponent(e, Lifespan.Starting(now, spec.Lifetime));
+            if (spec.Anchor is { } a) cmd.AddComponent(e, a);
+            if (spec.Cause is { } c && _causeRegistered) cmd.AddComponent(e, c);   // ⭐ CE-11010 (RR-10) — what the hit struck, recorded with the effect
+            cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario
+            Spawned++;
+        }
     }
 
     /// <summary>VE-J — an attached effect whose shooter is gone ends now; VE-H — decals over <see cref="DecalCap"/> go, oldest first.</summary>
@@ -417,93 +333,21 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
 }
 
 /// <summary>
-/// ⭐⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P, R-269 (ui)) — <b>a vehicle that is destroyed burns:</b> when a VEHICLE's Health
-/// crosses from above zero to zero, this makes two effect entities attached to its body (<see cref="EffectAnchorKind.Body"/>) —
-/// flames (<see cref="EffectTkbCatalog.Fire"/>, ≈ 60 s) and smoke (<see cref="EffectTkbCatalog.Smoke"/>, ≈ 180 s, fading) — each with a
-/// <see cref="Lifespan"/>, so <see cref="LifespanSystem"/> removes them. On every map host, like <see cref="EffectSpawnSystem"/>:
-/// Health reaches every node, so each host makes its own.
-/// <list type="bullet">
-///   <item>Only a CROSSING burns: an entity first seen already destroyed (a scenario saved with a wreck, a late-joining host) does
-///   not (VE-P: "a wreck loaded already dead does not burn").</item>
-///   <item>Soldiers do not burn — only a type whose drawn body is a vehicle family (<see cref="EntityBodyLayer3D.Resolve"/>).</item>
-///   <item>⛔ OFF during a replay (the world's <see cref="Fdp.Toolkit.Replay.ReplayState"/>, VE-R): the recording holds the flames; and its memory is dropped, so
-///   coming back live cannot mistake the replayed wrecks for fresh kills.</item>
-/// </list>
+/// ⭐ W3 (docs/DESIGN_Visual_Effects.md §7 VE-P, R-269 (ui)) — <b>RETIRED by CE-4635</b> (docs/designs/weapons/DESIGN_Flame_Weapons.md §8 U-2): it used to spawn one
+/// Fire + one Smoke effect entity at a vehicle's hull centre when its replicated <c>FireState</c> started burning. Every burning spot of EVERY holder (a vehicle,
+/// a wagon, a building's record, a cell's) is now drawn straight from the state by <see cref="EffectLayer.ResolveStateInto"/> — the same flames on every node, a replay
+/// and a late joiner included, with nothing spawned, aged or removed — so a second flame from here would only double it.
+/// <para>⭐ Kept as an EMPTY registered shell (it is named by the map packs, the composition snapshots and the hosts' registration lists): it does nothing. Delete it
+/// together with those names when a pass over them is wanted.</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
 [TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class WreckSpawnSystem : IEcsModuleSystem
 {
-    private readonly Dictionary<Entity, bool> _wasDestroyed = new();
-    private readonly HashSet<Entity> _seen = new();
-    private readonly List<Entity> _gone = new();
-    private readonly Dictionary<long, bool> _burns = new();
-    private EntityRepository? _queryWorld;
-    private EntityQuery? _query;
-    private int _epoch;   // ⭐ CE-3294 — the world _wasDestroyed describes
+    /// <summary>Effect entities made in the last tick — always 0 now (the rails' counter, kept).</summary>
+    public int Spawned => 0;
 
-    /// <summary>Effect entities made in the last tick — the rail's counter.</summary>
-    public int Spawned { get; private set; }
-
-    public void Execute(ISimulationView view, float deltaTime)
-    {
-        Spawned = 0;
-        if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()
-            || !world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>() || !world.IsComponentTypeRegistered<TkbIdentity>()) return;
-        if (Fdp.Toolkit.Replay.ReplayState.IsActive(world)) { _wasDestroyed.Clear(); return; }   // ⭐ CE-3329 P2
-        // ⭐ CE-3294 — a reload is a new world in the same repository (its units under the same handles): forget like a new instance
-        if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _epoch) | !ReferenceEquals(world, _queryWorld))
-        {
-            _queryWorld = world;
-            _query = world.Query().With<Fdp.Toolkit.Combat.Components.Health>().With<TkbIdentity>().With<SimTransform>().Build();
-            _wasDestroyed.Clear();
-            _burns.Clear();
-        }
-        var tkb = world.HasSingletonManaged<ITkbDatabase>() ? world.GetSingletonManaged<ITkbDatabase>() : null;
-        var cmd = view.GetCommandBuffer();
-        double now = SimClock.Of(world).TotalTime;
-        _seen.Clear();
-        foreach (var e in _query!)
-        {
-            _seen.Add(e);
-            bool destroyed = world.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(e).Current <= 0f;   // CombatLife.IsDestroyed, alive by the query
-            if (destroyed && _wasDestroyed.TryGetValue(e, out bool was) && !was && Burns(tkb, world.GetComponentRO<TkbIdentity>(e).TkbType))
-            {
-                var at = world.GetComponentRO<SimTransform>(e).Position;
-                Spawn(cmd, tkb, EffectTkbCatalog.Fire, e, at, now);
-                Spawn(cmd, tkb, EffectTkbCatalog.Smoke, e, at, now);
-            }
-            _wasDestroyed[e] = destroyed;
-        }
-        if (_wasDestroyed.Count > _seen.Count)
-        {
-            _gone.Clear();
-            foreach (var e in _wasDestroyed.Keys) if (!_seen.Contains(e)) _gone.Add(e);
-            foreach (var e in _gone) _wasDestroyed.Remove(e);
-        }
-    }
-
-    /// <summary>A vehicle burns; a person, a unit with no body, a type the TKB does not know — ⭐ CE-1198 or a WEAPON SYSTEM (it goes dark,
-    /// it does not burn; 🔒 user, 2026-10-19: "weapons are usually non-flammable") — does not.</summary>
-    private bool Burns(ITkbDatabase? tkb, long type)
-    {
-        if (_burns.TryGetValue(type, out bool burns)) return burns;
-        var family = Hrot.UI.Common.Map3D.EntityBodyLayer3D.Resolve(tkb != null && tkb.TryGetByType(type, out var t) ? t : null).Family;
-        return _burns[type] = !Hrot.UI.Common.Map3D.VisualFamilies.IsAnimal(family) && family is not (Hrot.UI.Common.Map3D.VisualFamily.Person or Hrot.UI.Common.Map3D.VisualFamily.Unit
-                                             or Hrot.UI.Common.Map3D.VisualFamily.Unknown or Hrot.UI.Common.Map3D.VisualFamily.WeaponSystem);
-    }
-
-    private void Spawn(IEntityCommandBuffer cmd, ITkbDatabase? tkb, long type, Entity wreck, Vector3 at, double now)
-    {
-        if (EffectTkbCatalog.VisualOf(tkb, type) is not { } look) return;
-        var e = cmd.CreateEntity();
-        cmd.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
-        cmd.AddComponent(e, Lifespan.Starting(now, look.Duration));
-        cmd.AddComponent(e, new EffectAnchor { Shooter = wreck, Kind = EffectAnchorKind.Body });
-        cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario
-        Spawned++;
-    }
+    public void Execute(ISimulationView view, float deltaTime) { }
 }
 
 // ⛔ RETIRED (W1, docs/DESIGN_Visual_Effects.md §7 VE-Q): `EffectLifetimeSystem` — it aged every effect by the frame delta and removed

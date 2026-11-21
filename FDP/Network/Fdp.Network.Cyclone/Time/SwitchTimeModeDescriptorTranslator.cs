@@ -42,6 +42,7 @@ namespace Fdp.Toolkit.Time
         private readonly FdpEventBus _eventBus;
 
         // Tracks the last message received from the network to break the echo loop.
+        [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): echo-suppression of last ingressed DDS sample on egress")]
         private SwitchTimeModeWireDto? _lastIngressed;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<SwitchTimeModeWireDto>();

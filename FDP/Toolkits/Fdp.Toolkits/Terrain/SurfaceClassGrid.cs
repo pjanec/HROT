@@ -5,7 +5,15 @@ using CarKinem.Road;
 namespace Fdp.Toolkit.Terrain
 {
     /// <summary>⭐ <c>CE-4621</c> MC-2 — what a ground vehicle drives on: the road (1.0), or off it on open ground, scrub or forest (its type's factor).</summary>
-    public enum GroundClass : byte { Open = 0, Road = 1, Scrub = 2, Forest = 3 }
+    public enum GroundClass : byte
+    {
+        Open = 0, Road = 1, Scrub = 2, Forest = 3,
+        /// <summary>⭐ <c>CE-1987</c> (R-1058) — an authored OPEN surface (a field, a meadow: <see cref="TerrainSurfaceType.Open"/>); a car drives it as <see cref="Open"/>,
+        /// the thermal sensor reads it as grass where bare <see cref="Open"/> ground is soil.</summary>
+        Field = 4,
+        /// <summary>⭐ <c>CE-1987</c> — a water surface; a car's factor as <see cref="Open"/> (water does not stop a car here — unchanged), thermal reads it as water.</summary>
+        Water = 5,
+    }
 
     /// <summary>
     /// ⭐⭐ <c>CE-4621</c> MC-2 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2, MV-4) — the SURFACE-CLASS GRID: the ground class under every
@@ -16,6 +24,7 @@ namespace Fdp.Toolkit.Terrain
     /// <para>⭐ It GENERALISES the woods grid (MV-4): the woods' 25 m cell is too coarse to tell a road from the field beside it, so the class grid is
     /// finer (<see cref="Cell"/> m) and samples the woods at its cell centres. Allocation-free queries; immutable once built (the parallel move only reads it).</para>
     /// </summary>
+    [Fdp.Core.NotState("the surface-class grid built once from the static terrain")]
     public sealed class SurfaceClassGrid
     {
         /// <summary>The cell edge (m): fine enough for a carriageway (a lane ~3.5 m), coarse enough for a 10 km map in 4 M bytes.</summary>
@@ -52,7 +61,8 @@ namespace Fdp.Toolkit.Terrain
             var woods = world?.Woods;
             if (world != null)
                 foreach (var s in world.Surfaces)
-                    if (s.Type is TerrainSurfaceType.Forest or TerrainSurfaceType.Scrub) { lo = Vector2.Min(lo, s.Min); hi = Vector2.Max(hi, s.Max); any = true; }
+                    if (s.Type is TerrainSurfaceType.Forest or TerrainSurfaceType.Scrub or TerrainSurfaceType.Open or TerrainSurfaceType.Water)   // ⭐ CE-1987 — fields and water too
+                    { lo = Vector2.Min(lo, s.Min); hi = Vector2.Max(hi, s.Max); any = true; }
             int segments = roads.Segments.IsCreated ? roads.Segments.Length : 0;
             for (int i = 0; i < segments; i++)
             {
@@ -72,6 +82,12 @@ namespace Fdp.Toolkit.Terrain
 
             if (world != null)
             {
+                // ⭐ CE-1987 — fields and water first: scrub, a wood and a road over them win
+                foreach (var s in world.Surfaces)
+                {
+                    if (s.Type == TerrainSurfaceType.Open) Stamp(s, origin, cell, nx, ny, cls, GroundClass.Field);
+                    else if (s.Type == TerrainSurfaceType.Water) Stamp(s, origin, cell, nx, ny, cls, GroundClass.Water);
+                }
                 // scrub: a cell whose centre lies in a scrub surface
                 foreach (var s in world.Surfaces)
                 {
@@ -146,7 +162,7 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>The top-speed factor of a type with <paramref name="p"/> on <paramref name="ground"/>.</summary>
         public static float Factor(in global::CarKinem.Core.VehicleParams p, GroundClass ground) => ground switch
         {
-            GroundClass.Open   => p.OffRoadOpen   > 0f ? p.OffRoadOpen   : 1f,
+            GroundClass.Open or GroundClass.Field or GroundClass.Water => p.OffRoadOpen > 0f ? p.OffRoadOpen : 1f,   // ⭐ CE-1987 — a field and water drive as open ground (unchanged)
             GroundClass.Scrub  => p.OffRoadScrub  > 0f ? p.OffRoadScrub  : 1f,
             GroundClass.Forest => p.OffRoadForest > 0f ? p.OffRoadForest : 1f,
             _ => 1f,

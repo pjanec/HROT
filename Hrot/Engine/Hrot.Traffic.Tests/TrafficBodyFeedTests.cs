@@ -73,7 +73,7 @@ public sealed class TrafficBodyFeedTests
 
     /// <summary>
     /// ⭐⭐ <c>CE-9002</c> (C-5; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md) — a road convoy is ONE continuous obstacle: the gap between a vehicle and the one ahead
-    /// (here 20 m centre to centre, two 6 m trucks ⇒ 14 m) is told as squares filling it end to end, with synthetic NEGATIVE ids and the follower's velocity; a
+    /// (here 20 m centre to centre, two 6 m trucks ⇒ 14 m) is told as squares filling it end to end, with synthetic NEGATIVE ids, AT REST (⭐ CE-1972, R-5063 — they carried the follower's velocity, which SumoSharp projected into the lead's shadow: the weave); a
     /// vehicle not in a convoy gets none. 🔴 Red-proof: drop the <c>AddConvoyGaps</c> call ⇒ only the two trucks are told ⇒ red.
     /// </summary>
     [Fact]
@@ -95,7 +95,8 @@ public sealed class TrafficBodyFeedTests
         Assert.Equal(3, bodies.Length - squares.Length);                  // the three trucks themselves
         Assert.NotEmpty(squares);
         Assert.All(squares, q => Assert.Equal(2.5f, q.Width));
-        Assert.All(squares, q => Assert.Equal(5.0, q.Vx, 3));
+        Assert.All(squares, q => { Assert.Equal(0.0, q.Vx, 3); Assert.Equal(0.0, q.Vy, 3); });   // ⭐ CE-1972 (R-5063) — AT REST: a moving square was projected into the lead's shadow
+        Assert.Contains(bodies, b => b.NetworkId > 0 && b.Vx > 4.9);                          // the trucks themselves keep their velocity
         Assert.All(squares, q => Assert.Equal(2200.0, q.Y, 3));          // on the column's line (net = local + anchor)
         double covered = squares.Sum(q => (double)q.Length);
         Assert.Equal(14.0, covered, 2);                                    // follower front (x 3) to lead rear (x 17)

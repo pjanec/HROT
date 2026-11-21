@@ -189,6 +189,35 @@ public sealed class PedestriansPanicIntoCiviliansTests
         Assert.False(h.World.IsAlive(replica));
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-1959</c> (the user, `2026-11-17`: "SUMO cars ignore hits — the car neither stops nor does its driver bail out") — in CAR-ONLY traffic (no SUMO
+    /// pedestrians: <c>cv-red-lights</c> keeps 600 cars and 0 walkers) a HIT car is still given up (K7 / §8.7 G4) and a driver who hears the fight still abandons his
+    /// car (CE-7011). 📐 The whole system returned at its top unless the demand had pedestrians (slice 5a's gate, kept when 5c's cars and CE-7011 joined it); every
+    /// rail above starts WITH walkers, which is why none saw it. 🔴 Red-proof: gate on pedestrians again ⇒ no request for the car.
+    /// </summary>
+    [Fact]
+    public void CE1959_InCarOnlyTraffic_AHitCarIsGivenUp_AndADriverHearingTheFightAbandonsHis()
+    {
+        using var h = Harness.Start(0);
+        h.Run(60.0);
+        var cars = h.Mirror.Cars.Where(c => c.NetworkId > 0 && !TrafficReplicas.IsShadow(c)).Take(2).ToList();
+        Assert.Equal(2, cars.Count);
+        foreach (var c in cars) h.Body(c.X + 3f, c.Y + 3f);
+        h.Run(0.5);
+        var hit = h.Mirror.Replicas!.Replicas.Values.First(e => h.World.GetComponentRO<NetworkIdentity>(e).Value == cars[0].NetworkId);
+        h.World.Bus.Publish(new DamageAssessedEvent { HitEntity = hit, TotalDamage = 120f, IsRemote = true });
+        var requests = h.RunCollecting(1.0);
+        Assert.Contains(requests, r => r.PreAllocatedNetworkId == cars[0].NetworkId);   // the hit car: our stopped car
+        Assert.Contains(cars[0].NetworkId, h.Panic.HeldHits);                           // its hit waits for it
+
+        var heard = h.Mirror.Replicas!.Replicas.Values.FirstOrDefault(e => h.World.GetComponentRO<NetworkIdentity>(e).Value == cars[1].NetworkId);
+        if (!heard.IsNull)
+        {
+            h.Shoot(h.World.GetComponentRO<SimTransform>(heard).Position + new Vector3(10f, 0f, 0f));
+            Assert.Contains(h.RunCollecting(1.0), r => r.PreAllocatedNetworkId == cars[1].NetworkId);   // the driver who heard it
+        }
+    }
+
     /// <summary>⭐⭐ <c>CE-7011</c> (City Battle §3c; lane default R-7005) — a car whose driver HEARS the fight: a shot 10 m from a SUMO car gives it up
     /// as a hit car is given up (our stopped car keeping its id, its driver out in panic) — with no damage held; a second shot does not give it up
     /// twice, and a car 60 m away keeps driving. ✅ Red-proof: the noise arm removed ⇒ no request for the car.</summary>

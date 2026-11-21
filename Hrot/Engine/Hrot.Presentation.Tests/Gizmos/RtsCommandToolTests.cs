@@ -108,6 +108,19 @@ public sealed class RtsCommandToolTests : IDisposable
         Assert.Equal(new[] { a, b }, orders.Select(o => o.Entity).ToArray());
     }
 
+    /// <summary>⭐ CE-1133 / CE-1978 — ONE order per gesture: the ground click is Move, the enemy click Attack, and no other order claims either. 📐 The convoy
+    /// order (CE-9004) was bound to GroundClick too; it sorts first, so every RTS ground right-click became a Convoy order that needs a form — no unit moved,
+    /// and this suite went red. ✅ Red-proof: the convoy gesture back ⇒ red.</summary>
+    [Fact]
+    public void CE1133_EachClickGesture_NamesExactlyOneOrder()
+    {
+        foreach (var (gesture, order) in new[] { (Hrot.Map.Definitions.Behavior.Orders.OrderGesture.GroundClick, "Move"), (Hrot.Map.Definitions.Behavior.Orders.OrderGesture.EnemyClick, "Attack") })
+        {
+            var all = Hrot.Common.Orders.OrderMenu.Orders.Where(o => o.Gesture == gesture).Select(o => o.Name).ToArray();
+            Assert.Equal(new[] { order }, all);
+        }
+    }
+
     [Fact]
     public void CE3171_RightClick_OnGround_OrAFriendOrANeutral_MovesThere()
     {

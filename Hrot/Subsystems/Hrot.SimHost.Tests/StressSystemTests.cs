@@ -488,6 +488,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.Idle, b.TaskOf(m));  // his task resumed
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-4652 / CE-3461 — an <c>InertSop</c> man ("no reactions", CE-2322) past his nerve is NEVER judged broken (his stress still shows), so NO <c>Break</c>
+        /// reaction takes his task: the scenarios' hostile shooters keep shooting. 📐 Before: they broke within 2–5 s of being fired back at and fell
+        /// silent after 0–2 rounds (ts-fire-discipline, uf-squad-under-fire). 🔴 Red-proof: the inert guard removed from StartBreak ⇒ his task becomes Break.
+        /// </summary>
+        [Fact]
+        public void CE4652_AnInertSopMan_PastHisNerve_IsNeverBroken_AndKeepsHisTask()
+        {
+            var b = new Brains(_w);
+            var m = Ordered(b);
+            if (!_w.IsComponentTypeRegistered<SopState>()) _w.RegisterComponent<SopState>();
+            var sop = new SopState { SopHash = BehaviorHash.FromName(BehaviorNames.InertSop) };
+            if (_w.HasComponent<SopState>(m)) _w.SetComponent(m, sop); else _w.AddComponent(m, sop);
+            _w.GetComponentRW<Stress>(m).Level = 0.75f;   // over his 0.70 break level, as in CE2272_AtHisNerve_HeBreaks…
+            b.Tick();
+            Assert.False(StressModel.IsBroken(_w, m));       // never judged broken — being broken ends aimed fire elsewhere (live: the shooters fell silent)
+            Assert.True(_w.GetComponentRO<Stress>(m).Level >= 0.7f);   // his stress still shows
+            b.Run(0.5);
+            Assert.Equal(BehaviorNames.Idle, b.TaskOf(m));   // his ordered task stands
+        }
+
         /// <summary>TS-6 — the edges are published once each, on the man.</summary>
         [Fact]
         public void CE2272_TheBreakAndTheRecovery_AreEdges_OnTheMan()
@@ -540,6 +561,48 @@ namespace Hrot.SimHost.Tests
             Assert.True(StressModel.IsBroken(_w, m));
         }
 
+        /// <summary>A superior's post order in progress (<c>CombatPosture</c>, its move to <paramref name="post"/> running at <paramref name="speed"/> m/s).</summary>
+        private unsafe void OnHisWayToHisPost(Entity m, Vector3 post, float speed, Fbt.NodeStatus status = Fbt.NodeStatus.Running)
+        {
+            _w.GetComponentRW<BehaviorState>(m) = new BehaviorState
+            {
+                Origin = BehaviorOrigin.Superior, ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.CombatPosture), InstanceId = 3,
+            };
+            if (!_w.HasComponent<LocomotionChannel>(m)) _w.AddComponent(m, new LocomotionChannel());
+            ref var ch = ref _w.GetComponentRW<LocomotionChannel>(m);
+            ch.ActiveAction = Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo;
+            ch.Status = status;
+            fixed (byte* p = ch.Params) *(Fdp.Toolkit.Navigation.MoveToParams*)p = new Fdp.Toolkit.Navigation.MoveToParams { Destination = post, Speed = 2f, ArrivalRadius = 1f };
+            var v = new SimVelocity { Linear = new Vector3(speed, 0f, 0f) };
+            if (_w.HasComponent<SimVelocity>(m)) _w.GetComponentRW<SimVelocity>(m) = v; else _w.AddComponent(m, v);
+        }
+
+        /// <summary>
+        /// ⭐⭐ D-11 A (CE-4666, user-approved 2026-11-19; Temperament &amp; Stress §TS-6a) — a man MOVING TO HIS ORDERED POST takes the near misses as
+        /// "go to cover": at his break level he does not break while his move carries him there; he breaks once it STALLS (the same level) — and
+        /// a man who ARRIVED breaks there. ✅ Red-proof: the post check removed ⇒ broken on the way ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D11A_AManMovingToHisOrderedPost_BreaksOnlyWhenThereOrStalled()
+        {
+            var m = Man(0f);
+            float line = StressModel.BreakLevel(_w, m);
+            SetLevel(m, line + 0.05f, 0.0);
+            OnHisWayToHisPost(m, new Vector3(20f, 0f, 0f), speed: 1.5f);
+            StressModel.Judge(_w, m, 0.0);
+            Assert.False(StressModel.IsBroken(_w, m), "on his way to his post");
+
+            OnHisWayToHisPost(m, new Vector3(20f, 0f, 0f), speed: 0f);   // stalled (dropped, blocked)
+            StressModel.Judge(_w, m, 0.1);
+            Assert.True(StressModel.IsBroken(_w, m), "his move stalled");
+
+            var n = Man(5f);
+            SetLevel(n, line + 0.05f, 0.0);
+            OnHisWayToHisPost(n, new Vector3(5f, 0f, 0f), speed: 0f, status: Fbt.NodeStatus.Success);   // arrived
+            StressModel.Judge(_w, n, 0.0);
+            Assert.True(StressModel.IsBroken(_w, n), "there");
+        }
+
         /// <summary>TS-6 — a broken man with a low resolve whom an enemy rifle covers SURRENDERS (for good); one with resolve does not.</summary>
         [Fact]
         public void CE2272_LowResolve_AndCovered_HeSurrenders_ElseHeBreaks()
@@ -564,6 +627,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorNames.Break, b.TaskOf(alone));
         }
 
+        /// <summary>⭐⭐ <c>CE-3462</c> (D-6, user-approved; TS-6 row) — a low-resolve man with an enemy rifle on him at CLOSE range (within
+        /// <see cref="StressModel.CorneredMetres"/>) GIVES UP at once, calm or not (a room entry is too fast for his stress to break him); the same
+        /// rifle 20 m off does not corner him, and a man with resolve is never cornered into it. 📐 ts-house-defenders: the Waverer peaked at stress
+        /// 0.11 and was shot. ✅ Red-proof: the cornered rule removed ⇒ the calm waverer keeps his task ⇒ red.</summary>
+        [Fact]
+        public void CE3462_ACorneredLowResolveMan_GivesUpAtOnce_NotAtRange_NotWithResolve()
+        {
+            var b = new Brains(_w);
+            var cornered = Ordered(b, 0f, obedience: 0f, resolve: 0.1f);
+            var atRange = Ordered(b, 40f, obedience: 0f, resolve: 0.1f);
+            var fighter = Ordered(b, 80f, obedience: 0f, resolve: 0.9f);
+            foreach (var man in new[] { cornered, atRange, fighter }) _w.GetComponentRW<EntityInfo>(man).ForceId = ForceId.Hostile;
+            Rifle(new Vector3(0f, 4f, 0f), cornered);     // 4 m: cornered
+            Rifle(new Vector3(40f, 20f, 0f), atRange);    // 20 m: covered, not cornered
+            Rifle(new Vector3(80f, 4f, 0f), fighter);     // 4 m, but he has resolve
+            b.Run(0.1); b.Run(0.6); b.Run(1.1);
+            Assert.Equal(BehaviorNames.Surrender, b.TaskOf(cornered));
+            Assert.NotEqual(BehaviorNames.Surrender, b.TaskOf(atRange));
+            Assert.NotEqual(BehaviorNames.Surrender, b.TaskOf(fighter));
+            Assert.True(_w.GetComponentRO<Stress>(cornered).Level < 0.5f, "he gave up calm — not as the outcome of a break");
+        }
+
         /// <summary>TS-6 — with a threat known and a cover point farther from it within 30 m, he RUNS there (upright, flat out), not down where
         /// he is; a cover point nearer the threat is no retreat.</summary>
         [Fact]
@@ -583,7 +668,7 @@ namespace Hrot.SimHost.Tests
         // ── ⭐ CE-2376 (AQ104 C + F) — the enemy heard behind the wall, the near miss in cover, panic flees ──────────────────────
 
         /// <summary>A memory slot for someone HEARD (acoustic) just now at (<paramref name="x"/>, 0), anonymous — an unknown sound.</summary>
-        private unsafe void Heard(Entity self, float x, bool acoustic = true)
+        private unsafe void Heard(Entity self, float x, bool acoustic = true, byte sourceClass = 0)
         {
             if (!_w.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self)) _w.AddComponent(self, new Fdp.Toolkit.Perception.Components.TargetMemory());
             ref var mem = ref _w.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
@@ -593,7 +678,30 @@ namespace Hrot.SimHost.Tests
             mem.Freshness[i] = Fdp.Toolkit.Perception.PerceptionConstants.FreshnessSaturation;
             mem.Modalities[i] = (byte)(acoustic ? Fdp.Toolkit.Perception.Components.SensorModality.Acoustic : Fdp.Toolkit.Perception.Components.SensorModality.Visual);
             mem.PositionsX[i] = x;
+            mem.SourceClass[i] = sourceClass;
             mem.LastSeenTick[i] = Fdp.Toolkit.Perception.PerceptionClock.Now(_w);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4666</c> — a SHOT remembered 8 m off is not someone behind the wall: a shot is heard FROM the last opening on its way (AQ106 F),
+        /// so its place is his window, not the shooter (📐 live pc-defend-house: rifles 189 m off, heard 7 m off, every defender broke). He calms;
+        /// footsteps at the same place still raise him. 🔴 Red-proof: the fire-class skip dropped ⇒ the shot raises him.
+        /// </summary>
+        [Fact]
+        public void CE4666_AShotHeardThroughHisWindow_IsNotSomeoneBehindTheWall_StepsStillAre()
+        {
+            _w.SetSingleton(new GlobalTime { TotalTime = 0.0, DeltaTime = 0.016f, TimeScale = 1f, FrameNumber = 600 });
+            var shot = Man(0f); Man(5f);
+            SetLevel(shot, 0.2f, 0.0);
+            Heard(shot, 8f, sourceClass: (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms);
+            StressModel.Step(_w, shot, 1.0);
+            Assert.True(Level(shot) < 0.2f, $"a shot through his window: he calms ({Level(shot)})");
+
+            var steps = Man(100f); Man(105f);
+            SetLevel(steps, 0.2f, 0.0);
+            Heard(steps, 108f, sourceClass: (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Footsteps);
+            StressModel.Step(_w, steps, 1.0);
+            Assert.True(Level(steps) > 0.2f, $"steps behind the wall: rises ({Level(steps)})");
         }
 
         /// <summary>

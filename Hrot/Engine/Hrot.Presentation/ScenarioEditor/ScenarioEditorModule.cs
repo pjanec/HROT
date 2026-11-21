@@ -55,6 +55,7 @@ public class ScenarioEditorModule : IEcsModule
     /// <param name="GlobalGizmos">Needed by the Measure tool only; <c>null</c> ⇒ Measure reports unserviceable.</param>
     /// <param name="StartPlacementMode">The Spawn tool's behaviour; <c>null</c> ⇒ Spawn reports unserviceable.</param>
     /// <param name="AlsoSelect">Optional host follow-through after a selection write (e.g. an inspector panel).</param>
+    [Fdp.Core.NotState("record of host dependency delegates")]
     public sealed record InteractionDeps(
         Func<ISelectionState?>        Selection,
         Func<DataDrivenGizmoSystem?>  Gizmos,

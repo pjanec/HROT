@@ -82,6 +82,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4391 S-1 — a building's wall breaches, the node that decided them → every node (each node's DoorStates.Damage unions every such entity).
             yield return new EntityBuildingDamageEgressTranslator(participant);
             yield return new EntityBuildingDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-5033 (glass windows GW-2) — the same entity's damaged window panes, the deciding node → every node (DoorStates.Windows).
+            yield return new EntityWindowDamageEgressTranslator(participant);
+            yield return new EntityWindowDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             // ⭐ CE-4591 (P-4) — a ground cell's craters, the node that decided them → every node (each node's DoorStates.Craters unions every such entity).
             yield return new EntityGroundDamageEgressTranslator(participant);
             yield return new EntityGroundDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
@@ -92,6 +95,8 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityMinefieldStrikesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new EntityMinefieldKnowledgeEgressTranslator(participant);
             yield return new EntityMinefieldKnowledgeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityUnderFireKnowledgeEgressTranslator(participant);               // ⭐ CE-2468 UF-2 — a side's knowledge of a place under fire
+            yield return new EntityUnderFireKnowledgeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new EntityMinefieldLanesEgressTranslator(participant);                  // ⭐ CE-4624 MS-T4 — the lanes a node cleared
             yield return new EntityMinefieldLanesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new EntityMineClearingEgressTranslator(participant);                    // ⭐ CE-4624 MS-T4 — the clearer's tool marker (Brain group, the BladeCut pair)
@@ -104,6 +109,18 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-4603 (B-6) — a cell's felled lone trunks, the felling node → every node (DoorStates.Trees).
             yield return new EntityTreeDamageEgressTranslator(participant);
             yield return new EntityTreeDamageIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-4664 (thermal drivers TD-14) — a cell's warm vehicle stands, the moving node → every node (the image generator, our thermal sensor).
+            yield return new EntityGroundHeatMarksEgressTranslator(participant);
+            yield return new EntityGroundHeatMarksIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            // ⭐ CE-4657 (thermal drivers TD-3 / TD-6) — an entity's heat source (the moving node → every node) and its fire spots (the Health owner → every node)
+            yield return new EntityHeatSourceEgressTranslator(participant);
+            yield return new EntityHeatSourceIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityFireStateEgressTranslator(participant);
+            yield return new EntityFireStateIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityVehicleOpeningsEgressTranslator(participant);   // ⭐ CE-4670 (VA-S2) — hatches / doors / ramps
+            yield return new EntityVehicleOpeningsIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
+            yield return new EntityVehicleLightsEgressTranslator(participant);   // ⭐ CE-4670 (VA-S3) — lights
+            yield return new EntityVehicleLightsIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             // ⭐ CE-3136 P-7a — a static obstacle's box, creator → every node (its ghost waits for it, [PerInstanceValue]).
             yield return new EntityObstacleShapeEgressTranslator(participant);
             yield return new EntityObstacleShapeIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
@@ -159,8 +176,6 @@ namespace Hrot.Map.Common.Translators
             yield return new Hrot.Network.NED.SimHost.ContactBreachEgressTranslator(participant, entityMap, localNodeId);
             yield return new Hrot.Network.NED.SimHost.ContactBreachIngressTranslator(participant, entityMap, localNodeId);
             // ⭐ CE-3224 (civilians B-6) — a person's gesture (Brain → every node).
-            yield return new EntityGestureEgressTranslator(participant);
-            yield return new EntityGestureIngressTranslator(participant, entityMap);
             // ⭐ CE-4617 (B-1, RS-10) — a radar's emission (Brain → every node): the radar sensor, the warning receiver, the direction finding read it.
             yield return new EntityRadarEmissionEgressTranslator(participant);
             yield return new EntityRadarEmissionIngressTranslator(participant, entityMap);

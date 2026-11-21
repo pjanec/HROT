@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Diagnostics
         public static bool Requested => EnvVars.Read(EnvVars.HrotReplicaProbe) == "1";
 
         private static readonly int S_Sync = QueryTimings.Slot("probe.replica.sync (full)");
+        [Fdp.Core.WorldDerived("lazily created replica double-buffer provider for the diagnostics probe")]
         private DoubleBufferProvider? _replica;
 
         public void Execute(ISimulationView view, float deltaTime)

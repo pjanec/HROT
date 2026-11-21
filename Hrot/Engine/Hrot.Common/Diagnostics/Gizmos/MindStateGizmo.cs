@@ -3,6 +3,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Civilians;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Replication.Components;
@@ -15,7 +16,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
     /// <summary>
     /// ⭐ <c>CE-1309</c> (People Display §7e U20a–d) — what a man's mind-state bar shows: a SOLDIER's stress (<see cref="Stress"/>) with a tick at
     /// his breaking point (<see cref="Stresses.BreakLevel"/> — his nerve), banded calm / nervous / broken; else a CIVILIAN's fear
-    /// (<see cref="CivilianState"/> on the brain node, else the replicated <see cref="Demeanour"/> quarter). Nothing for a calm man. Pure.
+    /// (<see cref="Fear"/> on the brain node, else the replicated <see cref="Demeanour"/> quarter). Nothing for a calm man. Pure.
     /// </summary>
     public static class MindStateBar
     {
@@ -36,8 +37,9 @@ namespace Hrot.Common.Diagnostics.Gizmos
                 return (System.Math.Clamp(level, 0f, 1f), at, band);
             }
             float fear = -1f;
-            if (view is EntityRepository r2 && r2.IsComponentTypeRegistered<CivilianState>() && view.HasComponent<CivilianState>(man))
-                fear = view.GetComponentRO<CivilianState>(man).Fear;
+            if (view is EntityRepository r2 && r2.IsComponentTypeRegistered<CivilianState>() && r2.IsComponentTypeRegistered<Fear>()
+                && view.HasComponent<CivilianState>(man) && view.HasComponent<Fear>(man))
+                fear = view.GetComponentRO<Fear>(man).Value;   // ⭐ CE-4628 — a civilian's fear is the shared Fear
             else if (Demeanours.Of(view, man, out var d)) fear = d.Fear / 4f;
             return fear >= FearFrom ? (System.Math.Clamp(fear, 0f, 1f), -1f, MindBand.Fear) : (0f, -1f, MindBand.None);
         }

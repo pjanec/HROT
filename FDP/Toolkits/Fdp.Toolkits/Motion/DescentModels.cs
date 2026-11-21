@@ -507,6 +507,7 @@ namespace Fdp.Toolkit.Motion
         /// <summary>How long a roped man takes to clear the rope (s).</summary>
         public const float RopeClearSeconds = 1f;
 
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _done = new();
 
         public void Execute(ISimulationView view, float deltaTime)

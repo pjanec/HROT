@@ -170,7 +170,7 @@ namespace Hrot.SimHost.Tests
         public void CE4622_K5_ACarThatIgnoresTheSignal_IsLadderedByTime_ShotThenEngineThenLethal()
         {
             var f = new Fixture();
-            if (!f.W.Repo.IsComponentTypeRegistered<Gesture>()) f.W.Repo.RegisterComponent<Gesture>();
+            if (!f.W.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) f.W.Repo.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             f.W.Start(BehaviorNames.Checkpoint, "{\"Approach\":" + RouteNet + "}");
             f.Tick(3);
             var car = f.Car(new Vector3(-270f, 0f, 0f), new Vector3(15f, 0f, 0f));
@@ -202,7 +202,7 @@ namespace Hrot.SimHost.Tests
         public void CE4622_K5_ACarThatSlowsOnTheSignal_IsNeverShotAt()
         {
             var f = new Fixture();
-            if (!f.W.Repo.IsComponentTypeRegistered<Gesture>()) f.W.Repo.RegisterComponent<Gesture>();
+            if (!f.W.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) f.W.Repo.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             f.W.Start(BehaviorNames.Checkpoint, "{\"Approach\":" + RouteNet + "}");
             f.Tick(3);
             var car = f.Car(new Vector3(-250f, 0f, 0f), new Vector3(15f, 0f, 0f));
@@ -227,7 +227,7 @@ namespace Hrot.SimHost.Tests
             {
                 () => { if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.Custody>()) repo.RegisterComponent<Fdp.Toolkit.Civilians.Custody>(); },
                 () => { if (!repo.Bus.IsRegistered<Fdp.Toolkit.Civilians.CustodyEvent>()) repo.Bus.Register<Fdp.Toolkit.Civilians.CustodyEvent>(); },
-                () => { if (!repo.IsComponentTypeRegistered<Gesture>()) repo.RegisterComponent<Gesture>(); },
+                () => { if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) repo.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>(); },
             }) reg();
             var car = f.Car(new Vector3(-4f, 0f, 0f), Vector3.Zero);
             var driver = repo.CreateEntity();

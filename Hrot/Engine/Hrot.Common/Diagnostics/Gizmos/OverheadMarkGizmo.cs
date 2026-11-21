@@ -2,6 +2,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Civilians;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Physics.Components;
 using Fdp.Toolkit.Replication.Components;
@@ -14,7 +15,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         None,
         /// <summary>U15 — what he says: a red <c>#!</c>, a yellow <c>/!\</c>, a white <c>!&gt;</c>, a grey <c>...</c>, a cyan <c>~~</c>.</summary>
         Insult, Warning, Order, Talk, Chant,
-        /// <summary>U16 — how he feels, a small dot: pain (Injury wounded), anger, fear, alarm (Demeanour).</summary>
+        /// <summary>U16 — how he feels, a small dot: pain (Injury wounded), anger, fear, alarm (Mood).</summary>
         Pain, Anger, Fear, Alarm,
     }
 
@@ -29,7 +30,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <summary>A speech mark fades over its last half second.</summary>
         public const float FadeSeconds = 0.5f;
 
-        /// <summary>Anger / fear from this quarter up shows (2 = "clearly", Demeanour's quarters 0 … 4).</summary>
+        /// <summary>Anger / fear from this quarter up shows (2 = "clearly", Mood's quarters 0 … 4).</summary>
         public const byte MoodQuarter = 2;
 
         /// <summary>The mark on <paramref name="man"/> at sim time <paramref name="now"/>, and its opacity 0 … 1.</summary>

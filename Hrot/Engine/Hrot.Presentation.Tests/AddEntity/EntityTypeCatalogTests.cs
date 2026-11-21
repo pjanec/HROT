@@ -26,6 +26,7 @@ public sealed class EntityTypeCatalogTests
         NedTkbCatalog.RegisterAll(db);
         UrbanCombatTkbCatalog.RegisterAll(db);
         CivilianTkbCatalog.RegisterAll(db);   // ⭐ CE-3220 — part of the built-in set (HrotEnvironment.RegisterBuiltInTkb)
+        Hrot.Core.Tkb.FunTkbCatalog.RegisterAll(db);   // ⭐ CE-4650 — the fun pack (R-4281), part of the built-in set
         return db;
     }
 
@@ -611,6 +612,7 @@ public sealed class EntityTypeCatalogTests
         114 Radar SAM vehicle | dis 1.1.222.28.1.0.0 | family AirDefenceVehicle | folder Platform/Land/Russia/Air Defence Vehicle | icon _wheeled
         115 Motorcycle | dis 1.1.0.80.1.0.0 | family Motorcycle | folder Platform/Land/Motorcycle | icon _motorcycle
         116 Mine Clearer (engineer tank) | dis 1.1.225.9.2.0.0 | family MineClearer | folder Platform/Land/United States/Large Tracked Utility Vehicle | icon _tank
+        117 M67 flame tank | dis 1.1.225.1.20.0.0 | family Tank | folder Platform/Land/United States/Tank | icon _tank
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         201 Officer | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
@@ -626,6 +628,7 @@ public sealed class EntityTypeCatalogTests
         212 Rifleman (anti-drone shotgun) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         213 Rifleman (anti-drone shotgun, red) | dis 3.1.222.1.0.0.0 | family Person | folder Life Form/Land/Russia/Infantry (HROT) | icon _person
         214 Hunter (12-gauge) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
+        215 Observer (thermal sight) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         301 Tank Platoon | dis 11.1.225.2.4.1.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
         302 Infantry Squad | dis 11.1.225.1.2.1.0 | family Unit | folder Units/Land/United States/Infantry | icon _unit
         303 Tank Platoon (Auto Spawn) | dis 11.1.225.2.4.2.0 | family Unit | folder Units/Land/United States/Armor | icon _unit
@@ -642,6 +645,9 @@ public sealed class EntityTypeCatalogTests
         407 Recon drone | dis 1.2.0.50.2.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
         408 Bomber drone | dis 1.2.0.50.3.0.0 | family Drone | folder Platform/Air/Unmanned Air Vehicle | icon -
         409 MiG-29 Fulcrum | dis 1.2.222.1.200.0.0 | family TwinEngineJet | folder Platform/Air/Russia/Fighter/Air Defense | icon -
+        410 A-10C (napalm) | dis 1.2.225.2.0.1.0 | family AttackJet | folder Platform/Air/United States/Attack/Strike | icon -
+        411 Dragon | dis 1.2.0.20.99.0.0 | family AttackHelicopter | folder Platform/Air/Attack Helicopter | icon -
+        412 AH-64 (flame) | dis 1.2.225.20.0.1.0 | family AttackHelicopter | folder Platform/Air/United States/Attack Helicopter | icon -
         600 M2 HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         601 DShK HMG | dis 1.1.0.50.1.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         602 M134 minigun | dis 1.1.0.50.2.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
@@ -703,9 +709,11 @@ public sealed class EntityTypeCatalogTests
         2013 Archer | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2014 Crossbowman | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         2015 ArcheryTarget | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
-        2016 AfghanFighter | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
-        2017 AfghanFighterRpg | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
-        2018 AfghanMachineGunner | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2016 Native American warrior | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2019 AfghanFighter | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2020 AfghanFighterRpg | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2021 AfghanMachineGunner | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
+        2022 FlamethrowerSoldier | dis 3.1.0.1.0.0.0 | family Person | folder Life Form/Land/Infantry (HROT) | icon _person
         8801 TacGraphic_FireLine | dis - | family Unknown | folder Other | icon -
         8802 TacGraphic_Route | dis - | family Unknown | folder Other | icon -
         8803 TacGraphic_Area | dis - | family Unknown | folder Other | icon -
@@ -727,6 +735,8 @@ public sealed class EntityTypeCatalogTests
         8820 Barrel | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8821 Jersey barrier | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8822 Guard booth | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8823 Barrel, water-filled | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
+        8824 Barrel, sand-filled | dis 5.0.0.0.0.0.0 | family Unknown | folder Cultural Feature | icon -
         8830 Minefield | dis 5.0.0.91.0.0.0 | family Unknown | folder Cultural Feature/Minefield (HROT) | icon -
         8840 Air Arena | dis - | family Unknown | folder Other | icon -
         8850 Traffic | dis - | family Unknown | folder Other | icon -
@@ -791,6 +801,7 @@ public sealed class EntityTypeCatalogTests
         3.1.*.206 Poultry (HROT)
         3.1.*.207 Pig (HROT)
         3.1.*.208 Goat (HROT)
+        3.1.*.209 Rabbit (HROT)
         3.2 Air
         3.2.*.205 Bird (HROT)
         3.3 Surface

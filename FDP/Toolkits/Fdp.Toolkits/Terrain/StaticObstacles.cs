@@ -69,7 +69,7 @@ namespace Fdp.Toolkit.Terrain
         /// <paramref name="position"/>.Z up <see cref="ObstacleShape.Height"/>, of <paramref name="material"/>. Counter-clockwise, as
         /// every terrain footprint.
         /// </summary>
-        public static TerrainPrism PrismOf(Vector3 position, float yaw, in ObstacleShape shape, TerrainMaterial material, string? label = null)
+        public static TerrainPrism PrismOf(Vector3 position, float yaw, in ObstacleShape shape, TerrainMaterial material, string? label = null, bool drawnByEntity = false)
         {
             float hl = MathF.Max(shape.Length, 0.01f) * 0.5f, hw = MathF.Max(shape.Width, 0.01f) * 0.5f;
             float c = MathF.Cos(yaw), s = MathF.Sin(yaw);
@@ -88,6 +88,7 @@ namespace Fdp.Toolkit.Terrain
                 Max       = max,
                 Material  = material,
                 Label     = label,
+                DrawnByEntity = drawnByEntity,   // ⭐ CE-4656
             };
         }
 
@@ -209,6 +210,7 @@ namespace Fdp.Toolkit.Terrain
                 Materials = terrain.Materials,
                 Breaches = terrain.Breaches,   // ⭐ CE-4391 S-1
                 Minefields = minefields is { Count: > 0 } ? minefields.Fields : terrain.Minefields,   // ⭐ CE-4624 MS-T3
+                Removed = terrain.Removed,   // ⭐ CE-5030 — the removed buildings' ghosts survive the obstacle bake
             };
             if (terrain.Beyond is { } beyond) derived.AttachBeyond(beyond);   // ⭐ CE-4122 — the ground beyond the terrain is the base's, kept
             return derived;

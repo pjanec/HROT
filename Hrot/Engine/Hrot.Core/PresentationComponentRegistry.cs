@@ -128,6 +128,7 @@ public static class PresentationComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
         world.RegisterComponent<Fdp.Toolkit.Time.Lifespan>();   // ⭐ W1 (VE-Q) — the effects' timer, recorded (VE-R)
         world.RegisterComponent<EffectAnchor>();
+        world.RegisterComponent<EffectCause>();   // ⭐ CE-11010 (RR-10) — what a hit struck, on its effects
         world.RegisterComponent<EffectFlight>();   // ⭐ CE-1115 — a decoy flare / chaff cloud moves along its release's path
         world.RegisterComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>();   // an effect is never saved with the scenario (VE-R)
     }

@@ -43,6 +43,7 @@ namespace Hrot.ScenarioEditor.Selection;
 /// through <see cref="Write"/> (store + component together), and <see cref="Sync"/> rewrites the components from the store each frame, so
 /// a replay keyframe or a seek — which clear and refill the component tables — never changes what the operator selected.</para>
 /// </summary>
+[Fdp.Core.WorldDerived("UI mirror of selection components, resynced from world")]
 public sealed class EcsSelectionState : ISelectionState
 {
     private readonly System.Func<EntityRepository> _worldOf;

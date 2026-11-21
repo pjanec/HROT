@@ -17,6 +17,7 @@ namespace Hrot.Traffic;
 // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): a per-node traffic frame scratch — never copied into a merged view.
 [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal | DataPolicy.SnapshotViaClone)]
 [ComponentId(GlobalComponentIds.TrafficFrame)]
+[Fdp.Core.WorldDerived("frame of SUMO poses rebuilt and republished each mirror tick")]
 public sealed class TrafficFrame : IValueCopy<TrafficFrame>
 {
     private readonly List<TrafficCarPose> _cars = new();

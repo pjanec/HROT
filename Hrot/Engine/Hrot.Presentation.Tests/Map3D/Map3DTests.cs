@@ -15,6 +15,7 @@ using Hrot.Map.Definitions.Tkb;
 using Hrot.UI.Common.AddEntity;
 using Hrot.UI.Common.Map3D;
 using Xunit;
+using PostureBlend = Hrot.Look.People.PostureBlend;
 
 namespace Hrot.Presentation.Tests.Map3D;
 
@@ -423,7 +424,8 @@ public sealed class Map3DTests
     public void S1_TheIconFallback_IsUnchangedByTheExtraction_ForEveryBuiltInType()
     {
         foreach (var t in BuiltIn().GetAll())
-            Assert.Equal(OldFallbackIconName(t), EntityTypeCatalog.FallbackIconName(t));
+            Assert.Equal(VisualFamilies.Of(t) == VisualFamily.MineClearer ? "_tank" : OldFallbackIconName(t),   // ⭐ CE-1955 — the mine clearer (CE-4624) is a tracked body on the picker, on purpose
+                         EntityTypeCatalog.FallbackIconName(t));
     }
 
     [Fact]
@@ -616,6 +618,29 @@ public sealed class Map3DTests
         world.AddComponent(e, new ObstacleShape { Length = 3f, Width = 0.6f, Height = 1f });
         Hrot.ScenarioEditor.Gizmos.EntityPresentationGizmoShared.TryGetVehicleDimensions(world, e, out float length, out float width);
         Assert.Equal((3f, 0.6f), (length, width));
+    }
+
+    /// <summary>
+    /// ⭐ terrain's note (NOTE_Terrain_To_Ui_Obstacle_Drawing, CE-4656) — a baked CULTURAL-FEATURE obstacle (DIS kind 5: sandbags, block, crate,
+    /// barrel, jersey barrier, guard booth, wreck) has ONE drawer, the terrain mesh's material box: the 3-D body layer draws nothing for it (the
+    /// no-body look). The parked car (kind 1) stays a car the body layer draws (CE-4656 took it off the terrain side).
+    /// </summary>
+    [Fact]
+    public void CE4656_ACulturalFeatureObstacle_IsDrawnByTheTerrainOnly_TheCarByTheBodyLayer()
+    {
+        var db = new TkbDatabase();
+        NedTkbCatalog.RegisterObstacles(db);
+        using var world = new EntityRepository();
+        var layer = new EntityBodyLayer3D(() => world, () => db);
+        var kinds = new List<string>();
+        foreach (var type in TkbEntityTypes.Obstacles.Append(TkbEntityTypes.Obstacle_Wreck))
+        {
+            if (type == TkbEntityTypes.Obstacle_Car) continue;
+            var family = layer.LookOf(type, db).Family;
+            if (family != VisualFamily.Unit) kinds.Add($"{type}: {family}");
+        }
+        Assert.True(kinds.Count == 0, "drawn twice (a body over the terrain box): " + string.Join(", ", kinds));
+        Assert.Equal(VisualFamily.WheeledCar, layer.LookOf(TkbEntityTypes.Obstacle_Car, db).Family);
     }
 
     /// <summary>⭐ CE-2138 — the class-table avatar picks what the (fixed) GizmoMap switch picks over the whole DIS space, and a
@@ -903,7 +928,9 @@ public sealed class Map3DTests
         var db = BuiltIn();
         var drone = EntityBodyLayer3D.Resolve(db.GetByType(TkbEntityTypes.Drone_Fpv));
         Assert.Equal(VisualFamily.Drone, drone.Family);
-        Assert.Equal(new Vector3(0.6f, 0.6f, 0.3f), drone.Size);
+        // ⭐ CE-1955 — AS BIG AS ITS FLIGHT BODY, read from it (CE-7026 made the quadcopters' one airframe 0.35 × 0.35 × 0.15 m with feet; the 0.6 m here was stale)
+        var body = db.GetByType(TkbEntityTypes.Drone_Fpv).GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>()!;
+        Assert.Equal(new Vector3(body.Length, body.Width, body.Height), drone.Size);
         Assert.Equal(VisualFamily.Jet, EntityBodyLayer3D.Resolve(db.GetByType(TkbEntityTypes.Jet_F16)).Family);
 
         var rotors = ShapeKits.Drone.Parts.Where(p => p.Role == PartRole.Rotor).ToArray();
@@ -1280,7 +1307,7 @@ public sealed class Map3DTests
             float z = x < 30f ? 1f : x < 60f ? 1f + (x - 30f) * 39f / 30f : 40f - (x - 60f) * 39f / 40f;
             path.Add(new Vector3(x, 0f, z), i * 0.05);   // 5 s of flight
         }
-        var round = new Hrot.UI.Common.Effects.ProjectileLayer.Round(missile, new Vector3(100f, 0f, 1f), Vector3.Normalize(new Vector3(1f, 0f, -1f)), false, 0f,
+        var round = new Hrot.Look.Effects.RoundState(missile, new Vector3(100f, 0f, 1f), Vector3.Normalize(new Vector3(1f, 0f, -1f)), false, 0f,
                                                                     new Vector3(0f, 0f, 1f), 7, 140f);
         var curved = Hrot.UI.Common.Effects.ProjectileLayer.TrailOf(round, path);
         var straight = Hrot.UI.Common.Effects.ProjectileLayer.TrailOf(round);
@@ -1431,11 +1458,11 @@ public sealed class Map3DTests
 
     /// <summary>How the 3-D map dresses a man of <paramref name="look"/>'s type (the one call the layer makes).</summary>
     private static Outfit DressedLike(in EntityBodyLayer3D.TypeLook look, long seed, long type, Fdp.Core.ForceId side, Raylib_cs.Color? own)
-        => Outfits.For(seed, type, look.Soldier, look.Child, own, side, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
+        => Outfits.For(seed, type, look.Soldier, look.Child, own.ToRgba(), side, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
 
     private static void Fold(ref uint h, string text) { foreach (char c in text) h = (h ^ c) * 16777619u; }
 
-    private static string ColourText(Raylib_cs.Color c) => $"{c.R},{c.G},{c.B},{c.A}";
+    private static string ColourText(Hrot.Look.Rgba c) => $"{c.R},{c.G},{c.B},{c.A}";
 
     /// <summary>One man's whole dressing as text: every part colour, his face and the details drawn on his parts — what a frame is made of.</summary>
     private static string DressingText(in Outfit o, System.Collections.Generic.List<PartDetail> details)
@@ -1773,7 +1800,7 @@ public sealed class Map3DTests
         Assert.True(men.Select(o => (o.Skin.R, o.Skin.G, o.Skin.B)).Distinct().Count() >= 3, "their skin varies");
         Assert.Equal(Outfits.For(17, 1001, false, false, null, Fdp.Core.ForceId.Neutral), Outfits.For(17, 1001, false, false, null, Fdp.Core.ForceId.Neutral));
 
-        var red = new Raylib_cs.Color(200, 50, 50, 255);
+        var red = new Hrot.Look.Rgba(200, 50, 50, 255);
         var reds = Enumerable.Range(1, 40).Select(s => Outfits.For(s, 1001, false, false, red, Fdp.Core.ForceId.Neutral)).Where(o => !o.Suit).ToArray();
         Assert.All(reds, o => Assert.True(o.Top.R > 2 * o.Top.G && o.Top.R > 2 * o.Top.B, $"a red type's man wears red ({o.Top.R},{o.Top.G},{o.Top.B})"));
         Assert.True(reds.Select(o => o.Top.R).Distinct().Count() >= 5, "lighter or darker, man by man");
@@ -1815,7 +1842,7 @@ public sealed class Map3DTests
     [Fact]
     public void CE1099_ASoldiersSide_GivesHisUniformItsCamouflage()
     {
-        var olive = new Raylib_cs.Color(85, 107, 47, 255);
+        var olive = new Hrot.Look.Rgba(85, 107, 47, 255);
         var friend = Outfits.For(9, 200, soldier: true, child: false, olive, Fdp.Core.ForceId.Friend);
         var hostile = Outfits.For(9, 200, true, false, olive, Fdp.Core.ForceId.Hostile);
         var neutral = Outfits.For(9, 200, true, false, olive, Fdp.Core.ForceId.Neutral);
@@ -1830,7 +1857,7 @@ public sealed class Map3DTests
         Assert.Empty(d);
         Outfits.Details(hostile, 9, d);
         Assert.Empty(d);
-        static float Light((Raylib_cs.Color, Raylib_cs.Color, Raylib_cs.Color) t) => (t.Item1.R + t.Item1.G + t.Item2.R + t.Item2.G + t.Item3.R + t.Item3.G) / 6f;
+        static float Light((Hrot.Look.Rgba, Hrot.Look.Rgba, Hrot.Look.Rgba) t) => (t.Item1.R + t.Item1.G + t.Item2.R + t.Item2.G + t.Item3.R + t.Item3.G) / 6f;
         Assert.True(Light(Outfits.CamoTones(CamoPattern.Desert)) > Light(Outfits.CamoTones(CamoPattern.Woodland)) + 20f, "a hostile's desert reads paler");
         Assert.NotEqual(Outfits.CamoSeed(9), Outfits.CamoSeed(10));   // no two men wear the same cut
         Assert.Equal(Outfits.CamoSeed(9), Outfits.CamoSeed(9));
@@ -1848,12 +1875,12 @@ public sealed class Map3DTests
         var neutral = Outfits.For(9, 2002, true, false, null, Fdp.Core.ForceId.Neutral);
         Assert.Equal((Outfits.WoodlandCloth, Outfits.DesertCloth, Outfits.WoodlandCloth), (friend.Top, hostile.Top, neutral.Top));
         Assert.Equal((CamoPattern.Woodland, CamoPattern.Desert, CamoPattern.None), (friend.Camo, hostile.Camo, neutral.Camo));
-        static float Gap(Raylib_cs.Color a, Raylib_cs.Color b) => MathF.Sqrt((a.R - b.R) * (a.R - b.R) + (a.G - b.G) * (a.G - b.G) + (a.B - b.B) * (a.B - b.B));
+        static float Gap(Hrot.Look.Rgba a, Hrot.Look.Rgba b) => MathF.Sqrt((a.R - b.R) * (a.R - b.R) + (a.G - b.G) * (a.G - b.G) + (a.B - b.B) * (a.B - b.B));
         Assert.True(Gap(friend.Top, hostile.Top) > 90f, $"the two sides' cloth reads apart ({Gap(friend.Top, hostile.Top):F0})");
         Assert.True(Gap(friend.Bottom, hostile.Bottom) > 70f, "and so do their trousers");
         Assert.True(hostile.Top.R > hostile.Top.B + 40 && hostile.Top.R + hostile.Top.G > friend.Top.R + friend.Top.G + 100, "desert is khaki: warm and pale");
 
-        var own = new Raylib_cs.Color(40, 60, 90, 255);
+        var own = new Hrot.Look.Rgba(40, 60, 90, 255);
         Assert.Equal(own, Outfits.For(9, 2002, true, false, own, Fdp.Core.ForceId.Hostile).Top);   // an authored / type colour still wins
         Assert.Equal(Outfits.PoliceUniform, Outfits.For(9, 2002, true, false, null, Fdp.Core.ForceId.Hostile, PersonKit.Security).Top);
         Assert.Equal((int)SurfaceKind.Desert, 4);
@@ -1980,6 +2007,52 @@ public sealed class Map3DTests
         Assert.Empty(d);
     }
 
+    /// <summary>
+    /// ⭐ CE-1976 (bows BW-10; docs/designs/weapons/bows-visuals.svg) — the BOW and the CROSSBOW: category 14 says Bow, its round (arrow / bolt) says which; the figure draws a stave, a string and — aimed — the arrow DRAWN to the cheek
+    /// (bow arm straight to the grip, string hand at the face); carried, the bow hangs in his left hand; a bow has a QUIVER on his back, a crossbow a bolt case at his hip.
+    /// </summary>
+    [Fact]
+    public void CE1976_TheBowAndTheCrossbow_AreDrawn_TheStringDrawnToTheCheek_TheQuiverOnTheBack()
+    {
+        var db = Hrot.Map.Common.HrotEnvironment.CreateTkb();   // the whole catalogue: the archer, the crossbowman, the fun pack's warrior
+        HeldLook Mount(long type, int i) => HeldWeapons.LookOf(db, db.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts[i]);
+        Assert.Equal(HeldLook.Bow, Mount(UrbanCombatTkbCatalog.TkbArcher, 0));
+        Assert.Equal(HeldLook.Crossbow, Mount(UrbanCombatTkbCatalog.TkbCrossbowman, 0));
+        Assert.Equal(HeldLook.Bow, Mount(FunTkbCatalog.TkbNativeWarrior, 0));          // the warrior's bow (his hatchet is the second mount)
+
+        var aimed = BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.Aimed);
+        var bow = BlockFigure.Held(aimed, HeldLook.Bow, WeaponPostureKind.Aimed);
+        Assert.True(bow.Length >= aimed.Length + 8, "a stave (4 limbs), a string (2), a point and the vanes are parts of his figure");
+        var chest = (BlockFigure.Ends(aimed[6]).A + BlockFigure.Ends(aimed[8]).A) / 2f;
+        var left = BlockFigure.Ends(bow[7]).B;      // the bow hand
+        var right = BlockFigure.Ends(bow[9]).B;     // the string hand
+        Assert.True(left.X - chest.X > 0.45f, $"the bow arm out in front ({left.X - chest.X:F2} m)");
+        Assert.True(right.X - chest.X < 0.15f && MathF.Abs(right.Z - chest.Z) < 0.2f, "the string hand drawn back to the cheek");
+        var (nock, point) = BlockFigure.Ends(bow[BlockFigure.WeaponIndex]);            // the arrow (the weapon part)
+        Assert.True(Vector3.Distance(nock, right) < 0.05f && point.X > left.X - 0.15f, "the arrow runs from the string hand to the bow");
+        float drawn = MathF.Abs(nock.X - left.X);
+        var carried = BlockFigure.Held(BlockFigure.Parts(StanceId.Standing, soldier: true, WeaponPostureKind.AtEase), HeldLook.Bow, WeaponPostureKind.AtEase);
+        var grip = BlockFigure.Ends(carried[7]).B;
+        Assert.True(grip.Z < 1.0f, "carried: the bow hangs in his left hand at his side");
+        Assert.True(carried.Length >= aimed.Length + 5 && drawn > 0.4f, "carried: stave and string, no arrow in the hand");
+
+        var xbow = BlockFigure.Held(aimed, HeldLook.Crossbow, WeaponPostureKind.Aimed);
+        Assert.True(xbow.Length >= aimed.Length + 6, "a prod (4), the string (2), a bolt");
+        Assert.Equal(ColourRole.Wood, xbow[BlockFigure.WeaponIndex].Colour);
+
+        var d = new List<PartDetail>();
+        BlockFigure.WeaponDetails(HeldLook.Bow, HeldLook.Rifle, WeaponPostureKind.AtEase, d);
+        Assert.Equal(6, d.Count(x => x.Part == BlockFigure.TorsoIndex));               // the quiver: three stepped boxes + three fletchings
+        Assert.All(d, x => Assert.True(x.Centre.X < -0.5f, "on his BACK"));
+        d.Clear();
+        BlockFigure.WeaponDetails(HeldLook.Crossbow, HeldLook.Rifle, WeaponPostureKind.AtEase, d);
+        Assert.Equal(2, d.Count(x => x.Part == BlockFigure.TorsoIndex));               // the bolt case at his hip
+        d.Clear();
+        BlockFigure.WeaponDetails(HeldLook.Rifle, HeldLook.Rifle, WeaponPostureKind.AtEase, d);
+        Assert.Empty(d);                                                               // a rifleman has no quiver
+        Assert.Same(aimed, BlockFigure.Held(aimed, HeldLook.Rifle, WeaponPostureKind.Aimed));
+    }
+
     /// <summary>⭐ CE-1101 (docs/DESIGN_Map_3D_Mode.md §6r S-3) — faces VARY man by man and are repeatable: eye spacing, mouth width, brow
     /// weight, eye and lip colours; some grown men have a moustache or a beard, never a woman or a child.</summary>
     [Fact]
@@ -2011,7 +2084,7 @@ public sealed class Map3DTests
         int neutral = cars.Count(c => Math.Max(c.R, Math.Max(c.G, c.B)) - Math.Min(c.R, Math.Min(c.G, c.B)) < 12);
         Assert.InRange(neutral, 40, 80);   // white, black, silver and grey are most of the street
         Assert.Equal(Outfits.CarColour(33, 1002, null), Outfits.CarColour(33, 1002, null));
-        var red = new Raylib_cs.Color(180, 30, 30, 255);
+        var red = new Hrot.Look.Rgba(180, 30, 30, 255);
         Assert.All(Enumerable.Range(1, 20).Select(s => Outfits.CarColour(s, 1002, red)), c => Assert.True(c.R > 3 * c.G, "a red car stays red"));
         Assert.Equal(VisualFamily.WheeledCar, EntityBodyLayer3D.Resolve(BuiltIn().GetByType(UrbanCombatTkbCatalog.TkbCivilianCar)).Family);
     }
@@ -2374,9 +2447,9 @@ public sealed class Map3DTests
         BlockFigure.MarkingDetail(HeldMarking.None, into);
         Assert.Equal(2, into.Count);
         Assert.All(into, d => Assert.Equal(BlockFigure.WeaponIndex, d.Part));
-        Assert.Equal(BlockFigure.ToyOrange, into[0].Colour);
+        Assert.Equal(BlockFigure.ToyOrange.ToRgba(), into[0].Colour);
         Assert.True(into[0].Extent.X > 1f, "the toy covered whole");
-        Assert.Equal(BlockFigure.LessLethalYellow, into[1].Colour);
+        Assert.Equal(BlockFigure.LessLethalYellow.ToRgba(), into[1].Colour);
         Assert.True(into[1].Extent.X < 0.3f, "a band, not a cover");
 
         Assert.True(db.TryGetByType(TkbEntityTypes.WeaponSystem_PickUpRifle, out var pickUp));
@@ -2398,7 +2471,7 @@ public sealed class Map3DTests
         Assert.Contains(BlockFigure.PoliceHead(riot: false), p => p.Shade == FaceShade.Peak);
         Assert.Contains(BlockFigure.PoliceHead(riot: false), p => p.Shade == FaceShade.CapBand);
         Assert.Contains(BlockFigure.PoliceHead(riot: true), p => p.Shade == FaceShade.Visor);
-        Assert.Equal(Outfits.CapBand, EntityBodyLayer3D.FaceColour(FaceShade.CapBand, Outfits.PoliceUniform));
+        Assert.Equal(Outfits.CapBand.ToColor(), EntityBodyLayer3D.FaceColour(FaceShade.CapBand, Outfits.PoliceUniform.ToColor()));
 
         var baton = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityBaton, soldier: false, child: false, own: null, ForceId.Friend, PersonKit.Security);
         var shield = Outfits.For(7, Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, soldier: false, child: false, own: null, ForceId.Friend, PersonKit.Security);
@@ -2446,7 +2519,7 @@ public sealed class Map3DTests
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.Stress>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CombatTemperament>();
             world.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();
-            world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             world.RegisterComponent<global::CarKinem.Core.VehicleParams>();
             Entity Person(int net, Vector3 at)
@@ -2482,11 +2555,13 @@ public sealed class Map3DTests
 
             // a civilian: his own fear on the brain node, else the replicated quarter
             var civilian = Person(2002, new Vector3(5f, 0f, 0f));
-            world.AddComponent(civilian, new Fdp.Toolkit.Civilians.CivilianState { Fear = 0.7f });
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Fear>()) world.RegisterComponent<Fdp.Toolkit.Creatures.Fear>();   // ⭐ CE-4628 — his fear is the shared Fear
+            world.AddComponent(civilian, new Fdp.Toolkit.Civilians.CivilianState());
+            world.AddComponent(civilian, new Fdp.Toolkit.Creatures.Fear { Value = 0.7f });
             var fear = Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, civilian);
             Assert.Equal((0.7f, -1f, Hrot.Common.Diagnostics.Gizmos.MindBand.Fear), (MathF.Round(fear.Fill, 3), fear.Tick, fear.Band));
             var onAPlayer = Person(2003, new Vector3(10f, 0f, 0f));
-            Fdp.Toolkit.Civilians.Demeanours.Set(world, onAPlayer, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.5f, anger: 0f);
+            Fdp.Toolkit.Creatures.Demeanours.SetMood(world, onAPlayer, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.5f, anger: 0f);
             Assert.Equal(0.5f, Hrot.Common.Diagnostics.Gizmos.MindStateBar.Of(world, onAPlayer).Fill, 3);
 
             // the gizmo: a card row right under the health bar, on its own layer; BROKEN under it
@@ -2494,6 +2569,7 @@ public sealed class Map3DTests
             {
                 var buffer = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
                 var mask = new Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256();
+                mask.SetBit(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.Labels);   // ⭐ CE-1955 — the card itself (CE-4582 D-6: a row with no card is inert)
                 if (layerOn) mask.SetBit(Fdp.Toolkit.Diagnostics.Gizmos.DebugTraceLayers.MindState);
                 buffer.SetActiveLayers(mask);
                 new Hrot.Common.Diagnostics.Gizmos.MindStateGizmo().Draw(world, who, buffer);
@@ -2520,7 +2596,7 @@ public sealed class Map3DTests
 
     /// <summary>
     /// ⭐ CE-1176 / CE-1177 (People Display §5 U15, U16) — ONE mark per person, by the priority rule: what he says (G1's Utterance, fading
-    /// over its last half second; the police warning gesture counts) beats how he feels (pain, then anger, fear, alarm — G2's Demeanour,
+    /// over its last half second; the police warning gesture counts) beats how he feels (pain, then anger, fear, alarm — G2's Mood (was Demeanour),
     /// from the second quarter); calm and silent shows nothing. His FACE shows the feeling whatever he says. ✅ Red-proof: speech checked
     /// after the mood ⇒ the insult case shows anger.
     /// </summary>
@@ -2531,16 +2607,16 @@ public sealed class Map3DTests
         using (world)
         {
             world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();
-            world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
-            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
             var M = Hrot.Common.Diagnostics.Gizmos.MarkKind.None;
             var man = Man(world, Vector3.Zero);
             Assert.Equal(M, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);                      // calm and silent
 
-            Fdp.Toolkit.Civilians.Demeanours.Set(world, man, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.8f, anger: 0f);
+            Fdp.Toolkit.Creatures.Demeanours.SetMood(world, man, Fdp.Toolkit.Civilians.CivilianMode.Routine, fear: 0.8f, anger: 0f);
             Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Fear, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);
-            Fdp.Toolkit.Civilians.Demeanours.Set(world, man, Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0.8f, anger: 0.6f);
+            Fdp.Toolkit.Creatures.Demeanours.SetMood(world, man, Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0.8f, anger: 0.6f);
             Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Anger, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 10.0).Kind);   // anger before fear
 
             Fdp.Toolkit.Civilians.Utterances.Say(world, man, Fdp.Toolkit.Civilians.UtteranceKind.Insult, Entity.Null, now: 10.0, seconds: 2f);
@@ -2555,7 +2631,7 @@ public sealed class Map3DTests
             Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Order, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, man, 20.5).Kind);  // a command is an order
 
             var officer = Man(world, new Vector3(5f, 0f, 0f));
-            world.AddComponent(officer, new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.Warning });
+            world.AddComponent(officer, new Fdp.Toolkit.Creatures.Demeanour { Kind = Fdp.Toolkit.Combat.GestureKind.Warning });
             Assert.Equal(Hrot.Common.Diagnostics.Gizmos.MarkKind.Warning, Hrot.Common.Diagnostics.Gizmos.Marks.Of(world, officer, 10.0).Kind);
 
             var hurt = Man(world, new Vector3(10f, 0f, 0f), health: 50f);
@@ -2728,6 +2804,39 @@ public sealed class Map3DTests
         Assert.Equal(256, Hrot.Common.Constants.GlobalActionIds.ToggleShoulderView);
     }
 
+    private sealed class StillDriver : Fdp.Toolkit.Vis3D.ICameraDriver
+    {
+        public void Update(Fdp.Toolkit.Vis3D.MapCamera3D camera, float dt) { }
+        public bool HandleInput(Fdp.Toolkit.Vis3D.MapCamera3D camera, Fdp.Toolkit.Vis2D.Abstractions.IInputProvider input) => false;
+    }
+
+    /// <summary>⭐ CE-1970 — a driver (possession, a follow, the film) taking the camera DURING a 2-D ↔ 3-D switch, or the switch's animation replaced, used
+    /// to leave the switch "switching" for good: the camera drops the animation's end callback, so every later Ctrl+M / View ▸ 2-D / 3-D Map was
+    /// ignored. 🔒 User, 2026-11-17: "pressing Ctrl-M did not switch the map from 3D to 2D or back … there was no way to switch back to 2D map".
+    /// ✅ Red-proof: <c>Switching()</c> returning <c>_toggling</c> alone ⇒ the map stays 3-D.</summary>
+    [Fact]
+    public void CE1970_ADriverTakingTheCameraMidSwitch_NeverLocksTheSwitch()
+    {
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null);
+        var two = new Fdp.Toolkit.Vis2D.Components.MapCamera();
+        canvas.Camera = two;
+        var sw = new MapViewSwitch(canvas, two);
+        sw.Set(true);                                          // animated: mid-switch
+        Assert.True(sw.Is3D && sw.IsSwitching);
+        sw.Camera3D.Driver = new StillDriver();                // a follow / the station takes the camera: the end callback is dropped
+        sw.Camera3D.Driver = null;                             // and lets go
+        sw.Toggle();                                           // Ctrl+M / View ▸ 2-D / 3-D Map
+        for (int i = 0; i < 60; i++) sw.Camera3D.Update(0.05f);
+        Assert.False(sw.Is3D);                                 // back in 2-D
+
+        sw.Set(true);
+        sw.Camera3D.AnimateTo(sw.Camera3D.Pose, 0.1f);         // a focus replaces the switch's animation (and its callback)
+        for (int i = 0; i < 10; i++) sw.Camera3D.Update(0.05f);
+        sw.Toggle();
+        for (int i = 0; i < 60; i++) sw.Camera3D.Update(0.05f);
+        Assert.False(sw.Is3D);
+    }
+
     /// <summary>
     /// ⭐ CE-1119 U-2 (Map 3-D §6w; airborne §7 U-2) — the EJECTION: on the seat he sits (the seat's pan under him, its back behind), its
     /// rocket's flame under it for the first second, shrinking; once his canopy deploys the empty seat falls away beneath him, tumbling,
@@ -2801,7 +2910,7 @@ public sealed class Map3DTests
         using (world)
         {
             world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
-            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
             var man = Man(world, new Vector3(0f, 0f, 0f));
             var plain = BlockFigure.Parts(StanceId.Standing, soldier: false);
@@ -2880,7 +2989,7 @@ public sealed class Map3DTests
         using (world)
         {
             world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
-            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 10.0 });
             var man = Man(world, new Vector3(0f, 0f, 0f));
@@ -2978,7 +3087,7 @@ public sealed class Map3DTests
         using (world)
         {
             world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
-            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             world.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             var a = Man(world, Vector3.Zero);
             var b = Man(world, new Vector3(1f, 0f, 0f));
@@ -3046,7 +3155,7 @@ public sealed class Map3DTests
         var (world, _) = HeldWorld();
         using (world)
         {
-            world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             world.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();
             var man = Man(world, Vector3.Zero);
             Fdp.Toolkit.Combat.Gestures.Set(world, man, Fdp.Toolkit.Combat.GestureKind.IdleShiftWeight);
@@ -4697,6 +4806,23 @@ public sealed class Map3DTests
 
         var tkb = HrotEnvironment.CreateTkb();
         Assert.True(tkb.TryGetByType(Hrot.Core.Tkb.MapCameraTkb.Type, out var t) && t!.GetDescriptor<TkbMasterDto>()!.HideFromPalette);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1966</c> (the user, `2026-11-17`: "a pink cube in the middle of every placed terrain feature in 3-D, sometimes bigger than the feature") — a placed terrain FEATURE
+    /// (TKB 8818: a wall, a wood, a ditch …) and a terrain BLOCK (8817) have no 3-D body: the terrain mesh draws what they make, and their handle is the feature gizmo's.
+    /// They had no look, so the body layer drew its UNKNOWN box at the feature's anchor. 🔴 Red-proof: drop them from <c>EntityBodyLayer3D.LookOf</c>'s no-body list ⇒ Unknown.
+    /// </summary>
+    [Theory]
+    [InlineData(8818L)]
+    [InlineData(8817L)]
+    public void CE1966_APlacedTerrainFeatureOrBlock_HasNo3DBody(long tkbType)
+    {
+        Assert.Equal(Hrot.Map.Common.TkbEntityTypes.TerrainFeature, 8818L);
+        Assert.Equal(Hrot.Map.Common.TkbEntityTypes.TerrainBlock, 8817L);
+        var look = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => null!, () => null).LookOf(tkbType, BuiltIn());
+        Assert.Equal(Hrot.UI.Common.Map3D.VisualFamily.Unit, look.Family);   // the "no body" look, never the unknown box
+        Assert.Equal(System.Numerics.Vector3.Zero, look.Size);
     }
 
     /// <summary>⭐ CE-1165 (civilian U-4, docs/DESIGN_Civilians_And_Crowd_Control.md §8.8 U4-f) — a gas / smoke CLOUD is drawn by the

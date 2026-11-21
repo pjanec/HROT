@@ -20,6 +20,7 @@ namespace Fdp.Toolkit.Replication
         private readonly ITkbDatabase _tkbDatabase;
         private readonly EntityLifecycleModule _lifecycleModule;
         private readonly GhostCreationSystem _ghostCreationSystem;
+        [Fdp.Core.NotState("injected translator list, set in ctor")]
         private readonly IReadOnlyList<ITkbEntityTranslator> _translators;
 
         public GhostCreationSystem GhostCreationSystem => _ghostCreationSystem;

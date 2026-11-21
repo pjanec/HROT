@@ -222,7 +222,9 @@ namespace Fdp.Toolkit.Aggregate
         public Fdp.Core.NodeId LocalNodeId { get; init; }
         /// <summary>How long a unit waits for the solver before it plans with what this node has (s of sim time).</summary>
         public const double RemoteWaitSeconds = 5.0;
+        [Fdp.Core.ProtocolCache("placement asks in flight per unit (Id, To, Since) awaiting the solver answer; cleared at world move")]
         private readonly Dictionary<Entity, (long Id, Vector3 To, SimInstant Since)> _asked = new();
+        private int _worldEpoch;
 
         private global::CarKinem.Trajectory.TrajectoryPoolManager? RemotePool(EntityRepository repo)
         {
@@ -270,6 +272,7 @@ namespace Fdp.Toolkit.Aggregate
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<AggregateUnit>()
                 || !repo.IsComponentTypeRegistered<SimTransform>()) return;   // ⚠ UnitRoute (managed) is registered by HrotSharedComponentRegistry
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(repo, ref _worldEpoch)) _asked.Clear();   // ⭐ R-4297 ② (CE-1980) — a world replacement (a reload reuses the handles, a restore) forgets the path asks in flight (they named the old world)
             if (!ReferenceEquals(_queriesFor, repo))
             {
                 _units = repo.Query().With<AggregateUnit>().With<SimTransform>().WithOwnedWhen<AggregateUnit>(_gateOnAuthority).Build();

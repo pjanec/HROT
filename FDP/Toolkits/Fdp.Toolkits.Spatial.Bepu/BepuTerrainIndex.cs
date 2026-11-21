@@ -29,7 +29,7 @@ namespace Fdp.Toolkit.Spatial.Bepu
 
         private BepuTerrainIndex(TerrainWorld world)
         {
-            var leaves = world.Doors.Count > 0 ? world.DoorLeaves : Array.Empty<TerrainPrism>();
+            var leaves = world.QueryLeaves;   // ⭐ CE-5032 GW-1 — the door leaves, then the window panes (the order the queries use)
             _pieceTotal = world.Prisms.Count + leaves.Count;
             _walkableTotal = world.Walkables.Count;
             int n = _pieceTotal + _walkableTotal;

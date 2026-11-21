@@ -12,7 +12,7 @@ namespace Fdp.Modules.Geographic.Components
     /// offset. The former <c>TargetZOffset</c>/<c>CurrentZOffset</c> visual-correction fields
     /// have been removed.</para>
     /// </summary>
-    [ComponentId(GeographicComponentIds.TerrainClampBaseline)]
+    [ComponentId(GlobalComponentIds.TerrainClampBaseline)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct TerrainClampBaseline
     {

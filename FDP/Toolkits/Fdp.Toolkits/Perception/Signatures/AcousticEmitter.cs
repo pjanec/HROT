@@ -39,6 +39,11 @@ namespace Fdp.Toolkit.Perception.Signatures
         // The position last tick — speed is measured as distance moved.
         public float LastX, LastY, LastZ;
         [MarshalAs(UnmanagedType.I1)] public bool HasLast;
+
+        /// <summary>⭐ <c>CE-4635</c> (DESIGN_Flame_Weapons §6, ui NOTE flamethrower sound) — seconds left in the flame ROAR last put in the ring: a
+        /// flame burst is one continuous sound, heard once per <see cref="SoundEmissionSystem.FlameRoarSeconds"/>, not once per fuel shot. A system's
+        /// working memory is a component (R-3039), so a restore mid-burst roars where the first run did.</summary>
+        public float RoarTimeLeft;
     }
 
     /// <summary>

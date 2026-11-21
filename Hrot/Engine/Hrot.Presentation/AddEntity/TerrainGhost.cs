@@ -30,6 +30,10 @@ public sealed class TerrainGhostShape
     /// <summary>Line 1: the heading and the keys. Line 2: whether it is clear of water and buildings.</summary>
     public string Line1 { get; init; } = "";
     public string Line2 { get; init; } = "";
+    /// <summary>⭐ CE-5030 (BE-4 part 2) — a third line (the building edits' verdict: what the click does, or why it cannot); empty ⇒ two lines as before. When set, <see cref="Fits"/> colours IT and line 2 is plain.</summary>
+    public string Line3 { get; init; } = "";
+    /// <summary>⭐ CE-5030 — the outline is a HOVER highlight (the baked building the click would act on, amber, solid), not a placing ghost (blue, dashed).</summary>
+    public bool Highlight { get; init; }
     /// <summary>True when everything the recipe wanted found room (the mockup's green tick); false ⇒ the second line warns.</summary>
     public bool Fits { get; init; } = true;
     public int HousesPlaced { get; init; }
@@ -43,6 +47,8 @@ public static class TerrainGhost
 {
     public static TerrainGhostShape Compute(TerrainPickKind kind, string id, TerrainGhostContext ctx, Vector2 at, float headingDeg, uint seed, byte fit = TerrainBlock.FitAll)
     {
+        // ⭐⭐ CE-5030 (BE-4 part 2, 📄 docs/DESIGN_Terrain_Base_Edits.md §5) — a building EDIT has no ghost to place: the cursor highlights the BAKED building the click would act on
+        if (kind == TerrainPickKind.Feature && TerrainBirth.FeatureOf("feature:" + id) is { Kind: TerrainFeature.Edit } edit) return BuildingEditHover.Compute(ctx.Base, edit.Template, at);
         string heading = $"heading {System.Math.Round(headingDeg)}° · R to rotate";
         try
         {

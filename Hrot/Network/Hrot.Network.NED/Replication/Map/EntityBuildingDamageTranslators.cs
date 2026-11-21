@@ -170,6 +170,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) { _deferred.Clear(); }   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the samples waiting for their entity (they named the old world)
             RetryDeferred(cmd, view);
             if (_reader is null) return;
             using var loan = _reader.Take();
@@ -218,8 +219,12 @@ namespace Hrot.Map.Common.Replication.Ingress
         }
 
         // ⭐ CE-4427 R-2 — samples that arrived before this node's terrain (the latest per instance), retried by PollIngress
+        [Fdp.Core.ProtocolCache("received damage samples waiting for the terrain/world to exist (deferred ingress)")]
         private readonly Dictionary<int, EntityBuildingDamage> _deferred = new();
+        private int _worldEpoch;
+        [Fdp.Core.WorldDerived("log-once set of unresolved net ids")]
         private readonly HashSet<int> _unresolved = new();
+        [Fdp.Core.FrameScratch("retry id list: cleared at 233/197 and refilled from _deferred each retry")]
         private readonly List<int> _retry = new();
 
         /// <summary>The samples waiting for this node's terrain (the test seam).</summary>

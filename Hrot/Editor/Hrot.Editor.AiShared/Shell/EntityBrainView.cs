@@ -26,7 +26,9 @@ public sealed record BrainChoice(int DecisionId, long Winner, long PreviousWinne
 public sealed record BrainRegion(int Region, int StateIndex, string State);
 
 /// <summary>One journal entry, decoded.</summary>
-public sealed record BrainChange(uint Seq, double At, string Kind, string Text);
+/// ⭐ <c>CE-1281</c> — <paramref name="Behaviour"/>: the behaviour the entry is about (a task, the SOP, an order, an HSM state's machine), the row
+/// menu's "Open graph"; null when it names none (a move, a decision, a play).
+public sealed record BrainChange(uint Seq, double At, string Kind, string Text, string? Behaviour = null);
 
 /// <summary>⭐ <c>CE-1327</c> — one contact in the unit's memory (<see cref="TargetMemory"/>): who (an identified unit, or a heard "something"),
 /// how it was sensed, where (sim metres), how far, how fresh, and how long since it was last perceived (null when the host has no tick
@@ -96,7 +98,7 @@ public sealed record BrainSnapshot(
         if (Has<Roe>(view, unit))
         {
             ref readonly var e = ref view.GetComponentRO<Roe>(unit);
-            roe = $"fire {e.Fire}, reactions {e.Reactions}, force {e.ForceLevel} (set by {e.SetBy})";
+            roe = $"fire {e.Fire}, reactions {e.Reactions}, force {e.ForceLevel}, incendiary {e.Incendiary} (set by {e.SetBy})";
         }
 
         var rows = new List<BrainActionRow>(3);
@@ -159,7 +161,8 @@ public sealed record BrainSnapshot(
             for (int i = j.Count - 1; i >= 0; i--)   // newest first
             {
                 var e = j.At(i);
-                changes.Add(new BrainChange(e.Seq, e.At, e.Kind.ToString(), BrainJournalText.Describe(in e, Name, definition)));
+                changes.Add(new BrainChange(e.Seq, e.At, e.Kind.ToString(), BrainJournalText.Describe(in e, Name, definition),
+                    BrainJournalText.BehaviourOf(in e) is var hash and not 0 ? Name(hash) : null));   // ⭐ CE-1281
             }
         }
 
@@ -280,6 +283,16 @@ public sealed record BrainSnapshot(
 /// <summary>⭐ <c>CE-1249</c> — a journal entry in words (names resolved here, never stored — BV-9).</summary>
 public static class BrainJournalText
 {
+    /// <summary>⭐ <c>CE-1281</c> — the behaviour (its name hash) an entry is about, or 0: a task's and the SOP's is A, an order's and an HSM
+    /// state change's is B.</summary>
+    public static int BehaviourOf(in BrainJournalEntry e) => e.Kind switch
+    {
+        BrainJournalKind.TaskStarted or BrainJournalKind.TaskPaused or BrainJournalKind.TaskResumed or BrainJournalKind.TaskEnded
+            or BrainJournalKind.TaskCleared or BrainJournalKind.TaskRefused or BrainJournalKind.SopStarted or BrainJournalKind.SopEnded => e.A,
+        BrainJournalKind.OrderIssued or BrainJournalKind.StateChanged => e.B,
+        _ => 0,
+    };
+
     public static string Describe(in BrainJournalEntry e, Func<int, string> name, Func<int, BehaviorDefinition?>? definition = null)
     {
         string origin = ((BehaviorOrigin)e.Origin).ToString();
@@ -548,12 +561,28 @@ public sealed class EntityBrainView : IDetailsViewInstance
         if (Section($"Recent changes ({b.Changes.Count})", "changes"))
         {
             if (!b.JournalOn) ImGui.TextDisabled("Journal off on this host (or no brain here).");
-            else if (b.Changes.Count > 0 && BeginGrid("changes", ("Time", 0.14f), ("Kind", 0.2f), ("Change", 0.66f)))
+            // ⭐ CE-1281 (Behaviour Debugging DBG-10) — a SHORT list that scrolls on its own (the header stays), and each row's right-click
+            //   menu opens the graph of the behaviour it is about
+            else if (b.Changes.Count > 0 && BeginGrid("changes", ChangesHeight(b.Changes.Count), ("Time", 0.14f), ("Kind", 0.2f), ("Change", 0.66f)))
             {
-                foreach (var c in b.Changes)
+                for (int i = 0; i < b.Changes.Count; i++)
                 {
+                    var c = b.Changes[i];
                     ImGui.TableNextRow();
-                    ImGui.TableNextColumn(); ImGui.TextDisabled(Invariant($"{c.At:0.0} s"));
+                    ImGui.TableNextColumn();
+                    ImGui.PushID(i);
+                    ImGui.Selectable(Invariant($"{c.At:0.0} s"), false, ImGuiSelectableFlags.SpanAllColumns);
+                    if (ImGui.BeginPopupContextItem("change"))
+                    {
+                        if (c.Behaviour is { } beh && world is not null && Hrot.Common.Diagnostics.Gizmos.UnitDebugController.Current is { OpenGraph: not null })
+                        {
+                            if (ImGui.MenuItem($"Open graph of {beh}")) OpenGraph(world, unit, beh, idScope);
+                        }
+                        else ImGui.TextDisabled(c.Behaviour is null ? "(names no behaviour)" : "(no graph on this host)");
+                        if (ImGui.MenuItem("Copy")) ImGui.SetClipboardText(Invariant($"{c.At:0.0} s  {c.Kind}  {c.Text}"));
+                        ImGui.EndPopup();
+                    }
+                    ImGui.PopID();
                     ImGui.TableNextColumn(); ImGui.TextUnformatted(c.Kind);
                     ImGui.TableNextColumn(); ImGui.TextWrapped(c.Text);
                 }
@@ -565,7 +594,8 @@ public sealed class EntityBrainView : IDetailsViewInstance
             DrawSettings(world, unit, groups, editable: !replay);
 
         if (world is not null && Running(world, unit) is { Count: > 0 } running && Section($"Running behaviours ({running.Count})", "running"))
-            DrawRunning(running, name => OpenGraphButton(world, unit, name, idScope, "rb_" + name));
+            DrawRunning(running, name => OpenGraphButton(world, unit, name, idScope, "rb_" + name),
+                AddToWatch is null ? null : (owner, behaviour, part, role, path) => WatchMenu(unit, owner, behaviour, part, role, path));
 
         DrawEmbeds(context, idScope, replay);
 
@@ -740,7 +770,30 @@ public sealed class EntityBrainView : IDetailsViewInstance
     /// <summary>⭐ <c>CE-1315</c> (BV-42, BV-43) — one tree node per running behaviour; its parameters and variables are the inspector's
     /// own read-only dump (<see cref="Fdp.Presentation.Utils.ImGuiPropertyTree"/>: the registered renderers, fixed lists at their Count).
     /// ImGui remembers what is open (BV-64).</summary>
-    private static void DrawRunning(IReadOnlyList<RunningBehaviourView> running, Action<string>? openGraph = null)
+    /// <summary>⭐ <c>CE-1286</c> (Brain View §12t) — a dump row's right-click menu: the slot (owner, behaviour, part, params / variables) and the
+    /// row's path (<c>$.A.B</c>). Null ⇒ no menu.</summary>
+    internal delegate void DumpRowMenu(SlotOwnerKind owner, string behaviour, string? part, OccurrenceSlotCatalog.SlotFieldRole role, string path);
+
+    /// <summary>⭐ <c>CE-1286</c> — pins a row into the Watch (the host's: the perspective registrar sets it where it builds the Watch).
+    /// Null ⇒ this host has no Watch, and the dump offers no <i>Add to Watch</i>.</summary>
+    public static Action<Hrot.Editor.AiShared.Variables.VariableRow>? AddToWatch { get; set; }
+
+    private string? _watchNote;
+
+    /// <summary>⭐ <c>CE-1286</c> — the dump row's <i>Add to Watch</i>: an <see cref="Hrot.Editor.AiShared.Variables.OccurrenceWatchRows"/> row,
+    /// read through the slot reader and written through R-1041's one live write (C# behaviours included).</summary>
+    private void WatchMenu(Entity unit, SlotOwnerKind owner, string behaviour, string? part, OccurrenceSlotCatalog.SlotFieldRole role, string path)
+    {
+        string field = path.StartsWith("$.", StringComparison.Ordinal) ? path[2..] : path;
+        if (!ImGui.MenuItem("Add to Watch")) return;
+        var row = Hrot.Editor.AiShared.Variables.OccurrenceWatchRows.Build(_world, unit, () => _registry?.Invoke(), () => _blueprints?.Invoke(),
+            new Hrot.Editor.AiShared.Variables.OccurrenceWatchRows.Address(owner, behaviour, part, role), field, out var error);
+        if (row is null) { _watchNote = $"cannot watch {field}: {error}"; return; }
+        AddToWatch?.Invoke(row);
+        _watchNote = $"{behaviour} · {field} is in the Watch";
+    }
+
+    private void DrawRunning(IReadOnlyList<RunningBehaviourView> running, Action<string>? openGraph = null, DumpRowMenu? rowMenu = null)
     {
         for (int i = 0; i < running.Count; i++)
         {
@@ -751,7 +804,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
             openGraph?.Invoke(r.Name);   // ⭐ CE-1326 / CE-1327 — its graph, live on this unit, on the node's own line (open or closed)
             if (open)
             {
-                DrawValues(r.Parameters, r.Variables, r.HiddenVariableMembers);
+                DrawValues(r.Parameters, r.Variables, r.HiddenVariableMembers, rowMenu, r.Owner, r.Name, null);
                 for (int p = 0; p < r.Parts.Count; p++)
                 {
                     var part = r.Parts[p];
@@ -759,7 +812,7 @@ public sealed class EntityBrainView : IDetailsViewInstance
                     if (ExpandForRail) ImGui.SetNextItemOpen(true, ImGuiCond.Once);
                     if (ImGui.TreeNodeEx((part.IsHostedChild ? "hosted · " : "") + part.Label + "##part", ImGuiTreeNodeFlags.SpanAvailWidth))
                     {
-                        DrawValues(part.Parameters, part.Variables, Array.Empty<string>());
+                        DrawValues(part.Parameters, part.Variables, Array.Empty<string>(), rowMenu, r.Owner, r.Name, part.SlotLabel);
                         ImGui.TreePop();
                     }
                     ImGui.PopID();
@@ -770,22 +823,26 @@ public sealed class EntityBrainView : IDetailsViewInstance
         }
     }
 
-    private static void DrawValues(object? parameters, object? variables, IReadOnlyCollection<string> hidden)
+    private void DrawValues(object? parameters, object? variables, IReadOnlyCollection<string> hidden,
+        DumpRowMenu? rowMenu = null, SlotOwnerKind owner = SlotOwnerKind.OwnerUnknown, string behaviour = "", string? part = null)
     {
         if (parameters is not null)
         {
             ImGui.TextDisabled("Parameters");
             ImGui.PushID("params");
-            Fdp.Presentation.Utils.ImGuiPropertyTree.Render(parameters, null, null, out _);
+            Fdp.Presentation.Utils.ImGuiPropertyTree.Render(parameters, null, null, out _,
+                rowMenu is null ? null : path => rowMenu(owner, behaviour, part, OccurrenceSlotCatalog.SlotFieldRole.FieldParams, path));
             ImGui.PopID();
         }
         if (variables is not null)
         {
             ImGui.TextDisabled("Variables");
             ImGui.PushID("vars");
-            Fdp.Presentation.Utils.ImGuiPropertyTree.Render(variables, null, m => !hidden.Contains(m.Name), out _);
+            Fdp.Presentation.Utils.ImGuiPropertyTree.Render(variables, null, m => !hidden.Contains(m.Name), out _,
+                rowMenu is null ? null : path => rowMenu(owner, behaviour, part, OccurrenceSlotCatalog.SlotFieldRole.FieldVariables, path));
             ImGui.PopID();
         }
+        if (_watchNote is { } note) ImGui.TextDisabled(note);
         if (parameters is null && variables is null) ImGui.TextDisabled("(no parameters or variables)");
     }
 
@@ -813,6 +870,13 @@ public sealed class EntityBrainView : IDetailsViewInstance
                 _breakNote = "this unit's debug settings are forgotten";
             }
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("Unpins its map gizmos, turns off its remembered trace and stops the camera following it (remembered per scenario).");
+        }
+        // ⭐ CE-1283 (docs/DESIGN_Behaviour_Debugging.md DBG-2) — ONE global switch: every unit with a brain traced, remembered per scenario
+        {
+            var store = Fdp.Toolkit.Behavior.Diagnostics.UnitDebugSettings.Of(w);
+            bool all = store.ObserveAll;
+            if (ImGui.Checkbox("Observe all brain units", ref all)) store.SetObserveAll(all);
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("Trace every unit with a brain (graph steps and decisions), not only the one this tab shows. Remembered per scenario.");
         }
         // ⛔ CE-1317 (BV-48) — the "Debug this unit" checkbox is gone: viewing the tab arms the traces, and the map families are
         //   pinned one by one in "Show on map"
@@ -886,6 +950,25 @@ public sealed class EntityBrainView : IDetailsViewInstance
 
     /// <summary>⭐ <c>CE-1327</c> — the tab's ONE list shape: sizable columns (their starting share of the width), a line grid, alternating row
     /// backgrounds. A column with an empty name draws no header row. Returns false when ImGui clips it (then no <c>EndTable</c>).</summary>
+    /// <summary>⭐ <c>CE-1281</c> — the Recent changes list shows at most this many rows before it scrolls on its own.</summary>
+    internal const int ChangesVisibleRows = 8;
+
+    /// <summary>⭐ <c>CE-1281</c> — the list's height: its rows up to <see cref="ChangesVisibleRows"/> (plus the header), so a short list has no
+    /// empty space and a long one scrolls inside the panel.</summary>
+    internal static float ChangesHeight(int rows) => (Math.Min(rows, ChangesVisibleRows) + 1) * (ImGui.GetTextLineHeightWithSpacing() + 4f) + 4f;
+
+    /// <summary>⭐ <c>CE-1281</c> — a grid of a fixed <paramref name="height"/> that scrolls on its own, its header row frozen.</summary>
+    internal static bool BeginGrid(string id, float height, params (string Name, float Weight)[] columns)
+    {
+        const ImGuiTableFlags flags = ImGuiTableFlags.Resizable | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.SizingStretchProp
+                                      | ImGuiTableFlags.ScrollY;
+        if (!ImGui.BeginTable("##grid." + id, columns.Length, flags, new Vector2(0f, height))) return false;
+        ImGui.TableSetupScrollFreeze(0, 1);
+        foreach (var (name, weight) in columns) ImGui.TableSetupColumn(name, ImGuiTableColumnFlags.WidthStretch, weight);
+        ImGui.TableHeadersRow();
+        return true;
+    }
+
     internal static bool BeginGrid(string id, params (string Name, float Weight)[] columns)
     {
         const ImGuiTableFlags flags = ImGuiTableFlags.Resizable | ImGuiTableFlags.RowBg | ImGuiTableFlags.Borders | ImGuiTableFlags.SizingStretchProp;

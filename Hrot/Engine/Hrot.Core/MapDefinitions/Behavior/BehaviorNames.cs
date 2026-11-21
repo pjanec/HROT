@@ -268,6 +268,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string DriveBy = "DriveBy";
         /// <summary>⭐ CE-4621 M-6 (IM-5) — a commander's bikes converge on an objective from N directions, fight, then disperse on divergent routes to a rally point.</summary>
         public const string SwarmRaid = "SwarmRaid";
+        /// <summary>⭐ CE-4650 NA-4 — the mounted CIRCLE RAID: a group play over riders, mirroring <see cref="SwarmRaid"/>.</summary>
+        public const string CircleRaid = "CircleRaid";
         /// <summary>⭐ CE-4621 M-4 (MC-3) — a commander's bikes cross an exposed zone under a Dash: full speed, spaced, never stop, riders out at the edge.</summary>
         public const string GreyZoneDash = "GreyZoneDash";
         /// <summary>⭐ CE-4621 M-4 (MC-3, MC-4) — a bike's own dash: the legs at speed, the lookout's break across a diving drone, riders out at the end.</summary>
@@ -284,6 +286,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string Breach = "Breach";
         /// <summary>⭐ CE-4624 MS-B4 — a squad whose route reaches a minefield halts short of it and calls the engineers.</summary>
         public const string MinefieldAhead = "MinefieldAhead";
+        /// <summary>⭐ CE-2466 R6 — a squad whose route reaches ground a known enemy covers holds short of it; after a while it asks for fire support and reports the task failed.</summary>
+        public const string CoveredByFireAhead = "CoveredByFireAhead";
         /// <summary>⭐ CE-4624 MS-B1 back-out (MR-5) — a man walks his own breadcrumbs back out of a minefield, then holds (his unit’s MineStrike orders it).</summary>
         public const string BackOut = "BackOut";
         /// <summary>⭐ CE-4622 K-2 (Checkpoint RM-2) — a vehicle drives INTO a body or a crowd: its avoidance skips the target, it may break a weak barrier, the car commits a Lethal act.</summary>

@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Creatures;
 
 namespace Fdp.Toolkit.Civilians
 {
@@ -35,19 +36,17 @@ namespace Fdp.Toolkit.Civilians
     }
 
     /// <summary>
-    /// ⭐ <c>CE-2235</c> (CV-3, CV-4; §5d) — a civilian's mind: his <see cref="Fear"/> (raised by what he hears, by
-    /// <see cref="CivilianFearSystem"/>), his <see cref="Anger"/> and hidden <see cref="Attitude"/> (the crowd and the hostile-act slices),
-    /// the <see cref="Mode"/> his HSM is in, and the home his routine keeps to. ⛔ BRAIN-LOCAL: it lives on the node that runs his
-    /// <c>CivilianHsm</c>, is never replicated (others see what he DOES — his side, his gesture, his cowering) and never saved.
-    /// Added by the HSM on its first tick (<see cref="CivilianMind.Ensure"/>).
+    /// ⭐ <c>CE-2235</c> (CV-3, CV-4; §5d) — a civilian's mind: his <see cref="Anger"/> and hidden <see cref="Attitude"/> (the crowd and the
+    /// hostile-act slices) and the <see cref="Mode"/> his HSM is in. ⭐ <c>CE-4628</c>: his FEAR (<see cref="Fear"/>), his home (<see cref="Home"/>) and
+    /// the crowd he stands in (<see cref="GroupMember"/>) are the components he shares with an animal — added WITH this one
+    /// (<see cref="CivilianMind.Ensure"/>). ⛔ BRAIN-LOCAL: it lives on the node that runs his <c>CivilianHsm</c>, is never replicated (others see what
+    /// he DOES — his side, his gesture, his cowering — and his <see cref="Demeanour"/>) and never saved. Added by the HSM on its first tick.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.CivilianState)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct CivilianState
     {
-        /// <summary>0 (calm) … 1 (terrified).</summary>
-        public float Fear;
         /// <summary>0 … 1 — raised by the crowd and by force used on him (CE-2237, CE-2241). Unused in slice 1.</summary>
         public float Anger;
         /// <summary>−1 (friendly) … +1 (hostile at heart) — hidden; his side flips only on a hostile ACT (CV-4). ⭐ <c>CE-2241</c> ② (§5m
@@ -55,34 +54,16 @@ namespace Fdp.Toolkit.Civilians
         public float Attitude;
         /// <summary>The state his HSM is in.</summary>
         public CivilianMode Mode;
-        /// <summary>1 once <see cref="Home"/> is set.</summary>
-        public byte HasHome;
-        /// <summary>Where his routine keeps him — where he stood when his HSM first ran.</summary>
-        public Vector3 Home;
-        /// <summary>Sim time (s) of the last thing that frightened him; 0 when nothing has.</summary>
-        public SimInstant LastFrightAt;
-        /// <summary>⭐ <c>CE-2236</c> — where the last frightening SOUND seemed to come from (the hearing estimate, off by its radius);
-        /// valid when <see cref="HasFrightFrom"/> is 1. A panicking man runs away from it.</summary>
-        public Vector3 FrightFrom;
-        public byte HasFrightFrom;
-        /// <summary>⭐ <c>CE-2237</c> (§5f) — the crowd he stands in (<see cref="Crowd.Id"/>), 0 when none. Written by <see cref="CrowdSystem"/>.</summary>
-        public int CrowdId;
         /// <summary>⭐ <c>CE-2237</c> — the incident that draws him (the nearest person hurt within <see cref="CrowdRules.AttractMetres"/>
         /// while he is calm); valid when <see cref="HasFocus"/> is 1. Written by <see cref="CrowdSystem"/>, read by his Gather state.</summary>
         public Vector3 Focus;
         public byte HasFocus;
-        /// <summary>⭐ <c>CE-2237</c> — sim time (s) he last HEARD violence (a shot, a blast); 0 when he never has. Tells a fright he heard
-        /// from one he caught from his crowd.</summary>
-        public SimInstant HeardAt;
         /// <summary>⭐ <c>CE-2238</c> (§5i) — 1 while he is an INSTIGATOR: his anger is 1 and he raises the anger of his crowd near him
         /// (<see cref="CrowdSystem"/>). Written by his HSM from its params.</summary>
         public byte Instigator;
         /// <summary>⭐ <c>CE-2238</c> (§5i, CV-4) — sim time (s) of his first HOSTILE ACT (a blow); 0 when he committed none. Brain-local;
         /// the act and its kind replicate as <see cref="HostileAct"/> (<c>CE-3238</c>, B-16). Written by <see cref="HostileActs.Commit"/>.</summary>
         public SimInstant HostileActAt;
-        /// <summary>⭐ <c>CE-2239</c> part 2 (FL-6, §5j) — the latest end of a stun or an irritation (<c>EffectState</c>) that has frightened
-        /// him already, so a running effect frightens him once and only a new or longer one again. Written by <see cref="CivilianFearSystem"/>.</summary>
-        public SimInstant EffectFrightUntil;
         /// <summary>⭐ <c>CE-2241</c> ② (§5m PV-2) — the latest end of a knock-down, stun or irritation on him that has already spiked his
         /// neighbours' anger, so one blow spikes it once. Written by <see cref="CrowdSystem"/>.</summary>
         public SimInstant ForceSeenUntil;
@@ -91,29 +72,37 @@ namespace Fdp.Toolkit.Civilians
     /// <summary>⭐ <c>CE-2235</c> — the one writer of <see cref="CivilianState"/>'s presence and mode.</summary>
     public static class CivilianMind
     {
-        /// <summary>Adds <see cref="CivilianState"/> to <paramref name="unit"/> when it has none (its home = where it stands now) and
-        /// returns true; false when the type is not registered on this node or the unit is gone.</summary>
+        /// <summary>Adds <see cref="CivilianState"/> — and the shared <see cref="Fear"/>, <see cref="Home"/> (where he stands now) and
+        /// <see cref="GroupMember"/> (none) — to <paramref name="unit"/> when it has none, and returns true; false when the type is not
+        /// registered on this node or the unit is gone.</summary>
         public static bool Ensure(EntityRepository repo, Entity unit)
         {
             if (!repo.IsAlive(unit) || !repo.IsComponentTypeRegistered<CivilianState>()) return false;
-            if (repo.HasComponent<CivilianState>(unit)) return true;
-            repo.AddComponent(unit, NewState(repo, unit));
+            if (repo.HasComponent<CivilianState>(unit)) { AddSharedParts(repo, unit); return true; }   // a mind whose shared parts are missing is completed, never left to a silent default
+            AddMind(repo, unit, default);
             return true;
         }
 
-        /// <summary>A fresh state: its home is where it stands now.</summary>
-        private static CivilianState NewState(EntityRepository repo, Entity unit)
+        /// <summary>⭐ <c>CE-4628</c> — the whole mind in one place: the state and the shared creature components, EACH WITH ITS FINAL VALUE (inside the
+        /// parallel brain phase an add is deferred, so "add, then write" would throw). His home is where he stands now.</summary>
+        private static void AddMind(EntityRepository repo, Entity unit, in CivilianState state)
         {
-            var state = new CivilianState();
-            if (repo.HasComponent<SimTransform>(unit))
-            {
-                state.Home = repo.GetComponentRO<SimTransform>(unit).Position;
-                state.HasHome = 1;
-            }
-            return state;
+            repo.AddComponent(unit, state);
+            AddSharedParts(repo, unit);
         }
 
-        /// <summary>Records the mode the HSM is in (adds the state when missing).</summary>
+        private static void AddSharedParts(EntityRepository repo, Entity unit)
+        {
+            if (repo.IsComponentTypeRegistered<Fear>() && !repo.HasComponent<Fear>(unit)) repo.AddComponent(unit, new Fear());
+            if (repo.IsComponentTypeRegistered<Home>() && !repo.HasComponent<Home>(unit))
+                repo.AddComponent(unit, new Home { Centre = repo.HasComponent<SimTransform>(unit) ? (WorldPoint)repo.GetComponentRO<SimTransform>(unit).Position : default });
+            if (repo.IsComponentTypeRegistered<GroupMember>() && !repo.HasComponent<GroupMember>(unit)) repo.AddComponent(unit, new GroupMember { Group = Entity.Null });
+            // ⭐ CE-4628 §10c — his Demeanour from birth (calm, no gesture): its two writers — the behaviour's gesture (a DEFERRED add inside the parallel
+            //   brain phase) and the crowd pass's mood (serial) — then only ever write their own fields, and neither add can land over the other's value
+            if (repo.IsComponentTypeRegistered<Demeanour>() && !repo.HasComponent<Demeanour>(unit)) repo.AddComponent(unit, new Demeanour());
+        }
+
+        /// <summary>Records the mode the HSM is in (adds the mind when missing).</summary>
         public static void SetMode(EntityRepository repo, Entity unit, CivilianMode mode)
         {
             if (!repo.IsAlive(unit) || !repo.IsComponentTypeRegistered<CivilianState>()) return;
@@ -122,16 +111,14 @@ namespace Fdp.Toolkit.Civilians
             //   parallel brain phase an add is DEFERRED (it lands next tick), so "add, then write" threw "missing CivilianState" and took the node
             //   down on the first tick of any scenario whose civilians were calm (📐 ua-civ-contagion exit 134 at c24f127cb too). The parallel
             //   rule: add a component WITH its final value (CLAUDE.md, "BEHAVIOUR CODE RUNS IN PARALLEL", D-31)
-            var state = NewState(repo, unit);
-            state.Mode = mode;
-            repo.AddComponent(unit, state);
+            AddMind(repo, unit, new CivilianState { Mode = mode });
         }
 
-        /// <summary>His fear on this node; 0 when he has no <see cref="CivilianState"/>.</summary>
+        /// <summary>His fear on this node; 0 when he has no <see cref="Fear"/>.</summary>
         public static float FearOf(ISimulationView view, Entity unit)
         {
-            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<CivilianState>()) return 0f;
-            return view.IsAlive(unit) && view.HasComponent<CivilianState>(unit) ? view.GetComponentRO<CivilianState>(unit).Fear : 0f;
+            if (view is EntityRepository repo && !repo.IsComponentTypeRegistered<Fear>()) return 0f;
+            return view.IsAlive(unit) && view.HasComponent<Fear>(unit) ? view.GetComponentRO<Fear>(unit).Value : 0f;
         }
 
         /// <summary>His mode on this node; <see cref="CivilianMode.None"/> when he has no <see cref="CivilianState"/>.</summary>

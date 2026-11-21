@@ -70,6 +70,18 @@ namespace Hrot.Common.Constants
         /// <summary>⭐ CE-1150 (HA-7) — View › Details › Pin current view: the same, pinned to the context it shows now.</summary>
         public const int PinDetailsView     = 258;
 
+        // --- ⭐ CE-1984 (docs/designs/sensor-view/DESIGN_Sensor_View.md D-10, D-11) — View ▸ Sensor View, on every map host.
+        //     ⚠ 1984–1992 measured free on ui, coordinator, behaviors, backend, terrain and convoy 2026-11-19 (the ui CE- block's numbers).
+        public const int SensorViewOff          = 1984;
+        public const int SensorViewNightVision  = 1985;
+        public const int SensorViewThermal      = 1986;
+        public const int SensorPaletteNext      = 1987;
+        public const int SensorHalo             = 1988;
+        public const int SensorResolution       = 1989;
+        public const int SensorNoise            = 1990;
+        public const int SensorVignette         = 1991;
+        public const int SensorAutoGain         = 1992;
+
         // --- AI Diagnostics (behav-diag-1) ---
         /// <summary>Toggle <c>DebugState.Behavior.EnableTraceBuffer</c> on the target entity.</summary>
         public const int ToggleAiTrace    = 251;
@@ -146,6 +158,7 @@ namespace Hrot.Common.Constants
         public const int FinishDrawing      = 2410;
         public const int RemoveLastPoint    = 2411;
         public const int CancelDrawing      = 2412;
+        public const int StopDrawing        = 2424;   // ⭐ CE-1977 — leave the armed drawing tool (the shape dropped, the tool disarmed)
 
         // --- ⭐ CE-2423 / A6b (DESIGN_Action_Catalogue §9) — the RULE target (a rule row / track): the instructor's controls, the edit-mode rows, show on map / history (RuleMenuActions)
         public const int RuleFire        = 2413;

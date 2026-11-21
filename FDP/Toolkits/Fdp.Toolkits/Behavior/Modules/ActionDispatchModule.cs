@@ -43,6 +43,7 @@ namespace Fdp.Toolkit.Behavior.Modules
     ///   <item><see cref="InteractionDispatcherSystem"/> with all supplied interaction executors.</item>
     /// </list>
     /// </summary>
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class ActionDispatchModule
     {
         private readonly (ushort ActionId, IActionExecutor<LocomotionChannel>    Executor)[] _locoExecutors;

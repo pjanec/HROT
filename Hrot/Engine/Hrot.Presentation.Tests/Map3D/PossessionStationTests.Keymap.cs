@@ -17,7 +17,7 @@ public sealed partial class PossessionStationTests
     private static (EntityRepository World, PossessionStation Station, Fdp.Toolkit.Vis3D.MapViewSwitch View, FpsCameraDriver Driver, Keymap Keymap) K4Station()
     {
         var (w, unit, _) = World();
-        w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+        w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
         var (_, sw, _) = Map();
         var keymap = new Keymap();
         var station = new PossessionStation(sw, () => w) { Keymap = keymap, OverShoulder = false };

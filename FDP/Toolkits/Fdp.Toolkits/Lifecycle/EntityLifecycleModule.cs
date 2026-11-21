@@ -15,6 +15,7 @@ namespace Fdp.Toolkit.Lifecycle
     /// and properly cleaned up before destruction.
     /// </summary>
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class EntityLifecycleModule : IEcsModule
     {
         public string Name => "EntityLifecycleManager";
@@ -31,35 +32,45 @@ namespace Fdp.Toolkit.Lifecycle
         public IReadOnlyList<Type>? WatchComponents => null;
         
         private readonly ITkbDatabase _tkb;
+        [Fdp.Core.NotState("injected translator list, set in ctor/SetTranslators")]
         private IReadOnlyList<ITkbEntityTranslator> _translators;
         
         /// <summary>
         /// Global participants that care about all entities.
         /// </summary>
+        [Fdp.Core.NotState("participant registration at setup")]
         private readonly HashSet<int> _globalParticipants;
         
         /// <summary>
         /// Blueprint-specific participants.
         /// </summary>
+        [Fdp.Core.NotState("per-blueprint participant requirements registered at setup")]
         private readonly Dictionary<long, HashSet<int>> _blueprintRequirements = new();
 
         // ⭐ CE-3136 P-7a (R-243) — requirements stated by a RULE over the TKB template, evaluated at BeginConstruction against the
         //   TKB as it is then (a scenario's knowledge base may replace the in-code one after composition).
+        [Fdp.Core.NotState("template requirement rules registered at setup")]
         private readonly List<(Func<TkbTemplate, bool> Applies, int ModuleId)> _templateRequirements = new();
 
         // ⭐ CE-8013 ② (SV-6) — requirements stated per ENTITY (a split's held child), evaluated at BeginConstruction — after the creation
         //   request's components are on the entity (NetworkSpawningSystem begins construction LAST).
+        [Fdp.Core.NotState("module-requirement predicates registered at start-up (RegisterEntityRequirement)")]
         private readonly List<(Func<Entity, bool> Applies, int ModuleId)> _entityRequirements = new();
         
         private readonly int _timeoutFrames;
         
         private readonly NodeId _localNodeId;
         
+        [Fdp.Core.ProtocolCache("in-flight construction handshake; re-derived by ResumeFromRestoredWorld")]
         private readonly Dictionary<Entity, PendingConstruction> _pendingConstruction = new();
+        [Fdp.Core.ProtocolCache("in-flight destruction handshake; re-derived by ResumeFromRestoredWorld")]
         private readonly Dictionary<Entity, PendingDestruction> _pendingDestruction = new();
         
+        [Fdp.Core.WorldDerived("diagnostic counter")]
         private int _totalConstructed;
+        [Fdp.Core.WorldDerived("diagnostic counter")]
         private int _totalDestructed;
+        [Fdp.Core.WorldDerived("diagnostic counter")]
         private int _timeouts;
         
         /// <param name="tkb">TKB template registry.</param>
@@ -186,6 +197,7 @@ namespace Fdp.Toolkit.Lifecycle
         public void AbandonConstruction(Entity entity) => _pendingConstruction.Remove(entity);
 
         // ⭐ CE-3304 — a participant whose work can take longer than the default timeout (frames) waits this long instead.
+        [Fdp.Core.NotState("per-module timeout config registered at setup")]
         private readonly Dictionary<int, int> _moduleTimeoutFrames = new();
 
         /// <summary>
@@ -235,9 +247,11 @@ namespace Fdp.Toolkit.Lifecycle
         }
 
         /// <summary>⭐ CE-4427 R-5 — seconds an UNBOUNDED wait may last before it is said loudly (once per construction); 60 s is more than three times the ≈ 17 s a scale-1 overlay bake measured.</summary>
+        [field: Fdp.Core.NotState("configuration: seconds before warning about an unbounded wait")]
         public double UnboundedWaitWarnSeconds { get; set; } = 60.0;
 
         /// <summary>⭐ CE-4427 R-5 — how many unbounded waits have been reported (diagnostics / rails).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of unbounded-wait warnings")]
         public int UnboundedWarnings { get; private set; }
 
         /// <summary>
@@ -466,7 +480,9 @@ namespace Fdp.Toolkit.Lifecycle
         }
 
         // reused every frame (CheckTimeouts runs each tick — 0 B steady)
+        [Fdp.Core.FrameScratch("reused list of timed-out constructions: cleared at the top of CheckTimeouts")]
         private readonly List<Entity> _timedOutConstruction = new();
+        [Fdp.Core.FrameScratch("reused list of timed-out destructions: cleared at the top of the destruction pass")]
         private readonly List<Entity> _timedOutDestruction = new();
 
         public void CheckTimeouts(uint currentFrame, IEntityCommandBuffer cmd)
@@ -531,6 +547,7 @@ namespace Fdp.Toolkit.Lifecycle
         // ── World replacement: clear, then re-derive ─────────────────────────────
         // 📄 docs/designs/replay-and-modules/DESIGN.md §2.1m — HN-018 / CE-259ap / CE-259ar.
 
+        [Fdp.Core.ProtocolCache("armed flag to re-derive handshakes after world replacement")]
         private bool _resumePending;
 
         /// <summary>
@@ -663,6 +680,7 @@ namespace Fdp.Toolkit.Lifecycle
             { Entity = e; Construction = construction; Ok = ok; Forced = forced; Resumed = resumed; TkbType = tkbType; Text = text; Frame = frame; }
         }
 
+        [Fdp.Core.ProtocolCache("⭐ AQ107 — this tick's finished constructions / teardowns, published by LifecycleSystem at the end of the same tick; cleared at a world replacement (ClearForWorldReplacement)")]
         private readonly List<Outcome> _outcomes = new();
 
         private void Constructed(PendingConstruction p, uint frame, bool succeeded, FixedString64 failure)

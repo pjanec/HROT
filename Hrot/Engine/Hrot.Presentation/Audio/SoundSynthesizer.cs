@@ -41,6 +41,11 @@ namespace Hrot.UI.Common.Audio
                 SoundSynth.ImpactSoft => Finish(ImpactSoft(ref r)),
                 SoundSynth.ImpactHard => Finish(Ricochet(ref r)),
                 SoundSynth.Crash => Finish(Explosion(ref r, 1.8f, 0.04f, 0.3f, 48f, 0.35f, debris: 28)),   // ⭐ CE-4600 (B-3b) — a dull blow (no blast's crack), then rubble falling
+                SoundSynth.Glass => Finish(Glass(ref r)),   // ⭐ CE-5034 — a crack, then tinkling
+                SoundSynth.FlameRoar => Loop(FlameRoar(ref r, 1f + LoopFade)),   // ⭐ CE-4635 — a held roar
+                SoundSynth.DragonWhoosh => Finish(DragonWhoosh(ref r)),                 // ⭐ CE-4634 — one down-stroke
+                SoundSynth.DragonRoar => Finish(BeastRoar(ref r, 2.2f, 70f, 98f, 58f)),   // ⭐ CE-4634 — a growl that swells and drops
+                SoundSynth.DragonDeathRoar => Finish(BeastRoar(ref r, 3.6f, 105f, 80f, 32f)),   // ⭐ CE-4634 — long, falling away
                 SoundSynth.Footsteps => Loop(Footsteps(ref r, 1f + LoopFade)),
                 SoundSynth.WheeledEngine => Loop(Engine(ref r, 2f + LoopFade, 60f, clankHz: 0f)),
                 SoundSynth.TrackedEngine => Loop(Engine(ref r, 2f + LoopFade, 45f, clankHz: 9f)),
@@ -195,6 +200,39 @@ namespace Hrot.UI.Common.Audio
             return b;
         }
 
+        /// <summary>⭐ CE-4634 — one heavy down-stroke of a 26 m wing: broadband noise low-passed hard (a body of air, not a hiss), swelling and dying over ~0.7 s, with a low thump of the
+        /// stroke's end.</summary>
+        private static float[] DragonWhoosh(ref Rng r)
+        {
+            var b = Buf(0.75f);
+            float lp = 0f, lp2 = 0f;
+            for (int i = 0; i < b.Length; i++)
+            {
+                float t = T(i), u = t / 0.75f;
+                lp += (r.Next() - lp) * 0.08f; lp2 += (lp - lp2) * 0.12f;
+                float swell = MathF.Pow(MathF.Sin(MathF.PI * MathF.Min(1f, u * 1.15f)), 2f);
+                b[i] = 5f * lp2 * swell + 0.35f * Sin(38f, t) * MathF.Exp(-MathF.Abs(u - 0.6f) * 9f);
+            }
+            return b;
+        }
+
+        /// <summary>⭐ CE-4634 — a beast's roar: a low voiced growl (<see cref="Pulse"/> on a pitch contour a → mid → c, dark formants, a heavy rasp) over a rumble of brown noise; the
+        /// dragon's roar swells and drops, its death roar starts high and falls away.</summary>
+        private static float[] BeastRoar(ref Rng r, float seconds, float a, float mid, float c)
+        {
+            var b = Buf(seconds);
+            Pulse(ref r, b, 0, seconds, a, mid, c, 320f, 820f, 9f, 0.06f, 0.9f, 0.7f);
+            Pulse(ref r, b, (int)(0.03f * SampleRate), seconds - 0.05f, a * 0.5f, mid * 0.5f, c * 0.5f, 250f, 600f, 6f, 0.05f, 0.5f, 0.5f);   // the octave below: a big chest
+            float brown = 0f;
+            for (int i = 0; i < b.Length; i++)
+            {
+                float u = i / (float)b.Length;
+                brown = 0.996f * brown + 0.05f * r.Next();
+                b[i] += 1.6f * brown * MathF.Sin(MathF.PI * u);
+            }
+            return b;
+        }
+
         /// <summary>A small deterministic generator (xorshift32).</summary>
         private struct Rng
         {
@@ -306,6 +344,28 @@ namespace Hrot.UI.Common.Audio
                 float f = 2600f - 900f * MathF.Min(1f, t / 0.5f);
                 phase += 2f * MathF.PI * f / SampleRate;
                 b[i] = 0.7f * MathF.Sin(phase) * Env(t, 0.15f) + r.Next() * Env(t, 0.004f);
+            }
+            return b;
+        }
+
+        /// <summary>⭐ CE-5034 — a pane shattering: a bright crack of high noise, then shards tinkling down (short high pings at random, thinning out).</summary>
+        private static float[] Glass(ref Rng r)
+        {
+            var b = Buf(1.2f);
+            float prev = 0f;
+            for (int i = 0; i < b.Length; i++)
+            {
+                float t = T(i), n = r.Next();
+                b[i] = 0.9f * (n - prev) * Env(t, 0.03f);   // differenced noise: the high crack
+                prev = n;
+            }
+            for (int k = 0; k < 40; k++)
+            {
+                float at = 0.02f + 0.9f * MathF.Pow(0.5f * (r.Next() + 1f), 1.6f);
+                float hz = 3000f + 3500f * 0.5f * (r.Next() + 1f);
+                float amp = 0.35f * (1f - at);
+                int i0 = (int)(at * SampleRate);
+                for (int i = i0; i < b.Length; i++) { float t = T(i) - at; if (t > 0.08f) break; b[i] += amp * Sin(hz, t) * Env(t, 0.012f); }
             }
             return b;
         }
@@ -472,6 +532,30 @@ namespace Hrot.UI.Common.Audio
             var b = Buf(seconds);
             float brown = 0f;
             for (int i = 0; i < b.Length; i++) { float t = T(i); brown = 0.997f * brown + 0.04f * r.Next(); b[i] = 1.5f * brown + 0.05f * Sin(100f, t); }
+            return b;
+        }
+
+        /// <summary>⭐ CE-4635 — a flamethrower's roar: a low rumble (brown noise through a slow low-pass, wobbling), a hiss (high-passed noise, swelling and ebbing) and a few crackles
+        /// (short random pops). A loop: <see cref="Loop"/> cross-fades its tail into the start.</summary>
+        private static float[] FlameRoar(ref Rng r, float seconds)
+        {
+            var b = Buf(seconds);
+            float brown = 0f, low = 0f, hp = 0f;
+            for (int i = 0; i < b.Length; i++)
+            {
+                float t = T(i), n = r.Next();
+                brown = 0.995f * brown + 0.05f * n;
+                low += 0.04f * (brown - low);
+                hp = n - (hp + 0.35f * (n - hp));   // a crude high-pass: what the low-pass leaves of the noise
+                float swell = 0.75f + 0.25f * Sin(5f, t) * Sin(2.3f, t + 0.1f);
+                b[i] = (4.5f * low + 0.35f * hp * swell + 0.5f * Sin(48f, t) * (0.6f + 0.4f * Sin(7f, t))) * swell;
+            }
+            for (int k = 0; k < 14; k++)   // crackle: a short pop of noise at a random moment
+            {
+                int at = (int)(r.Unit() * (b.Length - 400)), len = 60 + (int)(r.Unit() * 240);
+                float amp = 0.25f + 0.5f * r.Unit();
+                for (int i = 0; i < len; i++) b[at + i] += amp * r.Next() * Env(T(i), 0.004f);
+            }
             return b;
         }
 

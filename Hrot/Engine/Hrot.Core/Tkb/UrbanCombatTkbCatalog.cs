@@ -88,10 +88,14 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ <c>CE-4648</c> — a Middle-East machine gunner: a man-portable machine gun (the PKM class) as his mount 0.</summary>
         public const int TkbMiddleEastMachineGunner = 2012;
         /// <summary>⭐ <c>CE-4648</c> (R-1066) — the Afghan fighters (the insurgent template in <see cref="OutfitCatalog.AfghanFighter"/>): a rifleman, an RPG + rifle, a machine gunner (PKM class).</summary>
-        public const int TkbAfghanFighter = 2016, TkbAfghanFighterRpg = 2017, TkbAfghanMachineGunner = 2018;
+        public const int TkbAfghanFighter = 2019, TkbAfghanFighterRpg = 2020, TkbAfghanMachineGunner = 2021;   // ⭐ 2016 is backend's Native American warrior (CE-4650); 2017 / 2018 left free at the merge of 2026-11-17
         /// <summary>⭐ <c>CE-4649</c> (bows BW-12, docs/designs/weapons/DESIGN_Bows_And_Crossbows.md) — an ARCHER (a bow, 20 arrows) and a CROSSBOWMAN (15 bolts): the insurgent
         /// template (a soldier brain, no armour) in everyday clothes, with the weapon of <see cref="Bow"/> / <see cref="Crossbow"/>. Silent: no shot sound (BW-9).</summary>
         public const int TkbArcher = 2013, TkbCrossbowman = 2014;
+        /// <summary>⭐ <c>CE-4635</c> FL-1 (R-3111) — the man-portable flamethrower man (2022 free on every lane, <c>2026-11-19</c>). ⛔ A permanent wire value.</summary>
+        public const int TkbFlamethrowerSoldier = 2022;
+        /// <summary>⭐ CE-4635 — his fuel as rounds: 10 a second (a fuel shot every 0.1 s keeps the jet lit, FlameJets.LitSeconds 0.25) for ~9 s of flame.</summary>
+        public const int FlameShotsPerMinute = 600, FlameFuelShots = 90;
         /// <summary>⭐ <c>CE-4649</c> (BW-11) — the ARCHERY TARGET prop: a straw boss on a stand (a thin box with an <see cref="ArcheryTargetDto"/> scoring face).</summary>
         public const int TkbArcheryTarget = 2015;
 
@@ -121,6 +125,8 @@ namespace Hrot.Core.Tkb
         /// <summary>⭐ BR-16 — the RWS station's height on the APC (m): the 2.5 m hull's roof; the weapon's own 0.3 m pivot sits above it.</summary>
         private const float ApcRwsZ = 2.5f;
         private const float RifleShotRange   = 400f;
+        /// <summary>⭐ CE-4635 — a flamethrower's roar (m): a loud hiss and a whoomph, heard closer than a rifle's crack.</summary>
+        internal const float FlameRoarRange  = 200f;
         private const float RpgShotRange     = 500f;
         private const float RpgBurstRange    = 800f;
         /// <summary>⭐ CE-3284 (Q95 B1) — the 81 mm tube's real carry, shot and burst (the BDC catalogue's <c>Mortar81Report</c>; Sensing §8.5).</summary>
@@ -214,7 +220,9 @@ namespace Hrot.Core.Tkb
                 //   is seen by nobody and fired by nobody), appended after the seats
                 car.Seats.Add(new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Cargo, Stowed = true, Concealed = true, Exposed = false });
                 t.AddDescriptor(car);
-                t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f });
+                // ⭐ CE-3473 — its MASS (a sedan, 1.4 t): it was 0 ("unknown"), so the contact rule's ramming row (≥ 800 kg) never took a car on RamTarget. Below the
+                //   AT mine's 1500 kg and the crush 3500 kg, so neither changes; a strike's harm is × √(1400/1500) ≈ 0.97 of the unknown-mass default.
+                t.AddDescriptor(new VehicleParametersDto { Length = 4.5f, Width = 2.0f, MaxSpeedFwd = 25.0f, MaxAccel = 3.0f, Mass = 1400f });
                 t.AddDescriptor(new BehaviorProfileDto { SimTier = BehaviorConstants.SimTierCivilian, BrainTier = 0, CanMove = true });
                 t.AddDescriptor(Sounds(CarEngineRange, SoundSourceClass.WheeledEngine));
                 t.AddDescriptor(new Fdp.Toolkit.Traffic.TrafficVehicleDto { VClass = "passenger", Weight = 6f });   // ⭐ AQ93 T1 — SUMO drives it too
@@ -313,6 +321,28 @@ namespace Hrot.Core.Tkb
                 tkb.Register(t);
             }
 
+            // ⭐ CE-4635 FL-1 (R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md F-6) — FlamethrowerSoldier (2022): the InfantrySoldier with a man-portable
+            //   FLAMETHROWER as his ONLY mount (so an order to fire uses it — mount 0, the one FlameJets reads); its fuel is the flame munition
+            {
+                var t = new TkbTemplate("FlamethrowerSoldier", TkbFlamethrowerSoldier);
+                Master(t, "FlamethrowerSoldier", new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
+                t.AddDescriptor(new StrideRenderModelDefDto { ModelAssetRef = "Models/mannequinModel", SkeletonAssetRef = "Models/mannequinModel Skeleton", ShapeKind = CollisionShapeKind.Capsule, ShapeRadius = 0.3f, ShapeHeight = 1.8f });
+                t.AddDescriptor(new VehicleParametersDto { VehicleClass = VehicleClass.Pedestrian, AvoidanceRadius = VehicleParametersDto.CloseOrderAvoidanceRadius, Length = 0.6f, Width = 0.4f, MaxSpeedFwd = 6.0f, MaxAccel = 2.5f });   // ⭐ AQ88 A (R-265) — a person can RUN (was 2.0, every run clamped to a walk); the stance scales it (StanceSpeed)
+                t.AddDescriptor(new BehaviorProfileDto { DefaultSop = SoldierSop, SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true, CanInteract = true });
+                t.AddDescriptor(new CombatPlatformDefDto { MaxHealth = SoldierMaxHealth });
+                t.AddDescriptor(new InjuryDefDto());   // ⭐ CE-2155 (R-2011) — wounded, incapacitated, bleeds out
+                t.AddDescriptor(CarrierDefDto.PersonCarrier());   // ⭐ CE-2152 (R-2011 C1) — carries or drags one casualty
+                t.AddDescriptor(new WeaponSuiteDto { Mounts =
+                {
+                    new WeaponMountDto { Category = WeaponCategory.Flamethrower, AmmoGuid = MunitionTkbCatalog.TkbFlameFuel, InitialAmmunition = FlameFuelShots,
+                                         RateOfFire = FlameShotsPerMinute, Range = MunitionTkbCatalog.FlameReachM, MuzzleVelocity = 40f },
+                } });
+                t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
+                t.AddDescriptor(Sounds(FootstepsRange, SoundSourceClass.Footsteps, FlameRoarRange, SoundSourceClass.Flame));
+                t.AddDescriptor(BuildMannequinAnimationDef());
+                tkb.Register(t);
+            }
+
             // ⭐ CE-2260 BC-4 (CB-71) — AssaultRifleman (2009): the InfantrySoldier, plus stun grenades (mount 1) and M67 (mount 2) for the room
             //   drill's "bang out" (§7.3); the hands go to 3 — no pistol (four mounts is all dtWeaponAmmo carries). Only the clearing demos field him — the InfantrySoldier
             //   stays grenade-free, so no other demo's weapon brain starts throwing (R-261).
@@ -385,7 +415,7 @@ namespace Hrot.Core.Tkb
         /// insurgent temperament, the soldier SOP and brain, wearing <paramref name="outfit"/>. 2003 (RPG + rifle) is its first instance; the Middle-East
         /// fighters are the same descriptors with another weapon set.
         /// </summary>
-        private static void Insurgent(ITkbDatabase tkb, string name, int type, OutfitDto outfit, params WeaponMountDto[] mounts)
+        internal static void Insurgent(ITkbDatabase tkb, string name, int type, OutfitDto outfit, params WeaponMountDto[] mounts)
         {
             var t = new TkbTemplate(name, type);
             Master(t, name, new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
@@ -410,7 +440,7 @@ namespace Hrot.Core.Tkb
             t.AddDescriptor(suite);
             t.AddDescriptor(new SensorCapabilitiesDto { VisionRange = SoldierVisionRange, HearingRange = SoldierHearingRange, FieldOfViewDegrees = 360f });
             bool rpg = System.Array.Exists(mounts, m => m.Category == WeaponCategory.Atgm || m.AmmoGuid == MunitionTkbCatalog.TkbRpg7Rocket);
-            bool silent = mounts.Length > 0 && System.Array.TrueForAll(mounts, m => m.Category == WeaponCategory.Bow);   // ⭐ CE-4649 (BW-9) — a bow is heard by nobody
+            bool silent = mounts.Length > 0 && System.Array.TrueForAll(mounts, m => m.Category == WeaponCategory.Bow || m.AmmoGuid == (ulong)MunitionTkbCatalog.TkbThrowingHatchet);   // ⭐ CE-4650 — a thrown hatchet makes no report either   // ⭐ CE-4649 (BW-9) — a bow is heard by nobody
             t.AddDescriptor(silent ? Sounds(FootstepsRange, SoundSourceClass.Footsteps) : rpg ? Sounds(FootstepsRange, SoundSourceClass.Footsteps, RpgShotRange, SoundSourceClass.HeavyWeapon, RpgBurstRange, SoundFamily.Launcher)   // ⭐ CE-3283 — an RPG / an ATGM
                                 : Sounds(FootstepsRange, SoundSourceClass.Footsteps, RifleShotRange, SoundSourceClass.SmallArms));
             t.AddDescriptor(BuildMannequinAnimationDef());  // ST-011

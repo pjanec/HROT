@@ -233,17 +233,17 @@ public class TheFourRoutingTablesAgreeTests
     /// here.</para>
     /// </summary>
     /// <summary>⭐ CE-4024 (AQ93 §15 K5) — a creation request's fright gives the new entity a terrified mind that knows where it came from
-    /// (the request carries no <c>CivilianState</c>: it is brain-local, never on the wire).</summary>
+    /// (the request carries the shared <c>Fear</c> — CE-4628: it was the civilian's <c>CivilianState</c>; both are brain-local, never on the wire).</summary>
     [Fact]
     public void AFrightOnACreationRequest_BearsAMindInPanic()
     {
         var ctx = new ListPatchContext(new List<object>());
         AttributeCompilerFactory.Build().Compile("{\"Fear\":1.0,\"FrightFrom\":{\"X\":10.0,\"Y\":20.0,\"Z\":1.0}}", ctx);
 
-        var mind = Assert.IsType<Fdp.Toolkit.Civilians.CivilianState>(Assert.Single(ctx.FlushComponents()));
-        Assert.Equal(1f, mind.Fear);
-        Assert.Equal(new System.Numerics.Vector3(10f, 20f, 1f), mind.FrightFrom);
-        Assert.Equal(1, mind.HasFrightFrom);
+        var fear = Assert.IsType<Fdp.Toolkit.Creatures.Fear>(Assert.Single(ctx.FlushComponents()));
+        Assert.Equal(1f, fear.Value);
+        Assert.Equal(new System.Numerics.Vector3(10f, 20f, 1f), (System.Numerics.Vector3)fear.FrightFrom);
+        Assert.Equal(1, fear.HasFrightFrom);
     }
 
     [Fact]
@@ -676,11 +676,14 @@ public class TheFourRoutingTablesAgreeTests
         repo.AddComponent(e, default(SimTransform));
         repo.AddComponent(e, default(Fdp.Toolkit.Weather.ScenarioClock));   // ⭐ CE-3216 — the clock's two attributes
         if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.CivilianState>()) repo.RegisterComponent<Fdp.Toolkit.Civilians.CivilianState>();
-        repo.AddComponent(e, default(Fdp.Toolkit.Civilians.CivilianState));   // ⭐ CE-4024 — the fright's four attributes
+        repo.AddComponent(e, default(Fdp.Toolkit.Civilians.CivilianState));   // ⭐ CE-4024 — the fright is applied only to a unit that already has his mind...
+        if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Fear>()) repo.RegisterComponent<Fdp.Toolkit.Creatures.Fear>();
+        repo.AddComponent(e, default(Fdp.Toolkit.Creatures.Fear));            // ⭐ CE-4024 / CE-4628 — ...and writes the shared Fear: the fright's four attributes
         repo.SetAuthority<Fdp.Core.EntityInfo>(e, true);
         repo.SetAuthority<SimTransform>(e, true);
         repo.SetAuthority<Fdp.Toolkit.Weather.ScenarioClock>(e, true);
         repo.SetAuthority<Fdp.Toolkit.Civilians.CivilianState>(e, true);
+        repo.SetAuthority<Fdp.Toolkit.Creatures.Fear>(e, true);
         repo.AddComponent(e, default(Fdp.Toolkit.ScenarioRules.RuleControl));   // ⭐ rules V-4 — the control's three attributes
         repo.SetAuthority<Fdp.Toolkit.ScenarioRules.RuleControl>(e, true);
         // ⭐ B-4 / Details forms D2 — the components the form attributes write (owned here, so each handler applies)

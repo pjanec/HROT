@@ -13,5 +13,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         Backdrop = 1,
         /// <summary>An ImGui-button blue box with a 1 px border — a label the user can click (the hit area is the gizmo's own).</summary>
         Button = 2,
+        /// <summary>⭐ CE-1977 — <see cref="Backdrop"/>'s look for a label that belongs to the CURSOR (the armed tool's name and hint): the 3-D map never hides it
+        /// behind the ground (its text sits below the cursor, over ground nearer the eye than the cursor's own point).</summary>
+        Cursor = 3,
     }
 }

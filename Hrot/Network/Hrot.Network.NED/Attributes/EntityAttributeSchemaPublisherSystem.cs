@@ -22,6 +22,7 @@ namespace Hrot.Network.NED.Attributes
         private readonly JsonAttributeCompiler?                 _compiler;
         private readonly IDdsWriter<EntityAttributeSchema>?     _writer;
         private readonly bool                                   _isDefaultProcessor;
+        [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): publish-schema-once latch; empty republishes schema, harmless")]
         private bool                                            _published;
 
         public EntityAttributeSchemaPublisherSystem(

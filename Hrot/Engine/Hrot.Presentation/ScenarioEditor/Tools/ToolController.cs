@@ -27,6 +27,7 @@ namespace Hrot.ScenarioEditor.Tools
     /// <c>Kernel.Initialize()</c> and null them on teardown, and CGF does not build them at all when
     /// headless. A captured instance would be permanently null on those paths.</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("armed-tool modal stack; editor UI, not simulation")]
     public sealed class ToolController : IToolController
     {
         private readonly Dictionary<string, (ToolDescriptor Descriptor, ToolActivation Activate)> _tools =
@@ -63,6 +64,14 @@ namespace Hrot.ScenarioEditor.Tools
         public Entity ActiveModalTarget => _modalStack.Count > 0 ? _modalStack[^1].Target : Entity.Null;
 
         private string? _hintOverride;
+        private string? _titleOverride;
+
+        /// <summary>⭐ <c>CE-1977</c> — the armed tool's NAME for the cursor label: what armed it said (<see cref="SetTitle"/> — <i>Ditch</i>, <i>Hedge</i>), else the
+        /// descriptor's <see cref="ToolDescriptor.Label"/>; null with no modal tool. Cleared whenever the armed tool changes.</summary>
+        public string? ActiveTitle => ActiveModal is null ? null : _titleOverride ?? ActiveModal.Label;
+
+        /// <summary>⭐ CE-1977 — the caller that armed a generic tool names what it draws (a terrain pick arms the one area tool as a <i>Ditch</i>).</summary>
+        public void SetTitle(string? title) => _titleOverride = title;
 
         /// <summary>
         /// ⭐ B-17 P1 (📄 docs/UX/DESIGN_Map_Interaction.md §2.5) — what the armed tool's next click does: the active gizmo's own line when it set
@@ -397,7 +406,7 @@ namespace Hrot.ScenarioEditor.Tools
             }
         }
 
-        private void NotifyActiveModalChanged() { _hintOverride = null; CursorHintClaimed = false; ActiveModalChanged?.Invoke(ActiveModal); }
+        private void NotifyActiveModalChanged() { _hintOverride = null; _titleOverride = null; CursorHintClaimed = false; ActiveModalChanged?.Invoke(ActiveModal); }
 
         // ── PushModal internals ───────────────────────────────────────────────────
 

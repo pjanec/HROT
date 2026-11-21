@@ -1,0 +1,136 @@
+{
+  "$doc": "docs/designs/group-maneuvers/DESIGN_Urban_Fight_Suite.md §5 (U2, the corner fight) — the realism rubric's layers 1-3 (§1), U1's rows with the corner's tighter windows: contact at 10-40 m ⇒ the answering fire within 5 s, the exposure limit 10 s. Layer 4 (leaning out vs stepping into the street, suppressing the corner, the flank) is the design's review checklist.",
+  "runFor": 780,
+  "golden": false,
+  "expect": [
+    {
+      "name": "Blue fires",
+      "on": "shot",
+      "by": "*Blue Squad "
+    },
+    {
+      "name": "Red fires",
+      "on": "shot",
+      "by": "*Red Squad "
+    },
+    {
+      "name": "L2 Blue fires within 5 s of Red's first round",
+      "on": "shot",
+      "by": "*Blue Squad ",
+      "before": "Red fires+5"
+    },
+    {
+      "name": "L2 Red fires within 5 s of Blue's first round",
+      "on": "shot",
+      "by": "*Red Squad ",
+      "before": "Blue fires+5"
+    },
+    {
+      "name": "L1 nobody of Blue in the fight stands upright in the OPEN (no cover within 2.5 m) in a Red man's sight 10 s once the shooting starts",
+      "never": {
+        "on": "exposed",
+        "who": "*Blue Squad ",
+        "by": "*Red Squad ",
+        "upright": true,
+        "fighting": true,
+        "for": 10,
+        "m": 2.5
+      },
+      "after": "Blue fires"
+    },
+    {
+      "name": "L1 Blue is no knot (all within 3 m) for 10 s after the first half minute",
+      "never": {
+        "on": "bunched",
+        "who": "*Blue Squad ",
+        "m": 3,
+        "fighting": true,
+        "for": 10
+      },
+      "after": 30
+    },
+    {
+      "name": "L1 no Blue round hits a Blue man",
+      "never": {
+        "on": "shot",
+        "by": "*Blue Squad ",
+        "hit": "*Blue Squad "
+      }
+    },
+    {
+      "name": "L3 Blue, ambushed, gets out of Red's sight: from 30 s after Red's first round no Blue man stays in a Red man's sight 10 s (a squad that breaks contact need not score)",
+      "never": {
+        "on": "exposed",
+        "who": "*Blue Squad ",
+        "by": "*Red Squad ",
+        "fighting": true,
+        "for": 10
+      },
+      "after": "Red fires+30"
+    },
+    {
+      "name": "L1 nobody of Red in the fight stands upright in the OPEN (no cover within 2.5 m) in a Blue man's sight 10 s once the shooting starts",
+      "never": {
+        "on": "exposed",
+        "who": "*Red Squad ",
+        "by": "*Blue Squad ",
+        "upright": true,
+        "fighting": true,
+        "for": 10,
+        "m": 2.5
+      },
+      "after": "Blue fires"
+    },
+    {
+      "name": "L1 Red is no knot (all within 3 m) for 10 s after the first half minute",
+      "never": {
+        "on": "bunched",
+        "who": "*Red Squad ",
+        "m": 3,
+        "fighting": true,
+        "for": 10
+      },
+      "after": 30
+    },
+    {
+      "name": "L1 no Red round hits a Red man",
+      "never": {
+        "on": "shot",
+        "by": "*Red Squad ",
+        "hit": "*Red Squad "
+      }
+    },
+    {
+      "name": "L3 Red hits a Blue man",
+      "on": "shot",
+      "by": "*Red Squad ",
+      "hit": "*Blue Squad "
+    },
+    {
+      "name": "L4 Blue never walks back into Red's west corner: no Blue man within 15 m of (630, 384) from 30 s after Red's first round (CE-2466: remembered, rallied, never back in — past the 600 s the memory lasts)",
+      "never": {
+        "on": "close",
+        "who": "*Blue Squad ",
+        "point": [
+          630,
+          384
+        ],
+        "m": 15
+      },
+      "after": "Red fires+30"
+    },
+    {
+      "name": "L4 Blue never walks back into Red's east corner: no Blue man within 15 m of (668, 386) from 30 s after Red's first round (CE-2466: remembered, rallied, never back in — past the 600 s the memory lasts)",
+      "never": {
+        "on": "close",
+        "who": "*Blue Squad ",
+        "point": [
+          668,
+          386
+        ],
+        "m": 15
+      },
+      "after": "Red fires+30"
+    }
+  ]
+}

@@ -110,7 +110,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             repo.RegisterComponent<EntityInfo>();
             repo.RegisterComponent<Health>();
             repo.RegisterComponent<IsEmbarkedTag>();
-            repo.RegisterComponent<Gesture>();
+            repo.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
 
             var carrier = repo.CreateEntity();
             repo.AddComponent(carrier, new NetworkIdentity(Carrier));
@@ -119,7 +119,7 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
             repo.AddComponent(unit, new BehaviorState { ActiveBehaviorHash = 0x1111, InstanceId = 1 });
             repo.AddComponent(unit, new EntityInfo { ForceId = ForceId.Friend });
             repo.AddComponent(unit, new Health { Current = 80, Max = 100 });
-            repo.AddComponent(unit, new Gesture { Kind = GestureKind.IdleStretch });
+            repo.AddComponent(unit, new Fdp.Toolkit.Creatures.Demeanour { Kind = GestureKind.IdleStretch });
             var bystander = repo.CreateEntity();
             repo.AddComponent(bystander, new NetworkIdentity(Bystander));
             repo.AddComponent(bystander, new EntityInfo { ForceId = ForceId.Hostile });
@@ -134,14 +134,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Timeline
 
             repo.GetComponentRW<EntityInfo>(unit).ForceId = ForceId.Hostile;
             repo.GetComponentRW<Health>(unit).Current = 30;
-            repo.GetComponentRW<Gesture>(unit).Kind = GestureKind.IdleLookAbout;
+            repo.GetComponentRW<Fdp.Toolkit.Creatures.Demeanour>(unit).Kind = GestureKind.IdleLookAbout;
             harness.Tick().RecordDelta(400_000L); afterFrame?.Invoke(400_000L);                                       // frame 3
 
             repo.RemoveComponent<IsEmbarkedTag>(unit);
             repo.GetComponentRW<Health>(unit).Max = 120;
             harness.Tick().RecordDelta(500_000L); afterFrame?.Invoke(500_000L);                                       // frame 4
 
-            repo.RemoveComponent<Gesture>(unit);
+            repo.RemoveComponent<Fdp.Toolkit.Creatures.Demeanour>(unit);
             harness.Tick().RecordDelta(600_000L); afterFrame?.Invoke(600_000L);                                       // frame 5
             return harness.BuildToTempFile();
         }

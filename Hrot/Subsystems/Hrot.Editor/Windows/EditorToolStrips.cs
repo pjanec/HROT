@@ -107,6 +107,9 @@ internal sealed class TerrainToolsWindow : ToolStripWindow
             () => { _lastArmed = "obstacles"; _spawn()?.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, TerrainBirth.PlacementJson(ObstacleRowOptions.Spec)); }));
         _entries.Add(Entry("obstacles", "Obstacles", obstacles));
         Family("earthworks", "Earthworks", "terrain/source", feature.Where(p => p.Group == TerrainPickCatalog.Earthworks));
+        // ⭐ CE-5030 (BE-4, docs/DESIGN_Terrain_Base_Edits.md, mockup UX/terrain-base-edits.svg ①) — the BUILDINGS family: an armed tool, then a click on a BAKED building
+        var edits = TerrainPick.EditPicks.Select(p => Member("buildings", p, p.Name, p.Template switch { "remove" => "terrain/remove-building", "enterable" => "terrain/make-enterable", _ => "terrain/add-door" })).ToList();
+        _entries.Add(Entry("buildings", "Buildings", edits));
         Family("water", "Water", "terrain/water", feature.Where(p => p.FeatureKind is TerrainFeature.Water or TerrainFeature.Bridge));
         var scatterPick = feature.FirstOrDefault(p => p.FeatureKind == TerrainFeature.Scatter);
         if (scatterPick is not null || picks.Any(p => p.FeatureKind == TerrainFeature.Scatter))

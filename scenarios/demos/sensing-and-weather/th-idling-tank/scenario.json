@@ -1,0 +1,211 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: an engine's heat at night (CE-4658, thermal drivers TD-S2; docs/designs/thermal/DESIGN_Thermal_Drivers.md \u00a74e). On basic-desert at 00:30 local, clear sky, 'Observer' at (50, 300) \u2014 the thermal observer (TKB 215: a hand-held thermal sight 1500 m that resolves a signature >= 0.3; his eyes reach ~125 m at night and a standing tank makes no sound) \u2014 watches two T-72s ~500 m east, 200 m apart, on the terrain (basic-desert is 600 m square): 'Idling Tank' at (550, 250), crewed, its engine idling (a crewed vehicle starts Idle), and 'Parked Tank' at (550, 450), authored HeatSource Off (parked, engine cold). Judge: he remembers ONE contact \u2014 the idling tank (0.2 + 0.4 x 0.8 = 0.52); the cold hull (its base 0.2) never becomes a second contact. Fail: no contact, or a second one. Red-proof: author the parked tank Idle and the second contact appears.",
+    "world": {
+      "ScenarioClock": {
+        "Start": "2025-06-22T00:30:00+02:00"
+      },
+      "WeatherConditions": {
+        "GroundTemperatureC": 15,
+        "LapseRateKPerKm": 6.5,
+        "SeaLevelPressureHpa": 1013.25,
+        "RelativeHumidity": 0.6,
+        "WindCount": 0,
+        "CloudCount": 1,
+        "VisibilityM": 25000,
+        "FogTopM": 0,
+        "FogVisibilityM": 200,
+        "Precipitation": 0,
+        "PrecipitationMmPerHour": 0,
+        "FeatherM": 0,
+        "WindAltitudeM": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindFromDeg": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindSpeedMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "WindGustMps": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "CloudBaseM": [
+          1500,
+          0,
+          0,
+          0
+        ],
+        "CloudThicknessM": [
+          600,
+          0,
+          0,
+          0
+        ],
+        "CloudOctas": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "CloudKind": [
+          1,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "entities": {
+    "c4658000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          50,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 215
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c4658000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          550,
+          250,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Idling Tank",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c4658000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          550,
+          450,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 2500,
+        "Max": 2500
+      },
+      "TkbIdentity": {
+        "TkbType": 103
+      },
+      "EntityInfo": {
+        "Name": "Parked Tank",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "HeatSource": {
+        "State": "Off",
+        "Since": 0,
+        "MotionSince": 0
+      }
+    }
+  }
+}

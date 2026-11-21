@@ -34,7 +34,10 @@ namespace Fdp.Toolkit.Squad.Command
         private readonly bool _gateOnAuthority;
         private EntityQuery? _emitters, _commanders;
         private EntityRepository? _queriesFor;
+        [Fdp.Core.WorldDerived("a resend throttle per emitter (reset at the world epoch); emptied, one report repeats")]
         private readonly Dictionary<Entity, SimInstant> _sent = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("the top commanders of this run: cleared and refilled from this frame's world")]
         private readonly List<Entity> _tops = new();
 
         public EmitterLocatingSystem(bool gateOnAuthority = false) => _gateOnAuthority = gateOnAuthority;
@@ -54,6 +57,7 @@ namespace Fdp.Toolkit.Squad.Command
                 _queriesFor = repo;
                 _sent.Clear();
             }
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(repo, ref _worldEpoch)) _sent.Clear();   // ⭐ R-4297 ② (CE-1980) — a world replacement (a reload reuses the handles, a restore) forgets who was told about each emitter
             SimInstant now = repo.HasSingleton<GlobalTime>() ? (SimInstant)repo.GetSingleton<GlobalTime>().TotalTime : SimInstant.Zero;
             bool topsFound = false;
             foreach (var e in _emitters!)

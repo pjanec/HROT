@@ -216,7 +216,7 @@ namespace Hrot.Common.Orders
                         $"Entity {unit} carries a player of another side (station {holder}); it is not for this station.");
             }
             if (mode != PossessionMode.Riding) ReleaseOtherFps(entity);
-            var station = (Fdp.Core.NodeId)(StationFor(entity));
+            var station = (Fdp.Core.StationId)(StationFor(entity));
             // ⭐ edit framework F4 — journalled: the brain's owner answers accepted, or refused with why (the race of two stations)
             Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Interact(entity,
                 id => Publish(new PossessRequestEvent { Unit = entity, Mode = mode, StationNodeId = station, RequestId = id }),
@@ -240,7 +240,7 @@ namespace Hrot.Common.Orders
         public OrderResult Unpossess(int unit)
         {
             if (!TryHeld(unit, out var entity, out var refused)) return refused;
-            var station = (Fdp.Core.NodeId)(StationFor(entity));
+            var station = (Fdp.Core.StationId)(StationFor(entity));
             Fdp.Toolkit.Replication.Edits.Edits.Submit(_world, Fdp.Toolkit.Replication.Edits.EditOp.Interact(entity,
                 id => Publish(new ReleasePossessionEvent { Unit = entity, StationNodeId = station, RequestId = id }), "Release control"));   // ⭐ F4
             return new OrderResult(OrderRefusal.None, "released", string.Empty, string.Empty);
@@ -252,7 +252,7 @@ namespace Hrot.Common.Orders
         {
             if (!TryHeld(unit, out var entity, out var refused)) return refused;
             frame.Unit = entity;
-            frame.StationNodeId = (Fdp.Core.NodeId)(StationFor(entity));
+            frame.StationNodeId = (Fdp.Core.StationId)(StationFor(entity));
             frame.IsRemote = false;
             Publish(frame);
             return new OrderResult(OrderRefusal.None, "control", string.Empty, string.Empty);

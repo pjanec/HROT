@@ -1,0 +1,79 @@
+{
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: bt-range (CE-5029 / CE-5030, base edits BE-3; docs/DESIGN_Terrain_Base_Edits.md §7): the scenario carries ONE building edit — 'Make enterable' on 'Solid Block' (a baked SOLID block, x 100..120, y 150..170, no interior) — and 'Walker' (Friend rifleman at (110,140), south of it) is ordered to its centre (110,160). Judge: the generator's house stands on the block's footprint with at least one door, so he walks in through a door and reaches within 1.5 m of (110,160) and is still inside the block when the run ends (he fidgets about the room once there). With the block still solid there is no way in, so arriving inside is what proves the conversion."
+  },
+  "entities": {
+    "5e020001-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "EntityInfo": {
+        "Name": "Make Solid Block enterable",
+        "ForceId": "Neutral"
+      },
+      "TerrainFeature": {
+        "Kind": 16,
+        "Template": "enterable",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 0,
+        "Target": "Solid Block"
+      },
+      "SimTransform": {
+        "Position": [
+          110,
+          160,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    "5e020002-0000-4000-8000-000000000002": {
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Walker",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "SimTransform": {
+        "Position": [
+          110,
+          140,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Behavior": {
+        "Name": "MoveToLocation",
+        "Params": {
+          "target": [
+            110,
+            160,
+            0
+          ],
+          "speed": 1.5,
+          "arrivalRadius": 1
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

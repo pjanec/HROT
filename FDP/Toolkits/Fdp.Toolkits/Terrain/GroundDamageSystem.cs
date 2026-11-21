@@ -80,15 +80,19 @@ namespace Fdp.Toolkit.Terrain
         public const float OnGroundMetres = 0.5f;
 
         private CraterTable? _last;
+        [Fdp.Core.FrameScratch("craters before the pass: cleared at 103 and refilled each regrounding run")]
         private readonly HashSet<Crater> _before = new();
+        [Fdp.Core.FrameScratch("newly added craters: cleared at 103 and refilled each regrounding run")]
         private readonly List<Crater> _added = new();
         private EntityQuery? _query;
         private EntityRepository? _queryRepo;
 
         /// <summary>Entities moved (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of regrounded entities")]
         public long Regrounded { get; private set; }
 
         /// <summary>⭐ V-12 — owned vehicles left in a new crater's bowl, their <c>CanMove</c> stripped (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of stranded entities")]
         public long Stranded { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

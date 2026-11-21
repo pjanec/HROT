@@ -64,11 +64,22 @@ namespace Fdp.Toolkit.Terrain
     /// singleton tables with the live world (<c>EntityRepository.SyncSingletonById</c>), so a singleton swap reaches every snapshot
     /// too. Per-entity components are the one thing a snapshot really copies.</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("door table recomputed from door entities each call")]
     public sealed class DoorStates
     {
         private readonly byte[] _states;
 
-        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null, FelledTrees? trees = null, PlaceKnowledgeTable? knowledge = null) { _states = states; Damage = damage; Craters = craters; Trees = trees; Knowledge = knowledge ?? PlaceKnowledgeTable.Empty; }
+        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null, FelledTrees? trees = null, PlaceKnowledgeTable? knowledge = null, WindowTable? windows = null, UnderFireTable? underFire = null, UnderFireSight? underFireSight = null) { _states = states; Damage = damage; Craters = craters; Trees = trees; Knowledge = knowledge ?? PlaceKnowledgeTable.Empty; Windows = windows; UnderFire = underFire ?? UnderFireTable.Empty; UnderFireSight = underFireSight ?? UnderFireSight.Empty; }
+
+        /// <summary>⭐ CE-2468 UF-4 / UF-5 (K5) — the ground known enemies cover and the route-cost maps, as the serial pass last published them for this view's world.</summary>
+        public UnderFireSight UnderFireSight { get; }
+
+        /// <summary>⭐ CE-2468 UF-4 (DESIGN_Minefields.md §9b.1 K11) — what every side knows of places under fire, as this view sees it (<see cref="UnderFireTable"/>): rides here like
+        /// the minefield knowledge, on its OWN cache; the same instance while nothing changed.</summary>
+        public UnderFireTable UnderFire { get; }
+
+        /// <summary>⭐ <c>CE-5033</c> GW-2 (D-7) — the damaged windows of this view (null = none hit): a BROKEN pane is skipped at query time, as a felled trunk.</summary>
+        public WindowTable? Windows { get; }
 
         /// <summary>⭐ <c>CE-4624</c> MS-T2 (KR-8) — what every side knows of every minefield, as this view sees it (<see cref="PlaceKnowledgeTable"/>): rides here like the craters, so
         /// every route / sight caller has it with no new parameter; the same instance while nothing changed.</summary>
@@ -124,8 +135,12 @@ namespace Fdp.Toolkit.Terrain
             var craters = CraterTable.Of(view);   // ⭐ CE-4591 (D-1) — the craters, the same way: their own stamp, the same instance while unchanged
             var trees = FelledTrees.Of(view);   // ⭐ CE-4603 (B-6) — the felled trunks, the same way
             var knowledge = PlaceKnowledgeTable.Of(view);   // ⭐ CE-4624 (KR-8) — the sides' minefield knowledge, the same way
-            if (!ReferenceEquals(r.Damage, damage) || !ReferenceEquals(r.Craters, craters) || !ReferenceEquals(r.Trees, trees) || !ReferenceEquals(r.Knowledge, knowledge))
-                r = t_last = new DoorStates(r._states, damage, craters, trees, knowledge);   // a new instance over the SAME door array
+            var windows = WindowTable.Of(view);   // ⭐ CE-5033 (GW-2) — the damaged window panes, the same way
+            var underFire = UnderFireTable.Of(view);   // ⭐ CE-2468 UF-4 (K11) — the places under fire, on their own cache
+            var underFireSight = UnderFireSight.Of(view);   // ⭐ CE-2468 UF-4 (K5) — the serial pass's published grids + cost maps
+            if (!ReferenceEquals(r.Damage, damage) || !ReferenceEquals(r.Craters, craters) || !ReferenceEquals(r.Trees, trees) || !ReferenceEquals(r.Knowledge, knowledge) || !ReferenceEquals(r.Windows, windows)
+                || !ReferenceEquals(r.UnderFire, underFire) || !ReferenceEquals(r.UnderFireSight, underFireSight))
+                r = t_last = new DoorStates(r._states, damage, craters, trees, knowledge, windows, underFire, underFireSight);   // a new instance over the SAME door array
             Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
             return r;
         }

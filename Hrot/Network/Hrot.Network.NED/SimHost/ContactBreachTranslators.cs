@@ -26,7 +26,9 @@ namespace Hrot.Network.NED.SimHost
         private readonly IDdsWriter<ContactBreach> _writer;
         private readonly NetworkEntityMap _entityMap;
         private readonly NodeId _localNodeId;
+        [Fdp.Core.ProtocolCache("last published contact-breach kind and time per id: repeat suppression of what was sent")]
         private readonly Dictionary<int, (byte Kind, double At)> _last = new();
+        private int _worldEpoch;
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<ContactBreach>();
         public long DescriptorOrdinal => (long)EDescriptorType.dtContactBreach;
@@ -48,6 +50,7 @@ namespace Hrot.Network.NED.SimHost
 
         public void ScanAndPublish(ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _last.Clear();   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the last contact sent per entity
             if (view is EntityRepository repo && !repo.Bus.IsRegistered<ContactBreachEvent>()) return;
             double now = double.NaN;   // read only when a contact arrived — a steady frame allocates nothing (R-2084)
             foreach (ref readonly var e in view.ReadEvents<ContactBreachEvent>())

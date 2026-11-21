@@ -23,6 +23,7 @@ namespace Hrot.Common.Systems
         }
 
         // ⭐ CE-5017 — this frame's requests (reused: a frame with none allocates nothing — R-2084)
+        [Fdp.Core.FrameScratch("this frame action events list: cleared at 30 and filled from the bus")]
         private readonly System.Collections.Generic.List<GlobalActionRequestedEvent> _frame = new();
 
         public void Execute(ISimulationView view, float deltaTime)

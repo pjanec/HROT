@@ -111,6 +111,8 @@ namespace Hrot.Map.Common.Replication.Egress
                     EntityId = netId.Value,
                     Current  = current,
                     Max      = max,
+                    StateSince = health.StateSince,   // ⭐ CE-4661 — the time of the last injury-state change (a body's time of death)
+                    Destruction = (byte)health.Destruction,   // ⭐ CE-4670 (VA-S1) — how it was destroyed (the wire's own byte)
                 };
                 if (_instances.Unchanged(netId.Value, sample)) continue;
 

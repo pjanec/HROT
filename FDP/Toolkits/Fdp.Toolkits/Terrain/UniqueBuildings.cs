@@ -22,5 +22,12 @@ namespace Fdp.Toolkit.Terrain
     {
         /// <summary>Up to <see cref="UniqueRequest.Count"/> enterable houses along the streets, in block-local metres, at least their setback off every street.</summary>
         IReadOnlyList<UniqueBuilding> Make(UniqueRequest request);
+
+        /// <summary>
+        /// ⭐ <c>CE-5029</c> BE-3 (📄 docs/DESIGN_Terrain_Base_Edits.md D-6, D-7) — ONE enterable house on a given footprint (WORLD metres, any winding): storeys from
+        /// <paramref name="height"/> above <paramref name="baseZ"/>, windows on every wall, ≥ 1 door (the importer's rule) — at <paramref name="door"/> when given (the editor's
+        /// "add door"). Null when nothing enterable fits (no stair). <see cref="UniqueBuilding.Origin"/> is WORLD metres here. Default: none (a host without a generator).
+        /// </summary>
+        UniqueBuilding? FromFootprint(IReadOnlyList<Vector2> footprint, float baseZ, float height, Vector2? door) => null;
     }
 }

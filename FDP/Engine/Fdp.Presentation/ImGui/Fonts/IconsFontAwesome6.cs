@@ -25,6 +25,9 @@ public static class IconsFontAwesome6
     public const ushort IconMax = 0xF8FF;
 
 
+    // Tools
+    public const string ArrowPointer        = "\uf245"; // ⭐ CE-1977 — the Select (no tool) tile
+
     // File / document
     public const string FloppyDisk          = "\uf0c7"; // save
     public const string FolderOpen          = "\uf07c"; // open

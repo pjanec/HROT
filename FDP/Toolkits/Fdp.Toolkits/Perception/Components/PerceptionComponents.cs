@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// Attach to any entity that should react to audio stimuli or perform visual scans.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(251)]
+    [ComponentId(GlobalComponentIds.PerceptionReceptor)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct PerceptionReceptor
     {
@@ -141,6 +141,18 @@ namespace Fdp.Toolkit.Perception.Components
         {
             fixed (byte* c = mem.SourceClass) return IsAnonymous(in mem, slot) && c[slot] == BurstClass;
         }
+
+        /// <summary>⭐ <c>CE-4666</c> (D-8, user-approved; Sensing §8.6c) — the slot is a heard contact whose every hearing came FROM an opening or a
+        /// corner on its way (AQ106 F / K): its point is where the sound CAME IN, not where its source is. Like a burst (<see cref="IsBurst"/>), it says
+        /// where to LOOK, never where an enemy IS: the squad's SPOT leaves it out of an element's position; the man's own reactions keep it.</summary>
+        public static bool IsHeardThroughAnOpening(in TargetMemory mem, int slot)
+        {
+            fixed (byte* a = mem.Anonymous) return (uint)slot < (uint)mem.Count && a[slot] == HeardThroughAnOpening;
+        }
+
+        /// <summary>⭐ <c>CE-4666</c> — the <see cref="Anonymous"/> values: heard straight (1) / only through an opening or round a corner (2).
+        /// ⛔ Every "is it heard?" reader tests <c>!= 0</c>; only <see cref="IsHeardThroughAnOpening"/> tells the two apart.</summary>
+        public const byte HeardStraight = 1, HeardThroughAnOpening = 2;
 
         /// <summary>The class a burst carries — <c>Tkb.Domain.SoundSourceClass.Explosion</c>.</summary>
         public const byte BurstClass = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Explosion;
@@ -322,7 +334,7 @@ namespace Fdp.Toolkit.Perception.Components
         /// Returns the slot's id. ⛔ Never an identity: the source is not known here, only "something about here".
         /// </summary>
         public static long HearContact(ref TargetMemory mem, float x, float y, float z, float radius, byte sourceClass,
-                                       float scoreBoost, uint tick)
+                                       float scoreBoost, uint tick, byte via = 0)
         {
             radius = radius > 0f ? radius : 1f;
             bool burst = sourceClass == BurstClass;   // ⭐ R-2071 E-1 — a burst refreshes no known contact and fuses only with a burst
@@ -363,6 +375,7 @@ namespace Fdp.Toolkit.Perception.Components
                 mem.Freshness[best] += scoreBoost;
                 mem.LastSeenTick[best]  = tick;
                 if (mem.SourceClass[best] == 0) mem.SourceClass[best] = sourceClass;
+                if (via == 0) mem.Anonymous[best] = HeardStraight;   // ⭐ CE-4666 (D-8) — one straight hearing makes the fused point a source estimate
                 long fused = mem.EntityIds[best];
                 Sort(ref mem);
                 return fused;
@@ -373,7 +386,7 @@ namespace Fdp.Toolkit.Perception.Components
             for (int i = 0; i < mem.Count; i++)
             {
                 if (mem.EntityIds[i] != id) continue;
-                mem.Anonymous[i]   = 1;
+                mem.Anonymous[i]   = via != 0 ? HeardThroughAnOpening : HeardStraight;   // ⭐ CE-4666 (D-8)
                 mem.Radius[i]      = radius;
                 mem.SourceClass[i] = sourceClass;
                 break;
@@ -474,7 +487,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// No cognitive data (no threat scores, no decay curves).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(PerceptionApplicationComponentIds.SensorContactList)]
+    [ComponentId(GlobalComponentIds.SensorContactList)]
     [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct SensorContactList
     {
@@ -540,7 +553,7 @@ namespace Fdp.Toolkit.Perception.Components
     /// Written by <c>SensorTrackStateIngressTranslator</c>; read by <c>ThreatEvaluationSystem</c>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(PerceptionApplicationComponentIds.ActiveSensorTracks)]
+    [ComponentId(GlobalComponentIds.ActiveSensorTracks)]
     [DataPolicy(DataPolicy.NoScenario)]
     public unsafe struct ActiveSensorTracks
     {

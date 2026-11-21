@@ -121,6 +121,9 @@ namespace Hrot.AI.Behaviors.Brains
         public byte SetBack;
         /// <summary>⭐ D-2g (DA-5, DA-22) — 1 = a ROOF post: he hides prone behind the parapet and comes up crouched to fire over it.</summary>
         public byte Roof;
+        /// <summary>⭐ D-13 (CE-4666, the prone half) — 1 = a DISPERSAL spot: no cover in reach, so he lies PRONE on it and fights from
+        /// there (doctrine: a man in the open goes prone, 5 m from the next).</summary>
+        public byte Open;
         /// <summary>⭐ D-2l (DA-78, R-2059) — 1 = a FRAME post: the post is a frame point of its window; he leans out from it toward
         /// <see cref="Opening"/>, crossing to the other frame point (<see cref="FrameA"/> / <see cref="FrameB"/>) when this side is used up.</summary>
         public byte Frame;
@@ -553,7 +556,7 @@ namespace Hrot.AI.Behaviors.Brains
                 Post = post.Set == 0 ? default : new CombatPosturePostJsonDto   // ⭐ CE-2275 D-2a (PC-14) — he fights from his post
                 {
                     Point = at, Alternate = post.Alternate, HasAlternate = post.HasAlternate != 0, Radius = post.Radius, Window = post.Window != 0,
-                    SetBack = post.SetBack != 0, Roof = post.Roof != 0,
+                    SetBack = post.SetBack != 0, Roof = post.Roof != 0, Open = post.Open != 0,   // ⭐ D-13
                     Frame = post.Frame != 0, FrameA = post.FrameA, FrameB = post.FrameB, Opening = post.Opening,   // ⭐ D-2l
                 },
             }, Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed));

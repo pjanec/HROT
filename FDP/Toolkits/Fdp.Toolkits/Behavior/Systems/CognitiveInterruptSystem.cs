@@ -59,6 +59,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
 
         // Reused list for deferred structural adds (cold path: once per entity lifetime).
+        [Fdp.Core.FrameScratch("scratch — filled and emptied within one run")]
         private readonly List<(Entity entity, ActorCapabilities caps)> _toInit =
             new List<(Entity, ActorCapabilities)>();
 

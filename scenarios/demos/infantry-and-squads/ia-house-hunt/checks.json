@@ -28,12 +28,12 @@
       "hit": "Defender"
     },
     {
-      "name": "the fight is decided: the defender is down at the end",
+      "name": "the fight is decided: the defender is down at the end (incapacitated or dead: health under 30 %)",
       "on": "field",
       "who": "Defender",
       "path": "Health.Current",
-      "op": "<=",
-      "value": 0,
+      "op": "<",
+      "value": 30,
       "atEnd": true
     }
   ]

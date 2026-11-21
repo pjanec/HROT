@@ -58,7 +58,7 @@ namespace Fdp.Toolkit.Behavior.Components
     /// Populated by <c>MissionControlExecutionSystem</c> on receipt of a mission intent.
     /// Replaces the DDS-aware <c>EntityMissionHolder</c> and <c>IgMissionHolder</c> components.
     /// </summary>
-    [ComponentId(BehaviorApplicationComponentIds.ActiveMissionPlan)]
+    [ComponentId(GlobalComponentIds.ActiveMissionPlan)]
     [DataPolicy(DataPolicy.NoPreview)]   // ⭐ CE-3299 D7 — declared: world state, a mutable class: recorded and saved, kept out of the background snapshot (the convention it got by default)
     public sealed record ActiveMissionPlan   // ⭐ CE-4046 — a record: immutable, changed only by a new value + Set
     {

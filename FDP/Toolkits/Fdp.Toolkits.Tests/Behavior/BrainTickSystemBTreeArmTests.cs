@@ -59,6 +59,46 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-4668</c> (📐 live street fight: two men at Health 0 showed <c>doing = Break</c> for minutes) — a DEAD unit runs nothing:
+        /// the task he was running when he died is ended (the slot cleared, never ticked again) while a live twin goes on ticking.
+        /// 🔴 Red-proof: without <c>RetireTheDead</c> the dead man's tree ticks and his slot keeps the task.
+        /// </summary>
+        [Fact]
+        public void CE4668_ADeadUnitsTask_IsEnded_AndNeverTicked_ALiveOneGoesOn()
+        {
+            var world    = TestWorldFactory.Create();
+            var registry = new BehaviorRegistry();
+            int ticks = 0;
+            var actionReg = new ActionRegistry<byte, BTreeContext>();
+            actionReg.Register("Run", (ref byte _, ref BehaviorTreeState _, ref BTreeContext _, int _) => { ticks++; return NodeStatus.Running; });
+            const int id = 9011;
+            registry.Register(id, "Run", new BehaviorDefinition
+            {
+                Name = "Run", BrainTier = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(BuildSingleActionBlob("Run"), actionReg),
+            });
+            var sys = new BrainTickSystem(registry);
+            Entity Unit(float hp)
+            {
+                var u = world.CreateEntity();
+                world.AddComponent(u, new BehaviorState { ActiveBehaviorHash = id, BrainTier = BehaviorConstants.BrainTierBTree, InstanceId = 1, Origin = BehaviorOrigin.Reaction });
+                world.AddComponent(u, new Fdp.Toolkit.Combat.Components.Health { Current = hp, Max = 100f });
+                RootStateAccess.EnsureRootState(world, u);
+                return u;
+            }
+            var dead = Unit(0f);
+            sys.Execute(world, 0.016f);
+            Assert.Equal(BehaviorIds.None, world.GetComponent<BehaviorState>(dead).ActiveBehaviorHash);
+            Assert.Equal(0, ticks);
+
+            var alive = Unit(100f);
+            sys.Execute(world, 0.016f);
+            Assert.Equal(id, world.GetComponent<BehaviorState>(alive).ActiveBehaviorHash);
+            Assert.Equal(1, ticks);
+            world.Dispose();
+        }
+
         // ── Test 2 ───────────────────────────────────────────────────────────────
 
         [Fact]

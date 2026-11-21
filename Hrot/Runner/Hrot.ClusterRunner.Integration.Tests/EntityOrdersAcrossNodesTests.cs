@@ -353,7 +353,7 @@ public sealed class EntityOrdersAcrossNodesTests : IDisposable
         if (!player.Bus.IsRegistered<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>()) player.Bus.Register<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
         player.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
         {
-            Unit = onPlayer, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, StationNodeId = (Fdp.Core.NodeId)(secondStation),
+            Unit = onPlayer, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, StationNodeId = (Fdp.Core.StationId)(secondStation),
         });
         var start = sim.GetComponentRO<SimTransform>(onMuscle).Position;
         uint seq = 1;

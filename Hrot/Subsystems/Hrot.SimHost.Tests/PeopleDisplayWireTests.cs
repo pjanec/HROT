@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.Toolkit.Civilians;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;

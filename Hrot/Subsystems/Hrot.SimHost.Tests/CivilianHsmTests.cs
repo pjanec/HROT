@@ -98,7 +98,7 @@ namespace Hrot.SimHost.Tests
             }
 
             public CivilianMode Mode => CivilianMind.ModeOf(Repo, Unit);
-            public void Fear(float fear) => Repo.GetComponentRW<CivilianState>(Unit).Fear = fear;
+            public void Fear(float fear) => Repo.GetComponentRW<Fdp.Toolkit.Creatures.Fear>(Unit).Value = fear;   // ⭐ CE-4628 — his fear is the shared Fear
             public ref readonly LocomotionChannel Loco => ref Repo.GetComponentRO<LocomotionChannel>(Unit);
             public StanceId Stance => Repo.GetComponentRO<StanceIntent>(Unit).TargetStance;
             public void Health(float current) => Repo.GetComponentRW<Health>(Unit).Current = current;
@@ -118,8 +118,8 @@ namespace Hrot.SimHost.Tests
         /// <summary>He HEARD fighting from <paramref name="from"/> just now (what CivilianFearSystem writes on a shot or a blast).</summary>
         private static void Heard(World w, Vector3 from)
         {
-            ref var mind = ref w.Repo.GetComponentRW<CivilianState>(w.Unit);
-            mind.FrightFrom = from; mind.HasFrightFrom = 1; mind.HeardAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime;
+            ref var fear = ref w.Repo.GetComponentRW<Fdp.Toolkit.Creatures.Fear>(w.Unit);
+            fear.FrightFrom = from; fear.HasFrightFrom = 1; fear.HeardAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime;
         }
 
         /// <summary>
@@ -264,8 +264,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal("Routine", w.State());
             Assert.Equal(CivilianMode.Routine, w.Mode);
             Assert.Equal(NavigationConstants.ActionIdMoveTo, w.Loco.ActiveAction);
-            ref readonly var mind = ref w.Repo.GetComponentRO<CivilianState>(w.Unit);
-            Assert.Equal(new Vector3(100, 200, 0), mind.Home);
+            Assert.Equal(new Vector3(100, 200, 0), (Vector3)w.Repo.GetComponentRO<Fdp.Toolkit.Creatures.Home>(w.Unit).Centre);   // ⭐ CE-4628 — his home is the shared Home
         }
 
         [Fact]
@@ -491,7 +490,7 @@ namespace Hrot.SimHost.Tests
         public unsafe void CE2240_AProtester_GoesToTheRingAndShowsIt_OnlyPanicEndsIt_AndHisArmsComeDown()
         {
             var w = new World();
-            Assert.True(w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Gesture>(), "the gesture needs its component on this node");
+            Assert.True(w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>(), "the gesture needs its component on this node");
             w.Start("{\"Protest\":true,\"ProtestAt\":[130,200,0]}");
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.Equal("Protest", w.State());
@@ -540,10 +539,10 @@ namespace Hrot.SimHost.Tests
             w.Repo.GetComponentRW<CivilianState>(w.Unit).Anger = 1f;
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.Equal("Riot", w.State());
-            w.Repo.GetComponentRW<CivilianState>(w.Unit).Fear = 0.9f;
+            w.Repo.GetComponentRW<Fdp.Toolkit.Creatures.Fear>(w.Unit).Value = 0.9f;
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.Equal("Riot", w.State());                                  // 0.9 < his anger 1: he keeps rioting
-            w.Repo.GetComponentRW<CivilianState>(w.Unit).Fear = 1f;
+            w.Repo.GetComponentRW<Fdp.Toolkit.Creatures.Fear>(w.Unit).Value = 1f;
             for (int i = 0; i < 4; i++) w.Tick();
             Assert.Equal("Panic", w.State());
 
@@ -553,7 +552,7 @@ namespace Hrot.SimHost.Tests
             v.Repo.GetComponentRW<CivilianState>(v.Unit).Anger = 0.7f;
             for (int i = 0; i < 4; i++) v.Tick();
             Assert.Equal("Riot", v.State());
-            v.Repo.GetComponentRW<CivilianState>(v.Unit).Fear = 0.7f;
+            v.Repo.GetComponentRW<Fdp.Toolkit.Creatures.Fear>(v.Unit).Value = 0.7f;
             for (int i = 0; i < 4; i++) v.Tick();
             Assert.Equal("Panic", v.State());
         }

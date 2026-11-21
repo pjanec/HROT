@@ -76,6 +76,51 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ CE-4656 — a baked PARKED CAR (a platform type, DIS kind 1: the entity layer draws it as a car) is collision / navmesh / sight only: its prism says
+        /// <c>DrawnByEntity</c> and the 3-D terrain mesh draws no box there (the grey <c>car-body</c> block over the car, user observation); a sandbag wall (a
+        /// cultural feature, no kit of its own) keeps its box. Both still block in the world. 🔴 Red-proof: <c>DrawsItsOwnBody</c> ⇒ false ⇒ the car's box is drawn (red).
+        /// </summary>
+        [Fact]
+        public void CE4656_ABakedParkedCar_IsNotDrawnAsATerrainBox_ASandbagWallStillIs()
+        {
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterObstacles(db);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            Entity Typed(float x, long type, string material)
+            {
+                var e = Obstacle(x, material);
+                _world.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)type });
+                _world.SetLifecycleState(e, EntityLifecycle.Active);
+                return e;
+            }
+            var car = Typed(0f, Hrot.Map.Common.TkbEntityTypes.Obstacle_Car, "car-body");
+            var bags = Typed(20f, Hrot.Map.Common.TkbEntityTypes.Obstacle_SandbagWall, "sandbags");
+
+            var prisms = new System.Collections.Generic.List<TerrainPrism>();
+            StaticObstacleBakeSystem.CollectPrisms(_world, prisms);
+            Assert.Equal(2, prisms.Count);
+            var carPrism = prisms.Single(p => p.Label == TerrainObstacles.LabelPrefix + car.Index);
+            var bagPrism = prisms.Single(p => p.Label == TerrainObstacles.LabelPrefix + bags.Index);
+            Assert.True(carPrism.DrawnByEntity);
+            Assert.False(bagPrism.DrawnByEntity);
+
+            var flat = TerrainWorldParser.Parse("{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-50,-50,50,50],\"groundZ\":0},\"features\":[]}", "ce4656");
+            var baked = TerrainObstacles.With(flat, prisms);
+            Assert.Equal(2, baked.Prisms.Count);                                   // both still block (collision / navmesh / sight)
+            // ⭐ CE-8309 — what is DRAWN is TerrainWorldMesh.BuildDrawn (the render geometry); the solid soup (Build — the navmesh's input) keeps the car
+            TerrainWorldMesh.BuildDrawn(baked, out var verts, out var idx, out _);
+            bool AnyAbove(Vector3[] vs, int[] ix, float x0, float x1)
+            {
+                for (int i = 0; i < ix.Length; i++) { var v = vs[ix[i]]; if (v.Z > 0.5f && v.X > x0 && v.X < x1) return true; }
+                return false;
+            }
+            Assert.False(AnyAbove(verts, idx, -3f, 3f), "a terrain box drawn over the parked car");
+            Assert.True(AnyAbove(verts, idx, 17f, 23f), "the sandbag wall's box is gone");
+            TerrainWorldMesh.Build(baked, out var solidVerts, out var solidIdx, cellSize: 5f);
+            Assert.True(AnyAbove(solidVerts, solidIdx, -3f, 3f), "CE-8309: the parked car left the SOLID soup (the navmesh would route through it)");
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <c>P7a_B1</c> — THE GATE: nothing is acked before the quiet period, nor while the bake runs; the ack comes only after the
         /// bake has committed — the node's world then holds the obstacle as a prism of its material, and the cover database has points
         /// round it. 🔴 Red-proof: ack the batch at bake START (move the Ack loop above <c>CommitObstacles</c>) and the "nothing acked

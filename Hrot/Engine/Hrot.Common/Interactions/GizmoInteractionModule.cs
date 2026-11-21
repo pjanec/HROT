@@ -33,6 +33,7 @@ namespace Hrot.Common.Interactions
 
         private readonly FdpEventBus _interactionBus;
         private readonly IEcsModuleSystem? _contextIngress;
+        [Fdp.Core.NotState("interaction systems injected in ctor")]
         private readonly IEcsModuleSystem[] _interactionSystems;
         private readonly CycloneNetworkIngressSystem? _gizmoIngress;
         private readonly CycloneEgressSystem? _gizmoEgress;
@@ -76,6 +77,7 @@ namespace Hrot.Common.Interactions
 
         private IEcsModuleSystem? _gizmoIngressRun;
         private IEcsModuleSystem? _contextIngressRun;
+        [Fdp.Core.NotState("manual-system wrappers built once in RegisterSystems")]
         private IEcsModuleSystem[]? _interactionRuns;
         private IEcsModuleSystem? _gizmoEgressRun;
 

@@ -255,7 +255,7 @@ namespace Fdp.Toolkit.Combat.Executors
 
             // ⭐ CE-321 — hold fire while a friendly is on the line (LineOfFire): the action keeps running and no round is spent,
             //   so a unit that moves clear (or a friendly that moves away) fires again.
-            if (!bomb && LineOfFire.BlockedByFriendly(world, platform, p.Target))
+            if (!bomb && LineOfFire.BlockedByFriendly(world, platform, p.Target, HitModel.Sigma(world, platform, mountDto, HitModel.Now(world))))   // ⭐ CE-8308 — and its spread
             {
                 channel.Status = NodeStatus.Running;
                 Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target);
@@ -263,7 +263,9 @@ namespace Fdp.Toolkit.Combat.Executors
             }
             // ⭐ AW-20 (R-2026; DESIGN_Civilians_And_Crowd_Control §5h) — nor while a NEUTRAL person is on the line or inside the spread
             //   at his range: held the same way, so the round leaves the moment he is clear
-            if (!bomb && LineOfFire.BlockedByNeutral(world, platform, p.Target, HitModel.Sigma(world, platform, mountDto, HitModel.Now(world))))
+            //   ⭐ CE-3486 (flame F-9, Protocol III) — a flamethrower: nor while one is anywhere in the FLAME it would throw (its whole reach and cone)
+            if (!bomb && (LineOfFire.BlockedByNeutral(world, platform, p.Target, HitModel.Sigma(world, platform, mountDto, HitModel.Now(world)))
+                          || LineOfFire.NeutralInFlame(world, platform, platformMount, mountDto, loadedAmmo, p.Target)))
             {
                 channel.Status = NodeStatus.Running;
                 Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target);
@@ -458,6 +460,8 @@ namespace Fdp.Toolkit.Combat.Executors
             // when the memory knows the stance he was SEEN in, the round itself names that body (BodyStance) and the MUSCLE aims it (its
             // chest, or the band that showed over a cover that stops a round). ⛔ Before: always the spot + 0.5 m, blind to the cover.
             var point = feet with { Z = feet.Z + BlindAimHeightMetres };
+            // ⭐⭐ CE-8315 — an UNSEEN spot inside a building his line cannot reach: through the nearest opening of it that he can (AimPoint.BlindAt)
+            if (seenStance == 0) point = AimPoint.BlindAt(world, Fdp.Toolkit.World.WorldQuery.Of(world), ShotOrigin.Eye(world, shooter, out _), feet, BlindAimHeightMetres);
             if (!Magazine.Ready(weapon))
             {
                 Magazine.StartIfEmpty(ref weapon);
@@ -469,8 +473,10 @@ namespace Fdp.Toolkit.Combat.Executors
             //   (aimed at the remembered POINT, so the gait turns him to where the round goes, not to where the hidden man really is)
             if (BodyAim.HoldsFire(world, entity, point)) { SayAt(world, entity, ActionReason.Turning, point); return; }
             if (BodyAim.OutsideFixedCone(world, entity, mountDto, point)) { SayAt(world, entity, ActionReason.OutOfArc, point); return; }   // ⭐ Air Ops 6a (AW-1)
-            if (LineOfFire.BlockedByFriendly(world, shooter, point)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }
-            if (LineOfFire.BlockedByNeutral(world, shooter, point, HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world))))
+            float blindSigma = HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world));
+            if (LineOfFire.BlockedByFriendly(world, shooter, point, blindSigma)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }   // ⭐ CE-8308
+            if (LineOfFire.BlockedByNeutral(world, shooter, point, blindSigma)
+                || LineOfFire.NeutralInFlame(world, shooter, mountIndex, mountDto, loadedAmmo, point))   // ⭐ CE-3486 (flame F-9) + CE-3490 BA-S1 (the mount passed)
             { Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target); return; }   // ⭐ AW-20
             if (ShotLedger.Held(in weapon, out var refused)) { Say(world, entity, HoldReasonOf(refused), p.Target); return; }   // ⭐ CE-2218 → Q94 A-4: the muscle's refusal
             if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, entity, point)) { SayAt(world, entity, ActionReason.HoldNoFireArea, point); return; }   // ⭐ CE-2282
@@ -719,6 +725,8 @@ namespace Fdp.Toolkit.Combat.Executors
             }
             // ⭐ CE-2239 part 1 (CV-8, §5j FL-2/FL-3) — the unit's FORCE LEVEL: no round above it, unless THIS target is a self-defence threat
             if (!ForceLevels.Permits(world, unit, target, ammo, mount)) return ActionReason.HoldForceLevel;
+            // ⭐ CE-3486 (flame F-9) — and its ROE's incendiary rule: no flame where the scenario forbids one (self-defence does not lift it)
+            if (!ForceLevels.IncendiaryPermits(world, unit, ammo, mount)) return ActionReason.HoldIncendiary;
             // ⭐ CE-2187 (DESIGN_Missiles_And_Ammo §3c) — never a MANPADS at a truck, an ATGM at a flying helicopter: the choice values
             //   them at 0 (AmmoChoice.InDomain), and when nothing else is left the weapon holds rather than fire the wrong one
             if (!AmmoChoice.InDomain(world, target, ammo)) return ActionReason.WrongDomain;
@@ -733,6 +741,10 @@ namespace Fdp.Toolkit.Combat.Executors
             //   bomb dropped now lands has reached the target, within 10 m across the track). The behaviour flies the run-in; the
             //   weapon brain releases — the same gate for a player who holds the trigger (R-261).
             if (mount?.Category == Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb && !ReleaseCue(world, unit, target)) return ActionReason.AwaitingRelease;
+            // ⭐ CE-3487 (flame FL-3 N-7, F-9) — a NAPALM bomb is never released with a neutral person inside the ellipse it would lay
+            if (!target.IsNull && world.IsAlive(target) && world.HasComponent<SimTransform>(target)
+                && LineOfFire.NeutralInNapalm(world, unit, mount, ammo, world.GetComponentRO<SimTransform>(target).Position))
+                return ActionReason.HoldNeutralOnLine;
             // ⭐ Air Ops slice 6a (AW-1, §7a) — a FIXED gun / pod fires only inside its nose cone: the behaviour points the aircraft.
             if (BodyAim.TargetPoint(world, target, out var targetAt) && BodyAim.OutsideFixedCone(world, unit, mount, targetAt)) return ActionReason.OutOfArc;
             return null;
@@ -897,13 +909,57 @@ namespace Fdp.Toolkit.Combat.Executors
             {
                 int kept = aim.ChosenMount == 0 ? 0 : MountByIndex(world, unit, aim.ChosenMount, out mountEntity);
                 if (kept == aim.ChosenMount && world.HasComponent<WeaponState>(mountEntity) && world.GetComponentRO<WeaponState>(mountEntity).Ammo > 0)
-                    return kept;
+                    return SpareFriends(world, unit, target, kept, ref mountEntity);
             }
             int chosen = WeaponChoice.Choose(world, unit, target, out mountEntity);
             aim.ChosenMount = (byte)chosen;
             aim.HasChoice = level;
             engaged = target;
-            return chosen;
+            return SpareFriends(world, unit, target, chosen, ref mountEntity);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2452</c> (AQ102 I-4's own rule, L-2: <i>"no friendly — the thrower included — inside the warhead's lethal radius"</i>) —
+        /// the engagement's mount when its round BURSTS (a fragmenting warhead: an M67, an RPG) and a friend of <paramref name="unit"/> stands
+        /// inside its lethal radius (<see cref="GrenadeRules.LethalRadius"/>) of the target: a loaded mount whose round does not burst fires
+        /// instead (the rifle), else the chosen one stands. Judged per shot, the engagement's remembered choice unchanged — once the friends
+        /// are clear the grenade is his again. 📐 <c>rf-wall-hugger</c>: a defender's AIMED M67 at a man in the back doorway burst among his
+        /// own squad (164–202 at 3.4 m) — only the hidden-target throw carried the friend check. An explicit mount (an order) is not judged.
+        /// </summary>
+        internal static int SpareFriends(EntityRepository world, Entity unit, Entity target, int index, ref Entity mountEntity)
+        {
+            if (WeaponSystems.IsControlledIndex(index) || !BurstsNearFriend(world, unit, target, index)) return index;
+            int primary = WeaponSystems.PrimaryMount(world, unit, out var primaryEntity);
+            if (primary != index && Loaded(world, primaryEntity) && !Bursts(world, unit, primary))
+            {
+                mountEntity = primaryEntity;
+                return primary;
+            }
+            if (!world.IsComponentTypeRegistered<WeaponMountInfo>()) return index;
+            System.Span<Entity> mounts = stackalloc Entity[8];
+            int n = WeaponMountQuery.EnumerateMounts(world, unit, mounts);
+            for (int i = 0; i < n; i++)
+            {
+                if (!world.HasComponent<WeaponMountInfo>(mounts[i]) || !Loaded(world, mounts[i])) continue;
+                int other = world.GetComponentRO<WeaponMountInfo>(mounts[i]).MountIndex;
+                if (other == index || Bursts(world, unit, other)) continue;
+                mountEntity = mounts[i];
+                return other;
+            }
+            return index;
+        }
+
+        private static bool Loaded(EntityRepository world, Entity weapon)
+            => world.HasComponent<WeaponState>(weapon) && world.GetComponentRO<WeaponState>(weapon).Ammo > 0;
+
+        private static bool Bursts(EntityRepository world, Entity unit, int index)
+            => GrenadeRules.KindOf(CombatTkb.WarheadOf(world, CombatTkb.MountOf(world, unit, index))) == GrenadeKind.Fragmentation;
+
+        private static bool BurstsNearFriend(EntityRepository world, Entity unit, Entity target, int index)
+        {
+            var warhead = CombatTkb.WarheadOf(world, CombatTkb.MountOf(world, unit, index));
+            if (GrenadeRules.KindOf(warhead) != GrenadeKind.Fragmentation || !world.HasComponent<SimTransform>(target)) return false;
+            return HiddenTargetThrow.FriendHurtByBurst(world, unit, world.GetComponentRO<SimTransform>(target).Position, warhead!);
         }
 
         /// <summary>The target this action engages (channel state bytes 0–7).</summary>

@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.CarKinem.Modules
     /// behavior (MOD1 §3.2.5).
     /// </para>
     /// </summary>
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class GroundKinematicsModule : System.IDisposable
     {
         private readonly RoadNetworkBlob          _roadNetwork;

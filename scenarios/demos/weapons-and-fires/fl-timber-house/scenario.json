@@ -1,0 +1,248 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: a flame sets a TIMBER building alight, never a brick one (CE-3488 flame FL-4, F-3; docs/designs/weapons/DESIGN_Flame_Weapons.md \u00a77c). On basic-desert the scenario places a 'Timber House' (the timber-house template: timber walls, 8 x 6 m, its SW corner at (300, 300)) and a 'Brick Shed' (the shed template, brick, at (300, 330)). 'Hut Man' stands in the timber house's far corner, out of the jet's cone; 'Shed Man' stands inside the shed. Two FlamethrowerSoldiers (friend) 15 m west each flame a solid stretch of their building's west wall (FireAtPoint, mount 0, 60 fuel shots). Judge: both spend fuel; after 2 s of flame the timber house is set alight and the man inside burns (the building's fire, not the jet) and dies; the brick shed never burns and its man is never hurt."
+  },
+  "entities": {
+    "c3488000-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 1,
+        "Template": "timber-house",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Timber House",
+        "ForceId": "Neutral"
+      }
+    },
+    "c3488000-0000-4000-8000-000000000002": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 1,
+        "Template": "shed",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          300,
+          330,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Brick Shed",
+        "ForceId": "Neutral"
+      }
+    },
+    "c3488000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          306.5,
+          305,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Hut Man",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3488000-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          303,
+          332.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2008
+      },
+      "EntityInfo": {
+        "Name": "Shed Man",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "Behavior": {
+        "Name": "HoldStance",
+        "Params": {
+          "stance": "Standing"
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3488000-0000-4000-8000-000000000005": {
+      "SimTransform": {
+        "Position": [
+          285,
+          300.8,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2022
+      },
+      "EntityInfo": {
+        "Name": "Hut Flamer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Params": {
+          "x": 300,
+          "y": 300.8,
+          "z": 1.2,
+          "mount": 0,
+          "rounds": 60,
+          "cooldownSeconds": 0.1
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c3488000-0000-4000-8000-000000000006": {
+      "SimTransform": {
+        "Position": [
+          285,
+          331,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2022
+      },
+      "EntityInfo": {
+        "Name": "Shed Flamer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Params": {
+          "x": 300,
+          "y": 331,
+          "z": 1.2,
+          "mount": 0,
+          "rounds": 60,
+          "cooldownSeconds": 0.1
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

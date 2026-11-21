@@ -36,6 +36,38 @@ namespace CarKinem.Controllers
         /// <summary>Does this vehicle have a hull to trace (a length and a width; a person has none)?</summary>
         public static bool HasHull(in VehicleParams p) => p.Class != VehicleClass.Pedestrian && p.Class != VehicleClass.Quadruped && p.Length > 0f && p.Width > 0f;   // ⭐ CE-4623: an animal backs out of nothing
 
+        /// <summary>
+        /// ⭐ <c>CE-1958</c> — does this mover have a BODY to trace against walls — a length and a width: a vehicle's hull AND an animal's body
+        /// (a <see cref="VehicleClass.Quadruped"/>); a person has none. ⚠ Not <see cref="HasHull"/>: an animal is traced by its body but never backs
+        /// out (it has no reverse — it turns on the spot instead, <see cref="TurnInPlace"/>). 📌 The user: a pig stood half through its pen's wall
+        /// — the centre-only trace stopped its centre on the wall line, half the body each side.
+        /// </summary>
+        public static bool HasBody(in VehicleParams p) => p.Class != VehicleClass.Pedestrian && p.Length > 0f && p.Width > 0f;
+
+        /// <summary>An animal held at a wall turns on the spot only when its aim is further off its heading than this (rad).</summary>
+        public const float PivotMinRad = 0.17f;
+
+        /// <summary>
+        /// ⭐ <c>CE-1958</c> — an ANIMAL held at a wall TURNS ON THE SPOT toward <paramref name="aimDir"/> (by at most <paramref name="maxTurn"/>): its
+        /// forequarters swing round while it shuffles back by what the swinging corner would push forward (half its width × sin of the turn), so no
+        /// corner enters the wall. The pose is traced like any step (<see cref="StepBlocked"/>); false = no turn (aim ahead, or the turn is blocked).
+        /// 📌 Without it an animal (no reverse, turning only while it walks) facing a fence with its way on behind it stood there for good.
+        /// </summary>
+        public static bool TurnInPlace(IWorldQuery world, Vector2 pos, Vector2 fwd, float z, Vector2 aimDir, float length, float width, float maxTurn,
+                                       out Vector2 newPos, out Vector2 newFwd)
+        {
+            newPos = pos; newFwd = fwd;
+            float ang = MathF.Atan2(fwd.X * aimDir.Y - fwd.Y * aimDir.X, Vector2.Dot(fwd, aimDir));
+            if (MathF.Abs(ang) < PivotMinRad || maxTurn <= 0f) return false;
+            float turn = Math.Clamp(ang, -maxTurn, maxTurn);
+            float c = MathF.Cos(turn), s = MathF.Sin(turn);
+            var f = new Vector2(fwd.X * c - fwd.Y * s, fwd.X * s + fwd.Y * c);
+            var p = pos - fwd * (width * 0.5f * MathF.Abs(s) + 0.005f);
+            if (StepBlocked(world, pos, fwd, z, p, f, z, length, width)) return false;
+            newPos = p; newFwd = f;
+            return true;
+        }
+
         /// <summary>The smallest turning radius (m) — the bicycle model's, at full lock.</summary>
         public static float TurnRadius(in VehicleParams p)
             => p.WheelBase > 0f && p.MaxSteerAngle > 0f ? p.WheelBase / MathF.Sin(MathF.Min(p.MaxSteerAngle, 1.5f)) : 0f;
@@ -64,6 +96,13 @@ namespace CarKinem.Controllers
             {
                 float along = (i & 1) == 0 ? a : -a, side = (i & 2) == 0 ? b : -b;
                 if (Enters(world, Corner(from, fromFwd, along, side), fromZ, Corner(to, toFwd, along, side), toZ, out hit)) return true;
+            }
+            // ⭐ CE-3473 — and the NOSE and the TAIL (the front and rear edges' middles): an obstacle narrower than the hull, on its line (a drum, a post),
+            //   passes between the corners and met only the centre — 📌 measured: a car held at a 0.6 m drum with its nose 2.25 m inside it
+            for (int i = 0; i < 2; i++)
+            {
+                float along = i == 0 ? a : -a;
+                if (Enters(world, Corner(from, fromFwd, along, 0f), fromZ, Corner(to, toFwd, along, 0f), toZ, out hit)) return true;
             }
             return false;
         }
@@ -103,13 +142,48 @@ namespace CarKinem.Controllers
             //   blast meaning and saw only buildings, so every hull passed every garden wall); a building's breach never opens for a hull (V-5)
             world.Trace(new Vector3(a, ground + probe), new Vector3(b, groundB + probe), TracePurpose.Hull, crossings);
             foreach (var c in crossings)
-                if (c.ClosedBarrier && c.T > EnterEpsilon)
+                // ⭐⭐ CE-3471 — a point that starts ON a wall's face or inside it (its crossing at T ≤ EnterEpsilon) may move OUT, never DEEPER:
+                //   📐 measured — a pig held at farm-under-fire's pen wall restarts from rest each frame, so its steps shrink until one lands EXACTLY on
+                //   the face (a float32 coordinate near y = 88 moves in 7.6 µm steps, and the face 87.875 lies on that grid); the next step then
+                //   crossed at T = 0, was taken for "already inside", and the point walked through the 0.25 m wall and out of the far side.
+                if (c.ClosedBarrier && (c.T > EnterEpsilon || Deepens(world, in c, a, b)))
                 {
                     var n = new Vector2(c.EntryNormal.X, c.EntryNormal.Y);
                     hit = new BarrierHit(false, c.Piece, a + (b - a) * c.T, n.LengthSquared() > 1e-6f ? Vector2.Normalize(n) : Vector2.Normalize(a - b));
                     return true;
                 }
             return false;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3471</c> — does the step <paramref name="a"/> → <paramref name="b"/>, which starts on or inside the crossed piece, go DEEPER into it — the
+        /// middle of its part inside the piece lies farther from the piece's outline than <paramref name="a"/> does? A point can then never pass a wall's
+        /// middle, so it can only leave the way it came in. False for a door leaf or a world without prisms (the old rule: an inside start moves freely).
+        /// </summary>
+        private static bool Deepens(IWorldQuery world, in TraceCrossing c, Vector2 a, Vector2 b)
+        {
+            if (world is not Fdp.Toolkit.Terrain.TerrainWorldQuery q || c.Piece < 0 || c.Piece >= q.World.Prisms.Count) return false;
+            var footprint = q.World.Prisms[c.Piece].Footprint;
+            if (footprint.Length < 3) return false;
+            float step = Vector2.Distance(a, b);
+            if (step < 1e-9f) return false;
+            float tMid = MathF.Min(1f, c.T + 0.5f * MathF.Min(c.PathMetres / step, 1f));
+            return Depth(footprint, a + (b - a) * tMid) > Depth(footprint, a) + 1e-6f;
+        }
+
+        /// <summary>How far <paramref name="p"/> lies inside <paramref name="poly"/> — its distance to the nearest edge; 0 outside. Allocation-free.</summary>
+        private static float Depth(Vector2[] poly, Vector2 p)
+        {
+            if (!Fdp.Toolkit.Terrain.PolygonMath.Contains(poly, p)) return 0f;
+            float best = float.MaxValue;
+            for (int i = 0, j = poly.Length - 1; i < poly.Length; j = i++)
+            {
+                Vector2 e0 = poly[j], e = poly[i] - e0;
+                float len2 = e.LengthSquared();
+                float t = len2 > 1e-12f ? Math.Clamp(Vector2.Dot(p - e0, e) / len2, 0f, 1f) : 0f;
+                best = MathF.Min(best, Vector2.Distance(p, e0 + e * t));
+            }
+            return best;
         }
 
         /// <summary>

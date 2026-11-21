@@ -40,6 +40,10 @@ namespace Hrot.Map.Common
         /// <summary>⭐ CE-4624 (docs/designs/minefields/DESIGN_Minefields.md §3a) — the MINE-CLEARING vehicle: an engineering tank with a plough / flail and a line-charge mount.
         /// DIS 1.1.*.9.2 (beside the bulldozer's 1.1.*.9.1), class <c>"MineClearer"</c>. ⛔ A permanent wire value. (Registered in MS-T4.)</summary>
         public const long Engineer_MineClearer = 116;
+        /// <summary>⭐ CE-3486 (flame FL-2; docs/designs/weapons/DESIGN_Flame_Weapons.md F-11) — the FLAME TANK (the M67, the M48's flamethrower variant): a
+        /// turret flamethrower in place of the gun, the coax and the smoke dischargers kept. DIS 1.1.225.1.20 (a tank; 20 HROT-local). ⛔ A permanent wire
+        /// value (117 measured free on every lane 2026-11-19).</summary>
+        public const long Tank_FlameM67 = 117;
 
         // ⛔ PERMANENT WIRE VALUES. ⭐ CE-4623 AB-1 (docs/designs/animals/DESIGN_Animals.md §4a, R-4269) — the ANIMALS: 700…711 the species
         //   (TKB order = AnimalSpecies, the sound block's species index), 712 the domestic animal AREA. 700–799 measured free on every lane 2026-11-16.
@@ -125,6 +129,10 @@ namespace Hrot.Map.Common
         public const long Infantry_AntiDroneRed = 213;
         /// <summary>⭐ CE-4649 part D (AN-21g) — the HUNTER: the 12-gauge only, a standing rule to engage listed animals, never people (214 free on every lane 2026-11-17).</summary>
         public const long Infantry_Hunter = 214;
+        /// <summary>⭐ <c>CE-4658</c> (thermal drivers TD-S2) — a rifleman with a hand-held THERMAL sight (1 500 m, resolves a signature ≥ 0.3: a cold hull no, an idling
+        /// engine and a body yes) — the observer of <c>th-idling-tank</c>; the M1 / Bradley carriage stays withdrawn (CE-2349). ⛔ PERMANENT WIRE VALUE.
+        /// 215 free on every lane 2026-11-18 (origin/behaviors, ui, coordinator, terrain, backend).</summary>
+        public const long Infantry_ThermalObserver = 215;
 
         // Tactical Graphics
         public const long TacGraphic_FireLine = 8801;
@@ -167,9 +175,13 @@ namespace Hrot.Map.Common
         public const long Obstacle_Barrel        = 8820;
         public const long Obstacle_JerseyBarrier = 8821;
         public const long Obstacle_GuardBooth    = 8822;
+        // ⭐ CE-3473 (user 2026-11-18) — a barrel's FILL decides its protection and how hard it is to ram: 8820 is the EMPTY drum; these two are filled.
+        //   ⛔ PERMANENT WIRE VALUES; 8823–8824 measured free on every origin branch's TkbEntityTypes.cs and nowhere else in the tree, 2026-11-18.
+        public const long Obstacle_BarrelWater   = 8823;
+        public const long Obstacle_BarrelSand    = 8824;
 
         /// <summary>The starter obstacle types (O4; ⭐ CE-5010 adds the barrel, the jersey barrier and the guard booth — seven).</summary>
-        public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate, Obstacle_Barrel, Obstacle_JerseyBarrier, Obstacle_GuardBooth };
+        public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate, Obstacle_Barrel, Obstacle_JerseyBarrier, Obstacle_GuardBooth, Obstacle_BarrelWater, Obstacle_BarrelSand };
 
         // ⛔ PERMANENT WIRE VALUE (as above). ⭐ CE-3216 (R-3012, W-0) — the WORLD ENVIRONMENT: one per scenario, the FIRST entity with
         //   no SimTransform (presence of SimTransform is the engine's "is this spatial?" predicate, docs/designs/tkb-1/DESIGN.md
@@ -253,6 +265,20 @@ namespace Hrot.Map.Common
         /// (a HROT subcategory, R-10002), class <c>TwinEngineFighter</c> (its own body, ui's). The better instantaneous turn; the F-16 the better
         /// sustained one. Faction from the scenario. ⛔ A permanent wire value.</summary>
         public const long Jet_MiG29 = 409;
+        /// <summary>⭐ CE-3487 (flame FL-3, N-8) — the A-10 with a Mk 77 FIREBOMB (napalm) rack in place of the Mk 82s; DIS 1.2.225.2.0.1 (the A-10's, specific 1).
+        /// ⛔ A permanent wire value (410 measured free on every lane 2026-11-19).</summary>
+        public const long Jet_AttackA10Napalm = 410;
+
+        /// <summary>⭐ <c>CE-4634</c> D-1 (docs/designs/fun/DESIGN_Dragon.md, R-3112) — the fun pack's DRAGON: a rotorcraft "helicopter in disguise" with a
+        /// breath on its neck turret, a rider and a firing pillion (411 — the aircraft block, free on every lane <c>2026-11-19</c>; defined by
+        /// <c>FunTkbCatalog</c>, R-4281).</summary>
+        public const long Dragon = 411;
+
+        /// <summary>⭐⭐ <c>CE-3490</c> BA-9 (docs/designs/air-attack/DESIGN_Breath_Attack.md §7, user 2026-11-19: "Sure i want flame heli") — the FLAME HELICOPTER:
+        /// the AH-64 airframe with a flame projector on its chin turret (the flame tank's fuel, 60 m) in place of the M134, its Hydra-70 pod kept — it breathes on
+        /// what burns (the breath attack) and rockets what does not. DIS 1.2.225.20.0.1 (the AH-64's, specific 1). ⛔ A permanent wire value (412 measured
+        /// free on every lane 2026-11-19).</summary>
+        public const long Heli_AH64Flame = 412;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

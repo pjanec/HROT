@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-17 (behaviors: a civilian stops on the signal; §3a / §9 firing seats engage on their own) · 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-19 (coordinator: §1b sensor views + the AI thermal sensor on °C; §12a flame weapons; §9 rotors and smoke dischargers; §3 the civilian mood seen everywhere; §6 the corridor street fight; §9b the engineers answer; §16 the dragon) · 2026-11-18 (coordinator: §1b data for external renderers — thermal drivers, vehicle appearance, the shared look library; §8 glass windows and removing a baked building; §9 vehicle damage / hatches / lights; §16 fixed today and in progress) · 2026-11-17 (backend: §16 bows, birds, the rabbit hunt, the warrior built; outfit data built) · 2026-11-17 (behaviors: a civilian stops on the signal; §3a / §9 firing seats engage on their own) · 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -88,6 +88,44 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 - **Bookmarks and notes** on a run's timeline, kept beside the recording; the Replay Browser shows them. ([Bookmarks and notes](UX/DESIGN_Bookmarks_And_Notes.md);
   CE-4325, CE-1467) ✅
 
+## 1b. Data for external renderers and thermal imagers *(added `2026-11-18`)*
+
+Everything an outside image generator (a game engine, a physics-based thermal renderer, a DIS gateway) needs is SIMULATION STATE — recorded,
+replicated to every node, renderer-agnostic — and HROT's own map reads the same state.
+
+- ✅ **Thermal drivers, never temperatures** — every node and an outside thermal imager compute an entity's heat from states and the time they
+  began: the engine or body (off · idle · running; standing · moving, and since when), each weapon's last burst, fire as spots on a vehicle, a
+  building or a terrain cell (fire burns health; damage starts fire), the time of death, the weather's "since", a thermal class per terrain
+  material, IR-blocking smoke, and the warm patch a vehicle leaves where it idled. Our AI's thermal sensor reads the same calculation.
+  ▶ ✅ `th-idling-tank` (an idling crewed tank seen at night, a parked empty one not) · ✅ `th-burning-wreck` (a late-joining node sees the wreck
+  burning) · `th-vehicle-left-warm-spot` ([DESIGN_Thermal_Drivers](designs/thermal/DESIGN_Thermal_Drivers.md), CE-4646, CE-4657…CE-4664)
+- ✅ **Vehicle appearance** — partial damage per part (hull, turret, gun, each track, engine; aircraft parts) as Intact · Damaged · Destroyed ·
+  Burning, the kill kind (knocked out · burnt out · catastrophic), hatches / doors / ramps that open when the squad dismounts and a crewman with
+  his head out, and lights under a light discipline (normal · convoy · blackout) with darkness and engine state.
+  ▶ ✅ `va-tank-kill-kinds` · ✅ `uc-convoy-hit` (the APC's ramp) · ✅ `va-lights-night` ([DESIGN_Vehicle_Appearance_State](designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md), CE-4670)
+- ✅ **One look library for every renderer** (`Hrot.Look`, no presentation dependency) — which effect a shot, a burst or an impact makes, how a
+  person is dressed, how a vehicle looks; our map and any gateway call the same functions, so every renderer shows the same picture
+  ([§7 of the same design](designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md), CE-4671)
+- ✅ **The DIS mapping is written down** for a gateway — damage, fire, engine, lifeform health ([NED_DDS_Protocol](reference/NED_DDS_Protocol.md))
+- ✅ *(2026-11-19)* **Rotors, engines, smoke dischargers, the full DIS mapping** — rotor and engine speed derived from the engine state; a tank's
+  smoke dischargers fire a fan of screening grenades (smoke that blocks sight and infrared); the gateway table now covers lights, hatches, the kill
+  kind and the effect → DIS detonation-result codes; our map draws the hatches and lights (CE-4670)
+- ✅ *(2026-11-19)* **Night vision and a thermal view in our own map** — `F4` cycles normal · night vision · thermal: night vision on the moon and
+  light sources (a cigarette's ember shows), a thermal picture solved from the same thermal drivers (warm engines, the patch a tank left, roads as
+  asphalt), the observer's outlines. ▶ ✅ `sv-night-and-heat` · ✅ `th-vehicle-left-warm-spot` (CE-1984, CE-1985, CE-1989)
+- ✅ *(2026-11-19)* **The AI thermal sensor sees by temperature contrast** (°C against its background, not an abstract heat number) — same
+  results at 1, 4 and 8 threads (CE-1987, R-1058)
+- ⏳ "pop smoke" when a missile is fired at a vehicle (behaviors, after the dischargers)
+
+## 1c. Flame weapons *(added `2026-11-19` — [DESIGN_Flame_Weapons](designs/weapons/DESIGN_Flame_Weapons.md), CE-4635, CE-4637)*
+
+- ✅ **The flamethrower** — a man-portable or vehicle-mounted jet: one ignition rule sets men, soft vehicles, roofs and grass alight; burning
+  hurts in steps; the flame is heard as one roar; the jet is thrown into a bunker or a room. ▶ ✅ `fl-flamethrower-cone` · ✅ `fl-clear-the-bunker`
+- ✅ **Rules of engagement hold it** — allowed for military forces by default, off in a police / civil scenario, never fired with a neutral in the
+  flame. ▶ ✅ `fl-roe-holds`
+- ✅ **Napalm** — a strike lays a burning ellipse on the ground that burns out and leaves a scorched mark. ▶ ✅ `fl-napalm-strike` · `fl-napalm-treeline`
+- ✅ **Buildings burn** — a timber house catches and burns. ▶ `fl-timber-house`
+
 ## 2. The world
 
 - **Terrain with real height:** a height grid, bridges and road heights, a desert with ridges and wadis. ▶ `ua-hill-attack`
@@ -99,6 +137,17 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 - **Weather and time of day:** a scenario start time; global weather plus weather regions that blend into each other; wind, four cloud
   layers, fog, rain; a real sun position from the map's geographic origin. The 3-D map draws the sky, the sun, the clouds and the fog.
   ▶ `ua-weather-regions` (no live check)
+- **Thermal sight sees engines and bodies by their heat** ✅ (CE-4658, CE-1987): a target is seen when its hottest part (an engine, a barrel, a body, a fire) differs enough in °C from the ground behind it — the same surface model the thermal view draws, so a sun-heated parked tank shows against cool grass but not against hot soil, and a man stays visible at dawn and dusk. An idling, crewed tank is seen at night, a parked cold one is not — `th-idling-tank`, `th-man-at-dawn`, `th-hull-in-the-sun`, `th-hull-on-hot-soil`; carried by the thermal observer (TKB 215: 4 K of contrast). 📄 [DESIGN_Thermal_Drivers.md §4e](designs/thermal/DESIGN_Thermal_Drivers.md)
+- **Night-vision and thermal views of the 3-D map** ✅ (CE-1984, CE-1985, ui): F4 or View ▸ Sensor View cycles normal → night vision (sun, moon and starlight in lux, tube gain, grain, blooming lamps and fires) → thermal (every surface's °C from its material and the day's sun, sky and weather; engines hot at their end, men warm, fires saturating, the warm patch a vehicle left). A debugging view for an instructor: the °C under the pointer, a hovered unit's temperature and WHY (engine, barrel, fire, its signature against the selected observer's threshold), and corner brackets on every unit the selected observer's thermal sensor is hot enough to see — the AI's own rule. Judged by frame rails (`SensorViewFrameRail`) and its scene `sv-night-and-heat` (every heat and light source made by the simulation at night). 📄 [DESIGN_Sensor_View.md](designs/sensor-view/DESIGN_Sensor_View.md)
+- **A destroyed vehicle burns, and its fire burns the men beside it** ✅ (CE-4660): fire is simulation state decided once on the Health owner (`FireState`), the same on every node and for a late joiner; a man inside the fire loses health each second and dies, one 40 m away is untouched; the 3-D flames read it — `th-burning-wreck`. ⏳ incendiary weapons, burning buildings and ground. 📄 [DESIGN_Thermal_Drivers.md §4g](designs/thermal/DESIGN_Thermal_Drivers.md)
+- **A flamethrower sets men and soft vehicles alight** ✅ (CE-4635 FL-1, R-3111): the man-portable flamethrower (TKB 2022, its fuel 6069) throws no round — the jet is read off the weapon's burst record (`FlameJets`); a man in its cone burns after 0.3 s and burns on while the flame stays on him, a soft vehicle after 1.5 s; a wall or a hull stops it (an opening passes), an armoured hull never burns. ▶ ✅ `fl-flamethrower-cone` (7 / 7, under the parallel checks too) · ✅ napalm (FL-3), buildings (FL-4), the look (ui)
+- **A flame tank burns men in a building through its opening, within the rules of engagement** ✅ (CE-3486 FL-2): the M67 (TKB 117) throws its flame INTO a window and lights who is inside on its line, never one behind the wall; no flame is released with a civilian anywhere in it (Protocol III, AW-20's rule run over the flame) nor where the ROE forbids incendiaries (`Roe.Incendiary`, down the chain; a police force's non-lethal cap holds it already). ▶ ✅ `fl-clear-the-bunker` (4 / 4) · ✅ `fl-roe-holds` (9 / 9, each hold beside a control)
+- **A napalm strike burns men and leaves the ground burning** ✅ (CE-3487 FL-3): an A-10 with Mk 77 firebombs (TKB 410) lays an 80 × 25 m ellipse of fire along its run — every man inside is set alight at once, the ground burns 300 s (it burns whoever walks into it later) under a smoke cloud, and a burned patch is left; never released with a civilian inside the ellipse. ▶ ✅ `fl-napalm-strike` (7 / 7)
+- **A timber house burns, and the men inside it** ✅ (CE-3488 FL-4): a flame jet held 2 s on a timber wall, or a napalm ellipse reaching the house, sets it alight — one fire over its footprint held on the building's damage record, burning its walls' time (600 s), and it burns whoever is inside even where the jet could not reach; brick, concrete and stone never burn. ▶ ✅ `fl-timber-house` (6 / 6, under the parallel checks too)
+- **A dragon flies, lands and breathes fire** ⚠ (CE-4634 D-1, R-3112, fun pack): a rotorcraft on four legs (TKB 411) — takes off, flies a route, lands on its legs and takes off again; its breath (a flamethrower on its neck turret, from the mouth, 50 m) burns the men in front of it, never its own pillion; it is fireproof and an aircraft to radar. A player can fly it (*Drive*) or ride its firing pillion (the existing mechanisms). ▶ ✅ `dr-dragon-flight` (4 / 4) · ✅ `dr-dragon-breath` (8 / 8) · ⏳ its autonomous attack (CE-3490 design), its look and roar (ui)
+- **A dragon (or any rotorcraft with a flamethrower) attacks on its own** ✅ (CE-3490, R-8012; [DESIGN_Breath_Attack.md](designs/air-attack/DESIGN_Breath_Attack.md) §7): ordered to attack a man it STRAFES — in at 60 m, down to 12 m and 10 m/s, breathing only inside its 50 m reach, over him, out and up, and back on a line 120° round, the line laid along the row of men it sees; ordered to strike a timber building it HOVERS 25 m off the nearest burnable wall and breathes on it 3 s; it never breathes on what cannot burn (brick, an armoured hull, an aircraft), nor under an ROE forbidding incendiaries, nor while a civilian is inside the flame it would throw. Scenarios ✅ `dr-dragon-attack` · `dr-dragon-village` · `dr-dragon-holds` (also under the parallel checks). ⭐ **The FLAME HELICOPTER** (TKB 412 "AH-64 (flame)", BA-9, R-8013): the AH-64 with a chin flame projector (60 m) and its Hydra pod — it breathes on men and rockets armour; scenario ✅ `ah-flame-attack`
+- **Vehicles show their hatches, doors, ramps and lights to every renderer** ✅ (CE-4670 VA-S2 / VA-S3): a carrier's ramp opens as its squad dismounts and closes after (`uc-convoy-hit`); a crew's light discipline at night — head and tail lights when dark, the convoy marker, or blacked out (`va-lights-night`); an aircraft's beacon while its engine runs; each type's openings and light groups come from its class, overridable per type; replicated to every node and a late joiner. ⭐ A crewman can put his head out of his hatch (it stays open, he rides exposed) and a station can switch the light discipline — both as requests carried to the vehicle's owner; brake lights are derived by each renderer from deceleration (`VehicleLook.Lights`). ⚠ no scenario yet for head out / the switch: nothing ASKS for them until behaviors' SOP / orders do (rails only); ⏳ our 3D map drawing openings and lights (ui), the searchlight's aim, interior and landing lights (CE-3475). 📄 [DESIGN_Vehicle_Appearance_State.md §6a–§6b](designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md)
+- **A vehicle's partial damage and how it was destroyed are simulation state every renderer reads alike** ✅ (CE-4670 VA-S1): a destroyed track, engine or gun is a part state by its zone's threshold, and a kill is KnockedOut / BurntOut / Catastrophic from the part the killing hit landed on and the type's stowage (a T-72's hull carousel throws its turret) — replicated, the same for a late joiner, drawn on our 3D map (`va-tank-kill-kinds`; `Hrot.Look.Vehicles.VehicleLook`)
 - **Weather changes what units sense:** night and fog shorten sight, thermal ignores night but not fog, wind and rain cover sound,
   parachutes drift on the wind. ⚠ No demo shows this yet.
 - **Background traffic (SUMO):** a traffic node drives hundreds of cars and pedestrians, mirrored to every node. A shot, a blast or a hit
@@ -134,6 +183,11 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   a heavy bomb close by collapses the whole building into rubble and kills the people inside. The navmesh follows in the background and
   only the paths through the changed tiles replan; breaches are saved, replicated and drawn on every host. (R-4188; CE-4391, CE-4392)
   ▶ `bd-destruction`
+- **Glass in windows:** a window has a pane that sight passes unchanged and that muffles sound (20 dB); rounds crack it (two cracks kept,
+  the third breaks it), a man firing out breaks it at once, a grenade's fragments or a big blast's pressure shatter it, and a breach takes it
+  with the wall. A broken window lets sound into the building and is an open hole again; no navmesh rebake. Saved and replicated; the
+  3-D map draws the pane, a crack star at each hit, an open hole with shards in the frame, a shard burst and the sound of breaking glass,
+  the same on every map node, a late joiner included. (R-5068; CE-5032, CE-5033, CE-5034) ✅ `gw-shoot-the-window` · `gw-fire-out`
 
 ## 2b. Dynamic terrain — the ground and the walls change while the simulation runs *(✅ built `2026-11-14`…`15` by the `terrain` lane — the remainders marked 📐; the programme: [PLAN_Dynamic_Terrain](PLAN_Dynamic_Terrain.md), CE-4604)*
 
@@ -318,6 +372,13 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 
 ## 8. Buildings and close quarters
 
+- ✅ *(2026-11-18)* **Glass windows** — a window has a pane: rounds crack it, then break it, and a soldier firing out through a closed window
+  shatters it with his first shot; blast and nearby fragments break panes too. ▶ ✅ `gw-shoot-the-window` · ✅ `gw-fire-out`. ⏳ the glass drawn
+  on our map (ui, CE-5034) ([DESIGN_Glass_Windows](DESIGN_Glass_Windows.md))
+- 🚧 *(2026-11-18)* **Editing baked-in buildings** — removing a building that came with the terrain is built (the merge, CE-5027); ⏳ its doors and
+  damage following, making an imported block enterable / adding a door, the toolbar tools and "Save terrain as" (CE-5028…CE-5031)
+  ([DESIGN_Terrain_Base_Edits](DESIGN_Terrain_Base_Edits.md))
+
 - **Doors:** a mover routes round a locked door and opens a closed one on the way. A locksmith unlocks a door. ▶ `bt-doors` ✅
 - **Blast and fragments inside buildings:** fragments hit the body parts the stance exposes, so a prone man survives a grenade that
   wounds a standing one. A roof burst spares the floor below. ▶ `bt-grenade-posture` ✅ · `bt-mortar-roof` ✅
@@ -330,6 +391,13 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Defending a house:** defenders take window and roof posts and open fire as the enemy crosses their sector. ▶ `sq-defend-house` ⚠ CE-2304
 
 ## 9. Vehicles and armour
+
+- ✅ *(2026-11-18)* **A vehicle shows its damage** part by part (a destroyed track, a jammed turret, a burning engine deck), knows HOW it was
+  killed (a thrown turret is catastrophic), opens its rear ramp for a dismount, and drives blacked out at night under its SOP — see §1b.
+  ▶ ✅ `va-tank-kill-kinds` · ✅ `uc-convoy-hit` · ✅ `va-lights-night`
+- ✅ *(2026-11-18)* **A move that cannot finish now says so** — an unreachable target fails instead of freezing the unit; a disabled vehicle
+  stops running its route; a bike starting from a standstill no longer reports "blocked"; **vehicles slow and yield for animals** on the road
+  (CE-3458, CE-9023, CE-3452, CE-3457)
 
 - **3-D armour hits:** the face that is hit comes from where the round arrives (a steep or top-attack round hits the roof). Each face
   has its own armour against each penetrator. A round over the roof misses. ▶ `ua-drone-shelter` ✅ (a roof hit)
@@ -449,9 +517,9 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 
 | | what |
 |---|---|
-| **built, no demo** | weather and night in perception · a thermal sensor (no unit type carries one) · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · the Stride host (Windows only) |
+| **built, no demo** | weather and night in perception · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · the Stride host (Windows only) |
 | **being built** | 🚧 minefields, §9b · 🚧 road convoys (§9, 5 of 6 scenarios) · 🚧 air combat — the 2v2 gun hits and the cluster run (§10) · 🧪 the stochastic unit, §15 (experimental, merged) · 🚧 the items in §16 |
-| **designed, not built** | 📐 knowledge of other places per side (a destroyed bridge, a cleared building — the minefield built the shared machinery) · 📐 the fire / flamethrower / napalm, weapon stoppages, physical devices in the loop, thermal drivers (records only, CE-4635…CE-4646) |
+| **designed, not built** | 📐 knowledge of other places per side (a destroyed bridge, a cleared building — the minefield built the shared machinery) · 📐 the fire / flamethrower / napalm, weapon stoppages, physical devices in the loop, thermal drivers beyond the engine / body state, the last burst and the wreck fire (death time) |
 | **not built** | bridge damage (walls and whole-building collapse are built, §2a) · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · smoke · counter-battery fire · rappel · wind drift on rounds |
 | **known wrong** | see [OVERVIEW_Rules_And_Demos.md §11](OVERVIEW_Rules_And_Demos.md#11-not-built-open-or-known-wrong) and [PLAN_Feature_Films.md §4](PLAN_Feature_Films.md) |
 
@@ -534,7 +602,7 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | what you can do | Edit | Live | Review | status |
 |---|:-:|:-:|:-:|---|
 | Triggers: *when* (with hold, delay, cooldown, repeat) → *do* (orders, missions, messages, objectives, end exercise, insert a composition, AI skill, reporting) | ● | 🟡 | ○ | ✅ Rules window |
-| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ · ⚠ a weighted-mean root objective never aggregates its children (`sr-objectives-march`, CE-3460) |
+| Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ (`sr-objectives-march` 10/10, CE-3460 closed) |
 | Injects: fire a trigger now, disarm, re-arm, run any action by hand (Game master) | – | ● | – | ✅ |
 | Rule actions on the world (weather, time of day, traffic, sound) | – | – | – | ⏳ |
 | Run modes: Preview, Live, review during the run, after-action review — chosen in one indicator | ● | ● | ● | ✅ |
@@ -583,15 +651,34 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 ## 16. Being built now *(added `2026-11-17` — every item judged by its scenarios when it lands)*
 
 - ✅ / 🚧 **What a person wears comes from the catalogue** — BUILT and merged `2026-11-17` (the data by backend, the drawing by ui): see §3 —
-  Middle-East dress, the Native American warrior's look and ⭐ the **Afghan people** (civilians 1111–1116, fighters 2016–2018 in perahan tunban,
+  Middle-East dress, the Native American warrior's look (worn by backend's warrior 2016 — ONE wardrobe, `OutfitCatalog.NativeWarrior`) and ⭐ the **Afghan people** (civilians 1111–1116, fighters 2019–2021 in perahan tunban,
   waistcoat, pakol, lungee, patu, chadari) ▶ `civ-afghan-village` ✅. ⏳ still to land: `civ-middle-east-market`, `me-fighters-ambush`
   ([DESIGN_Person_Outfits](designs/person-looks/DESIGN_Person_Outfits.md) §10, CE-4648)
-- 🚧 **Bows and crossbows** — the arrow seen along its arc, STUCK where it lands (in a wall or the ground, at its angle) and in a body (it stays
-  when he falls), SILENT to every AI ear, shot from horseback; an archery target that scores by ring. ▶ ⏳ `bw-arrow-arc` · `bw-unheard` ·
-  `bw-crossbow` · `bw-stuck-wall` · `bw-stuck-body` · `bw-archery-contest` ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md), CE-4649)
-- 🚧 **Birds you can shoot** — a lone bird falls, a round through a flock brings one down; **ducks**, hunted with the shotgun. ▶ ⏳ `an-duck-hunt`
-  ([DESIGN_Animals](designs/animals/DESIGN_Animals.md) §4b)
-- 🚧 **The rabbit and the hunt** — a rabbit freezes, then bolts in zigzags for the wood; hunting dogs flush it, hunters shoot animals only.
-  ▶ ⏳ `an-rabbit-bolts` · ⏳ `scenarios/fun/hunting/rabbit-hunt` ([DESIGN_Animals](designs/animals/DESIGN_Animals.md) §4c)
-- 🚧 *(the fun pack)* **The Native American warrior** — a bow and a thrown tomahawk, on foot or on horseback; a mounted war party circles its
-  target at a gallop, shooting. ▶ ⏳ `scenarios/fun/western/war-party` · ⏳ `archer-ambush` ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md) §9, CE-4650)
+- ✅ **Bows and crossbows** — fired on a low arc, SILENT to every AI ear (the same man's rifle stays loud), stuck where they land and in a body,
+  shot from horseback; an archery target scores by ring. ▶ ✅ `bw-arrow-arc` · `bw-unheard` · `bw-crossbow` · `bw-stuck-wall` · `bw-stuck-body` ·
+  `bw-archery-contest` · `bw-mounted-archers` (7 / 7). ⚠ a team total over the archers reads 0 under the parallel brain phase (CE-3468); the stuck
+  arrow's look is ui's ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md) §10, CE-4649)
+- ✅ **Birds you can shoot** — a lone bird falls; a round through a flock brings one down and the rest flee; **ducks**, hunted with the shotgun.
+  An explicit order may now fire at an animal (R-3101). ▶ ✅ `an-duck-hunt` ([DESIGN_Animals](designs/animals/DESIGN_Animals.md) §9b)
+- ✅ **The rabbit and the hunt** — a rabbit freezes, then bolts in zigzags for the wood; hunting dogs flush it, hunters shoot game only (never a
+  person or a dog). ▶ ✅ `an-rabbit-bolts` · ✅ `scenarios/fun/hunting/rabbit-hunt` ([DESIGN_Animals](designs/animals/DESIGN_Animals.md) §9b)
+- ✅ *(the fun pack)* **The Native American warrior** — a bow and a thrown tomahawk, on foot or on horseback; a mounted war party CIRCLES its
+  target at a gallop, shooting. ▶ ✅ `scenarios/fun/western/war-party` (6 / 6) · ✅ `archer-ambush` (4 / 4). ⚠ every mounted-rider scenario aborts
+  under the strict read check (CE-3470) — it passes in the ordinary run ([DESIGN_Bows_And_Crossbows](designs/weapons/DESIGN_Bows_And_Crossbows.md) §10, CE-4650)
+- ✅ *(2026-11-18)* **The threaded editor's scoring** — an archery contest's team total and best archer are right with the parallel brains on
+  (CE-3468; `bw-archery-contest` gains the two rows)
+- 🚧 *(2026-11-18, top priority — behaviors)* **Infantry stop moving after a scenario reload** (the crowd's slots were never released, CE-4665) and
+  **the street fight fought in the open** — squads bunched and standing in the street, suppressing with no ammo, dead men still acting
+  (CE-4666…CE-4669); decided: a sound heard through your own window is where to LOOK, not an enemy there (D-8), the base of fire's two exits (D-7)
+- ✅ *(2026-11-19)* **The civilian's mood is seen on every node** — fear and anger travel as one mood shared with animals (the face, the mood
+  dot, an animal's alert look); civilians and animals now keep fear, home and group in the SAME components (CE-4628, CE-2250)
+- 🚧 *(2026-11-19)* **The street fight on open ground** — the new `wide-corridor` terrain and `pc-corridor-fight` (a platoon attack across a
+  ~30 m corridor between houses) judge it: a man going to his post under fire now reaches cover before he breaks, the base of fire spreads into
+  covered posts, a man without a post keeps 5 m from the next, a squad on the move spreads across its line; the 26 scenarios those plays touch
+  re-checked with no new failure (D-11…D-13, CE-4666)
+- 🚧 *(2026-11-19)* **Minefields: the engineers answer** — an HQ sends engineers to a squad halted by a minefield; they trace and mark it and the
+  clearer cuts a lane (▶ ✅ `mf-engineers-answer`; ⏳ `mf-clear-lane-and-cross` — the whole chain — and `mf-knowledge-survives`, waiting on the
+  replay seek fix CE-5041)
+- 🎉 *(2026-11-19, the fun pack)* **The dragon** — it flies, lands, roars and breathes fire (the flame weapons' jet on a neck turret); its look is
+  built; it attacks on its own — strafing passes at men and soft vehicles, a hover at a burnable building (CE-3490); the same pattern flies the flame helicopter, TKB 412 "AH-64 (flame)" ([DESIGN_Dragon](designs/fun/DESIGN_Dragon.md), CE-4634; [DESIGN_Breath_Attack](designs/air-attack/DESIGN_Breath_Attack.md))
+

@@ -30,13 +30,19 @@ namespace Hrot.ScenarioEditor.Map
     public sealed class MenuOrders : IEcsModuleSystem
     {
         private readonly EntityRepository _world;
+        [Fdp.Core.SessionState("pending interactive location pick task of the menu UI, not the world")]
         private Task<Fdp.Core.WorldPoint>? _location;   // ⭐ S0 item 5 (SR-135): a picked place is LOCAL METRES
+        [Fdp.Core.WorldDerived("pending UI entity-pick task; dropped on restore")]
         private Task<int>? _enemy;
+        [Fdp.Core.WorldDerived("editor UI pending-pick unit; lost pick cancels, sim unaffected")]
         private int _unit;
         private OrderInfo? _order;
         private OrderDraft? _draft;
+        [Fdp.Core.WorldDerived("editor UI pending designation pick")]
         private DesignationKind? _designating;   // ⭐ CE-2149 — the pending pick sets a designation, not an order
+        [Fdp.Core.WorldDerived("editor UI units a pending designation is for")]
         private int[] _designateFor = Array.Empty<int>();   // ⭐ CE-1059 (U6) — every unit the pending designation is for
+        [Fdp.Core.WorldDerived("editor UI pending vehicle pick")]
         private Entity _embarking = Entity.Null;              // ⭐ CE-1230 — the unit whose vehicle pick is pending
 
         public MenuOrders(EntityRepository world) => _world = world ?? throw new ArgumentNullException(nameof(world));

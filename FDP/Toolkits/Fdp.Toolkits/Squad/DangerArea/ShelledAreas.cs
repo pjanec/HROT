@@ -34,6 +34,11 @@ namespace Fdp.Toolkit.Squad.DangerArea
         public const float RadiusM = MergeM + 10f;
         /// <summary>How many points are kept (the oldest goes first).</summary>
         public const int Capacity = 8;
+        /// <summary>⭐ CE-2468 UF-7 (DESIGN_Minefields.md §9b, K8) — a side with a live unit this close (m, 2-D) to a shelled point WITNESSES it (a burst is heard far).</summary>
+        public const float WitnessMetres = 1500f;
+        /// <summary>⭐ CE-2468 UF-7 — while a point stays shelled, its witnesses are taught again this often (s): a side that comes within range learns it; a refresh
+        /// carries <c>At</c> = the last BURST (K6), so a side that already knows it changes nothing.</summary>
+        public const double RefreshSeconds = 20.0;
 
         /// <summary>One point of heat.</summary>
         public struct Point
@@ -44,6 +49,8 @@ namespace Fdp.Toolkit.Squad.DangerArea
             /// <summary>The newest burst times (s), newest first; NaN = none.</summary>
             public double T0, T1, T2;
             public bool Shelled;
+            /// <summary>⭐ UF-7 — the sim time its witnesses were last taught (NaN = never) and the burst time they were taught.</summary>
+            public double TaughtAt, TaughtT0;
         }
 
         private static readonly ConditionalWeakTable<EntityRepository, ShelledAreas> s_byWorld = new();
@@ -74,7 +81,7 @@ namespace Fdp.Toolkit.Squad.DangerArea
             {
                 if (_count == Capacity) RemoveAt(OldestIndex());
                 best = _count++;
-                _points[best] = new Point { Id = _nextId++, Centre = at, T0 = double.NaN, T1 = double.NaN, T2 = double.NaN };
+                _points[best] = new Point { Id = _nextId++, Centre = at, T0 = double.NaN, T1 = double.NaN, T2 = double.NaN, TaughtAt = double.NaN, TaughtT0 = double.NaN };
             }
             ref var p = ref _points[best];
             p.Bursts++;
@@ -107,6 +114,37 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 into[n++] = new GasFootprint(p.Id, c, c, RadiusM, p.Centre.Z - 10f, p.Centre.Z + 10f) { Kind = DangerAreaKind.Shelled };
             }
             return n;
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-2468 UF-7 (DESIGN_Minefields.md §9b, K6, K8; closes CE-4626 — the shelled area had no side) — teach every WITNESS side (a live unit within
+        /// <see cref="WitnessMetres"/>) each shelled point that is new, has a new burst, or is due its <see cref="RefreshSeconds"/> refresh:
+        /// <see cref="Fdp.Toolkit.Terrain.UnderFireEvents.LearnIndirect"/> with <c>At</c> = the point's last burst. Serial; 0 B (one index walk per point taught).
+        /// </summary>
+        public void Teach(EntityRepository repo, double now)
+        {
+            if (_count == 0 || !repo.IsComponentTypeRegistered<EntityInfo>() || !repo.Bus.IsRegistered<Fdp.Toolkit.Terrain.UnderFireLearned>()) return;
+            for (int i = 0; i < _count; i++)
+            {
+                ref var p = ref _points[i];
+                if (!p.Shelled) continue;
+                bool fresh = p.TaughtT0 != p.T0 || double.IsNaN(p.TaughtAt) || now - p.TaughtAt >= RefreshSeconds;
+                if (!fresh) continue;
+                p.TaughtAt = now; p.TaughtT0 = p.T0;
+                ulong lo = 0, hi = 0;   // the witness sides (ForceId 0..127)
+                var c = new Vector2(p.Centre.X, p.Centre.Y);
+                foreach (var e in repo.Query().With<EntityInfo>().With<SimTransform>().Build())
+                {
+                    int side = (int)repo.GetComponentRO<EntityInfo>(e).ForceId;
+                    if (side > 127 || ((side < 64 ? lo >> side : hi >> (side - 64)) & 1UL) != 0) continue;
+                    var q = repo.GetComponentRO<SimTransform>(e).Position;
+                    if (Vector2.DistanceSquared(new Vector2(q.X, q.Y), c) > WitnessMetres * WitnessMetres || !Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, e)) continue;
+                    if (side < 64) lo |= 1UL << side; else hi |= 1UL << (side - 64);
+                }
+                for (int side = 0; side < 128; side++)
+                    if (((side < 64 ? lo >> side : hi >> (side - 64)) & 1UL) != 0)
+                        Fdp.Toolkit.Terrain.UnderFireEvents.LearnIndirect(repo, side, p.Centre, RadiusM, (SimInstant)p.T0);
+            }
         }
 
         private int OldestIndex()
@@ -146,7 +184,9 @@ namespace Fdp.Toolkit.Squad.DangerArea
                 if (warhead == null || !warhead.HasAreaEffect) continue;   // a bullet, or a smoke / gas canister with no burst
                 ShelledAreas.For(repo).AddBurst(new Vector3(evt.HitX, evt.HitY, evt.HitZ), now);
             }
-            ShelledAreas.Peek(repo)?.Cool(now);
+            var shelled = ShelledAreas.Peek(repo);
+            shelled?.Teach(repo, now);   // ⭐ CE-2468 UF-7 — the witness sides learn it (the danger solve reads THEIR knowledge, UF-6)
+            shelled?.Cool(now);
         }
     }
 }

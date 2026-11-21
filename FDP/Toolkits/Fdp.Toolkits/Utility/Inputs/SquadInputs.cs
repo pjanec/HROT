@@ -251,28 +251,48 @@ namespace Fdp.Toolkit.Utility
         public static float SquadEnemyStrengthRatio(in UtilityInputCtx ctx)
         {
             if (!ctx.Repo.HasComponent<SquadCognitiveState>(ctx.Self) || !ctx.Repo.HasComponent<UnitRoster>(ctx.Self)) return 0f;
-            ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(ctx.Self);
+            float enemy = EnemyDangerOf(ctx.Repo, ctx.Self);
+            if (enemy <= 0f) return 0f;
+            return EnemyShare(enemy, OwnStrengthOf(ctx.Repo, ctx.Self));
+        }
+
+        /// <summary>⭐ <c>CE-2466</c> R4 — the enemy's share of the strength in play: <paramref name="enemy"/> ÷ (it + <paramref name="own"/>), 0..1
+        /// (the ONE formula <see cref="SquadEnemyStrengthRatio"/> and Squad Tactics §7.9 R4 both use).</summary>
+        public static float EnemyShare(float enemy, float own)
+        {
+            float total = enemy + own;
+            return total <= 0f ? 0f : Math.Clamp(enemy / total, 0f, 1f);
+        }
+
+        /// <summary>⭐ <c>CE-2466</c> — Σ danger of every contact in the commander's pool (a heard one counts as armed, 1). 0 with no pool. No allocation.</summary>
+        public static float EnemyDangerOf(EntityRepository repo, Entity commander)
+        {
+            if (!repo.HasComponent<SquadCognitiveState>(commander)) return 0f;
+            ref readonly var state = ref repo.GetComponentRO<SquadCognitiveState>(commander);
             if (state.Contacts.Count == 0) return 0f;
             var span = MemoryMarshal.CreateReadOnlySpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(ref Unsafe.AsRef(in state.Contacts.Contacts)), 16);
-
             float enemy = 0f;
             for (int i = 0; i < state.Contacts.Count; i++)
                 enemy += (span[i].Flags & SquadContact.AnonymousFlag) != 0
                     ? 1f
-                    : Fdp.Toolkit.Perception.ThreatDanger.Of(ctx.Repo, ctx.Self, new Entity((ulong)span[i].EntityId));
+                    : Fdp.Toolkit.Perception.ThreatDanger.Of(repo, commander, new Entity((ulong)span[i].EntityId));
+            return enemy;
+        }
 
+        /// <summary>⭐ <c>CE-2466</c> — Σ the live, in-the-fight members' own strength per man (CE-4613). 0 with no roster. No allocation.</summary>
+        public static float OwnStrengthOf(EntityRepository repo, Entity commander)
+        {
+            if (!repo.HasComponent<UnitRoster>(commander)) return 0f;
             float own = 0f;
-            ref readonly var roster = ref ctx.Repo.GetComponentRO<UnitRoster>(ctx.Self);
+            ref readonly var roster = ref repo.GetComponentRO<UnitRoster>(commander);
             for (int m = 0; m < roster.Count; m++)
             {
                 var member = roster.SubordinateEntities[m];
-                if (!ctx.Repo.IsAlive(member) || Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(ctx.Repo, member)) continue;
-                own += Fdp.Toolkit.Perception.ThreatDanger.OwnStrength(ctx.Repo, member) * Fdp.Toolkit.Squad.UnitStrength.MenOf(ctx.Repo, member);   // ⭐ CE-4613 — per man, not per body
+                if (!repo.IsAlive(member) || Fdp.Toolkit.Perception.ThreatDanger.IsOutOfTheFight(repo, member)) continue;
+                own += Fdp.Toolkit.Perception.ThreatDanger.OwnStrength(repo, member) * Fdp.Toolkit.Squad.UnitStrength.MenOf(repo, member);   // ⭐ CE-4613 — per man, not per body
             }
-
-            float total = enemy + own;
-            return total <= 0f ? 0f : Math.Clamp(enemy / total, 0f, 1f);
+            return own;
         }
 
         /// <summary>

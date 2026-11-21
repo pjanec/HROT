@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Terrain
         /// entity's position (a house, a tree, a clutter item). <paramref name="template"/>, <paramref name="pad"/> and <paramref name="seed"/> mean what <see cref="TerrainFeature"/> says per kind.
         /// </summary>
         public static IReadOnlyList<JsonObject> OfKind(byte kind, string key, string template, float headingDeg, float pad, uint seed, Vector2 at, IReadOnlyList<Vector2> points,
-                                                       TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots)
+                                                       TerrainWorld baseWorld, TerrainAssets assets, IEnumerable<string?> recipeRoots, string? target = null, IUniqueBuildings? unique = null)
         {
             string where = $"feature '{key}'";
             switch (kind)
@@ -61,6 +61,8 @@ namespace Fdp.Toolkit.Terrain
                     return new[] { Ditch(key + "/0", template, pad > 0f ? pad : preset.Depth, preset.Width, seed, at, headingDeg, points, where) };   // ⭐ CE-4593 (P-6)
                 case TerrainFeature.Ground:
                     return new[] { Ground(key + "/0", template, pad, seed, points, where) };
+                case TerrainFeature.Edit:
+                    return Edit(key, template, target ?? "", baseWorld, where, at, unique);   // ⭐ CE-5025 BE-1, CE-5029 BE-3
                 default:
                     throw new ArgumentException($"[Terrain] {where}: unknown feature kind {kind}.");
             }
@@ -71,7 +73,83 @@ namespace Fdp.Toolkit.Terrain
                                                        or TerrainFeature.Bridge or TerrainFeature.Scatter or TerrainFeature.Ground or TerrainFeature.Row or TerrainFeature.Group;
 
         /// <summary>True when <paramref name="kind"/> is one this expander knows (the others are ignored by a caller, as before).</summary>
-        public static bool IsKnown(byte kind) => kind is >= TerrainFeature.House and <= TerrainFeature.Group;
+        public static bool IsKnown(byte kind) => kind is >= TerrainFeature.House and <= TerrainFeature.Edit;
+
+        /// <summary>The draw order of an edit's levelled ground: above every authored shape (a removed footprint is levelled whatever was drawn there before).</summary>
+        public const uint EditGroundOrder = uint.MaxValue;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5025</c> BE-1 (📄 docs/DESIGN_Terrain_Base_Edits.md D-2, D-3) — an EDIT of the baked-in building <paramref name="target"/>. <c>remove</c>: a <c>"remove"</c> part (the merge drops the
+        /// building — its record with its parts, or its solid block) and a <c>level</c> ground part over its footprint at its floor height (🔒 user: "removed building leaves bare flattened
+        /// ground"; no longer an island once it is gone). A target the base does not have: the remove part alone (the merge warns), no ground change.
+        /// </summary>
+        private static IReadOnlyList<JsonObject> Edit(string key, string action, string target, TerrainWorld baseWorld, string where, Vector2 at = default, IUniqueBuildings? unique = null)
+        {
+            // ⭐ CE-5029 BE-3 (D-6, D-7) — MAKE ENTERABLE / ADD DOOR: the base building is removed and the generator's house stands on its footprint (≥ 1 door; "door": at the
+            //   edit's own position). ⛔ Without a generator, or when no house fits, NOTHING is removed (the user keeps the building) and the host is told.
+            if (action is "enterable" or "door")
+            {
+                if (target.Length == 0) throw new ArgumentException($"[Terrain] {where}: an edit names no building (Target).");
+                if (!BaseFootprint(baseWorld, target, out var fp, out float floor) ) { Fdp.Core.Logging.FdpLog<TerrainRecipe>.Warn($"[Terrain] {where}: building '{target}' is not in the base — nothing to {action}."); return Array.Empty<JsonObject>(); }
+                if (unique == null) { Fdp.Core.Logging.FdpLog<TerrainRecipe>.Warn($"[Terrain] {where}: this host has no house generator — '{target}' stays as it is."); return Array.Empty<JsonObject>(); }
+                var house = unique.FromFootprint(fp, floor, BaseHeight(baseWorld, target, floor), action == "door" ? at : null);
+                if (house == null) { Fdp.Core.Logging.FdpLog<TerrainRecipe>.Warn($"[Terrain] {where}: no enterable house fits '{target}' (no stair) — it stays as it is."); return Array.Empty<JsonObject>(); }
+                var template = (JsonObject)JsonNode.Parse(house.TemplateJson)!;
+                template["name"] = key + "/1";
+                var remove = Feature(new JsonObject { ["kind"] = "remove", ["target"] = target, ["label"] = key + "/0" },
+                                     new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(Ring(fp)) });
+                var building = Feature(new JsonObject { ["kind"] = "building", ["label"] = key + "/1", ["baseZ"] = floor, ["building"] = template },
+                                       new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(house.Origin.X, house.Origin.Y) });
+                return new[] { remove, Ground(key + "/2", "level", floor, EditGroundOrder, fp, where), building };
+            }
+            if (target.Length == 0) throw new ArgumentException($"[Terrain] {where}: an edit names no building (Target).");
+            if (action.Length == 0 || action == "remove")
+            {
+                // the remove part covers the footprint, so the live bake's dirty rectangle is the building's (a part's box is its geometry's)
+                bool found = BaseFootprint(baseWorld, target, out var footprint, out float floorZ);
+                var geometry = found ? new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(Ring(footprint)) } : new JsonObject { ["type"] = "Point", ["coordinates"] = new JsonArray(0.0, 0.0) };
+                var remove = Feature(new JsonObject { ["kind"] = "remove", ["target"] = target, ["label"] = key + "/0" }, geometry);
+                if (!found) return new[] { remove };
+                return new[] { remove, Ground(key + "/1", "level", floorZ, EditGroundOrder, footprint, where) };
+            }
+            throw new ArgumentException($"[Terrain] {where}: unknown building edit '{action}' (remove, enterable, door).");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-5030</c> BE-4 (D-5, the terrain pick) — the label of the BAKED building at <paramref name="at"/> (world metres): a building record whose footprint holds the point
+        /// (a placed overlay house is not baked — its label carries a <c>/</c>), else a solid block prism's; null when none stands there.
+        /// </summary>
+        public static string? BaseBuildingAt(TerrainWorld world, Vector2 at)
+        {
+            foreach (var b in world.Buildings)
+                if (b.Footprint.Length >= 3 && !b.Label.Contains('/') && PolygonMath.Contains(b.Footprint, at)) return b.Label;
+            foreach (var p in world.Prisms)
+                if (p.Kind == TerrainPrismKind.Building && p.Building < 0 && p.Panel < 0 && p.Label is { } l && !l.Contains('/')
+                    && at.X >= p.Min.X && at.X <= p.Max.X && at.Y >= p.Min.Y && at.Y <= p.Max.Y && PolygonMath.Contains(p.Footprint, at)) return l;
+            return null;
+        }
+
+        /// <summary>⭐ CE-5029 — how tall the base building <paramref name="label"/> stands above its floor: its pieces' highest top (a record's walls, or a solid block).</summary>
+        public static float BaseHeight(TerrainWorld world, string label, float floorZ)
+        {
+            int b = -1;
+            for (int i = 0; i < world.Buildings.Count; i++) if (world.Buildings[i].Label == label) { b = i; break; }
+            float top = floorZ;
+            foreach (var p in world.Prisms)
+                if ((b >= 0 && p.Building == b) || (b < 0 && p.Building < 0 && p.Panel < 0 && p.Kind == TerrainPrismKind.Building && p.Label == label)) top = MathF.Max(top, p.TopZ);
+            return MathF.Max(top - floorZ, 3f);
+        }
+
+        /// <summary>The footprint and floor height of the base building <paramref name="label"/>: a building record, else a solid block prism of that label (its outer ring).</summary>
+        public static bool BaseFootprint(TerrainWorld world, string label, out Vector2[] footprint, out float floorZ)
+        {
+            foreach (var b in world.Buildings)
+                if (b.Label == label && b.Footprint.Length >= 3) { footprint = b.Footprint; floorZ = b.BaseZ; return true; }
+            foreach (var p in world.Prisms)
+                if (p.Kind == TerrainPrismKind.Building && p.Building < 0 && p.Panel < 0 && p.Label == label && p.Footprint.Length >= 3) { footprint = p.Footprint; floorZ = p.BaseZ; return true; }
+            footprint = Array.Empty<Vector2>(); floorZ = 0f;
+            return false;
+        }
 
         // ── lines ─────────────────────────────────────────────────────────────────────────────────────────────────
 

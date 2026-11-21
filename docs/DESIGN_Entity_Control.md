@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: ⛔ 2026-10-20 (live, user) — §8k.5 the map key: M in first person flashes the map and returns to 3-D (CE-2316, candidates there); and M should switch 2-D ↔ 3-D from the plain map too. · ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
 related-designs:
+  - docs/blueprints/Architect_Question_114_Seats_On_One_Node.md — OWNS the proposed amendment of C-8 (a station = node + seat, `StationId`; several players on one editor, R-11010) — awaiting the user
   - designs/air-attack/DESIGN_Air_Combat.md — air combat: the fighter HUD and possessing an F-16 / MiG (§4d); mode 8 is AI only
   - UX/DESIGN_Editing_UX.md — §1.8 / E15: lying weapons and stones as authored start state (PK-1 / PK-2 are the runtime half)
   - docs/UX/DESIGN_Input_And_Commands.md — MenuShortcuts and the FPS keys move into the one keymap (map scope, the Embodied hat scope)
@@ -2346,6 +2347,32 @@ the eye 2 m up: "always to the feet" (CE-1299). A rifle hides it because its sig
 
 📐 **Rails:** `EmbarkNodesTests.CE1299_SightOnATurretGun_ConvergesWhereTheCrosshairIs_SoTheRoundIsNotAtHisFeet` · `PossessionStationTests.CE2317_TheHud_SaysWhyTheWeaponHolds` (both red-proven).
 ⏭ CE-2317's blocking gate itself is not yet named: a live possessed `Technical_Zu23` with the HUD line on is the next measurement.
+
+## 8s. AS-BUILT — empty hands strike (`CE-1298`, ui, `2026-11-18`) — build-state: BUILT
+
+🔒 User: *"in FPS mode when I select the hand as the weapon … press fire, it will do some melee attack. Now, only a range box is shown, like if a weapon is locking, nothing happens."*
+
+```mermaid
+sequenceDiagram
+    participant St as PossessionStation (HUD)
+    participant Br as OperatorControlBehavior.OperateWeapon
+    participant PH as PersonHands.EmptyHanded
+    participant Me as Melee.Strike (the one blow)
+    St->>PH: FireMode — hands mount, nothing held?
+    PH-->>St: yes ⇒ SIGHT (no lock box)
+    St->>Br: frame: ShotSeq+1, ShotTarget = the man under the crosshair
+    Br->>PH: the selected mount is the empty hands?
+    Br->>Me: Strike(self, target) — in reach, standing, not down, cooldown spent
+    Me-->>Br: StrikeNotification + DamageAssessedEvent{Blunt}
+```
+
+*What the picture shows that prose hid:* the operator adds NO melee rule of its own — the hands mount (backend's H-1, a `Grenade` thrown-item mount) used to
+put every press through the LOCK path (`OperatorFireModes.Of` ⇒ Lock for `Grenade`), and an empty hand had nothing to throw. Both sides now ask the ONE
+predicate `PersonHands.EmptyHanded`: the HUD shows SIGHT, the brain strikes with the fist every brain uses (`Melee`: 5 damage, 3 s knock-down, 1.5 m
+reach, 2 s cooldown — `ManualControlState.NextStrikeAt`). Out of reach / on nothing / inside the cooldown ⇒ no blow. A non-combatant's blow is his
+hostile act (`HostileActs.Commit`, as a civilian brain's — CIV-4); a soldier's is not (AW-16's rule: combatants commit nothing).
+⚠ Not designed, left as built: the target is the crosshair's unit only (no "nearest in front" search); no swing is drawn for a miss. Rail:
+`EmbarkNodesTests.CE1298_EmptyHands_APressStrikesTheManInReach_OncePerCooldown_AndNeverLocks`.
 
 ## 9. AS-BUILT — S1 (`CE-3167` + `CE-3168`, `2026-10-11`)
 

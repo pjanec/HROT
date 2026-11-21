@@ -15,6 +15,7 @@ namespace Hrot.Network.Routing
     /// in a given role.
     /// </para>
     /// </summary>
+    [Fdp.Core.SessionState("session state, not the world — a restore leaves it (R-3039 S3, §8): cluster membership/load cache plus unsupported marks; rebuilt from heartbeats and durable topics")]
     public sealed class SimpleClusterStateCache : IClusterStateCache
     {
         private readonly Dictionary<int, NodeCapability> _nodes = new();

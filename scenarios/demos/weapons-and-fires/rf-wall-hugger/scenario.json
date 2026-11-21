@@ -74,7 +74,7 @@
         "Max": 100000
       },
       "TkbIdentity": {
-        "TkbType": 2002
+        "TkbType": 2004
       },
       "EntityInfo": {
         "Name": "Red 1",
@@ -117,7 +117,7 @@
         "Max": 100000
       },
       "TkbIdentity": {
-        "TkbType": 2002
+        "TkbType": 2004
       },
       "EntityInfo": {
         "Name": "Red 2",
@@ -160,7 +160,7 @@
         "Max": 100000
       },
       "TkbIdentity": {
-        "TkbType": 2002
+        "TkbType": 2004
       },
       "EntityInfo": {
         "Name": "Red 3",

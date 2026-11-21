@@ -13,6 +13,8 @@ using Hrot.Map.Definitions.Tkb;
 using Hrot.MuscleCharacter.Animation.Components;
 using OutfitHead = Hrot.Core.Tkb.OutfitHead;
 using Raylib_cs;
+using PostureBlend = Hrot.Look.People.PostureBlend;
+using UpperBody = Hrot.Look.People.UpperBody;
 
 namespace Hrot.UI.Common.Map3D;
 
@@ -22,7 +24,7 @@ namespace Hrot.UI.Common.Map3D;
 /// (<see cref="LogicalStance"/>), sized from the TKB and coloured by its <see cref="VisualData.ColorHex"/>. Units draw nothing —
 /// their members draw themselves. Nothing in 2-D.
 /// </summary>
-public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
+public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-3289 — the world: filmed
 {
     private static readonly Color Dark = new(46, 46, 42, 255);
     private static readonly Color Glass = new(70, 92, 112, 255);
@@ -64,7 +66,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                                            PersonSex Sex = PersonSex.Unspecified, Wardrobe? Wardrobe = null);
 
     /// <summary>⭐ CE-1099 (§6q O-3) — a person shorter than this (m) is a child: drawn with a larger head.</summary>
-    public const float ChildHeight = 1.5f;
+    public const float ChildHeight = Hrot.Look.People.PersonLook.ChildHeight;   // ⭐ CE-4671 LK-S2
 
     /// <summary>⭐ CE-1099 — how much larger a child's head is than the figure's scaled one.</summary>
     public const float ChildHead = 1.3f;
@@ -213,7 +215,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// base mixed half and half with the mean of its three tones.</summary>
     public static Color FarColour(in Outfit outfit, Color fallback)
     {
-        var c = Outfits.ColourOfPart(outfit, BlockFigure.TorsoIndex) ?? fallback;
+        var c = Outfits.ColourOfPart(outfit, BlockFigure.TorsoIndex).ToColor() ?? fallback;
         if (outfit.Camo == CamoPattern.None) return c;
         var (t1, t2, t3) = Outfits.CamoTones(outfit.Camo);
         static byte Mix(byte b, byte a1, byte a2, byte a3) => (byte)((b + (a1 + a2 + a3) / 3) / 2);
@@ -232,7 +234,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (look.Family == VisualFamily.Person)
         {
             long seed = SeedOf(world, e, hasNet);
-            var outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit, look.Elderly, look.Sex, look.Wardrobe);
+            var outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look).ToRgba(), SideOf(world, e), look.Kit, look.Elderly, look.Sex, look.Wardrobe);
             colour = FarColour(outfit, colour);
             var stance = LogicalStance.Of(world, e);
             if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e)) stance = StanceId.Prone;   // a dead man lies
@@ -262,6 +264,12 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         MortarsDrawn = 0;
         ChargeLightsDrawn = 0;
         EjectionSeatsDrawn = 0;
+        OpeningsDrawn = CrewOutDrawn = 0; _lightsNow.Clear();   // ⭐ CE-4670
+        // ⭐ CE-1985 (DESIGN_Sensor_View §5c) — the thermal pass: every body instance carries its °C as its colour (Submit), the batch reads it so
+        _thermal = ctx.Sensor == SceneSensor.Thermal && UnitHeat != null;
+        _airHeat = Fdp.Toolkit.Vis3D.LitShader.EncodeC(ctx.AirC + 6f);   // a draw no unit owns (a far SUMO body, a rope, a load): about body-warm
+        _submitHeat = _unitBody = _unitHot = _airHeat; _hotSign = 0;
+        if (_thermal && LitShader.IsCreated) LitShader.Shared.SetThermalSource(1, ThermalDefaultClass);
         _figureFrames.Clear();
         var world = _world();
         if (world == null || !world.IsComponentTypeRegistered<TkbIdentity>() || !world.IsComponentTypeRegistered<SimTransform>()) return;
@@ -338,16 +346,20 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             //   bonnet, the wings, the barrel are in view. ⛔ SUPERSEDED CE-1131 ("not drawn: the airframe filled the view" — the eye was
             //   a fixed height above the reference point, inside the hull). A kind with no crew eye is still not drawn.
             Vector3? crewEye = null;
-            if (e == FirstPerson && look.Family != VisualFamily.Person)
+            // ⭐ CE-1974 — an OPEN carrier (a horse, any animal) has no cab to look out of: its rider sits ON it in plain view, so
+            //   it is always drawn. 🔒 User, 2026-11-17: "When a soldier which is possessed gets on a horse, it is rendered as sitting on the
+            //   horse, but the horse is not rendered at all". ⛔ It was dropped: no glass, no turret ⇒ no crew eye ⇒ not drawn.
+            if (e == FirstPerson && look.Family != VisualFamily.Person && !OpenCarrier(look.Family))
             {
                 crewEye = CrewEye(look.Family, size);
                 if (crewEye == null) { _drawn.Add(e); continue; }
+                crewEye = CommanderEye(world, e, look.Family, crewEye.Value, tkb, type);   // ⭐ CE-4670 (§7d D-5) — head out only when he is
             }
             var colour = ColourOf(world, e, look.Colour);
             bool animal = VisualFamilies.IsAnimal(look.Family);   // ⭐ CE-4623
             if (animal && !HasOwnColour(world, e, look)) colour = AnimalCoats.Of(look.Family, SeedOf(world, e, hasNet));   // a seeded coat, the same on every host
             if (look.Family == VisualFamily.WheeledCar)   // ⭐ CE-1100 (§6q O-6) — every personal car its own paint
-                colour = Outfits.CarColour(SeedOf(world, e, hasNet), type, HasOwnColour(world, e, look) ? colour : null);
+                colour = Outfits.CarColour(SeedOf(world, e, hasNet), type, HasOwnColour(world, e, look) ? colour.ToRgba() : null).ToColor();
             // ⭐ CE-1085 (§6n N-3) — a weapon a man CARRIES is drawn on his back, after every figure is placed (pass 2)
             if (look.Family == VisualFamily.WeaponSystem && CarrierOf(world, e) is { } bearer)
             {
@@ -364,7 +376,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             if (band == ScreenBand.Far) { DrawFar(world, e, look, size, type, colour, hasNet); continue; }
             BodiesFull++;
             bool deadAnimal = animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);   // ⭐ CE-4623 (AR-8) — a dead animal LIES; it is never the burnt-out wreck of a vehicle
-            bool wreck = look.Family != VisualFamily.Person && !animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
+            // ⭐ CE-4634 (DESIGN_Dragon §8.2 D) — a dead DRAGON is not a burnt-out wreck either: it lies wings out, legs folded (the flying kit, still)
+            bool deadDragon = look.Family == VisualFamily.Dragon && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
+            bool wreck = look.Family is not (VisualFamily.Person or VisualFamily.Dragon) && !animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
             ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
             var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
             var carriage = look.Family == VisualFamily.Person ? Carriage.Of(world, e, tkb) : FigureCarriage.Free;   // ⭐ CE-1081..1084 (§6m)
@@ -372,13 +386,17 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             bool rotorTurning = !wreck && (look.Family == VisualFamily.Drone   // ⭐ CE-1086 — a drone's rotors run while it lives
                                            || look.Family is VisualFamily.Helicopter or VisualFamily.AttackHelicopter && IsAirborne(world, tf.Position, look.Geometry)
                                            || look.Family == VisualFamily.MineClearer && FlailActivity.IsOn(world, e)   // ⭐ CE-4624 — the flail drum spins while the flail is on
-                                           || look.Family == VisualFamily.AirDefenceVehicle && RadarActivity.IsOn(world, e));   // ⭐ CE-4618 — the antenna spins while the radar radiates
+                                           || look.Family == VisualFamily.AirDefenceVehicle && RadarActivity.IsOn(world, e)   // ⭐ CE-4618 — the antenna spins while the radar radiates
+                                           || look.Family == VisualFamily.Dragon && !deadDragon && DragonFlies(world, e, tf.Position, look.Geometry));   // ⭐ CE-4634 — its wings beat / glide while it flies   // ⭐ CE-4618 — the antenna spins while the radar radiates
             var animalMode = animal ? AnimalReader.ModeOf(world, e) : AnimalMode.Calm;
             if (look.Family == VisualFamily.Horse && type is 703 or 704 && animalMode == AnimalMode.Calm) animalMode = AnimalMode.Guard;   // ⭐ CE-4623 — a saddled (riding / war) horse stands head up, it does not graze
             float animalHeight = animal && look.Family is VisualFamily.Horse or VisualFamily.Goat or VisualFamily.Cat or VisualFamily.Poultry
                 ? tf.Position.Z - (Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(tf.Position.X, tf.Position.Y) ?? 0f) : 0f;   // ⭐ CE-4623 — a jump's height: the legs tuck
             var motion = _motion.Advance(e, tf.Position, tf.Rotation, look.Family, size, simTime, rotorTurning, _frameClock, animalMode, animalHeight);   // ⭐ CE-1353
-            if (motion.Bank != 0f) body = Matrix4x4.CreateRotationX(motion.Bank) * body;   // ⭐ CE-4621 — a motorcycle leans into its turn, about its ground line (its riders lean with it: HeldFigure)
+            if (deadDragon) motion = MotionPose.Still with { Tuck = 1f };   // ⭐ CE-4634 — dead: wings still, legs folded
+            // ⭐ CE-4621 / CE-4634 — the drawn sway off the sim pose (a motorcycle's lean into a turn, a dragon's wingbeat bob): the one owner, its riders and a rider's eye read the same
+            var sway = _motion.SwayOf(e);
+            if (!sway.IsIdentity) body = sway * body;
 
             KitPart[] parts;
             KitPivots pivots = default;
@@ -400,6 +418,17 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             else if (look.Family == VisualFamily.Person && HeldFigure(world, e, look.Soldier, carriage, size, simTime, ref body) is { } held)
             {
                 parts = held;                       // ⭐ CE-1081..1083 (§6m) — carried, dragged, seated, down: no gait of his own
+                // ⭐ CE-1976 (BW-10, BW-8) — a rider with a bow (the warrior on his pony): the bow in his hands, drawn when he fires, the quiver on his back
+                if (look.Soldier && carriage.Kind == CarriageKind.Seated)
+                {
+                    var (ridden, _) = HeldWeapons.Of(world, e, tkb, out _);
+                    if (ridden is HeldLook.Bow or HeldLook.Crossbow)
+                    {
+                        inHands = ridden;
+                        heldPosture = PostureOf(world, e);
+                        parts = BlockFigure.BowHeld(parts, ridden, heldPosture);
+                    }
+                }
                 motion = SeatedMotion(world, e, carriage, body, look.Soldier, simTime);   // ⭐ CE-4621 — astride a bike: the lean, or the turn to his aim
             }
             else if (look.Family == VisualFamily.Person)
@@ -478,6 +507,14 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 }
                 else _fall.Alive(e, StanceId.Standing, simTime);
             }
+            else if (look.Family == VisualFamily.Dragon)
+            {
+                // ⭐ CE-4634 (DESIGN_Dragon §8.2 K-2, W) — wings spread in flight (and dead), folded when it stands; the neck and the head turn and nod with turret 0 (the breath's
+                //   aim) about the TKB's pivots (the placed kit's, cached per type: 0 B) — so the drawn mouth is where the flame leaves
+                parts = DragonKits.For(rotorTurning, deadDragon).Parts;
+                pivots = PlacedKit(DragonKits.Flying, type, tkb, size).Pivots;
+                if (_poseOf != null && !deadDragon) pose = _poseOf(world, e);
+            }
             else
             {
                 var kit = KitOf(look);
@@ -518,7 +555,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             {
                 long seed = SeedOf(world, e, hasNet);
                 camoSeed = Outfits.CamoSeed(seed);
-                outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look), SideOf(world, e), look.Kit,
+                outfit = Outfits.For(seed, type, look.Soldier, look.Child, OwnColourOf(world, e, look).ToRgba(), SideOf(world, e), look.Kit,
                                      look.Elderly, look.Sex, look.Wardrobe);
                 Outfits.Details(outfit.Value, seed, _details);
                 // ⭐ CE-1177 (People Display U16) — his face shows how he feels (pain, anger, fear, alarm), close up
@@ -531,10 +568,21 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
             }
             int details = outfit != null ? _details.Count : 0;
+            // ⭐ CE-4670 (VA-S1, backend — cross-lane) — the vehicle's partial damage from the ONE reader (VehicleLook): destroyed parts dark, a thrown turret
+            bool vehicleBody = look.Family != VisualFamily.Person && !animal;
+            _damageMask = vehicleBody ? VehicleDamageDraw.DestroyedMask(world, e) : (byte)0;
+            _turretThrown = vehicleBody && wreck && VehicleDamageDraw.TurretThrown(world, e);
+            if (_thermal) SetUnitHeat(world, e, size);   // ⭐ CE-1985
             DrawParts(e, parts, look, size, pivots, pose, motion, kitToBody, body, outfit, headFace, camoSeed, colour, wreck, stains, details,
                       geometry, carriage, shader, rounds);
+            _damageMask = 0; _turretThrown = false;
+            _unitBody = _unitHot = _airHeat; _hotSign = 0;
+            // ⭐ CE-4670 (§7d) — its hatches, doors and ramps as the replicated state has them, a head out of a hatch, its lit lights (a wreck: none)
+            if (vehicleBody && !wreck && look.Family != VisualFamily.WeaponSystem)
+                DrawFittings(world, e, tkb != null && tkb.TryGetByType(type, out var fittingType) ? fittingType : null, parts, size, pivots, pose, motion,
+                             kitToBody, body, colour, shader, simTime);
             _expression = Vector3.Zero;
-            if (geometry != null) DrawGear(world, geometry, tf.Position, body, shader, wreck);
+            if (geometry != null && look.Family != VisualFamily.Dragon) DrawGear(world, geometry, tf.Position, body, shader, wreck);   // ⭐ CE-4634 — a dragon's "wheels" are its feet (the kit's)
             if (mortarFired) DrawMortar(e, body, colour, shader);   // ⭐ CE-1236 — after the figure: its muzzle is the shot's
             if (chargeBlink)   // ⭐ CE-1179 — the detonator's light, over the bundle
             {
@@ -563,6 +611,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         DrawCarried(world, shader);   // ⭐ CE-1085 — pass 2 (⭐ CE-4555 — no per-frame closure: a wreck is read inside)
         DrawRopes(world, shader, simTime);   // ⭐ CE-1119 (§6w AB-V5) — pass 3: the fast ropes, and the cut ones lying where they fell
         _batch.Flush(shader, _applySurface ??= d => _surface.Apply(LitShader.Shared, d));   // ⭐ CE-4555 (§6ak.2) — everything above, one instanced call per mesh
+        if (_thermal && LitShader.IsCreated) LitShader.Shared.SetThermalSource(0, ThermalDefaultClass);   // ⭐ CE-1985 — the next lit draws by class again
+        DrawLightPoints(in ctx);   // ⭐ CE-4670 (§7d D-4) — the lit lights, unlit, after the lit batch · ⭐ CE-1984 — self-luminous under a sensor view
         BodyDrawStats.Record(_batch.DrawCalls, _batch.Instances, BodiesDrawn, DoorsDrawn);
         BodyDrawStats.RecordBands(BodiesFull, BodiesFar, BodiesHidden, DoorsHidden);
         if (_recordPick) _pick.End();
@@ -608,13 +658,13 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 Matrix4x4 local;
                 if (look.Family == VisualFamily.Person)
                 {
-                    var dress = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, ownFar ?? (look.TypeColoured ? farColour : null), ForceId.Neutral, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
+                    var dress = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, (ownFar ?? (look.TypeColoured ? farColour : null)).ToRgba(), ForceId.Neutral, look.Kit, look.Elderly, look.Sex, look.Wardrobe);
                     farColour = FarColour(dress, farColour);
                     local = FarBox(StanceId.Standing, look.Soldier, size);
                 }
                 else
                 {
-                    if (look.Family == VisualFamily.WheeledCar) farColour = Outfits.CarColour(a.Key, a.TkbType, ownFar ?? (look.TypeColoured ? farColour : null));
+                    if (look.Family == VisualFamily.WheeledCar) farColour = Outfits.CarColour(a.Key, a.TkbType, (ownFar ?? (look.TypeColoured ? farColour : null)).ToRgba()).ToColor();
                     else if (ownFar is { } oc) farColour = oc;
                     var centre = look.Geometry is { } g ? new Vector3(g.BodyCentreX, g.BodyCentreY, g.BodyCentreZ) : new Vector3(0f, 0f, size.Z * 0.5f);
                     local = Matrix4x4.CreateScale(size) * Matrix4x4.CreateTranslation(centre);
@@ -637,7 +687,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             {
                 parts = BlockFigure.Parts(StanceId.Standing, look.Soldier, WeaponPostureKind.AtEase, WeaponPostureKind.AtEase, 1f);
                 motion = Stepping(motion, StanceId.Standing);
-                outfit = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, own ?? (look.TypeColoured ? colour : null), ForceId.Neutral,
+                outfit = Outfits.For(a.Key, a.TkbType, look.Soldier, look.Child, (own ?? (look.TypeColoured ? colour : null)).ToRgba(), ForceId.Neutral,
                                      look.Kit, look.Elderly, look.Sex, look.Wardrobe);
                 Outfits.Details(outfit.Value, a.Key, _details);
                 if (parts.Length > BlockFigure.HeadIndex) headFace = parts[BlockFigure.HeadIndex].Face;
@@ -645,7 +695,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             else
             {
                 (parts, pivots) = PlacedKit(KitOf(look), a.TkbType, tkb, size);
-                if (look.Family == VisualFamily.WheeledCar) colour = Outfits.CarColour(a.Key, a.TkbType, own ?? (look.TypeColoured ? colour : null));
+                if (look.Family == VisualFamily.WheeledCar) colour = Outfits.CarColour(a.Key, a.TkbType, (own ?? (look.TypeColoured ? colour : null)).ToRgba()).ToColor();
                 else if (own is { } c) colour = c;
             }
             var geometry = look.Geometry;
@@ -663,6 +713,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>⭐ AQ93 §15.8 (CE-4031) — ONE part loop for a body: an entity (<paramref name="e"/> — its weapon tip, its eyes, the
     /// first-person skip) or a body with no entity (null — SUMO's far agents), each part in its outfit or paint, its face, its details and
     /// its stains (<paramref name="stains"/>/<paramref name="details"/> of the shared lists).</summary>
+    private byte _damageMask;      // ⭐ CE-4670 (VA-S1) — the drawn vehicle's destroyed parts (VehicleDamageDraw), set around DrawParts
+    private bool _turretThrown;    // ⭐ CE-4670 — a Catastrophic wreck: its turret drawn thrown
+
     private void DrawParts(Entity? e, KitPart[] parts, in TypeLook look, Vector3 size, KitPivots pivots, ArticulationPose pose, MotionPose motion,
                            Matrix4x4 kitToBody, Matrix4x4 body, Outfit? outfit, FaceOn headFace, float camoSeed, Color colour, bool wreck,
                            int stains, int details, BodyGeometryDto? geometry, in FigureCarriage carriage, LitShader shader, int rounds = LauncherLoad.Full)
@@ -694,21 +747,34 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 if (who == FirstPerson && !ShowFirstPersonHead) continue;
             }
             var placed = part.BodyTransform(size, pivots, pose, motion) * kitToBody * body;
+            if (_turretThrown && VehicleDamageDraw.Thrown(part))   // ⭐ CE-4670 (VA-S1) — a Catastrophic kill: the turret and gun thrown off the hull
+                placed = part.BodyTransform(size, pivots, pose, motion) * VehicleDamageDraw.ThrownTransform(size) * kitToBody * body;
             var model = HrotToRaylib.ModelFromHrot(placed);
             var mesh = part.Shape switch { PartShape.Cylinder => _cylinder, PartShape.Cone => _cone, _ => _cube };
-            var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn : PartColour(part.Colour, colour, wreck);   // ⭐ CE-1099
+            bool partWrecked = wreck || (_damageMask != 0 && VehicleDamageDraw.Destroyed(_damageMask, part));   // ⭐ CE-4670 — a destroyed part is drawn dark
+            var tint = outfit is { } dress && Outfits.ColourOfPart(dress, pi) is { } worn ? worn.ToColor() : PartColour(part.Colour, colour, partWrecked);   // ⭐ CE-1099
+            if (_thermal)   // ⭐ CE-1985 — every part at the unit's °C; the hot end is a slab on the hull (below), not whole parts (a hull is one long box)
+            {
+                _submitHeat = _unitBody;
+                if (_hotSign != 0 && part.Shape == PartShape.Box)
+                {
+                    var ext = part.Extent * size;
+                    float volume = ext.X * ext.Y * ext.Z;
+                    if (volume > _hullVolume) { _hullVolume = volume; _hullCentre = part.Centre * size; _hullExtent = ext; _hullKitToBody = kitToBody; _hullBody = body; }
+                }
+            }
             if (look.Toy && !wreck) tint = part.Colour == ColourRole.Dark ? new Color(200, 90, 15, 255) : BlockFigure.ToyOrange;   // ⭐ CE-1173 (U12)
             // ⭐ CE-1101 (§6r) — the shader paints his camouflage or his face; ⭐ CE-4555 (§6ak D-4, D-5) — as this instance's data, into the batch
             Submit(mesh, model, tint, Paint(outfit, pi, part.Face, camoSeed));
             PartsDrawn++;
-            if (part.Face != FaceOn.None) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o)
+            if (part.Face != FaceOn.None && !_thermal) DrawFace(part.Face, placed, look.Soldier, colour, shader, outfit);   // ⭐ CE-1097 (§6o) · CE-1985: no painted face in the heat picture
             for (int k = 0; k < details; k++)   // ⭐ CE-1099 (§6q) — the outfit's details on this part
                 if (_details[k].Part == pi)
                 {
                     var d = _details[k];
                     var local = Matrix4x4.CreateScale(d.Extent) * Matrix4x4.CreateTranslation(d.Centre);
                     if (d.Turned) local *= BlockFigure.FaceFrame(headFace);
-                    Submit(_cube, HrotToRaylib.ModelFromHrot(local * placed), d.Colour, BodySurface.PlainData);
+                    Submit(_cube, HrotToRaylib.ModelFromHrot(local * placed), d.Colour.ToColor(), BodySurface.PlainData);
                     DetailsDrawn++;
                 }
             for (int k = 0; k < stains; k++)   // ⭐ CE-1098 (§6p) — the blood spots on this part
@@ -719,7 +785,21 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                     StainsDrawn++;
                 }
         }
+        // ⭐ CE-1985 (§5b) — the engine's hot end: a slab over the hull's front or rear third, at the hot end's °C
+        if (_thermal && _hotSign != 0 && _hullVolume > 0f)
+        {
+            var slab = Matrix4x4.CreateScale(_hullExtent.X * 0.3f, _hullExtent.Y * 0.92f, _hullExtent.Z * 0.12f)
+                     * Matrix4x4.CreateTranslation(_hullCentre.X + _hotSign * _hullExtent.X * 0.34f, _hullCentre.Y, _hullCentre.Z + _hullExtent.Z * 0.47f);
+            _submitHeat = _unitHot;
+            Submit(_cube, HrotToRaylib.ModelFromHrot(slab * _hullKitToBody * _hullBody), default, BodySurface.PlainData);
+        }
+        _hullVolume = 0f;
+        _submitHeat = _airHeat;
     }
+
+    private float _hullVolume;
+    private Vector3 _hullCentre, _hullExtent;
+    private Matrix4x4 _hullKitToBody, _hullBody;
 
     /// <summary>⭐ CE-1033 S4 — the figure's parts: the logical stance (the shared rule), BLENDED from the stance it is leaving while
     /// the muscle reports a transition in progress (<see cref="StanceStatus"/> — replicated, so every host shows the same blend).</summary>
@@ -736,7 +816,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>The most an aimed upper body turns toward its target, and pitches (radians).</summary>
     /// <remarks>⭐ <c>CE-3195</c> (W-14a) — the twist is the person body's own limit, <see cref="CarKinem.Controllers.HumanGait.MaxAimTwist"/>:
     /// the fire arc reads the same value, so the drawn rifle points where the round can go.</remarks>
-    public const float MaxAimTwist = global::CarKinem.Controllers.HumanGait.MaxAimTwist, MaxAimPitch = 35f * MathF.PI / 180f;
+    public const float MaxAimTwist = UpperBody.MaxAimTwist, MaxAimPitch = UpperBody.MaxAimPitch;   // ⭐ CE-11002 (RR-2) — the shared rule
 
     /// <summary>
     /// ⭐ WL-6 (W-13e) — the figure's upper body: it leans from the hip at a stance's height; an AIMED soldier turns and pitches it
@@ -787,13 +867,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// body (<see cref="Fdp.Toolkit.Perception.Look.LookOf.HeadYaw"/>, replicated) less the torso's drawn <paramref name="drawnTwist"/>, within
     /// his neck. So every node shows where he looks — an aim, an ordered look, a glance (LD-3), an operator's free look. 0 with no look.
     /// </summary>
-    public static float HeadTurnOf(EntityRepository world, Entity e, float drawnTwist)
-    {
-        float eyes = Fdp.Toolkit.Perception.Look.LookOf.HeadYaw(world, e);
-        if (eyes == 0f && drawnTwist == 0f) return 0f;
-        float neck = Fdp.Toolkit.Perception.Look.LookOf.HeadLimit(world, e);
-        return Math.Clamp(Fdp.Toolkit.Perception.Look.LookOf.Wrap(eyes - drawnTwist), -neck, neck);
-    }
+    public static float HeadTurnOf(EntityRepository world, Entity e, float drawnTwist) => UpperBody.HeadTurnOf(world, e, drawnTwist);   // ⭐ CE-11002 (RR-2)
 
     /// <summary>⭐ WL-6c — the gait's legs for <paramref name="stance"/>: the hips at the stance's height, each shin bent back as its leg
     /// swings through. ⭐ CE-4031 — shared by an entity's figure and a body with no entity (<see cref="DrawAmbient"/>).</summary>
@@ -812,19 +886,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>The aim of an AIMED unit relative to its body: turn (counter-clockwise) and pitch (up), both clamped. False when it is
     /// not aimed or aims at nothing it can place.</summary>
     public static bool TryAim(EntityRepository world, Entity e, in SimTransform tf, Vector3 size, StanceId stance, out float twist, out float pitch)
-    {
-        twist = pitch = 0f;
-        // ⭐ CE-3195 — the ONE reading of what the posture aims at (the gait and the Stride motor read it too)
-        if (!Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, e, out var at)) return false;
-        float shoulder = (stance == StanceId.Crouched ? 0.98f : 1.41f - BlockFigure.AthleticDrop) / 1.8f * size.Z;   // aimed: the athletic stance
-        var toward = at - (tf.Position + new Vector3(0f, 0f, shoulder));
-        var local = Vector3.Transform(toward, Quaternion.Inverse(tf.Rotation));
-        float horizontal = MathF.Sqrt(local.X * local.X + local.Y * local.Y);
-        if (horizontal < 0.1f) return false;
-        twist = Math.Clamp(MathF.Atan2(local.Y, local.X), -MaxAimTwist, MaxAimTwist);
-        pitch = Math.Clamp(MathF.Atan2(local.Z, horizontal), -MaxAimPitch, MaxAimPitch);
-        return true;
-    }
+        => UpperBody.TryAim(world, e, in tf, size.Z, stance, out twist, out pitch);   // ⭐ CE-11002 (RR-2) — the shared rule
 
     /// <summary>
     /// ⭐ <c>CE-1193</c> (backend's <c>Lean</c>, <c>CE-3257</c> §13 LN-2; behaviors' poses note CB-21) — a man LEANING round a corner is drawn
@@ -1253,8 +1315,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             case CarriageKind.Seated when carriage.Seat is { } seat && world.HasComponent<SimTransform>(carriage.Holder):
             {
                 ref readonly var v = ref world.GetComponentRO<SimTransform>(carriage.Holder);
-                // ⭐ CE-4621 — a motorcycle BANKS into a turn (about its ground line): its riders lean with it (the bank its body was last drawn with)
-                body = Carriage.InSeat(Matrix4x4.CreateRotationX(_motion.BankOf(carriage.Holder)) * Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
+                // ⭐ CE-4621 / CE-4634 — the carrier's drawn sway (a motorcycle's bank, a dragon's bob): its riders move with the body they sit on
+                body = Carriage.InSeat(_motion.SwayOf(carriage.Holder) * Matrix4x4.CreateFromQuaternion(v.Rotation) * Matrix4x4.CreateTranslation(v.Position), seat);
                 // ⭐ CE-1202 (§6n N-2) — the gunner of a station weapon (the technical's bed pintle, the HMMWV's ring) turns WITH it: his
                 //   seat's place swung about the weapon's traverse pivot by the weapon's own azimuth, as its kit is drawn
                 body = TurnedWithStation(world, e, body, simTime);
@@ -1433,9 +1495,17 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>⭐ CE-4623 — birds drawn from flocks by the last frame (rails).</summary>
     public int FlockBirdsDrawn { get; private set; }
 
-    /// <summary>⭐ CE-4623 — is <paramref name="holder"/> a horse (what a Ride seat sits on)?</summary>
+    /// <summary>⭐ CE-4623 — is <paramref name="holder"/> a horse (what a Ride seat sits on)? ⭐ CE-4634 — or a DRAGON (its rider and pillion sit astride the same way, R-4269's
+    /// riding pose: legs round the barrel, firing from the saddle).</summary>
     private bool IsHorse(EntityRepository world, Entity holder)
-        => world.HasComponent<TkbIdentity>(holder) && LookOf(world.GetComponentRO<TkbIdentity>(holder).TkbType, _tkb()).Family == VisualFamily.Horse;
+        => world.HasComponent<TkbIdentity>(holder) && LookOf(world.GetComponentRO<TkbIdentity>(holder).TkbType, _tkb()).Family is VisualFamily.Horse or VisualFamily.Dragon;
+
+    /// <summary>⭐ CE-4634 — does the dragon <paramref name="e"/> fly? Its motion model's word (<see cref="Fdp.Toolkit.Motion.FlightState"/>.Airborne, the rotorcraft's take-off / landing);
+    /// the height heuristic only when it has no flight state yet.</summary>
+    private static bool DragonFlies(EntityRepository world, Entity e, Vector3 position, BodyGeometryDto? geometry)
+        => world.IsComponentTypeRegistered<Fdp.Toolkit.Motion.FlightState>() && world.HasComponent<Fdp.Toolkit.Motion.FlightState>(e)
+            ? world.GetComponentRO<Fdp.Toolkit.Motion.FlightState>(e).Airborne != 0
+            : IsAirborne(world, position, geometry);
 
     /// <summary>
     /// ⭐ CE-4623 (AU-4, AR-14) — a flock: N birds, each a closed-form offset of (seed, index, sim time, mode) in the flock's frame (<see cref="FlockBirds"/>); a dot each when far, the bird
@@ -1480,7 +1550,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public int PillionsAimed { get; private set; }
 
     /// <summary>The most a rider on a firing seat turns his upper body off the seat's forward (radians, ~160°) — the seat's own arc is the limit (PF-1), this one only keeps the drawing human.</summary>
-    public const float MaxSeatTwist = 160f * MathF.PI / 180f;
+    public const float MaxSeatTwist = UpperBody.MaxSeatTwist;   // ⭐ CE-11002 (RR-2)
 
     /// <summary>⭐ CE-4621 — a soldier on a FIRING seat (a traverse arc on a non-station, non-DRIVER seat, PF-1) whose weapon brain has the rifle up (Aimed): drawn with it shouldered. ⛔ The driver (backend's rider seat has an arc, PF-4: fires only stopped) always stays on the bars — LD-9.</summary>
     private static bool FiringAimed(EntityRepository world, Entity e, Fdp.Toolkit.Tkb.Domain.SeatDto seat, bool soldier, bool driverFires = false)
@@ -1514,16 +1584,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     }
 
     /// <summary>⭐ CE-4621 — the turn (counter-clockwise) and pitch (up) from the shoulder (0.53 m over the hips) to <paramref name="local"/> (an aim point in the seat's frame), the turn limited to <see cref="MaxSeatTwist"/>. False under 10 cm.</summary>
-    public static bool AimInSeat(Vector3 local, out float twist, out float pitch)
-    {
-        twist = pitch = 0f;
-        var d = local - new Vector3(0f, 0f, 0.53f);
-        float horizontal = MathF.Sqrt(d.X * d.X + d.Y * d.Y);
-        if (horizontal < 0.1f) return false;
-        twist = Math.Clamp(MathF.Atan2(d.Y, d.X), -MaxSeatTwist, MaxSeatTwist);
-        pitch = Math.Clamp(MathF.Atan2(d.Z, horizontal), -MaxAimPitch, MaxAimPitch);
-        return true;
-    }
+    public static bool AimInSeat(Vector3 local, out float twist, out float pitch) => UpperBody.AimInSeat(local, out twist, out pitch);   // ⭐ CE-11002 (RR-2)
 
     /// <summary>⭐ CE-1202 — seated gunners turned with their station's weapon by the last frame (rails).</summary>
     public int GunnersTurned { get; private set; }
@@ -1744,6 +1805,13 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// helicopter, a transport); else a commander's eye above its TURRET's roof, a quarter of its width to the left. Null: no crew eye.
     /// Pure — the rail runs it over every kind.
     /// </summary>
+    /// <summary>⭐ <c>CE-1974</c> — a carrier its rider sits ON in the open (an animal): drawn even while it is the operator's own body. (The motorcycle has a windscreen, so it
+    /// already has a crew eye and is drawn.) ⭐ CE-4634 — and a DRAGON: its rider sits on its back in the open, and sees its neck and wings.</summary>
+    /// <summary>⭐ CE-4634 — the drawn sway of <paramref name="carrier"/> (<see cref="MotionTracker.SwayOf"/>): what a rider's camera eye moves with.</summary>
+    public Matrix4x4 SwayOf(Entity carrier) => _motion.SwayOf(carrier);
+
+    public static bool OpenCarrier(VisualFamily family) => VisualFamilies.IsAnimal(family) || family == VisualFamily.Dragon;
+
     public static Vector3? CrewEye(VisualFamily family, Vector3 size)
     {
         var kit = ShapeKits.For(family);
@@ -1885,7 +1953,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         if (face != FaceOn.None)
         {
             FacesPainted++;
-            return BodySurface.FaceData(face, o.Face, o.Hair, _expression);
+            return BodySurface.FaceData(face, o.Face, o.Hair.ToColor(), _expression);
         }
         if (o.Camo != CamoPattern.None && index is >= 0 and <= 9 and not BlockFigure.HeadIndex)
         {
@@ -1896,7 +1964,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
                 CamoPattern.Woodland => SurfaceKind.Woodland,
                 CamoPattern.Desert => SurfaceKind.Desert,   // ⭐ CE-1235
                 _ => SurfaceKind.Fleck,
-            }, t1, t2, t3, camoSeed);
+            }, t1.ToColor(), t2.ToColor(), t3.ToColor(), camoSeed);
         }
         return BodySurface.PlainData;
     }
@@ -1920,7 +1988,29 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     internal LitInstanceBatch Batch => _batch;
 
     private void Submit(Mesh mesh, in Matrix4x4 model, Color colour, in LitInstanceData data)
-        => _batch.Add(mesh.VaoId == _cylinder.VaoId ? _cylinderBucket : mesh.VaoId == _cone.VaoId ? _coneBucket : _cubeBucket, model, colour, data);
+        => _batch.Add(mesh.VaoId == _cylinder.VaoId ? _cylinderBucket : mesh.VaoId == _cone.VaoId ? _coneBucket : _cubeBucket, model,
+                      _thermal ? _submitHeat : colour, data);   // ⭐ CE-1985 — in the thermal pass EVERY body instance carries a °C (never a colour read as one)
+
+    // ── ⭐ CE-1985 (docs/designs/sensor-view/DESIGN_Sensor_View.md §5b, §5c) — the thermal pass ─────────────────────────────────────────────
+    /// <summary>The class a lit draw that says nothing is read as in the thermal pass (concrete — plausible background).</summary>
+    public const int ThermalDefaultClass = (int)Fdp.Toolkit.Perception.Signatures.ThermalClassId.Concrete;
+
+    /// <summary>A unit's temperatures for the thermal pass (wired to the map's sensor view by <c>AttachMapLayers</c>): its body °C, its hot end's °C
+    /// and which end is hot (+1 front, −1 rear, 0 none). Null ⇒ no thermal picture of bodies.</summary>
+    public Func<EntityRepository, Entity, (float BodyC, float HotC, int HotSign)>? UnitHeat { get; set; }
+
+    private bool _thermal;
+    private Color _airHeat, _submitHeat, _unitBody, _unitHot;
+    private int _hotSign;
+
+    private void SetUnitHeat(EntityRepository world, Entity e, Vector3 size)
+    {
+        var (bodyC, hotC, sign) = UnitHeat!(world, e);
+        _unitBody = Fdp.Toolkit.Vis3D.LitShader.EncodeC(bodyC);
+        _unitHot = Fdp.Toolkit.Vis3D.LitShader.EncodeC(hotC);
+        _hotSign = sign;
+        _submitHeat = _unitBody;
+    }
 
     /// <summary>⭐ CE-1101 (§6r) — heads painted with a face, and uniform parts painted with camouflage, by the last frame (rails).</summary>
     public int FacesPainted { get; private set; }
@@ -1946,7 +2036,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         {
             var d = heads[i];
             if (d.Shade == FaceShade.Hair && outfit?.HairStyle == HairStyle.None) continue;
-            Submit(_cube, HrotToRaylib.ModelFromHrot(BlockFigure.FaceDetail(d, on, head)), FaceColour(d.Shade, uniform, outfit?.Hair), BodySurface.PlainData);
+            Submit(_cube, HrotToRaylib.ModelFromHrot(BlockFigure.FaceDetail(d, on, head)), FaceColour(d.Shade, uniform, (outfit?.Hair).ToColor()), BodySurface.PlainData);
             FaceDetailsDrawn++;
         }
     }
@@ -1990,11 +2080,10 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     /// <summary>⭐ CE-1098 / CE-1099 — a man's seed: his network id (the same on every node), else his entity index.</summary>
     private static long SeedOf(EntityRepository world, Entity e, bool hasNet)
-        => hasNet && world.HasComponent<NetworkIdentity>(e) && world.GetComponentRO<NetworkIdentity>(e).Value is int net && net != 0 ? net : e.Index;
+        => hasNet ? Hrot.Look.People.PersonLook.SeedOf(world, e) : e.Index;   // ⭐ CE-4671 LK-S2 — the look library's seed (one owner)
 
     /// <summary>⭐ CE-1099 (§6q O-4) — his side (replicated <see cref="EntityInfo.ForceId"/>); Neutral where there is none.</summary>
-    private static ForceId SideOf(EntityRepository world, Entity e)
-        => world.IsComponentTypeRegistered<EntityInfo>() && world.HasComponent<EntityInfo>(e) ? world.GetComponentRO<EntityInfo>(e).ForceId : ForceId.Neutral;
+    private static ForceId SideOf(EntityRepository world, Entity e) => Hrot.Look.People.PersonLook.SideOf(world, e);   // ⭐ CE-4671 LK-S2
 
     /// <summary>⭐ CE-1099 (§6q O-1) — true when his colour is HIS (authored on the entity, or named by his type), not the family default.</summary>
     private static bool HasOwnColour(EntityRepository world, Entity e, in TypeLook look) => look.TypeColoured || HasEntityColour(world, e);
@@ -2006,22 +2095,16 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// spawned entity (<c>PresentationTkbTranslator</c>), so his own is one that DIFFERS from the type's.
     /// </summary>
     public static Color? OwnColourOf(EntityRepository world, Entity e, in TypeLook look)
-    {
-        var colour = ColourOf(world, e, look.Colour);
-        if (!look.Soldier || look.Kit == PersonKit.Security) return HasOwnColour(world, e, look) ? colour : null;
-        return HasEntityColour(world, e) && !(look.TypeColoured && SameColour(colour, look.Colour)) ? colour : null;
-    }
+        => Hrot.Look.People.PersonLook.OwnColourOf(world, e, FactsFrom(look)).ToColor();   // ⭐ CE-4671 LK-S2 — the look library's rule (one owner)
+
+    /// <summary>⭐ CE-4671 LK-S2 — a type look's person half, as the look library's facts.</summary>
+    private static Hrot.Look.People.PersonFacts FactsFrom(in TypeLook look)
+        => new(look.Soldier, look.Child, look.Kit, look.Elderly, look.Sex, look.Wardrobe, look.Colour.ToRgba(), look.TypeColoured);
 
     private static bool SameColour(Color a, Color b) => a.R == b.R && a.G == b.G && a.B == b.B;
 
     /// <summary>⭐ CE-1235 — true when the ENTITY itself names a colour (authored appearance or visual data), whatever his type says.</summary>
-    private static bool HasEntityColour(EntityRepository world, Entity e)
-    {
-        if (world.IsComponentTypeRegistered<EntityAppearance>() && world.HasComponent<EntityAppearance>(e) && world.GetComponentRO<EntityAppearance>(e).HasColour)
-            return true;
-        return world.IsComponentTypeRegistered<VisualData>() && world.HasComponent<VisualData>(e)
-            && ParseHex(world.GetComponentRO<VisualData>(e).ColorHex) != null;
-    }
+    private static bool HasEntityColour(EntityRepository world, Entity e) => Hrot.Look.People.PersonLook.HasEntityColour(world, e);   // ⭐ CE-4671 LK-S2
 
     private readonly List<PartDetail> _details = new(8);
 
@@ -2045,8 +2128,8 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     public static Color FaceColour(FaceShade shade, Color uniform, Color? hair = null) => shade switch
     {
         FaceShade.Hair => hair ?? new Color(62, 44, 32, 255),
-        FaceShade.Cap => Outfits.PoliceUniform,          // ⭐ CE-1172 (U11)
-        FaceShade.CapBand => Outfits.CapBand,
+        FaceShade.Cap => Outfits.PoliceUniform.ToColor(),          // ⭐ CE-1172 (U11)
+        FaceShade.CapBand => Outfits.CapBand.ToColor(),
         FaceShade.Peak => new Color(16, 16, 18, 255),
         FaceShade.Visor => new Color(150, 172, 196, 255),
         _ => new Color((byte)(uniform.R * 0.72f), (byte)(uniform.G * 0.72f), (byte)(uniform.B * 0.72f), (byte)255),
@@ -2140,14 +2223,24 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             || Hrot.Core.Tkb.AreaEffectCloudTkb.Is(tkbType)   // ⭐ CE-1165 — nor a gas / smoke CLOUD: EffectLayer draws it
             || Hrot.Core.Tkb.BuildingDamageTkb.Is(tkbType)
             || Hrot.Core.Tkb.GroundDamageTkb.Is(tkbType)
+            || Hrot.Core.Tkb.GroundFireTkb.Is(tkbType)   // ⭐ CE-3487 (flame FL-3) — nor a cell's GROUND FIRE record: its FireState spots are drawn by the effect layer (§6 the look contract); backend, cross-lane one-line edit
+            || Hrot.Core.Tkb.GroundHeatMarksTkb.Is(tkbType)   // ⭐ CE-4664 (TD-14) — nor a cell's ground HEAT MARKS: never drawn in the normal views; terrain lane, cross-lane one-line edit
+            || tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainFeature || tkbType == Hrot.Map.Common.TkbEntityTypes.TerrainBlock   // ⭐ CE-1966 — nor a placed terrain FEATURE / BLOCK: the terrain mesh draws what it makes, the feature gizmo its handle (it drew the unknown pink box at its anchor); terrain lane, cross-lane
+            || IsTerrainDrawnObstacle(tkbType)   // ⭐ CE-4656 (terrain's note) — nor a baked CULTURAL-FEATURE obstacle: the terrain mesh draws its material box (it was ALSO drawn as the unknown box); the car (kind 1) stays ours
             || tkbType == Hrot.Map.Common.TkbEntityTypes.AirArena   // ⭐ CE-4647 — nor an AIR ARENA: AirArenaProjector draws it (a map graphic, no body)
-            || tkbType == Fdp.Toolkit.Terrain.Minefields.TkbType || tkbType == Hrot.Core.Tkb.MinefieldRecordTkb.StrikesType || tkbType == Hrot.Core.Tkb.MinefieldRecordTkb.KnowledgeType   // ⭐ CE-4624 — nor a MINEFIELD or its records: MinefieldGizmo draws the field (it drew an unknown purple box at its anchor)
+            || tkbType == Fdp.Toolkit.Terrain.Minefields.TkbType || Hrot.Core.Tkb.MinefieldRecordTkb.IsRecord(tkbType)   // ⭐ CE-2468 — the under-fire record too   // ⭐ CE-4624 — nor a MINEFIELD or its records: MinefieldGizmo draws the field (it drew an unknown purple box at its anchor)
             || Hrot.Core.Tkb.TreeDamageTkb.Is(tkbType))   // ⭐ CE-4603 (B-6) — nor a cell's felled trunks (the trees vanish from the terrain); terrain lane, cross-lane   // ⭐ CE-4591 (P-4) — nor a ground cell's craters (drawn into the ground); terrain lane, cross-lane one-line edit   // ⭐ CE-4391 S-1 — nor a building's DAMAGE entity (breaches): drawn into the walls in S-4 (ui, R-4195); a cross-lane one-line edit
             return _looks[tkbType] = new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         look = Resolve(tkb != null && tkb.TryGetByType(tkbType, out var t) ? t : null);
         _looks[tkbType] = look;
         return look;
     }
+
+    /// <summary>⭐ <c>CE-4656</c> (NOTE_Terrain_To_Ui_Obstacle_Drawing) — a static obstacle the terrain bake draws (every obstacle type but the
+    /// platform-typed car, which carries <c>TerrainPrism.DrawnByEntity</c>, plus a wreck).</summary>
+    internal static bool IsTerrainDrawnObstacle(long tkbType)
+        => tkbType != Hrot.Map.Common.TkbEntityTypes.Obstacle_Car
+           && (tkbType == Hrot.Map.Common.TkbEntityTypes.Obstacle_Wreck || Array.IndexOf(Hrot.Map.Common.TkbEntityTypes.Obstacles, tkbType) >= 0);
 
     /// <summary>⭐ CE-1457 (§6ad-3 TC1) — the kit a look is drawn with: its body style's when a wheeled car type names one, else its family's.</summary>
     public static ShapeKit KitOf(in TypeLook look)
@@ -2195,18 +2288,18 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
             size *= tall / size.Z;
         }
         var typeColour = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex);
-        var person = family == VisualFamily.Person ? t.GetDescriptor<PersonDto>() : null;   // ⭐ CE-4648 — who the type IS (age, sex)
+        // ⭐ CE-4671 LK-S2 — the PERSON half (child, kit, elderly, sex, wardrobe) is the look library's (PersonLook.FactsOf, one owner, cached per type): a gateway
+        //   resolves a man as the map does. CE-4648 (OF-2) a stated age band decides a child, else his height; CE-1162 the type says who he is; OF-7 the wardrobe once per type
+        var facts = family == VisualFamily.Person ? Hrot.Look.People.PersonLook.FactsOf(t) : null;
         return new TypeLook(family, size, typeColour ?? DefaultColour(family), VisualFamilies.IsSoldier(t), geometry, weapon,
-                            // ⭐ CE-4648 (OF-2) — a type that states its age band is a child by it; one that does not, by its height (as it always was)
-                            TypeColoured: typeColour != null, Child: family == VisualFamily.Person && (person != null ? person.Age == AgeBand.Child : size.Z < ChildHeight),
-                            Kit: family == VisualFamily.Person ? VisualFamilies.PersonKitOf(t) : PersonKit.Civilian,   // ⭐ CE-1162
-                            // ⭐ CE-1162 (U1-b) — the TYPE says who he is (PersonDto, backend F-4): an elderly person is dressed and greyed as one
-                            Elderly: family == VisualFamily.Person && t.GetDescriptor<PersonDto>()?.Age == AgeBand.Elderly,
+                            TypeColoured: typeColour != null, Child: facts?.Child ?? false,
+                            Kit: facts?.Kit ?? PersonKit.Civilian,
+                            Elderly: facts?.Elderly ?? false,
                             // ⭐ CE-1173 (People Display U12) — a weapon-system type that looks like a gun and fires nothing: drawn orange
                             Toy: family == VisualFamily.WeaponSystem && t.GetDescriptor<WeaponSuiteDto>()?.Mounts.Any(HeldWeapons.IsToy) == true,
                             Style: family == VisualFamily.WheeledCar ? CarKits.Parse(t.GetDescriptor<VisualDefinitionDto>()?.BodyStyle) : null,   // ⭐ CE-1457
-                            Sex: person?.Sex ?? PersonSex.Unspecified,
-                            Wardrobe: family == VisualFamily.Person ? Wardrobe.Of(t.GetDescriptor<OutfitDto>()) : null);   // ⭐ CE-4648 (OF-7) — flattened once per type
+                            Sex: facts?.Sex ?? PersonSex.Unspecified,
+                            Wardrobe: facts?.Wardrobe);
     }
 
     /// <summary>
@@ -2214,6 +2307,17 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// by its reference point (ground centre, or the TKB box offset for a CG-referenced body). False for a unit (no body).
     /// </summary>
     public bool TryGetBox(EntityRepository world, Entity e, ITkbDatabase? tkb, out Vector3 centre, out Quaternion rotation, out Vector3 half)
+        => TryGetBoxCore(world, e, tkb, out centre, out rotation, out half);
+
+    /// <summary>⭐ CE-1985 — the TKB type name of what this layer draws for <paramref name="e"/> (e.g. a hover readout's fallback when the unit has no name); null when unknown.</summary>
+    public string? TypeNameOf(EntityRepository world, Entity e)
+        => world.HasComponent<TkbIdentity>(e) && _tkb() is { } tkb && tkb.TryGetByType((long)world.GetComponentRO<TkbIdentity>(e).TkbType, out var t) ? t.Name : null;
+
+    /// <summary>⭐ CE-1985 — <see cref="TryGetBox"/> with the TKB this layer draws from (a screen-space overlay outlining a body, e.g. the thermal view's).</summary>
+    public bool TryGetBox(EntityRepository world, Entity e, out Vector3 centre, out Quaternion rotation, out Vector3 half)
+        => TryGetBoxCore(world, e, _tkb(), out centre, out rotation, out half);
+
+    private bool TryGetBoxCore(EntityRepository world, Entity e, ITkbDatabase? tkb, out Vector3 centre, out Quaternion rotation, out Vector3 half)
     {
         centre = default; rotation = Quaternion.Identity; half = default;
         if (!world.HasComponent<TkbIdentity>(e) || !world.HasComponent<SimTransform>(e)) return false;
@@ -2255,16 +2359,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
     /// <summary>⭐ CE-1033 S5c (§3.7) — the body colour: the entity's own <see cref="EntityAppearance"/> (scenario / per spawn) →
     /// the TKB's <c>VisualData.ColorHex</c> → the family default.</summary>
     public static Color ColourOf(EntityRepository world, Entity e, Color fallback)
-    {
-        if (world.IsComponentTypeRegistered<EntityAppearance>() && world.HasComponent<EntityAppearance>(e))
-        {
-            var a = world.GetComponentRO<EntityAppearance>(e);
-            if (a.HasColour) return new Color(a.R, a.G, a.B, (byte)255);
-        }
-        if (!world.IsComponentTypeRegistered<VisualData>() || !world.HasComponent<VisualData>(e)) return fallback;
-        string hex = world.GetComponentRO<VisualData>(e).ColorHex;
-        return ParseHex(hex) ?? fallback;
-    }
+        => Hrot.Look.People.PersonLook.ColourOf(world, e, fallback.ToRgba()).ToColor();   // ⭐ CE-4671 LK-S2 — the look library's read (one owner)
 
     /// <summary>⭐ W2 (VE-O) — the colour a part is drawn: its role's shade of the body colour, or, on a WRECK, near-black for every
     /// role — the roles keep a few steps apart so the burnt-out shape still reads.</summary>
@@ -2286,6 +2381,7 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         ColourRole.Bone => new Color(226, 218, 196, 255),
         ColourRole.Red => new Color(190, 40, 36, 255),
         ColourRole.Amber => new Color(225, 165, 40, 255),
+        ColourRole.Wood => new Color(139, 96, 54, 255),   // ⭐ CE-1976 — a bow, an arrow, a crossbow stock
         ColourRole.Dark => Dark,
         ColourRole.Glass => Glass,
         ColourRole.Metal => Metal,
@@ -2294,8 +2390,9 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
 
     public static Color DefaultColour(VisualFamily family) => family switch
     {
-        VisualFamily.Person => new Color(96, 110, 72, 255),
+        VisualFamily.Person => Hrot.Look.People.PersonLook.DefaultColour.ToColor(),   // ⭐ CE-4671 LK-S2
         VisualFamily.Tank => new Color(112, 120, 82, 255),
+        VisualFamily.Dragon => new Color(122, 31, 31, 255),   // ⭐ CE-4634 — TKB 411's own #7A1F1F (the TKB's colour wins anyway)
         VisualFamily.Afv => new Color(122, 116, 84, 255),
         VisualFamily.WheeledCar => new Color(72, 104, 168, 255),
         VisualFamily.WheeledUtility => new Color(128, 120, 92, 255),
@@ -2312,19 +2409,12 @@ public sealed class EntityBodyLayer3D : ISceneLayer, IDisposable   // ⭐ CE-328
         VisualFamily.MineClearer => new Color(98, 108, 66, 255),   // ⭐ CE-4624 — engineer olive (the mockup's; the faction / TKB colour wins)
         VisualFamily.Motorcycle => new Color(96, 104, 84, 255),   // ⭐ CE-4621 — a drab bike (the faction / TKB colour wins)
         VisualFamily.AirDefenceVehicle => new Color(92, 104, 76, 255),   // ⭐ CE-4618 — army olive (the faction / TKB colour wins)
-        >= VisualFamily.Cattle and <= VisualFamily.Goat => AnimalKits.DefaultColour(family),   // ⭐ CE-4623 — an animal's own coat (a seeded one wins, below)
+        (>= VisualFamily.Cattle and <= VisualFamily.Goat) or VisualFamily.Rabbit => AnimalKits.DefaultColour(family),   // ⭐ CE-4623 — an animal's own coat (a seeded one wins, below)
         _ => new Color(180, 120, 200, 255),
     };
 
     /// <summary><c>#RRGGBB</c> or <c>#RRGGBBAA</c> (alpha ignored — bodies are opaque); null for anything else.</summary>
-    public static Color? ParseHex(string? hex)
-    {
-        if (string.IsNullOrWhiteSpace(hex)) return null;
-        var s = hex.AsSpan().Trim().TrimStart('#');   // ⭐ CE-4555 — a span: every body's colour is read each frame (0 B)
-        if ((s.Length != 6 && s.Length != 8) || !uint.TryParse(s[..6], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
-            return null;
-        return new Color((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, (byte)255);
-    }
+    public static Color? ParseHex(string? hex) => Hrot.Look.Rgba.FromHex(hex).ToColor();   // ⭐ CE-4671 LK-S2 — the look library's parser (one owner)
 
     private static float? Positive(params float?[] values)
     {

@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         private readonly BehaviorGizmoRegistry _behaviorRegistry;
         private readonly IDebugDrawBuilder _drawBuilder;
         private readonly Func<ISimulationView, Entity, bool>? _isSelectedPredicate;
+        [Fdp.Core.WorldDerived("gizmo visuals reconciled from components; torn down on world reset")]
         private readonly Dictionary<Entity, IEntityStatefulGizmo> _activeBehaviorGizmos;
         private int _epoch;   // ⭐ CE-3294 — the world the gizmo instances belong to
         private readonly IActiveViewProvider? _breakpointManager;

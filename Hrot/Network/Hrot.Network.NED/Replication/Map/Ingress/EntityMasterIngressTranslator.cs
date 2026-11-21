@@ -52,6 +52,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly FdpEventBus _eventBus;
         private readonly GhostCreationSystem _ghostCreationSystem;
         private int _worldEpoch;   // ⭐ CE-2101 — per-id bookkeeping belongs to ONE world (WorldEpoch)
+        [Fdp.Core.ProtocolCache("replica-round net-ids to destroy on dispose; re-derivable from LightweightRound tag; epoch-cleared")]
         private readonly HashSet<long> _lightweight = new();   // ⭐ LR-2 — the replicated rounds this node holds, destroyed on dispose
         private EntityRepository? _world;
 
@@ -205,7 +206,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (lightRepo.GetLifecycleState(entity) != EntityLifecycle.Active) lightRepo.SetLifecycleState(entity, EntityLifecycle.Active);
                 if (lightRepo.HasComponent<GhostStateTracker>(entity)) lightRepo.RemoveComponent<GhostStateTracker>(entity);
                 if (lightRepo.IsComponentTypeRegistered<LightweightRound>() && !lightRepo.HasComponent<LightweightRound>(entity))
-                    lightRepo.AddComponent(entity, default(LightweightRound));
+                    lightRepo.AddComponent(entity, new LightweightRound { LaunchedAt = (Fdp.Core.SimInstant)master.LaunchedAt });   // ⭐ CE-11011 (RR-11) — the sender's launch time
                 if (lightRepo.IsComponentTypeRegistered<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>()
                     && !lightRepo.HasComponent<Fdp.Toolkit.Scenario.ScenarioIgnoreTag>(entity))
                     lightRepo.AddComponent(entity, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());

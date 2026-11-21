@@ -14,15 +14,17 @@ using Fdp.ModuleHost.Abstractions;
 namespace Hrot.Map.Common.Replication.Egress
 {
     /// <summary>
-    /// ⭐⭐ <c>CE-4623</c> AB-3 (docs/designs/animals/DESIGN_Animals.md §6.1) — publishes an animal's <see cref="AnimalState"/> (mode, fear band,
-    /// species, flags) from the node owning its <c>dtAnimalState</c> (the Brain group — where its fear system and its HSM run), keyed by network
-    /// id, ON CHANGE only (the band changes a few times a fright, never per frame). Every other node's presentation reads it (pose, gait, the
+    /// ⭐⭐ <c>CE-4623</c> AB-3 (docs/designs/animals/DESIGN_Animals.md §6.1) — publishes an animal's <see cref="AnimalState"/> (mode,
+    /// flags) from the node owning its <c>dtAnimalState</c> (the Brain group — where its fear system and its HSM run), keyed by network
+    /// id, ON CHANGE only. ⭐ <c>CE-4628</c>: the wire struct keeps its <c>FearBand</c> and <c>Species</c> fields (R-4295: the wire keeps its own types) but the ECS
+    /// component no longer has them — the band is the replicated <c>Mood</c>, the species the TKB type's — so they are written 0 and ignored on ingress. Every other node's presentation reads it (pose, gait, the
     /// alarm look). The cache clears when the world moves (<c>WorldEpoch</c>, CE-4007).
     /// </summary>
     public sealed class EntityAnimalStateEgressTranslator : IDescriptorTranslator
     {
         private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(AnimalState));
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityAnimalState> _instances;
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.AnimalState };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityAnimalState>();
@@ -61,10 +63,10 @@ namespace Hrot.Map.Common.Replication.Egress
         }
 
         internal static EntityAnimalState ToSample(int netId, in AnimalState c)
-            => new() { EntityId = netId, Mode = (byte)c.Mode, FearBand = c.FearBand, Species = (byte)c.Species, Flags = (byte)c.Flags };
+            => new() { EntityId = netId, Mode = (byte)c.Mode, FearBand = c.FearBand, Flags = (byte)c.Flags };
 
         private static bool Same(in EntityAnimalState a, in EntityAnimalState b)
-            => a.Mode == b.Mode && a.FearBand == b.FearBand && a.Species == b.Species && a.Flags == b.Flags;
+            => a.Mode == b.Mode && a.FearBand == b.FearBand && a.Flags == b.Flags;
 
         public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);
         public void ReleaseInstance(int networkEntityId, long instanceId) => _instances.Release(networkEntityId);
@@ -79,6 +81,7 @@ namespace Hrot.Map.Common.Replication.Egress
     {
         private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(FlockState));
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityFlockState> _instances;
+        [Fdp.Core.NotState("static readonly array of target component ids")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.FlockState };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityFlockState>();
@@ -172,7 +175,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 if (!repo.IsComponentTypeRegistered<AnimalState>()) { DroppedSampleCount++; return; }
                 if (AuthorityExtensions.IsRecordedOwner(repo, e, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
             }
-            cmd.AddComponent(e, new AnimalState { Mode = (AnimalMode)s.Mode, FearBand = s.FearBand, Species = (AnimalSpecies)s.Species, Flags = (AnimalFlags)s.Flags });
+            cmd.AddComponent(e, new AnimalState { Mode = (AnimalMode)s.Mode, FearBand = s.FearBand, Flags = (AnimalFlags)s.Flags });   // ⭐ CE-4628 — the wire's Species is not read (the TKB type's)
         }
 
         public void ScanAndPublish(ISimulationView view) { }

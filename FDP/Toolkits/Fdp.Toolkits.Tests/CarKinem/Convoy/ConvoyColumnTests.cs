@@ -221,6 +221,40 @@ namespace CarKinem.Tests.Convoy
             Assert.Equal(0L, bytes);
         }
 
+        /// <summary>
+        /// ⭐ CE-3425 — the scale shape: every kinematic body carries a default <see cref="FormationController"/> (Type 0 = Column) and every slotted man a
+        /// <see cref="FormationFollower"/> naming no leader. 📐 scale-1, 1 000 men: the lead pass scanned every follower per lead (~1 M a frame, 683 ms of
+        /// SimHost's 1 069). The real column still forms, no bystander grows a trail, 0 B steady, and 60 frames stay far under the old scan's cost.
+        /// </summary>
+        [Fact]
+        public void CE3425_AThousandDefaultControllers_AndAThousandLeaderlessSlots_CostLittle_AndChangeNothing()
+        {
+            var w = new World();
+            var bystanders = new Entity[1000];
+            for (int i = 0; i < bystanders.Length; i++)
+            {
+                var b = w.Repo.CreateEntity();
+                w.Repo.AddComponent(b, new SimTransform { Position = new Vector3(-500f, i, 0f), Rotation = Quaternion.Identity });
+                w.Repo.AddComponent(b, new FormationController());   // the default every kinematic body gets (Type Column)
+                bystanders[i] = b;
+                var man = w.Repo.CreateEntity();
+                w.Repo.AddComponent(man, new SimTransform { Position = new Vector3(-600f, i, 0f), Rotation = Quaternion.Identity });
+                w.Repo.AddComponent(man, new FormationFollower { SlotIndex = (ushort)(1 + i % 8), IsInFormation = 1 });   // a squad slot, no leader named
+            }
+            for (int i = 0; i < 30 * 5; i++) w.Step();
+            Assert.Equal(KinematicsMode.Column, w.Repo.GetComponentRO<NavState>(w.F[2]).Mode);
+            Assert.Equal(3, w.Repo.GetComponentRO<ConvoyTrail>(w.LeadE).LastRank);
+            for (int i = 0; i < bystanders.Length; i++) Assert.False(w.Repo.HasComponent<ConvoyTrail>(bystanders[i]));
+
+            var sw = new System.Diagnostics.Stopwatch();   // created before the read: the Stopwatch itself is 40 B
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            sw.Start();
+            for (int i = 0; i < 60; i++) w.Lead.Execute(w.Repo, Dt);
+            sw.Stop();
+            Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.True(sw.ElapsedMilliseconds < 500, $"60 lead passes took {sw.ElapsedMilliseconds} ms (the per-lead scan: ~1 M checks a frame)");
+        }
+
         [Fact]
         public void AVehicleThatLeavesTheConvoy_GoesBackToNoMode()
         {

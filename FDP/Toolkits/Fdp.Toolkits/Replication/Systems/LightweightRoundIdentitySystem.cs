@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Replication.Systems
         private readonly INetworkIdAllocator? _ids;
         private readonly NetworkEntityMap _entityMap;
         private readonly NodeId _localNodeId;
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _pending = new();
         private EntityRepository? _queryWorld;
         private EntityQuery? _query;
@@ -37,6 +38,7 @@ namespace Fdp.Toolkit.Replication.Systems
         }
 
         /// <summary>Rounds given an identity in the last tick — the rail's counter.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public int Assigned { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

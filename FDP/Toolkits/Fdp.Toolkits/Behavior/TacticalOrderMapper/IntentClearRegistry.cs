@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Behavior.TacticalOrderMapper
     /// <see cref="TacticalIntentMapperRegistry"/>: filled by the composition root before frame 1, read-only after. An empty
     /// registry clears nothing (a host without a planner degrades safely).
     /// </summary>
+    [Fdp.Core.NotState("provider list registered at startup")]
     public sealed class IntentClearRegistry
     {
         private readonly List<IIntentClearProvider> _providers = new();

@@ -223,6 +223,9 @@ namespace Hrot.SimHost.Tests
             public ushort Kind => Repo.GetComponentRO<SquadCognitiveState>(Commander).ManeuverKind;
             public Entity RetreatQuery() => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, BreakContactPlay.RetreatSite);
 
+            /// <summary>⭐ CE-2460 — the commander's cover query for the break-contact bound now being made.</summary>
+            public Entity BreakCoverQuery() => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, BreakContactPlay.CoverSite);
+
             /// <summary>⭐ CE-2123 — the commander's flank query, and SimHost's answer to it.</summary>
             public Entity FlankQuery() => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(Repo, Commander, SuppressAndManeuverPlay.FlankSite);
 
@@ -1015,8 +1018,9 @@ namespace Hrot.SimHost.Tests
             Assert.False(s.FlankQuery().IsNull, "closed: the leader asks the terrain for a flank");
         }
 
-        /// <summary>⭐ S2-F — an outmatched squad BREAKS CONTACT: the leader asks for a point the enemy cannot see; element 0 goes there
-        /// while element 1 holds and fires, then element 1 goes; both there ⇒ Success.</summary>
+        /// <summary>⭐ S2-F — an outmatched squad BREAKS CONTACT: the leader asks for a point the enemy cannot see; element 0 goes toward it
+        /// while element 1 holds and fires, then element 1 goes; both there ⇒ Success. ⭐ CE-2460: with no cover on the way each bound is ONE
+        /// rush of <see cref="BreakContactPlay.BoundMetres"/> toward the point. ✅ Red-proof: the fallback back to the answer ⇒ red.</summary>
         [Fact]
         public void CE2123_ReactToContact_AnOutmatchedSquadBreaksContact_ElementByElement_ToTheLeadersRetreatPoint()
         {
@@ -1032,22 +1036,68 @@ namespace Hrot.SimHost.Tests
 
             var hidden = new Vector3(-40f, -30f, 0f);
             s.Answer(query, hidden);
+            s.Tick(); s.Tick();
+            s.Answer(s.BreakCoverQuery(), null);   // ⭐ CE-2460 — no cover on the way: ONE rush (BoundMetres) toward the answer, not the whole way
             s.Orders.Clear();
             s.Tick(); s.Tick();
             var first = s.LastOrders();
-            Assert.Equal((BehaviorNames.AdvanceTo, hidden), first[s.Members[0]]);
+            var at0 = s.At(s.Members[0]);
+            var rush0 = SquadCover.OneRush(at0, hidden, BreakContactPlay.BoundMetres);
+            Assert.Equal(BehaviorNames.AdvanceTo, first[s.Members[0]].Intent);
+            Assert.True(Vector3.Distance(first[s.Members[0]].Objective, rush0) < 0.5f, $"one rush toward the answer {rush0}, not the answer: {first[s.Members[0]].Objective}");
             Assert.Equal(BehaviorNames.CombatPosture, first[s.Members[1]].Intent);   // covering
 
-            s.Teleport(s.Members[0], hidden);
+            s.Teleport(s.Members[0], rush0);
+            s.Tick(); s.Tick();
+            s.Answer(s.BreakCoverQuery(), null);
             s.Orders.Clear();
             s.Tick(); s.Tick();
-            Assert.Equal((BehaviorNames.AdvanceTo, hidden), s.LastOrders()[s.Members[1]]);
+            var at1 = s.At(s.Members[1]);
+            var second = s.LastOrders()[s.Members[1]];
+            Assert.Equal(BehaviorNames.AdvanceTo, second.Intent);
+            Assert.True(Vector3.Distance(second.Objective, SquadCover.OneRush(at1, hidden, BreakContactPlay.BoundMetres)) < 0.5f, $"element 1 rushes too: {second.Objective}");
+
+            s.Teleport(s.Members[0], hidden);
 
             s.Teleport(s.Members[1], hidden);
             bool done = false; Fbt.NodeStatus result = default;
+            // ⭐ CE-2466 R2 — the enemy is still there: the squad RALLIES (a hold of AfterContact.RallySeconds) before the reaction ends
             for (int i = 0; i < 4 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+            Assert.False(done, "the squad rallies first");
+            Assert.Equal(SquadHoldManeuver.ManeuverKind, s.Kind);
+            for (int i = 0; i < 60 * 40 && !done; i++) { s.Tick(); done = s.Finished(out result); }
             Assert.True(done);
             Assert.Equal(Fbt.NodeStatus.Success, result);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2460</c> (user `2026-11-20`, the lean; Urban Fight Suite U1) — BREAK CONTACT BOUNDS COVER TO COVER: with a cover point on the way
+        /// (≤ <see cref="BreakContactPlay.BoundMetres"/> nearer the retreat answer) the mover bounds THERE, not straight to the answer; meanwhile (the picks being
+        /// made) he holds. 📐 Live before: <c>uf-car-shootout</c>, one ~50 m bound across the open in the enemy's sight. ✅ Red-proof: <c>OrderFor</c> back to
+        /// the answer ⇒ red.</summary>
+        [Fact]
+        public void CE2460_BreakContact_BoundsCoverToCover_TowardTheAnswer()
+        {
+            var s = new Squad(members: 2);
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            var hidden = new Vector3(-40f, -30f, 0f);
+            s.Answer(s.RetreatQuery(), hidden);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.CombatPosture, s.LastOrders()[s.Members[0]].Intent);   // waiting for the picks: a hold, not the long run
+            var me = s.At(s.Members[0]);
+            var dir = Vector3.Normalize(hidden - me);
+            var cover = me + dir * 10f;                                                       // a cover point 10 m toward the answer
+            var q = s.BreakCoverQuery();
+            Assert.False(q.IsNull, "the commander asks the terrain for cover on the way");
+            s.Answer(q, cover);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            var bound = s.LastOrders()[s.Members[0]];
+            Assert.Equal(BehaviorNames.AdvanceTo, bound.Intent);
+            Assert.True(Vector3.Distance(bound.Objective, cover) < 0.5f, $"bounds to the cover point {cover}, not the answer: {bound.Objective}");
         }
 
         /// <summary>⭐ <c>CE-2351</c> (user, option 1) — a squad ORDERED TO HOLD does not break contact on its own: outmatched (six in the
@@ -1070,6 +1120,88 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(task, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
             for (int i = 0; i < 250; i++) s.Tick();   // 4 s: past the return-fire hold, the choice made
             Assert.Equal(breaks, s.Kind == BreakContactManeuver.ManeuverKind);
+        }
+
+        private const string CE2453House = """
+            { "type": "Feature", "properties": { "kind": "building", "label": "H",
+                "building": { "footprint": [[0,0],[10,0],[10,8],[0,8]],
+                  "storeys": [ { "height": 3, "walls": [
+                    { "from": [0,0], "to": [10,0], "thickness": 0.3, "openings": [ { "kind": "door", "at": 5, "width": 1.0 } ] },
+                    { "from": [10,0], "to": [10,8], "thickness": 0.3 },
+                    { "from": [10,8], "to": [0,8], "thickness": 0.3 }, { "from": [0,8], "to": [0,0], "thickness": 0.3 } ] } ] } },
+              "geometry": { "type": "Point", "coordinates": [0, 0] } }
+            """;
+
+        /// <summary>⭐⭐ <c>CE-2453</c> (Building Clearing CB-66 / CB-72; the <c>NotDefending</c> precedent) — a squad CLEARING a house whose contact is INSIDE
+        /// that house keeps clearing (its room drill answers: the heard man suspects the room); a contact in the STREET still pauses the clear with
+        /// <c>ReactToContact</c>; a squad on any other order reacts as before. 📐 Live before: <c>ia-area-defend</c>, the clearer held at the door 60 s+.
+        /// ✅ Red-proof: the condition always true ⇒ the inside case reacts ⇒ red.</summary>
+        [Theory]
+        [InlineData(5f, 4f, false)]     // inside the house he is at the door of ⇒ the drill answers
+        [InlineData(5f, -30f, true)]    // in the street ⇒ the SOP reacts
+        public void CE2453_AClearingSquad_KeepsClearing_WhenItsContactIsInTheHouse_ButReactsToOneInTheStreet(float x, float y, bool reacts)
+        {
+            var s = new Squad(members: 2);
+            s.Repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{ \"type\": \"FeatureCollection\", \"features\": [ " + CE2453House + " ] }", "range"));
+            s.Order("{\"Point\":[5,4,0]}", BehaviorNames.ClearBuilding);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(Hrot.AI.Behaviors.Orders.OrderKind.ClearBuilding, Hrot.AI.Behaviors.Orders.CurrentOrders.Of(s.Repo, s.Commander).Kind);
+            s.PoolMany(1, new Vector3(x, y, 0f));
+            Assert.Equal(reacts, RoomSuspicion.NotClearingItsContact(s.Commander, s.Repo));
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();
+            if (reacts) Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            else Assert.NotEqual(BehaviorNames.ReactToContact, s.TaskName);
+        }
+
+        /// <summary>⭐ <c>CE-2454</c> (Aggregate Squad D-5 / §5) — a LONE man clearing a house, shot at from the street, cannot fix and flank: once
+        /// the return-fire hold is over the reaction ENDS and the clear resumes (he fights from its own posture). A lone man on a march, and a
+        /// squad of two on the clear, are unchanged (hold until clear · the flank). 📐 Live before: <c>ia-area-defend</c>, Blue East held 46 s in
+        /// the open 20 m from House A until the contact was forgotten. ✅ Red-proof: <c>PressesOn</c> always false ⇒ the lone clearer holds.</summary>
+        [Theory]
+        [InlineData(1, "ClearBuilding", "{\"Point\":[5,4,0]}", true)]
+        [InlineData(1, "SquadMarch", "{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", false)]
+        [InlineData(2, "ClearBuilding", "{\"Point\":[5,4,0]}", false)]
+        public void CE2454_ALoneClearer_PressesOn_WhenHeCannotAssault(int members, string task, string json, bool pressesOn)
+        {
+            var s = new Squad(members: members);
+            s.Repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                "{ \"type\": \"FeatureCollection\", \"features\": [ " + CE2453House + " ] }", "range"));
+            s.Order(json, task);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 4; i++) s.Tick();
+            var enemy = Enemy(s, new Vector3(5f, -30f, 0f));
+            s.Pool(enemy, new Vector3(5f, -30f, 0f), reporters: 0b0001);
+            s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadContact);
+            for (int i = 0; i < SopReactionFrames; i++) s.Tick();
+            Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+            for (int i = 0; i < 300; i++) s.Tick();   // 5 s: past the 3 s return-fire hold, the assault tried
+            Assert.Equal(pressesOn, s.TaskName == task);
+            if (!pressesOn) Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
+        }
+
+        /// <summary>⭐ <c>CE-2457</c> (Urban Fight Suite U1) — a squad with NO task that still knows an enemy HOLDS (the SOP's last row, do-when-idle
+        /// <c>SquadHold</c>: every man <c>CombatPosture</c> where he is) instead of its men standing about; with no enemy known it stays idle; a squad
+        /// with an order keeps it. 📐 Live before: <c>uf-car-shootout</c>, both squads broke contact and the survivors stood in the street 60–120 s.
+        /// ✅ Red-proof: <c>KnowsAnEnemy</c> always false ⇒ the squad stays idle ⇒ red.</summary>
+        [Theory]
+        [InlineData(null, true, true)]
+        [InlineData(null, false, false)]
+        [InlineData("SquadMarch", true, false)]
+        public void CE2457_ASquadWithNoTask_HoldsWhileItKnowsAnEnemy(string? task, bool enemy, bool holds)
+        {
+            var s = new Squad(members: 2);
+            if (task != null) s.Order("{\"Objective\":[0,100,0],\"Shape\":1,\"MaxLagMetres\":50}", task);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 4; i++) s.Tick();
+            var far = new Vector3(0f, 200f, 0f);
+            if (enemy) s.Pool(Enemy(s, far), far, reporters: 0b0001);   // known, far off: no fresh contact edge, nothing to react to
+            for (int i = 0; i < SopReactionFrames + 30; i++) s.Tick();
+            Assert.Equal(holds, s.TaskName == BehaviorNames.SquadHold);
+            if (holds) Assert.All(s.Members, m => Assert.Equal(BehaviorNames.CombatPosture, s.LastOrders()[m].Intent));
+            if (task != null) Assert.Equal(task, s.TaskName);
         }
 
         /// <summary>⭐⭐ <c>CE-4612</c> (R-2088…R-2090; DESIGN_Orders_Params_Entity_Classes.md §15) — the squad's ORDER, typed and derived: a
@@ -1126,8 +1258,9 @@ namespace Hrot.SimHost.Tests
             // ⭐ no current reaction declares LeavesRoute ⇒ a Defend / Hold order refuses no reaction (lane decision; HoldsFirm keeps its job)
             //   ⭐ CE-4624 MS-B1 — the ONE ruled exception: MineStrike declares Halts | LeavesRoute (Minefields MR-6, R-4272) — a unit holding a
             //   position that sets off a mine keeps holding (it is not moving through the field)
+            //   ⭐ CE-3474 — and BackOut, the drill's own leg (MR-5, R-2125: the men back out along their tracks): the same exception
             foreach (var d in Hrot.Map.Definitions.Behavior.ParamsDtoRegistry.Default.Behaviors)
-                Assert.True((d.Conduct & Fdp.Toolkit.Behavior.Conduct.LeavesRoute) == 0 || d.Name == BehaviorNames.MineStrike,
+                Assert.True((d.Conduct & Fdp.Toolkit.Behavior.Conduct.LeavesRoute) == 0 || d.Name == BehaviorNames.MineStrike || d.Name == BehaviorNames.BackOut,
                     $"{d.Name} leaves the route: a Defend / Hold order would now refuse it");
         }
 
@@ -2299,6 +2432,71 @@ namespace Hrot.SimHost.Tests
 
         private static Entity DefendQuery(Squad s, int site) => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, site);
 
+        /// <summary>
+        /// ⭐ D-13 (on the move in) — a squad of four with TWO men down moves to its position: the two survivors' points are spaced by their rank
+        /// among the LIVE men (more than 4 m apart, so never within 2 m of their centre), not by their roster slots. ✅ Red-proof: by roster slot
+        /// (slots 1 and 2 of 4) ⇒ 3.3 m ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D13_TwoSurvivorsOfFour_MoveInMoreThanFourMetresApart()
+        {
+            var s = new Squad(members: 4);
+            foreach (int down in new[] { 0, 3 })
+            {
+                var hp = new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f };
+                if (s.Repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(s.Members[down])) s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(s.Members[down]) = hp;
+                else s.Repo.AddComponent(s.Members[down], hp);
+            }
+            s.Order("{\"Position\":[6,60,0],\"SearchRadius\":15}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            var a = s.LastOrders()[s.Members[1]].Objective;
+            var b = s.LastOrders()[s.Members[2]].Objective;
+            Assert.True(Vector3.Distance(a, b) > 4f, $"the survivors move to {a} and {b}");
+        }
+
+        /// <summary>
+        /// ⭐⭐ D-13 (CE-4666, user-approved 2026-11-19; Defend &amp; Attack §8c D-2n) — the asks find cover for ONE man only: the other three are not
+        /// left standing where they are (side by side) but get DISPERSAL spots — every man ordered to his own post, no two posts within
+        /// <see cref="DefencePlan.DispersalMetres"/>. ✅ Red-proof: the dispersal step removed ⇒ three men keep no post (no CombatPosture with a
+        /// distinct objective) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D13_TooFewCoverPosts_TheMenWithoutOneDisperse_FiveMetresApart()
+        {
+            var s = new Squad(members: 4);
+            s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
+            {
+                ArcSet = 1, ArcOrigin = new Vector3(0, 20, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
+            });
+            s.Order("{\"Position\":[6,20,0],\"SearchRadius\":15}", BehaviorNames.SquadDefend);
+            s.Tick(); s.Tick(); s.Tick();
+            for (int i = 0; i < 4; i++) s.Teleport(s.Members[i], new Vector3(4f + 1.5f * i, 20f, 0f));   // side by side, 1.5 m apart
+            s.Tick(); s.Tick(); s.Tick();
+            for (int k = 0; k < 40; k++)
+            {
+                foreach (int site in new[] { SquadDefendPlay.WindowSite, SquadDefendPlay.RoofSite })
+                {
+                    var a = DefendQuery(s, site);
+                    if (!a.IsNull && !s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(a).IsReady) AnswerAll(s, a);
+                }
+                var c = DefendQuery(s, SquadDefendPlay.CoverSite);
+                if (!c.IsNull && !s.Repo.GetComponentRO<Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer>(c).IsReady) AnswerAll(s, c, new Vector3(6f, 26f, 0f));
+                s.Pause(0.25);
+                s.Tick();
+            }
+            var posts = s.Members.Select(m => PostureObjective(s, m)).ToArray();
+            for (int i = 0; i < posts.Length; i++)
+                for (int j = i + 1; j < posts.Length; j++)
+                    Assert.True(Vector2.Distance(new Vector2(posts[i].X, posts[i].Y), new Vector2(posts[j].X, posts[j].Y)) >= DefencePlan.DispersalMetres - 0.01f,
+                                $"men {i} and {j} posted {posts[i]} and {posts[j]}");
+            // ⭐ D-13 (the prone half) — the three dispersal spots are OPEN posts (he lies prone there); the one cover post is not
+            var open = s.Members.Select(m => System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
+                s.Orders.Last(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture).JsonParams,
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!.Post.Open).ToArray();
+            Assert.Equal(3, open.Count(o => o));
+            Assert.False(open[Array.FindIndex(posts, p => Vector2.Distance(new Vector2(p.X, p.Y), new Vector2(6f, 26f)) < 0.1f)], "the cover post is not open");
+        }
+
         /// <summary>A squad of four at the position (6, 20) whose own sector looks north (an arc from (0, 20), 330°–30°, out to 200 m ⇒ its
         /// point is (0, 120)), ordered to defend it; the window ask answered with three posts (two storeys of one window, one more), the roof
         /// ask (D-2g) with none, the cover ask with the fourth.</summary>
@@ -2342,7 +2540,12 @@ namespace Hrot.SimHost.Tests
             s.Tick(); s.Tick(); s.Tick();   // E-3 (CE-4509) ① — production frame order: the order enters Input (ingress) one frame later, its member orders leave one frame later
             Assert.Equal(SquadDefendManeuver.ManeuverKind, s.Kind);
             Assert.Equal(SquadDefendManeuver.PhaseMoving, s.Phase);
-            foreach (var m in s.Members) Assert.Equal(new Vector3(6, 20, 0), s.LastOrders()[m].Objective);   // first, to the position
+            // first, to the position — ⭐ D-13: as a MARCH — the lead to the position, every other man to his own wedge slot, never all to one point
+            var moving = s.Members.Select(m => s.LastOrders()[m].Objective).ToArray();
+            Assert.Contains(new Vector3(6, 20, 0), moving);                                  // the lead
+            for (int i = 0; i < moving.Length; i++)
+                for (int j = i + 1; j < moving.Length; j++)
+                    Assert.True(Vector3.Distance(moving[i], moving[j]) > 4f, $"men {i} and {j} move to {moving[i]} / {moving[j]}");
             Assert.True(DefendQuery(s, SquadDefendPlay.WindowSite).IsNull, "no post is asked for before the squad is there");
 
             s = Defending(out var posts);
@@ -2940,7 +3143,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// ⭐⭐ <c>CE-2373</c> (AQ104 L, D-2m DL-2…DL-4) — a LONE all-round defender is posted for COVERAGE, not nearness, and guards on a round:
         /// three window posts — the nearest sees only north, one sees the east half, one the west half. He is posted at the east one (the most
-        /// it sees), after 30 s there he goes to the west one (the half not yet watched), never to the north one (it adds nothing); and with
+        /// it sees), after RoundDwellSeconds there he goes to the west one (the half not yet watched), never to the north one (it adds nothing); and with
         /// an enemy known in the area he stays where he is. ✅ Red-proofs: the picker fed the ask's order ⇒ the nearest (north) post; no round
         /// ⇒ he stays east; the round ignoring a known enemy ⇒ he moves.
         /// </summary>
@@ -2961,7 +3164,7 @@ namespace Hrot.SimHost.Tests
             s.Tick();
             s.Orders.Clear();
             for (int i = 0; i < 20; i++) s.Tick();
-            Assert.Empty(s.Orders);   // not yet: 30 s on each post
+            Assert.Empty(s.Orders);   // not yet: RoundDwellSeconds on each post
             s.Pause(SquadDefendPlay.RoundDwellSeconds + 1);
             s.Tick(); s.Tick();
             Assert.Equal<Vector3>(west, PostureOf(s, s.Members[0]).Post.Point);
@@ -2975,6 +3178,60 @@ namespace Hrot.SimHost.Tests
             s.Pause(SquadDefendPlay.RoundDwellSeconds + 1);
             s.Tick(); s.Tick();
             Assert.True(s.Orders.Count == 0 || PostureOf(s, s.Members[0]).Post.Point.Local.Equals((Fdp.Core.WorldPoint)west), "an enemy in the area: no round");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8312</c> (📐 <c>ia-area-defend</c>) — the all-round defence's COVERAGE fan looks from where each post WATCHES: a Regular's two window
+        /// posts are frame posts (0.5 m inside the wall, beside the opening), and the fan's origins are their OPENINGS on the wall (y 25), not the frame
+        /// points. ✅ Red-proof: the fan from the post point ⇒ origins at y 24.5 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8312_TheCoverageFan_LooksFromAFramePostsOpening_NotFromBehindTheWall()
+        {
+            var s = new Squad(members: 1);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            s.Repo.AddComponent(s.Members[0], new CombatProficiency { Authored = ProficiencyOf.Regular, Set = CombatProficiency.AuthoredSet });
+            s.FrameSurvey = NorthFace((2f, 1f), (12f, 1f));
+            s.CoverageSurvey = null;   // never answered: the request stays up to be read
+            s.Teleport(s.Members[0], new Vector3(7, 30, 0));
+            s.Order("{\"Position\":[7,32,0],\"SearchRadius\":10}", BehaviorNames.SquadDefend);   // all-round: no engagement area
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 24.5f, 0), new Vector3(12, 24.5f, 0));
+            for (int i = 0; i < 6; i++) s.Tick();
+            var fan = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, SquadDefendPlay.CoverageSite);
+            Assert.False(fan.IsNull, "the coverage fan was asked");
+            var origins = s.Repo.GetComponent<Fdp.Toolkit.Perception.Survey.WorldSurveyRequest>(fan).Origins;
+            Assert.Equal(2, origins.Count);
+            Assert.All(origins, o => Assert.Equal(25f, o.Y, 2));   // on the wall, in the opening
+            Assert.Contains(origins, o => MathF.Abs(o.X - 2f) < 0.01f);
+            Assert.Contains(origins, o => MathF.Abs(o.X - 12f) < 0.01f);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3463</c> (📐 <c>ia-area-defend</c>) — an ALL-ROUND frame post faces OUT THROUGH ITS WINDOW (DA-79): the defended centre lies
+        /// in the open NORTH of a north-facing window, so "outward from the centre" would aim him SOUTH into his own house; his arc (where he
+        /// looks and may fire) covers the north. ✅ Red-proof: the outward arc ⇒ the north point is outside it.
+        /// </summary>
+        [Fact]
+        public void CE3463_AnAllRoundFramePost_FacesOutThroughItsWindow_NotOutwardFromTheCentre()
+        {
+            var s = new Squad(members: 1);
+            if (!s.Repo.IsComponentTypeRegistered<CombatProficiency>()) s.Repo.RegisterComponent<CombatProficiency>();
+            s.Repo.AddComponent(s.Members[0], new CombatProficiency { Authored = ProficiencyOf.Regular, Set = CombatProficiency.AuthoredSet });
+            s.FrameSurvey = NorthFace((2f, 1f));
+            s.Teleport(s.Members[0], new Vector3(2, 30, 0));
+            s.Order("{\"Position\":[2,32,0],\"SearchRadius\":10}", BehaviorNames.SquadDefend);   // all-round: no engagement area
+            s.Tick(); s.Tick(); s.Tick(); s.Tick();
+            AnswerAll(s, DefendQuery(s, SquadDefendPlay.WindowSite), new Vector3(2, 24.5f, 0));
+            s.Orders.Clear();
+            for (int i = 0; i < 4; i++) s.Tick();
+            var dto = PostureOf(s, s.Members[0]);
+            Assert.True(dto.Post.Frame, "a frame post");
+            ref readonly var arc = ref s.Repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.EngagementArea>(s.Members[0]);
+            Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Post.Point, arc.LeftBearing, arc.RightBearing, 0f, 0f, new Vector3(2, 60, 0)),
+                $"his arc faces out of the window, north (arc {arc.LeftBearing}..{arc.RightBearing})");
+            Assert.False(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(dto.Post.Point, arc.LeftBearing, arc.RightBearing, 0f, 0f, new Vector3(2, 0, 0)),
+                "not south, into his own house");
         }
 
         /// <summary>⭐ <c>CE-2373</c> D-2m — the pure greedy union and the round's next post: the post seeing most first, a post adding fewer than
@@ -3492,6 +3749,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(0, c.Picture.Elements.Count);                                   // the lost SPOT, at once (not at the refresh)
         }
 
+        /// <summary>⭐⭐ <c>CE-4666</c> (D-8, user-approved) — a contact the squad heard only THROUGH AN OPENING is where to look, not where the enemy is:
+        /// it makes no element (no SPOT, the platoon's picture stays empty); once a member hears it straight it is a source estimate and is SPOTted.
+        /// 📌 Live pc-defend-house: a shot 125 m off, heard through the reserve's window, was SPOTted at its own post and turned the line away.
+        /// ✅ Red-proof: the HeardThroughFlag skip removed from <c>ComposeSpot</c> ⇒ an element at once ⇒ red.</summary>
+        [Fact]
+        public void CE4666_AContactHeardOnlyThroughAnOpening_IsNoElement_HeardStraightItIs()
+        {
+            var c = new Chain(members: 3);
+            ref var squad = ref c.S.Repo.GetComponentRW<SquadCognitiveState>(c.S.Commander);
+            var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(ref squad.Contacts.Contacts), 16);
+            span[0] = new SquadContact { EntityId = -1, PositionX = 0f, PositionY = 200f, ThreatScore = 1f, SourceMembersMask = 1,
+                                         Flags = (ushort)(SquadContact.AnonymousFlag | SquadContact.HeardThroughFlag) };
+            squad.Contacts.Count = 1;
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(0, c.Picture.Elements.Count);                                   // through his window: no enemy there
+
+            c.S.Repo.GetComponentRW<SquadCognitiveState>(c.S.Commander).Contacts.Contacts[0].Flags = SquadContact.AnonymousFlag;
+            c.Ticks(2); c.S.Pause(3.1); c.Ticks(2);
+            Assert.Equal(1, c.Picture.Elements.Count);                                   // heard straight: SPOTted
+        }
+
         /// <summary>⭐ <c>CE-2294</c> (CB-33, CB-34) — a squad re-SPOTs an element it still holds every 15 s, so the platoon's copy stays
         /// fresh while it is there (a stale one then means it is gone). ✅ Red-proof: the refresh check removed ⇒ no second SPOT.</summary>
         [Fact]
@@ -3879,11 +4158,102 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4666</c> (Orders §15; 📐 live pc-defend-house: broken defenders cycled Break ⇄ CombatPosture every second) — an order a
+        /// REACTION paused (same request id, in the member's paused task) is still his: the phase change does not re-send it, so the reaction
+        /// runs its course and the order resumes after. 🔴 Red-proof: "not paused" back in <c>StillRunning</c> ⇒ a second order.
+        /// </summary>
+        [Fact]
+        public void CE4666_AnOrderAReactionPaused_IsNotSentAgain_TheReactionRunsItsCourse()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire));
+            p.S.Repo.AddComponent(p.Bravo, new BehaviorState { ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.SupportByFire), Origin = BehaviorOrigin.Superior });
+            RunsHisOrder(p.S, p.Bravo);
+
+            var entry = SubordinateOrders.Of(p.S.Repo, p.S.Commander)!.Orders.Single(e => e.Member.Equals(p.Bravo));
+            if (!p.S.Repo.TryGetTable(typeof(PausedTask), out _)) p.S.Repo.RegisterManagedComponent<PausedTask>();
+            p.S.Repo.SetManagedComponent(p.Bravo, new PausedTask
+            {
+                BehaviorName = entry.Behavior, JsonParams = entry.Json, Origin = BehaviorOrigin.Superior,
+                Hash = BehaviorHash.FromName(BehaviorNames.SupportByFire), RequestId = entry.RequestId,
+            });
+            ref var reacting = ref p.S.Repo.GetComponentRW<BehaviorState>(p.Bravo);
+            reacting.ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.ReactToContact);
+            reacting.Origin = BehaviorOrigin.Reaction;   // the reaction PAUSED his order (as the ingress records it)
+
+            p.ReportSet(p.Bravo);   // the phase changes and re-dirties every slot
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(p.Bravo, BehaviorNames.SupportByFire));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2277</c> (AT-2, AT-7, R-2060's area rule) — the AREA holds an enemy inside building 7 and another in the open 50 m
         /// beyond it: two objectives, nearest first — building 7 is CLEARED (`ClearBuilding` on its centre), its BuildingClear takes the
         /// platoon to the open one, whose base of fire goes up again. ✅ Red-proofs: the building match dropped ⇒ the first is assaulted
         /// through · the nearest-first sort dropped ⇒ the open one first · the next-objective loop dropped ⇒ it consolidates after one.
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ D-12 (CE-4666, user-approved 2026-11-19; Defend &amp; Attack §8f AT-14) — while the base of fire gets SET, the assault (Alpha) and the
+        /// reserve (Charlie) WAIT IN COVER where they stand: each a <c>SquadDefend</c> at its own place (radius <see cref="PlatoonAttackBehavior.WaitRadius"/>),
+        /// its sector from there on the objective (so the post plan's cover ask runs); the support's Set replaces it with the approach.
+        /// ✅ Red-proof: the support phase back to "no order" ⇒ no SquadDefend to Alpha ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D12_WhileTheBaseOfFireSets_TheAssaultAndTheReserveWaitInCover_FacingTheObjective()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            // ⭐ Alpha as a squad WITH a man: its entity's own transform stays where it was authored, its one man stands elsewhere
+            var stale = new Vector3(500f, -400f, 0f);
+            var manAt = new Vector3(30f, 40f, 0f);
+            if (p.S.Repo.HasComponent<SimTransform>(p.Alpha)) p.S.Repo.GetComponentRW<SimTransform>(p.Alpha).Position = stale;
+            else p.S.Repo.AddComponent(p.Alpha, new SimTransform { Position = stale, Rotation = Quaternion.Identity });
+            var man = p.S.Repo.CreateEntity();
+            p.S.Repo.AddComponent(man, new SimTransform { Position = manAt, Rotation = Quaternion.Identity });
+            p.S.Repo.AddComponent(man, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            var roster = new UnitRoster { Count = 1 };
+            roster.SubordinateEntities[0] = man;
+            if (p.S.Repo.HasComponent<UnitRoster>(p.Alpha)) p.S.Repo.GetComponentRW<UnitRoster>(p.Alpha) = roster; else p.S.Repo.AddComponent(p.Alpha, roster);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3);
+            p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5);
+            p.Ticks(4);
+            foreach (var waiting in new[] { p.Alpha, p.Charlie })
+            {
+                if (waiting == p.Alpha)
+                    Assert.True(Vector3.Distance(OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend).Position, manAt) < 0.5f,
+                                "it waits where its MEN stand, never at the squad entity's authored transform");
+                Assert.Equal(1, p.OrdersTo(waiting, BehaviorNames.SquadDefend));
+                var d = OrderTo<Hrot.AI.Behaviors.Orders.DefendOrder>(p, waiting, BehaviorNames.SquadDefend);
+                Assert.Equal(PlatoonAttackBehavior.WaitRadius, d.SearchRadius);
+                var ea = SectorOf(p, waiting);
+                Assert.Equal(1, ea.ArcSet);
+                Assert.True(Vector3.Distance(ea.ArcOrigin, d.Position) < 0.01f, "the sector is drawn from where it waits");
+                Vector3 at = d.Position;
+                float bearing = MathF.Atan2(o.X - at.X, o.Y - at.Y) * 180f / MathF.PI;
+                bearing = (bearing + 360f) % 360f;
+                Assert.True(Hrot.AI.Behaviors.Brains.SectorSplit.Norm(bearing - ea.LeftBearing) <= 2f * PlatoonAttackBehavior.SupportArcHalfDegrees + 0.1f, "it faces the objective");
+            }
+            p.ReportSet(p.Charlie);   // the reserve's WAIT is posted (its SquadDefend's Set) …
+            p.Ticks(2);
+            int defends = p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend);
+            p.ReportSet(p.Bravo);     // … then the base of fire is up ⇒ the approach
+            p.Ticks(4);
+            Assert.True(p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement) > 0, "the approach replaces the wait");
+            // ⭐ the wait's Set is not "the reserve's bound arrived": it BOUNDS to its point, it is not sent to walk there and defend it
+            Assert.Equal(defends, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
+            Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(x => x.Entity.Equals(p.Charlie)).IntentId);
+        }
+
         [Fact]
         public void CE2277_AnAreaWithABuildingAndAnOpenPost_ClearsTheBuildingFirst_ThenAttacksTheOpenPost()
         {
@@ -4047,6 +4417,28 @@ namespace Hrot.SimHost.Tests
             p.Ticks(4);
             int after = p.OrdersTo(p.Alpha, BehaviorNames.FireAndMovement) + p.OrdersTo(p.Alpha, BehaviorNames.BoundingOverwatch);
             Assert.True(after > before, "the failed assault is ordered forward again");
+        }
+
+        /// <summary>⭐⭐ <c>CE-4669</c> — the RESERVE that has reached its point (its bound reports Set) is ordered to DEFEND there, once; before it
+        /// arrives it only bounds. 📌 Live pc-defend-house: Blue Squad 3's BoundingOverwatch ended Success at 160 s and the squad sat with no task
+        /// (`doing = nothing`) to the end. 🔴 Red-proof: the arrival guard off ⇒ no SquadDefend to the reserve.</summary>
+        [Fact]
+        public void CE4669_AReserveAtItsPoint_DefendsThere_NotIdleOnAFinishedBound()
+        {
+            var p = new Platoon(squads: 3);
+            var o = new Vector3(0f, 200f, 0f);
+            p.ReportSpot(p.Bravo, o, 3);
+            p.Ticks(2);
+            Attack(p, o);
+            p.Ticks(3); p.S.Pause(PlatoonAttackBehavior.SurveyTimeoutSeconds + 0.5); p.Ticks(4);
+            p.ReportSet(p.Bravo); p.Ticks(4);   // the base of fire is up ⇒ the approach
+            Assert.True(p.OrdersTo(p.Charlie, BehaviorNames.BoundingOverwatch) > 0, "the reserve bounds behind the assault");
+            // ⭐ D-12 — it waited in cover (one SquadDefend where it stood) before the base of fire was up; bounding now, no new defend
+            int waited = p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend);
+            Assert.Equal(1, waited);
+            Assert.Equal(BehaviorNames.BoundingOverwatch, p.S.Orders.Last(o2 => o2.Entity.Equals(p.Charlie)).IntentId);
+            p.ReportSet(p.Charlie); p.Ticks(4);   // its bound arrived
+            Assert.Equal(waited + 1, p.OrdersTo(p.Charlie, BehaviorNames.SquadDefend));
         }
 
         /// <summary>⭐⭐ <c>CE-7015</c> (AQ101 §R E — the rout; AT-9 / AT-10) — the assault squad's men BREAK (3 of 4: fewer than the 2 a squad of 4 needs
@@ -4356,6 +4748,81 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(Requests(PictureOf(p, p.S.Commander)));
         }
 
+        // ── ⭐ CE-2442 D-2 — the HQ answers ENGINEERS (Minefields §13) ──────────────────────────────────────────────────────────
+
+        /// <summary>The HQ's member 3 becomes an ENGINEER unit: its man on foot and a TKB 116 clearer (a tracked vehicle). A 40 × 40 m field at the
+        /// origin; the requester (member 0) stands 50 m west of it.</summary>
+        private static (Platoon P, Entity Clearer, Entity Man, Entity Field) EngineersHq()
+        {
+            var p = Headquarters();
+            var repo = p.S.Repo;
+            Entity engineers = p.S.Members[3];
+            var clearer = repo.CreateEntity();
+            repo.AddComponent(clearer, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)Hrot.Map.Common.TkbEntityTypes.Engineer_MineClearer });
+            repo.AddComponent(clearer, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked });
+            ref var roster = ref repo.GetComponentRW<UnitRoster>(engineers);
+            var man = roster.SubordinateEntities[0];   // the unit's man on foot (Headquarters() gave it one)
+            UnitRoster.Add(ref roster, clearer);
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.Minefield>()) repo.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()) repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            if (!repo.TryGetTable(typeof(Hrot.Map.Common.Components.EditablePolyline), out _)) repo.RegisterManagedComponent<Hrot.Map.Common.Components.EditablePolyline>();
+            var field = repo.CreateEntity();
+            repo.AddComponent(field, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            repo.AddComponent(field, new Fdp.Toolkit.Terrain.Minefield { Type = Fdp.Toolkit.Terrain.MineType.AntiPersonnel, SpacingM = 4f });
+            repo.AddComponent(field, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7442 });
+            repo.SetManagedComponent(field, new Hrot.Map.Common.Components.EditablePolyline
+            {
+                Points = new[] { new Vector2(0f, 0f), new Vector2(40f, 0f), new Vector2(40f, 40f), new Vector2(0f, 40f) },
+            });
+            var requester = p.S.Members[0];
+            var at = new SimTransform { Position = new Vector3(-50f, 20f, 0f), Rotation = Quaternion.Identity };
+            if (repo.HasComponent<SimTransform>(requester)) repo.SetComponent(requester, at); else repo.AddComponent(requester, at);
+            return (p, clearer, man, field);
+        }
+
+        /// <summary>⭐⭐ <c>CE-2442</c> D-2 (Minefields §13) — an Engineers request at a field's near side: the engineer unit (a clearer in its roster)
+        /// is the asset — ⭐ its MAN recons the field the side does not know (ReconMinefield at the point, Mark), the request is answered; when his
+        /// walk ends the UNIT breaches from the point to the far side along the requester's line (+5 m). Never a reinforcement, never the
+        /// requester. ✅ Red-proof: the Engineers branch removed from <c>Command</c> ⇒ no recon, the request stays.</summary>
+        [Fact]
+        public void CE2442_Engineers_ReconTheUnknownField_ThenTheUnitBreachesAlongTheRequestersLine()
+        {
+            var (p, _, man, _) = EngineersHq();
+            Entity engineers = p.S.Members[3];
+            var near = new Vector3(-5f, 20f, 0f);
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.Engineers, near);
+            p.Ticks(4);
+            Assert.Equal(1, p.OrdersTo(man, BehaviorNames.ReconMinefield));
+            var recon = OrderTo<ReconMinefieldParamsJsonDto>(p, man, BehaviorNames.ReconMinefield);
+            Assert.Equal(7442, recon.Field.Ref.NetworkId);
+            Assert.Equal<Vector3>(near, recon.At);
+            Assert.True(recon.Mark);
+            Assert.Equal(0, p.OrdersTo(engineers, BehaviorNames.Breach));
+            Assert.Equal(0, p.OrdersTo(engineers, BehaviorNames.SquadDefend));
+            Assert.Empty(Requests(PictureOf(p, p.S.Commander)));
+
+            p.S.Pause(3.0);   // his walk is over (his brain never took it here): the breach follows
+            p.Ticks(2);
+            Assert.Equal(1, p.OrdersTo(engineers, BehaviorNames.Breach));
+            var breach = OrderTo<BreachParamsJsonDto>(p, engineers, BehaviorNames.Breach);
+            Assert.Equal(7442, breach.Field.Ref.NetworkId);
+            Assert.Equal<Vector3>(near, breach.Start);
+            Assert.InRange(breach.End.X, 44.9f, 45.1f);   // the far edge (x 40) + 5 m along the requester's line (west → east)
+            Assert.InRange(breach.End.Y, 19.9f, 20.1f);
+        }
+
+        /// <summary>⭐ <c>CE-2442</c> D-2 — an engineer unit is not a ground unit: a Reinforce never takes it. ✅ Red-proof: <c>KindOf</c>'s engineer
+        /// test removed ⇒ the engineers are sent to defend.</summary>
+        [Fact]
+        public void CE2442_AnEngineerUnit_IsNeverSentToReinforce()
+        {
+            var (p, _, _, _) = EngineersHq();
+            Assert.Equal(SupportAsset.Engineers, SupportCommandBehavior.KindOf(p.S.Repo, p.S.Members[3]));
+            Ask(p, Fdp.Toolkit.Squad.Command.RequestKind.Reinforce, new Vector3(50f, 400f, 0f));
+            p.Ticks(4);
+            Assert.Equal(0, p.OrdersTo(p.S.Members[3], BehaviorNames.SquadDefend));
+        }
+
         // ── CE-2310 — what a platoon sends up for SUPPORT (Command Chain §8d HQ-3…HQ-5) ──────────────────────────────────────
 
         /// <summary>The platoon under a body-less HQ; its staff's composer runs each frame with the harness.</summary>
@@ -4632,6 +5099,28 @@ namespace Hrot.SimHost.Tests
             p.ReportSpot(p.Bravo, new Vector3(0f, -100f, 0f), 2);   // south: nobody left to turn
             p.Ticks(12);
             Assert.Equal((2, 2, 1), (DefendOrders(p, p.Alpha), DefendOrders(p, p.Bravo), DefendOrders(p, p.Charlie)));
+        }
+
+        /// <summary>⭐⭐ <c>CE-4666</c> (D-8, user-approved) — a squad turned to a flank turns BACK to its home slice once the flank element goes
+        /// stale (no fresh SPOT in the turned slice for <see cref="PlatoonDefendBehavior.TriggerFreshSeconds"/>): ordered again, facing its own
+        /// share of the area. 📌 pc-defend-house: a phantom flank kept the line facing away from the attack all fight.
+        /// ✅ Red-proof: the turn-back loop skipped ⇒ Alpha stays turned (no third order) ⇒ red.</summary>
+        [Fact]
+        public void CE4666_ATurnedSquad_TurnsBack_WhenItsFlankGoesStale()
+        {
+            var p = new Platoon(squads: 3);
+            Defend(p);
+            p.Ticks(6);
+            var home = SectorOf(p, p.Alpha);
+            p.ReportSpot(p.Bravo, new Vector3(100f, 0f, 0f), 2);    // east, 100 m: Alpha turns to it
+            p.Ticks(12);
+            Assert.Equal(2, DefendOrders(p, p.Alpha));
+            Assert.True(Fdp.Toolkit.Behavior.Components.EngagementAreas.InArc(Vector3.Zero, SectorOf(p, p.Alpha).LeftBearing,
+                SectorOf(p, p.Alpha).RightBearing, 0f, 0f, new Vector3(100f, 0f, 0f)), "turned to the flank");
+            p.S.Pause(PlatoonDefendBehavior.TriggerFreshSeconds + 1f);   // no fresh SPOT there any more
+            p.Ticks(12);
+            Assert.Equal(3, DefendOrders(p, p.Alpha));                 // ordered again…
+            Assert.Equal((home.LeftBearing, home.RightBearing), (SectorOf(p, p.Alpha).LeftBearing, SectorOf(p, p.Alpha).RightBearing));   // …to its own slice
         }
 
         /// <summary>⭐⭐ <c>CE-2276</c> E-2 (DA-61, DA-63) — every squad is asked for a 15 s SITREP; Bravo reports RED but the enemy is not in its
@@ -5395,6 +5884,48 @@ namespace Hrot.SimHost.Tests
             TickFor(s, 0.2);
             Near(plan.DoorFront, AdvanceOf(s, s.Members[1]), "the next takes his place and goes");
             Near(plan.Stack(1), PostureOf(s, s.Members[2]).Post.Point, "the rest move up one");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-2451</c> (the clearance stall after D-9) — an entry man BREAKS after #1 is through (he flees: he stays where he is, deaf to his
+        /// orders); the other three go in to their points ⇒ the room still CLEARS. A broken man is no more able to take his place than a man down
+        /// (CB-73's rule, as for `CE2261_BC5_AManDownBeforeTheEntry`): the drill counts him out. 📐 `ts-house-defenders` (stepped): a broken entry man
+        /// kept the entry "not placed" for good. ✅ Red-proof: the drill counting a broken man in (`IsInTheFight` alone) ⇒ never cleared.
+        /// </summary>
+        [Fact]
+        public void CE2451_AnEntryManWhoBreaks_AfterTheFirstIsThrough_DoesNotHoldTheRoomForEver()
+        {
+            var s = new Squad(members: 4);
+            var door = RoomDoor(s, Fdp.Toolkit.Terrain.TerrainDoorState.Closed);
+            s.Surveys[ClearRoomPlay.RoomSite] = RoomAnswer();
+            ClearRoom(s);
+            for (int i = 0; i < 4; i++) s.Tick();
+            var plan = RoomEntryPlan.Plan(BigRoom, 0f, new Vector2(1.5f, 10f), 1f, inFight: 4);
+            for (int k = 0; k < 4; k++) s.Teleport(s.Members[k], plan.Stack(k));
+            for (int i = 0; i < 4; i++) s.Tick();
+            s.Repo.SetComponent(door, new Fdp.Toolkit.Terrain.DoorState { State = Fdp.Toolkit.Terrain.TerrainDoorState.Open });
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseEntering, s.Phase);
+            s.Teleport(s.Members[0], plan.Threshold + new Vector3(0f, 0.2f, 0f));   // #1 across
+            TickFor(s, 0.1);
+
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.Stress>()) s.Repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.Stress>();
+            s.Repo.AddComponent(s.Members[2], new Fdp.Toolkit.Behavior.Components.Stress { Level = 1f, Broken = 1 });   // #3 breaks in the stack
+
+            for (int round = 0; round < 6; round++)
+            {
+                for (int k = 0; k < 4; k++)
+                {
+                    if (k == 2) continue;                                                    // the broken man obeys nothing
+                    var adv = s.Orders.LastOrDefault(o => o.Entity.Equals(s.Members[k]) && o.IntentId == BehaviorNames.AdvanceTo);
+                    if (adv != null) s.Teleport(s.Members[k], plan.Threshold + new Vector3(0f, 0.2f, 0f));
+                }
+                TickFor(s, RoomDrill.FlowSeconds + 0.1);
+            }
+            for (int k = 0; k < 4; k++) if (k != 2) s.Teleport(s.Members[k], plan.Point(k));
+            TickFor(s, RoomDrill.EnterTimeoutSeconds + RoomDrill.ClearSeconds + 1.0);
+            Assert.Equal(StackAndRoomEntryManeuver.PhaseCleared, s.Phase);
+            Assert.True(HasProgress(s, Fdp.Toolkit.Squad.Command.ProgressKind.RoomClear));
         }
 
         private static Fdp.Toolkit.Perception.Survey.WorldSurveyPayload RoomAnswer(bool small = false)
@@ -6375,6 +6906,27 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fbt.NodeStatus.Failure, RunUntilFinished(t, 5));
         }
 
+        /// <summary>⭐ <c>CE-9023</c> — a KILLED man (his body stays, Health 0) does not hold the squad back: the drill is done once every LIVING
+        /// member is aboard. 📐 Live <c>uc-urban-battle</c>: Squad A's four riflemen died at the IED; its leader boarded the IFV at 79 s, but
+        /// <c>SquadEmbark</c> ran to its 60 s timeout and failed, and the platoon waited out its 120 s remount timeout — the convoy moved on
+        /// at 195 s, after the row's 200 s window in the regression run. ✅ Red-proof: <c>AboardIt</c> judging the entity only ⇒ Failure.</summary>
+        [Fact]
+        public void CE9023_SquadEmbark_TheDeadDoNotHoldTheSquadBack_DoneWhenTheLivingAreAboard()
+        {
+            var s = new Squad(members: 3);
+            var heli = Helicopter(s, new Vector3(0f, 20f, 0f), 9023);
+            foreach (var m in new[] { s.Members[1], s.Members[2] })   // killed: the body stays
+            {
+                if (s.Repo.HasComponent<Fdp.Toolkit.Combat.Components.Health>(m)) s.Repo.SetComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+                else s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            }
+            s.Order("{\"vehicle\":9023,\"timeoutSeconds\":30}", BehaviorNames.SquadEmbark);
+            Ticks(s, 4);
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(s.Repo, s.Members[0], heli));
+            Assert.Equal(Fbt.NodeStatus.Success, RunUntilFinished(s, 5));
+            Assert.True(SquadEmbarkBehavior.AllAboard(s.Repo, s.Commander, heli));
+        }
+
         // ── CE-2173 slice 3 (B8, B10; Air Operations §9b) — riding, unloading, and the helicopter brain's hold release ──────────────
 
         /// <summary>A helicopter (Rotorcraft, a route phase) at <paramref name="at"/> with <paramref name="aboard"/> seated.</summary>
@@ -6810,6 +7362,110 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
         }
 
+        private static void Nav(Squad s, Entity m, Fdp.Toolkit.Navigation.NavigationResult result)
+        {
+            if (!s.Repo.IsComponentTypeRegistered<NavigationStatus>()) s.Repo.RegisterComponent<NavigationStatus>();
+            if (s.Repo.HasComponent<NavigationStatus>(m)) s.Repo.GetComponentRW<NavigationStatus>(m).Result = result;
+            else s.Repo.AddComponent(m, new NavigationStatus { Result = result });
+        }
+
+        /// <summary>⭐⭐ <c>CE-2461</c> (Urban Fight Suite U2) — a bound whose movers all STOPPED short (blocked, the point unreachable) is over
+        /// once they stopped (<see cref="SquadGates.MoverSettleSeconds"/> after the order), not at its timeout; a mover still under way keeps it
+        /// open. 📐 Live before: <c>uf-corner-fight</c>, a bound waited its whole 40 s for a man whose move had ended 6 m short.
+        /// ✅ Red-proof: <c>MoversStopped</c> ignored ⇒ the bound waits out its 60 s ⇒ red.</summary>
+        [Fact]
+        public void CE2461_BoundingOverwatch_MoversThatStoppedShort_EndTheBound_BeforeItsTimeout()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":20,\"BoundTimeoutSeconds\":60}");
+            for (int i = 0; i < 4; i++) s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);
+            Nav(s, s.Members[0], Fdp.Toolkit.Navigation.NavigationResult.FailedUnreachable);
+            Nav(s, s.Members[1], Fdp.Toolkit.Navigation.NavigationResult.InProgress);
+            for (int i = 0; i < 250; i++) s.Tick();   // ~4 s of ticks (⛔ not Pause: a gap re-issues every order, which restarts the settle)
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement0Moving, s.Phase);   // one mover still under way: the bound goes on
+            Nav(s, s.Members[1], Fdp.Toolkit.Navigation.NavigationResult.Arrived);
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);   // both stopped short: the other element bounds now
+        }
+
+        /// <summary>⭐ <c>CE-2461</c> — BREAK CONTACT's bound ends the same way: its movers all stopped short ⇒ the other element goes, not at the
+        /// bound's timeout. 📐 Live before: <c>uf-corner-fight</c> (deterministic), Blue's element stood 60 s with no task after its bound.
+        /// ✅ Red-proof: the stopped test removed from <c>BreakContactPlay.PhaseComplete</c> ⇒ red.</summary>
+        [Fact]
+        public void CE2461_BreakContact_MoversThatStoppedShort_EndTheBound_BeforeItsTimeout()
+        {
+            var s = new Squad(members: 2);
+            s.PoolMany(6, new Vector3(0f, 60f, 0f));
+            s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+            for (int i = 0; i < 12; i++) s.Tick();
+            Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+            s.Answer(s.RetreatQuery(), new Vector3(-40f, -30f, 0f));
+            s.Tick(); s.Tick();
+            s.Answer(s.BreakCoverQuery(), null);
+            s.Orders.Clear();
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.AdvanceTo, s.LastOrders()[s.Members[0]].Intent);   // element 0 bounds
+            Nav(s, s.Members[0], Fdp.Toolkit.Navigation.NavigationResult.FailedBlocked);
+            s.Orders.Clear();
+            for (int i = 0; i < 250; i++) s.Tick();   // ~4 s, far short of the 60 s timeout
+            s.Answer(s.BreakCoverQuery(), null);
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.AdvanceTo, s.LastOrders()[s.Members[1]].Intent);   // he stopped short: element 1 goes now
+        }
+
+        /// <summary>⭐⭐ <c>CE-2465</c> (Urban Fight Suite U2-4) — BREAK CONTACT ENDS WHEN THE CONTACT IS BROKEN: each element has bounded once and
+        /// the squad is in a lull (no fire at it, no new contact for <see cref="SquadSopConditions.LullSeconds"/>) ⇒ Success, though nobody reached
+        /// the point; while it is still under fire it goes on. 📐 Live before: <c>uf-corner-fight</c>, a mover whose cover picks never moved him kept
+        /// the play running 280 s, the squad standing upright and still. ✅ Red-proof: the lull end removed ⇒ never finishes ⇒ red.</summary>
+        [Fact]
+        public void CE2465_BreakContact_EndsInALull_WithAnElementShortOfThePoint_AndNotUnderFire()
+        {
+            foreach (bool underFire in new[] { false, true })
+            {
+                var s = new Squad(members: 2);
+                s.PoolMany(6, new Vector3(0f, 60f, 0f));
+                s.Order("{\"DecideAfterSeconds\":0.1}", BehaviorNames.ReactToContact);
+                for (int i = 0; i < 12; i++) s.Tick();
+                Assert.Equal(BreakContactManeuver.ManeuverKind, s.Kind);
+                s.Answer(s.RetreatQuery(), new Vector3(-40f, -30f, 0f));
+                bool done = false; Fbt.NodeStatus result = default;
+                for (int k = 0; k < 120 && !done; k++)   // ~120 s: every bound's movers stop where they stand (nobody gets nearer); ⭐ CE-2466 R2 — then the rally (≤ 30 s move + 30 s hold)
+                {
+                    var q = s.BreakCoverQuery();
+                    if (!q.IsNull) s.Answer(q, null);
+                    foreach (var m in s.Members) Nav(s, m, Fdp.Toolkit.Navigation.NavigationResult.Arrived);
+                    if (underFire) s.Sense(Fdp.Toolkit.Perception.Events.SensorChange.SquadUnderFire);
+                    for (int i = 0; i < 60 && !done; i++) { s.Tick(); done = s.Finished(out result); }
+                }
+                if (underFire) Assert.False(done, "under fire the break contact goes on");
+                else { Assert.True(done, "in a lull the contact is broken: done"); Assert.Equal(Fbt.NodeStatus.Success, result); }
+            }
+        }
+
+        /// <summary>⭐ <c>CE-2461</c> — a cover point on another storey or a ledge (more than <see cref="SquadCover.MaxClimbMetres"/> above the mover)
+        /// is never a bound's pick. 📐 Live before: <c>uf-corner-fight</c>, picks at Z = 3 beside a house left the movers standing under them.
+        /// ✅ Red-proof: the height test removed ⇒ the raised point is picked ⇒ red.</summary>
+        [Fact]
+        public void CE2461_BoundingOverwatch_ACoverPointUpOnABuilding_IsNoPick()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundMetres\":30,\"ArrivalRadius\":15,\"BoundTimeoutSeconds\":60}");
+            s.Tick(); s.Tick(); s.Tick();
+            var query = BoQuery(s);
+            Assert.False(query.IsNull);
+            var raised = new Vector3(9, 26, 3); var ground = new Vector3(13, 25, 0);
+            AnswerAll(s, query, raised, ground);
+            s.Tick();
+            foreach (var m in s.Members.Take(2)) s.Teleport(m, s.LastObjectives()[m]);   // Alpha is set
+            s.Tick(); s.Tick();
+            Assert.Equal(BoundingOverwatchManeuver.PhaseElement1Moving, s.Phase);
+            var t = SquadDrillTrace.Of(s.Repo, s.Commander);
+            Assert.NotEqual(raised, t.Orders[2].Point);
+            Assert.NotEqual(raised, t.Orders[3].Point);
+            Assert.True((t.Orders[2].Cover && t.Orders[2].Point == ground) || (t.Orders[3].Cover && t.Orders[3].Point == ground), "the ground point is still picked");
+        }
+
         // ── CE-2158 F-b — fire and movement (Squad Tactics §7.6.1) ──────────────────────────────────────────────────────────────
 
         private const string FmOrder = "{\"Objective\":[6,80,0],\"RushMetres\":15}";
@@ -7242,7 +7898,8 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-4583 — without OpenGround the march asks for the crossings (named, not the zero default) AND a shelled area; never open ground
             var plain = KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true}");
             Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.StreetCrossing | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Intersection
-                         | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Minefield, plain);   // ⭐ CE-4624 MS-B4 — and a minefield
+                         | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Shelled | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.Minefield
+                         | Fdp.Toolkit.Squad.DangerArea.DangerAreaKinds.CoveredByFire, plain);   // ⭐ CE-4624 MS-B4 — and a minefield; ⭐ CE-2466 R6 — and ground a known enemy covers
             Assert.False(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(plain, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));
             var open = KindsOf("{\"Objective\":[0,100,0],\"DangerAreas\":true,\"OpenGround\":true}");
             Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(open, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));
@@ -7278,6 +7935,48 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < SopReactionFrames; i++) s.Tick();   // E-3 (CE-4509) — production frame order: the edge recorded, the SOP woken on it (R-195), the reaction to the men
             Assert.Equal(BehaviorNames.ReactToContact, s.TaskName);
         }
+        /// <summary>⭐⭐ <c>CE-2462</c> (Urban Fight Suite U2, user `2026-11-20`) — BOUNDING OVERWATCH watches its route as the march does: it owns the
+        /// commander's route sensor (to its objective, the crossings and a shelled area — no open ground) while it runs, and the sensor goes when
+        /// the bound ENDS. ✅ Red-proof: the watch removed from <c>BoundingOverwatchPlay.Update</c> ⇒ no sensor ⇒ red.</summary>
+        [Fact]
+        public void CE2462_BoundingOverwatch_WatchesItsRoute_AndDropsTheSensorWhenDone()
+        {
+            var s = new Squad(members: 4);
+            s.Order("{\"Objective\":[0,100,0],\"BoundTimeoutSeconds\":0.1}");
+            s.Tick(); s.Tick(); s.Repo.FlushCommandBuffers();
+            var sensor = Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, DangerRouteWatch.Site);
+            Assert.False(sensor.IsNull, "the bound watches its route");
+            var settings = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.DangerArea.DangerAreaSensor>(sensor).Settings;
+            Assert.Equal(Fdp.Toolkit.Squad.DangerArea.DangerRouteSource.ToPoint, settings.RouteSource);
+            Assert.Equal(new Fdp.Core.WorldPoint(0f, 100f, 0f), settings.RoutePoint);
+            Assert.True(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(settings.Kinds, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Intersection));
+            Assert.False(Fdp.Toolkit.Squad.DangerArea.DangerAreaKindsOf.Wants(settings.Kinds, Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.OpenGround));
+            bool done = false;
+            for (int i = 0; i < 60 && !done; i++) { s.Tick(); done = s.Finished(out _); }   // nobody moves: two stalls ⇒ set where it stands (CE-2284)
+            Assert.True(done);
+            s.Repo.FlushCommandBuffers();
+            Assert.True(Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Find(s.Repo, s.Commander, DangerRouteWatch.Site).IsNull, "the bound ended: its route sensor is gone");
+        }
+
+        /// <summary>⭐⭐ <c>CE-2462</c> — the shipped squad SOP: a danger area ahead of a BOUNDING squad starts the crossing drill, which PAUSES the
+        /// bound (the march's own row, X-c — no new row). 📐 Before: <c>uf-corner-fight</c>, the front element bounded into the junction's field
+        /// of fire 26 m out with no halt.</summary>
+        [Fact]
+        public void CE2462_BasicSquadSop_ADangerAreaAheadOfABoundingSquad_CrossesIt()
+        {
+            var s = new Squad(members: 6);
+            s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(10f, 5f, 0f), Rotation = Quaternion.Identity });
+            s.Order("{\"Objective\":[10,100,0],\"BoundMetres\":20}");
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 10; i++) s.Tick();
+            Assert.Equal(BehaviorNames.BoundingOverwatch, s.TaskName);
+            AreaAhead(s, distanceAlongRoute: 12f);
+            for (int i = 0; i < SopReactionFrames + 1; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadDangerCrossing, s.TaskName);
+            Assert.Equal(BehaviorNames.BoundingOverwatch, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
+            Assert.Equal(DangerAreaCrossingManeuver.ManeuverKind, s.Kind);
+        }
+
         /// <summary>⭐⭐ <c>CE-4624</c> MS-B4 (Minefields KG-7) — a MINEFIELD area ahead is never a crossing: <c>DangerAreaAhead</c> is false for it,
         /// <c>MinefieldAhead</c> true within 30 m along the route (false beyond). ✅ Red-proof: the exclusion dropped ⇒ DangerAreaAhead true ⇒ red.</summary>
         [Fact]
@@ -7299,6 +7998,40 @@ namespace Hrot.SimHost.Tests
         /// <c>MinefieldAhead</c> as a reaction (<c>Alert</c>) that PAUSES the march — every man holds, and the squad's outbox carries a request for
         /// ENGINEERS at the field's near side; once the area is gone the reaction ends and the march resumes. ✅ Red-proofs: the SOP row dropped ⇒
         /// no reaction ⇒ red; the hold dropped ⇒ red; the request dropped ⇒ red.</summary>
+        /// <summary>⭐⭐ <c>CE-5040</c> (terrain, mf-clear-lane-and-cross) — the SAME minefield ahead stops a squad under a LIVE platoon / HQ: the halt and the
+        /// Engineers request are the squad's own (MS-B5 sends the request UP the chain, so the asking squad always has a commander), like the carrier rows —
+        /// ⛔ the <c>UnderCommand</c> row (CE-2358, "the platoon reacts for the squad") stood above it, so a commanded squad never reached it and walked into
+        /// the field. ✅ Red-proof: the minefield row back below <c>UnderCommand</c> ⇒ the march runs on ⇒ red.</summary>
+        [Fact]
+        public void CE5040_BasicSquadSop_UnderALivePlatoon_AMinefieldAhead_StillHalts_AndCallsTheEngineers()
+        {
+            var s = new Squad(members: 4);
+            var platoon = s.Repo.CreateEntity();
+            s.Repo.AddComponent(platoon, new UnitEntity());
+            s.Repo.AddComponent(s.Commander, new UnitSubordinate { Commander = platoon });
+            s.Repo.AddComponent(s.Commander, new SimTransform { Position = new Vector3(10f, 5f, 0f), Rotation = Quaternion.Identity });
+            s.Order("{\"Objective\":[10,100,0]}", BehaviorNames.SquadMarch);
+            s.StartSop("BasicSquadSop");
+            for (int i = 0; i < 10; i++) s.Tick();
+            Assert.Equal(BehaviorNames.SquadMarch, s.TaskName);
+            Assert.True(SopConditions.UnderCommand(s.Commander, s.Repo));                                // the platoon is live: the contact rows stand aside
+
+            var near = new Vector3(10f, 20f, 0f);
+            AreaAhead(s, distanceAlongRoute: 12f, near: near, kind: Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Minefield);
+            s.Orders.Clear();
+            for (int i = 0; i < SopReactionFrames + 1; i++) s.Tick();
+            Assert.Equal(BehaviorNames.MinefieldAhead, s.TaskName);                                        // ⭐ the squad halts all the same
+            Assert.Equal(BehaviorNames.SquadMarch, BehaviorIngressSystem.PausedTaskOf(s.Repo, s.Commander)!.BehaviorName);
+            s.Tick(); s.Tick();
+            var q = s.Repo.GetComponentRO<Fdp.Toolkit.Squad.Command.ReportOutbox>(s.Commander).Queued;
+            int engineers = 0;
+            for (int i = 0; i < q.Count; i++)
+                if (q.Items[i].Report.Kind == Fdp.Toolkit.Squad.Command.ReportKind.Request
+                    && q.Items[i].Report.Subtype == (byte)Fdp.Toolkit.Squad.Command.RequestKind.Engineers) engineers++;
+            Assert.Equal(1, engineers);                                                                    // ⭐ and asks up the chain
+            Assert.Equal(0, s.Repo.GetComponent<SopState>(s.Commander).SopFaulted);
+        }
+
         [Fact]
         public void CE4624_MS_B4_BasicSquadSop_AMinefieldAhead_Halts_AndCallsTheEngineers()
         {

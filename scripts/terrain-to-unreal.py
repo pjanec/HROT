@@ -17,7 +17,9 @@ Writes into <out-folder>:
                             lon / lat (UL-5: Landscape Combinator's spline importer reads every vector file as EPSG:4326)
     <name>.height.r16       the same heights as uint16 for tools/unreal/HrotTerrain (UL-9), north row first; frame.json "unreal" holds
                             its exact placement (location, scale, components)
-    <name>.frame.json       the frame used: CRS, the local → projected offset, the grid size — what the import / the checks read
+    <name>.frame.json       the frame used: CRS, the local → projected offset, the grid size — what the import / the checks read; "thermal" = the
+                            fixed thermal classes and bare ground's (CE-4662 TD-9: every vector feature carries "thermal_class" — the image
+                            generator's ground material map, a DRIVER, never a temperature)
 
 The frame (local x east, y north, metres):
     * a terrain with frame.utm (the importer's): EPSG:326zz / 327zz, E = x + e0 + corner[0], N = y + n0 + corner[1] — exact (UTM §12.3).
@@ -129,8 +131,33 @@ def hermite(seg, step=2.0):
     return out
 
 
+# ── thermal classes (CE-4662, docs/designs/thermal/DESIGN_Thermal_Drivers.md TD-9) ─────────────────────────────────────────────────
+SHARED_MATERIALS = os.path.join(REPO, "FDP", "Toolkits", "Fdp.Toolkits", "Terrain", "Data", "materials.json")
+DEFAULT_MATERIAL = "concrete"   # TerrainMaterialLibrary.DefaultMaterial: a panel / house that names no material
+THERMAL_CLASSES = ["asphalt", "concrete", "brick", "metal", "glass", "wood", "soil-dry", "soil-wet", "sand", "grass", "dense-vegetation", "water", "snow"]   # TerrainThermalClass.All
+
+
+def thermal_library(folder):
+    """The material library a node reads (the shared materials.json, overlaid by the terrain folder's own materials.json) as
+    (material name -> thermalClass, surface name -> thermalClass) — the SAME file and keys TerrainMaterialLibrary parses."""
+    by_mat, by_surf = {}, {}
+    for path in (SHARED_MATERIALS, os.path.join(folder, "materials.json")):
+        if not os.path.exists(path): continue
+        with open(path, encoding="utf-8") as f:
+            d = json.load(f)
+        for k, v in (d.get("materials") or {}).items():
+            if isinstance(v, dict) and v.get("thermalClass"): by_mat[k] = v["thermalClass"]
+        for k, v in (d.get("surfaceThermalClasses") or {}).items():
+            if not k.startswith("$"): by_surf[k] = v
+    return by_mat, by_surf
+
+
 def features(folder, terrain, world):
     feats, counts, roof_of = [], {}, {}
+    by_mat, by_surf = thermal_library(folder)
+
+    def thermal(material):   # ⭐ CE-4662 — the class of a material (an unnamed one is the default material's)
+        return by_mat.get(material or DEFAULT_MATERIAL)
 
     def add(geom_type, coords, props):
         feats.append({"type": "Feature", "properties": props, "geometry": {"type": geom_type, "coordinates": coords}})
@@ -144,7 +171,7 @@ def features(folder, terrain, world):
             # an imported terrain models a house's ROOF as its own prism on top of the walls ("<id>-roof", baseZ = the eaves): in Unreal it
             # is that house's roof, not another building from the ground ⇒ its own file, and the house gets its roof height
             add("Polygon", [ring(g["coordinates"][0])], {"hrot_kind": "roof", "parent": label[:-5], "height": p.get("height"),
-                                                          "base_z": p.get("baseZ"), "name": label})
+                                                          "base_z": p.get("baseZ"), "name": label, "thermal_class": thermal(p.get("material"))})
             roof_of[label[:-5]] = p.get("height")
             continue
         if kind == "building":
@@ -160,20 +187,23 @@ def features(folder, terrain, world):
                 levels = int(p.get("floors") or max(1, round(height / 3.0)))
                 fp = ring(g["coordinates"][0]); extra = {}
             add("Polygon", [fp], {"hrot_kind": "building", "building": "yes", "height": round(height, 3),
-                                  "building_levels": levels, "name": p.get("label", ""), **extra})
+                                  "building_levels": levels, "name": p.get("label", ""), **extra, "thermal_class": thermal(p.get("material"))})
         elif kind in ("wall", "fence"):
             add("LineString", [tuple(c[:2]) for c in g["coordinates"]],
                 {"hrot_kind": "wall", "barrier": "hedge" if p.get("material") == "hedge" else ("fence" if kind == "fence" else "wall"), "material": p.get("material", kind),
-                 "height": p.get("height"), "thickness": p.get("thickness"), "name": p.get("label", "")})
+                 "height": p.get("height"), "thickness": p.get("thickness"), "name": p.get("label", ""),
+                 "thermal_class": thermal(p.get("material", "fence-wood" if kind == "fence" else None))})
         elif kind == "surface":
             cls = p.get("surface", "open")
             osm = {"forest": {"landuse": "forest"}, "water": {"natural": "water"}}.get(cls, {"landuse": "grass"})
-            add("Polygon", [ring(r) for r in g["coordinates"]], {"hrot_kind": "surface", "class": cls, **osm, "name": p.get("label", "")})
+            add("Polygon", [ring(r) for r in g["coordinates"]], {"hrot_kind": "surface", "class": cls, **osm, "name": p.get("label", ""),
+                                                               "thermal_class": by_surf.get(cls)})
         elif kind == "prism":
             add("Polygon", [ring(r) for r in g["coordinates"]], {"hrot_kind": "prism", "clutter": p.get("clutter", ""),
-                                                                   "material": p.get("material", ""), "height": p.get("height")})
+                                                                   "material": p.get("material", ""), "height": p.get("height"),
+                                                                   "thermal_class": thermal(p.get("material"))})
         elif kind == "tree" or (g["type"] == "Point" and "tree" in str(kind)):
-            add("Point", tuple(g["coordinates"][:2]), {"hrot_kind": "tree", "natural": "tree", "height": p.get("height")})
+            add("Point", tuple(g["coordinates"][:2]), {"hrot_kind": "tree", "natural": "tree", "height": p.get("height"), "thermal_class": thermal("tree-trunk")})
         else:
             counts["skipped:" + str(kind)] = counts.get("skipped:" + str(kind), 0) + 1
 
@@ -187,7 +217,7 @@ def features(folder, terrain, world):
         for seg in net.get("segments", []):
             add("LineString", hermite(seg), {"hrot_kind": "road", "highway": "residential", "lanes": seg.get("laneCount"),
                                               "lane_width": seg.get("laneWidth"), "width": (seg.get("laneCount") or 1) * (seg.get("laneWidth") or 3.5),
-                                              "name": f"segment {seg['id']}"})
+                                              "name": f"segment {seg['id']}", "thermal_class": "asphalt"})
     return feats, counts
 
 
@@ -499,7 +529,9 @@ def main():
     info = {"terrain": name, "frame": what, "crsUserInput": user_input, "crs": crs.to_wkt() if crs else None, "epsg": crs.to_epsg() if crs else None,
             "localToProjected": [de, dn], "posts": [cols, rows], "hrotPosts": hrot_posts, "componentQuads": None if a.no_pad else comp,
             "components": None if a.no_pad else [(cols - 1) // comp, (rows - 1) // comp], "cell": cell, "southWestPost": [x0, y0],
-            "zMin": float(z.min()), "zMax": float(z.max()), "unreal": unreal, "features": counts, "look": look}
+            "zMin": float(z.min()), "zMax": float(z.max()), "unreal": unreal, "features": counts, "look": look,
+            # ⭐ CE-4662 (TD-9) — the ground material map's legend: every feature carries "thermal_class" (one of these); bare ground is "ground"
+            "thermal": {"classes": THERMAL_CLASSES, "ground": thermal_library(folder)[1].get("ground")}}
     with open(os.path.join(a.out, f"{name}.frame.json"), "w", encoding="utf-8") as f:
         json.dump(info, f, indent=1)
     print(json.dumps(info, indent=1)[:1500] if crs is None else json.dumps({k: v for k, v in info.items() if k != "crs"}, indent=1))

@@ -14,8 +14,17 @@ namespace Hrot.UI.Common.Map3D;
 /// The right mouse button drags the orbit (at his eyes: offsets the look while held, springing back). W / A / S / D, Esc or a map
 /// (middle-button) drag hand the camera back to the free camera; so does the unit's end. Not possession: the unit is not controlled.
 /// </summary>
-public sealed class FollowCameraDriver : ICameraDriver
+public sealed class FollowCameraDriver : ICameraDriver, ICameraSuggests
 {
+    /// <summary>⭐ CE-11006 (RR-6) — following a unit: at its eyes under <see cref="EyesBelow"/>, else orbiting it at <see cref="Distance"/>.</summary>
+    public void Describe(EntityRepository world, ref Hrot.Map.Common.Components.CameraSuggestion s)
+    {
+        s.Source = Hrot.Map.Common.Components.CameraSource.Follow;
+        s.Mode = Distance < EyesBelow ? Hrot.Map.Common.Components.CameraMode.Eyes : Hrot.Map.Common.Components.CameraMode.Orbit;
+        s.Bound = Unit;
+        s.Distance = Distance < EyesBelow ? 0f : Distance;
+    }
+
     private readonly Func<EntityRepository?> _world;
     private readonly EntityBodyLayer3D? _bodies;
     private readonly List<Fdp.Toolkit.World.TraceCrossing> _trace = new();

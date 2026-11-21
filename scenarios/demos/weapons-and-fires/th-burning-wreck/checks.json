@@ -1,0 +1,97 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4660 (thermal drivers TD-S4): a destroyed fuelled hull burns as simulation state, and its fire burns the man beside it in whole steps; CE-4661 (TD-S5): each body carries its time of death (Health.StateSince), stamped by its Health owner.",
+  "runFor": 60,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the T-72 is destroyed",
+      "on": "field",
+      "who": "Enemy Tank",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 40
+    },
+    {
+      "name": "its wreck catches fire (FireState, sim state)",
+      "on": "field",
+      "who": "Enemy Tank",
+      "path": "FireState.Count",
+      "op": ">=",
+      "value": 1
+    },
+    {
+      "name": "the Bystander beside it burns",
+      "on": "field",
+      "who": "Bystander",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100
+    },
+    {
+      "name": "the Bystander dies in the fire",
+      "on": "field",
+      "who": "Bystander",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0
+    },
+    {
+      "name": "the Onlooker 40 m away never burns",
+      "never": {
+        "on": "field",
+        "who": "Onlooker",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    },
+    {
+      "name": "the M1 survives",
+      "on": "field",
+      "who": "Tank",
+      "path": "Health.Current",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the T-72 carries its time of death (Health.StateSince, CE-4661)",
+      "on": "field",
+      "who": "Enemy Tank",
+      "path": "Health.StateSince",
+      "op": ">",
+      "value": 20,
+      "atEnd": true
+    },
+    {
+      "name": "... the time it died, not later",
+      "on": "field",
+      "who": "Enemy Tank",
+      "path": "Health.StateSince",
+      "op": "<",
+      "value": 40,
+      "atEnd": true
+    },
+    {
+      "name": "the Bystander's time of death is after the wreck lit",
+      "on": "field",
+      "who": "Bystander",
+      "path": "Health.StateSince",
+      "op": ">",
+      "value": 33,
+      "atEnd": true
+    },
+    {
+      "name": "the Onlooker's state never changed (StateSince stays 0)",
+      "on": "field",
+      "who": "Onlooker",
+      "path": "Health.StateSince",
+      "op": "==",
+      "value": 0,
+      "atEnd": true
+    }
+  ]
+}

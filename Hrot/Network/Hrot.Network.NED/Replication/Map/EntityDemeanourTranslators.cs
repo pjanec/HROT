@@ -5,6 +5,7 @@ using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Civilians;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Extensions;
 using Fdp.Toolkit.Replication.Services;
@@ -22,6 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
         //   destruction, a wipe or (as an unregister) a hand-over.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityDemeanour> _instances;
 
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.Demeanour };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityDemeanour>();
@@ -68,7 +70,7 @@ namespace Hrot.Map.Common.Replication.Egress
 
         /// <summary>The wire form (the test seam).</summary>
         internal static EntityDemeanour ToSample(int netId, in Demeanour c)
-            => new() { EntityId = netId, Mode = (byte)c.Mode, Fear = c.Fear, Anger = c.Anger };
+            => new() { EntityId = netId, Kind = (byte)c.Kind, Mode = (byte)c.Mode, Fear = c.Fear, Anger = c.Anger };
 
         public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
 
@@ -122,7 +124,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (!_entityMap.TryGetEntity(d.EntityId, out var unit) || !view.IsAlive(unit)) { DroppedSampleCount++; return; }
             if (view is EntityRepository repo
                 && AuthorityExtensions.IsRecordedOwner(repo, unit, OwnershipExtensions.PackKey(OrdinalValue, 0))) return;
-            cmd.AddComponent(unit, new Demeanour { Mode = (CivilianMode)d.Mode, Fear = d.Fear, Anger = d.Anger });
+            cmd.AddComponent(unit, new Demeanour { Kind = (Fdp.Toolkit.Combat.GestureKind)d.Kind, Mode = (CivilianMode)d.Mode, Fear = d.Fear, Anger = d.Anger });
         }
 
         public void ScanAndPublish(ISimulationView view) { }

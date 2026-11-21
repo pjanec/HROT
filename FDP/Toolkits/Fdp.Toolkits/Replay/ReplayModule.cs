@@ -197,6 +197,7 @@ namespace Fdp.Toolkit.Replay
         /// <summary>⭐ CE-3329 P1 (row 7) — the recording's wall ↔ sim map, built once from the frame index (no frame decoded);
         /// <see cref="ReplayTimeMap.Empty"/> for a listener or a v6 recording.</summary>
         public ReplayTimeMap TimeMap => _timeMap ??= _playback != null ? ReplayTimeMap.FromRecording(_playback) : ReplayTimeMap.Empty;
+        [Fdp.Core.WorldDerived("the recording's sim/wall time map (CE-3329 P1), derived lazily from the file's frame index")]
         private ReplayTimeMap? _timeMap;
 
         /// <summary>⭐ CE-3329 (§9f) — the recording's checkpoint marks (its <c>.meta.json</c>); empty for a listener.</summary>
@@ -209,6 +210,9 @@ namespace Fdp.Toolkit.Replay
 
         /// <summary>⭐ AQ107 C — the terrain that was resident while recording (its metadata); empty when none / pre-dates the field.</summary>
         public string TerrainName => _playback?.Metadata.TerrainName ?? string.Empty;
+
+        /// <summary>⭐ CE-11025 — the terrain additions' content hash the recording was made with (its metadata); null for a listener or none.</summary>
+        public string? OverlayHash => string.IsNullOrEmpty(_playback?.Metadata.OverlayHash) ? null : _playback!.Metadata.OverlayHash;
 
         /// <summary>
         /// The maximum network entity ID present in the recording, as reported by

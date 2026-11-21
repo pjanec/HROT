@@ -33,6 +33,7 @@ namespace Hrot.AI.Behaviors.Brains
             public IsOptionParams IsFlank, IsFiringPos, IsCloseToThrow;
             public PostureSensorsParams ApproachSensors;
             public EqsTacticsParams Flank, Firing, Throw;
+            public SuppressParams Suppress;        // ⭐ CE-8311 (D-15) — the suppressor's fire and his firing-position move
             public WillingToCloseParams Willing;   // ⭐ AQ89 C/D — the Suppress branch's closing gate
             public DesignateParams Designate;      // ⭐ CE-3170 — an attack order's target (C-5)
             public LookParams Look;                // ⭐ CE-2297 LD-3 — where his eyes go (threat → sector → the order's bearing)
@@ -45,6 +46,7 @@ namespace Hrot.AI.Behaviors.Brains
             public AdvanceState AdvanceState;
             public PeekAndFireState PeekState;
             public EngageState SuppressState, HoldProneState;
+            public SuppressRunState SuppressRun;         // ⭐ CE-8311 (D-15)
             public EqsTacticsState SuppressThrowState;   // ⭐ AQ89 C — the close the Suppress branch runs (its own, not the approach's)
             public DesignateState DesignateState;        // ⭐ CE-3170
             public LookNodeState LookState;              // ⭐ CE-2297
@@ -53,7 +55,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>Every value the JSON tree's blackboard carried as a default — the posture an unconfigured soldier fights with.</summary>
-        public static CombatPostureBlackboard Defaults() => new CombatPostureBlackboard
+        public static CombatPostureBlackboard Defaults() => WithCoverReach(new CombatPostureBlackboard
         {
             Choose      = new ChooseOptionParams { Decision = UtilityDecisionRef.FromAssetId(CombatPostureDecision.DecisionAssetId) },
             IsAdvance   = new IsOptionParams { Option = (byte)Posture.AdvanceAndAttack },
@@ -73,7 +75,10 @@ namespace Hrot.AI.Behaviors.Brains
             Flank       = Approaching(),
             Firing      = Approaching(),
             Throw       = Approaching() with { SearchRadius = EqsTacticsNodes.ThrowSearchRadius },   // ⭐ WL-4 W-12f
-        };
+            Suppress    = new SuppressParams { Engage = new EngageParams { CooldownSeconds = 1f }, From = Approaching() with { FireWhileMoving = 0 } },   // ⭐ CE-8311
+        });
+
+        private static CombatPostureBlackboard WithCoverReach(CombatPostureBlackboard block) { CoverReach(ref block); return block; }
 
         private static EqsTacticsParams Approaching() => new EqsTacticsParams
         {
@@ -95,6 +100,7 @@ namespace Hrot.AI.Behaviors.Brains
             block.Willing.Assault = authored.Assault ? (byte)1 : (byte)0;   // ⭐ AQ89 D
             block.Stay.Stay = block.Advance.Stay = authored.Stay ? (byte)1 : (byte)0;   // ⭐ CE-2297 slice 2a (R-2055)
             Post(in authored.Post, ref block);   // ⭐ CE-2275 D-2a / D-2d (PC-14) — his hide points and his approach moves stay on his post
+            CoverReach(ref block);
 
             // ⭐ CE-2297 LD-3e — the order carries the facing: a point he watches toward when no threat and no sector point his eyes,
             //   scanned ±30° (📄 Look Direction §3.3a)
@@ -119,6 +125,16 @@ namespace Hrot.AI.Behaviors.Brains
                 block.Advance.Objective = world.GetComponentRO<SimTransform>(target).Position;
         }
 
+        /// <summary>⭐ <c>CE-4652</c> — the decision's cover score looks as far as its TakeCover branch (PeekAndFire) searches, and no further:
+        /// 📐 <c>uf-squad-under-fire</c> — the score read cover within 60 m, the branch searched 15 m (G8), found none, waited its 3 s
+        /// (G2: "Failure … so the posture re-scores") and was chosen again — the hostiles never fired. With none in reach HoldProne wins
+        /// (§3.3f: lie down and return fire). The retreat query keeps its 60 m.</summary>
+        internal static void CoverReach(ref CombatPostureBlackboard block)
+        {
+            block.Sensors.CoverSearchRadius = PeekAndFireNodes.Effective(in block.Peek).SearchRadius;
+            block.Suppress.From.SearchRadius = block.Sensors.CoverSearchRadius;   // ⭐ CE-8311 (D-15) — a suppressor's firing position: in the same reach
+        }
+
         /// <summary>⭐ <c>CE-2275</c> D-2a (PC-14, DA-40) — a posted man's take-cover branch is anchored to his post: a window post flies the
         /// window column (<see cref="WindowDuelBehavior.Shape"/> A — prone under the sill, up at it), a cover post the defaults; either way a
         /// hide point off the post is never taken (<see cref="PeekAndFireNodes.OnPost"/>). No post ⇒ the defaults, unanchored.</summary>
@@ -136,6 +152,7 @@ namespace Hrot.AI.Behaviors.Brains
             peek.AnchorRadius = post.Radius;
             peek.AnchorAlternate = post.Alternate;
             peek.AnchorHasAlternate = post.HasAlternate ? (byte)1 : (byte)0;
+            peek.Open = post.Open && !post.Window && !post.Roof ? (byte)1 : (byte)0;   // ⭐ D-13 — a dispersal spot: prone on it
             if (post.Window && post.Frame)   // ⭐ D-2l (DA-80, R-2059) — beside the frame, leaning out; the sill shape above is his fallback (DA-84)
             {
                 peek.Frame = 1;
@@ -190,9 +207,21 @@ namespace Hrot.AI.Behaviors.Brains
                         //   spot is used up or hot. The decision switching between its options no longer tears the cycle down.
                         //   ⛔ SUPERSEDED: AQ102 B (CE-2356) flew him through PeekAndFire from the Suppress branch only, and the TakeCover
                         //   branch ran it with the same state — a switch between them, or to Advance, reset it (📐 live bt-window-duel).
+                        // ⭐⭐ D-13 (CE-4666, the prone half; user-approved 2026-11-19) — a man ON an OPEN post (his squad's dispersal spot: no
+                        //   cover in reach) lies PRONE there and returns fire, whatever the decision says — with or without a threat. ⛔ Was:
+                        //   he stood on it (AdvanceAndAttack wins with no enemy, D-13's "not prone" gap), and under fire the TakeCover branch
+                        //   looked for cover off his post, which his anchor forbids
+                        .Sequence(open => open
+                            .Condition(bb => bb.Peek, PostureNodes.AtOpenPost)
+                            .StatefulAction(bb => bb.Engage, bb => bb.HoldProneState, PostureNodes.HoldProne))
                         .Sequence(posted => posted
                             .Condition(bb => bb.Peek, PostureNodes.PostedWithThreat)
                             .StatefulAction(bb => bb.Peek, bb => bb.PeekState, PeekAndFireNodes.PeekAndFire))
+                        // ⭐⭐ CE-3463 — and with NOTHING to fight, a man at a frame post watches from it, leaned out (D-2l DA-80), whatever the
+                        //   decision says (its AdvanceAndAttack wins with no enemy and never leans: he stood behind the wall, blind)
+                        .Sequence(watch => watch
+                            .Condition(bb => bb.Peek, PostureNodes.AtFramePost)
+                            .StatefulAction(bb => bb.Peek, bb => bb.FrameWatchState, PostureNodes.HoldWatch))
                         .Sequence(advance => advance
                             .StatefulCondition(bb => bb.IsAdvance, bb => bb.Choice, UtilityNodes.IsOption)
                             .ObserverSelector(approach => approach
@@ -219,7 +248,13 @@ namespace Hrot.AI.Behaviors.Brains
                                 .Sequence(close => close
                                     .StatefulCondition(bb => bb.Willing, bb => bb.SuppressThrowState, PostureNodes.WillingToClose)
                                     .StatefulAction(bb => bb.Throw, bb => bb.SuppressThrowState, EqsTacticsNodes.CloseToThrow))
-                                .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.Suppress)))
+                                // ⭐⭐ CE-8313 — a POSTED man (window, frame, room, open spot: his squad chose it) suppresses FROM his post, in the stance
+                                //   the post gave him: never prone behind a sill, never off to other cover (📐 bt-window-duel: prone at his window, 0 rounds)
+                                .Sequence(posted => posted
+                                    .Condition(bb => bb.Peek, PostureNodes.Posted)
+                                    .StatefulAction(bb => bb.Engage, bb => bb.SuppressState, PostureNodes.SuppressFromPost))
+                                // ⭐⭐ CE-8311 (D-15) — Suppress itself runs to a firing position on the spot (crouched, firing), then the lowest stance that clears
+                                .StatefulAction(bb => bb.Suppress, bb => bb.SuppressRun, PostureNodes.Suppress)))
                         .Sequence(prone => prone
                             .StatefulCondition(bb => bb.IsHoldProne, bb => bb.Choice, UtilityNodes.IsOption)
                             .StatefulAction(bb => bb.Engage, bb => bb.HoldProneState, PostureNodes.HoldProne))

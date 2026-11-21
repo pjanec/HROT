@@ -74,12 +74,15 @@ namespace Hrot.SimHost
         public FormationTemplateManager FormationTemplates => _groundKinematicsModule.FormationTemplates;
 
         /// <summary>Systems to wrap in TogglableInputGroup.</summary>
+        [field: Fdp.Core.NotState("system list assembled once in ctor")]
         public IReadOnlyList<IEcsModuleSystem> InputSystems { get; }
 
         /// <summary>Systems to wrap in TogglableSimulationGroup.</summary>
+        [field: Fdp.Core.NotState("system list assembled once in ctor")]
         public IReadOnlyList<IEcsModuleSystem> SimulationSystems { get; }
 
         /// <summary>Systems to wrap in TogglablePostSimulationGroup.</summary>
+        [field: Fdp.Core.NotState("system list assembled once in ctor")]
         public IReadOnlyList<IEcsModuleSystem> PostSimulationSystems { get; }
 
         // ── Constructor ───────────────────────────────────────────────────────

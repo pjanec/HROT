@@ -138,6 +138,31 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-1967</c> (R-2139) — an IMPACT (a vehicle striking or running over a man) is lethal: no non-lethal floor, yet it knocks him down.
+        /// 📐 Before: vehicle hits rode <c>Blunt</c> and every one stopped at the incapacitated line — a bulldozer driven over a man left him at 30 of 100.
+        /// 🔴 Red-proof: <c>NonLethalFloor</c> applied to <c>Impact</c> ⇒ the man stays at 30 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE1967_AnImpactHit_IsLethal_AndKnocksDown()
+        {
+            _world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
+            var run = SpawnTarget(currentHealth: 100f);
+            _world.AddComponent(run, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = run, TotalDamage = 120f, Effect = Fdp.Toolkit.Combat.HitEffect.Impact });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(0f, _world.GetComponent<Health>(run).Current);
+
+            var struck = SpawnTarget(currentHealth: 100f);
+            _world.AddComponent(struck, new InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = struck, TotalDamage = 40f, Effect = Fdp.Toolkit.Combat.HitEffect.Impact, EffectSeconds = 3f });
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            Assert.Equal(60f, _world.GetComponent<Health>(struck).Current, 3);
+            Assert.True(_world.GetComponent<Fdp.Toolkit.Combat.EffectState>(struck).KnockedDownUntil > 0, "an impact knocks the man down");
+        }
+
+        /// <summary>
         /// BS1-T014 SC-2: <see cref="Health.Current"/> must be clamped to 0 and never go negative.
         /// </summary>
         [Fact]

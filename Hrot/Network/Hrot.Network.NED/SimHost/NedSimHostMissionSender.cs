@@ -22,10 +22,8 @@ internal sealed class NedSimHostMissionSender : ISimHostMissionSender
 
     public void SendNavigateToPoint(int entityNetworkId, Vector2 destination, float speed, float arrivalRadius)
     {
-        var paramsJson = string.Format(
-            CultureInfo.InvariantCulture,
-            "{{\"X\":{0},\"Y\":{1},\"Speed\":{2},\"ArrivalRadius\":{3}}}",
-            destination.X, destination.Y, speed, arrivalRadius);
+        // ⭐ CE-3483 — the authored MoveToLocation contract (`target`); the old X / Y keys were retired and ignored ⇒ the unit drove to (0, 0)
+        var paramsJson = Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto.Json(destination.X, destination.Y, speed, arrivalRadius);
 
         var taskId = Guid.NewGuid();
 

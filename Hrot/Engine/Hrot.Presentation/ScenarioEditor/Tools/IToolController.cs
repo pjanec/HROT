@@ -86,6 +86,16 @@ namespace Hrot.ScenarioEditor.Tools
         void Cancel();
 
         /// <summary>
+        /// ⭐ <c>CE-1977</c> — back to plain selection: cancels every armed modal tool (a pick, a placement, a drawing, an edit); the RTS command tool is a
+        /// HAT, not an armed tool, and stays. THE one disarm: the hat change, the strips' Select tile and a click on a lit tool's icon all come here.
+        /// </summary>
+        void DisarmAll()
+        {
+            for (int guard = 0; guard < 8 && ActiveModal is { } top && top.Id != ScenarioToolIds.RtsCommand; guard++)
+                Cancel();
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <b>"The gizmo for this (tool, target) ENDED ITSELF" — the half of the lifetime the
         /// controller could not see.</b> 📄 <c>docs/UX/UX_Feature_Tool_Model.md</c> §4.7h.
         ///

@@ -951,7 +951,7 @@ moment the rifleman sees the hostile reach cover — it does not wait for the ne
 | ⭐ lean (v1 scope — the demo's need) | rejected / later |
 |---|---|
 | route sources ToPoint (navmesh plan) and OwnMove (the vehicle's own corridor on the solver node, read from `TrajectoryPoolManager`); Handle answers empty for now | shipping the route handle on the config topic — not needed while the solver node also holds the vehicle |
-| kinds: StreetCrossing (a road run ≤ 40 m) and Intersection (a run inside two road surfaces) | OpenGround, ChokePoint, CrestLine — the next kinds, filed as `CE-3081`; a long road run (walking ALONG a street) is not a crossing |
+| kinds: StreetCrossing (a road run ≤ 40 m) and Intersection (a run inside two road surfaces) | OpenGround, ChokePoint, CrestLine — the next kinds, filed as `CE-3081`; a long road run (walking ALONG a street) is not a crossing — ⭐ `CE-2463` (`2026-11-21`, user-approved lean): but each JUNCTION on such a run is still an Intersection (the cross street's field of fire), its near handle `JunctionStandOff` 12 m short of the junction band (the building line — the crossing's 4 m stands past the corners, 📐 demo-city `d_5_4`, `uf-corner-fight`). ⛔ SUPERSEDED: a long run reported nothing, its junctions included |
 | FeatureId = hash(road surface index, run centre on a 10 m grid) — stable across re-plans, so `AreaAhead` fires on a real change | a per-solve counter (every answer would look new) |
 | rating on the Brain from the unit's own memory, sight by `TerrainWorld.SegmentBlocked` (eye 1.6 m → area centre +1 m), danger by `ThreatDanger.OfSlot` (so dead = 0, CE-3080) | the squad pool (U7 adds it) |
 
@@ -1059,6 +1059,32 @@ Rails: `DangerAlongRouteClassifierTests.CE3081_*` ×5 (incl. the real test-town 
 `DangerAreaSensorSystemTests.CE3081_OpenGround_ReachesOnlyASensorThatAsksForIt`, `EqsDistributedTests.CE3081_OpenGround_AcrossHosts_*`
 (simhost,cgf); red-proved (detection + Brain filter off ⇒ 6/6 red). Gates: `Fdp.Toolkits.Tests` 3228/0; integration danger-area set
 (across hosts ×2, `CE3079` crossing twin, `DangerAreaNodesTests`) 11/0 — no v1 answer moved.
+
+#### 10.7c The route's STEER POINT in the answer *(`CE-2469` SP-1, backend, `2026-11-21`; for Squad Tactics §7.9 R3; build-state: BUILT)*
+
+⭐ A bound has no route of its own and the Brain has no navmesh, so the answer now carries where the solver's planned — per-side priced (UF-5) — route goes next.
+
+```mermaid
+sequenceDiagram
+  participant S as DangerAlongRouteSolve (navmesh node)
+  participant W as DangerAreaResultTopic
+  participant A as DangerAreaSensorSystem.Apply (Brain)
+  participant B as DangerRouteSteer.Of (behaviour)
+  S->>S: planner.Plan(query with the unit's side) - the SAME route it classifies
+  S->>S: SteerOf(route, 20 m) - only when the plan succeeded
+  S->>W: areas + SteerX/Y/Z + HasSteer
+  W->>A: DangerAreaResultEvent
+  A->>A: buffer.SteerPoint / HasSteer (cleared on a new epoch)
+  B->>A: the commander's DangerArea sensor, fresh within 4 s
+```
+*What the picture shows that prose hid: no second plan — the steer point is a by-product of the route the areas are classified on, so it can never disagree with them.*
+
+| | as built |
+|---|---|
+| where | `DangerAreaCognitiveBuffer.HasSteer` + `SteerPoint` (596 → 608 B), `DangerAreaResultEvent`, `DangerAreaResultTopic.SteerX/Y/Z/HasSteer` (ordinal unchanged) |
+| when | `HasSteer` = 1 only for a PLANNED route; the straight-leg fallback answers 0. ⛔ SUPERSEDED: the solve returned before planning on a map with no roads, gas, mines or covered ground — it now plans whenever a navmesh exists (one plan per refresh), so a clear route still carries its steer |
+| the contract | `DangerRouteSteer.Of(world, commander, out steer)` — `UnitSensors.Of(…, DangerArea)`, fresh within `FreshSeconds` 4 s |
+| rails | `UnderFireNavTests.CE2469_*` (Friend round the wood, Hostile straight; `Of` fresh / stale) · `EqsDistributedTests.DangerAlongRoute_AcrossHosts_*` (the steer reaches the Brain) |
 
 #### 10.5b ✅ AS-BUILT — B6 (`CE-3079`, backend), `2026-10-06`: the demo PASSES live, with no HTTP write
 
@@ -1335,6 +1361,8 @@ T-72 loses health (only a TOW penetrates its 500 front armour), the insurgent is
 | scenario tuning | the riflemen advance at 0.5 m/s on the hostile line (an objective 5 m ahead ended the posture at once); the hostiles have 600 HP (with 100 the squad killed them in seconds and a hurt member rightly kept advancing — nobody left to flee) |
 
 ### 12.1 ✅ AS-BUILT — G7 (`CE-3089`), `2026-10-06`
+
+⭐⭐ **`CE-8310` (agg-behaviors, `2026-11-20`) — a mount past its range is NO choice.** The range band is a reversed logistic that never reaches 0, so `WeaponChoice.Choose` (`score <= 0` ⇒ the primary) let a weapon far past its range win when nothing else scored: 📐 live `uf-alone-under-fire` — two riflemen whose rifles were empty fired their PISTOLS (range 50 m) at a man 112 m off for 25 s (range factor ~3e-7). ⭐ Now a top score `<= WeaponChoice.MinUsableScore` (0.01) is no choice: the primary stands, and an empty primary holds fire. A mount in range scores ≥ ~0.1. Rail `StarterPackIntegrationTests.CE8310_*` (pistol at 30 m, none at 112 m; red-proved).
 
 | §12 said | as built / measured |
 |---|---|

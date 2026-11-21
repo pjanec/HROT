@@ -7,6 +7,8 @@ stale-below: nothing.
 known-rot: none.
 known-conflict: DESIGN_FPV_Drone.md §2 draws FpvAttackNodes as its own behaviour — SUPERSEDED by B5 (the FPV attack is AirAttack's Dive profile); its Muscle half stands.
 related-designs:
+  - DESIGN_Breath_Attack.md — two more attack profiles (BreathPass, BreathHover) for a rotorcraft with a flamethrower (CE-3490)
+  - ../fun/DESIGN_Dragon.md — a dragon is one more rotorcraft type; adds the BreathPass attack profile for a flame-only rotorcraft (DR-8)
   - DESIGN_Air_Combat.md — OWNS air-to-air combat (jets, AAMs, guns), the ONE MissileDefence extracted from §7e (AC-9), GCAS and the cruise leg altitude that replaces §5's per-sample height for cruise (AC-1)
   - DESIGN_Radar_SAM.md — OWNS AD6 (the radar SAM: one vehicle, radar + missiles; R-4258), built on §7d–§7f
   - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: uses the air assault, the air defence and the strike aircraft in its phase 3
@@ -491,6 +493,8 @@ sequenceDiagram
 | **AW-4** **6025 Hydra-70 HE**: an unguided `MissileDto` (700 m/s, 6 s) with the warhead of a NEW library entry `70mm rocket HE` (he, 70 mm, 4.5 kg warhead, 1.04 kg explosive — public M151 figures); the scatter is the mount's `DispersionMils` | a hand-typed `WarheadDto` (a second source of blast / fragment numbers) — the Mk-82 precedent (CE-3201) |
 | **AW-5** **406 AH-64-class** (`Heli_AH64`): DIS 1.2.225.20 (attack helicopter) so the air classes resolve; Rotorcraft flight like 404; mount 0 a chin **M134** on turret 0 (traverse ±110°, elevation −60…+11°), mount 1 the **Hydra pod** (fixed forward, cone 8°) | a 30 mm M230 chin gun — the handoff asks for the minigun the demo shows |
 | **F4** ⭐ the passenger list widens to **12** seats (🔒 user, `2026-10-14`: *"extend the wire capacity … No problem extending"* — the list is sent only on change) so 404 keeps 8 riders and gains 2 door stations + 2 door gunners | ~~4 of the 8 seats become door stations~~ (404 would carry 4 riders) |
+
+⭐ **`2026-11-18` (ui, CE-1960) — "the operator is never held" now means he points the AIRCRAFT, never the gun:** an operator's round at a point outside the cone goes ALONG THE BORE at the aim's distance (`BodyAim.IntoFixedCone`, applied in `FireAtPointExecutor.ShootAtPoint` when `obeyArc` is false). ⛔ Before, it flew straight to the point — 📐 measured in the editor: a possessed Viper aimed behind fired every M61 round toward its tail. Rail: the same `F1_…` (extended).
 
 ⭐ **As built (backend, `2026-10-14`) — AW-1…AW-5 exactly as above.** Rails: `AimAndFireExecutorTests.F1_AFixedForwardMount_FiresOnlyInsideItsNoseCone`
 · `FireProcessingSystemTests.F3_FromTheAir_TheShellAndTheRocket_KeepTheCarriersVelocity_TheRocketFliesUnguided_ARippleScatters` ·

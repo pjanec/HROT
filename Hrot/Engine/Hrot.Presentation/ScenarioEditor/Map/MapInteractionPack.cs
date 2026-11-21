@@ -370,6 +370,12 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-1201 (DESIGN_Entity_Control §8p OS-1) — View › First Person: Over the Shoulder; the view-mode layer drains it
             actions.Register(Hrot.Common.Constants.GlobalActionIds.ToggleShoulderView, (_, _) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.ToggleShoulderViewEvent()));
+            // ⭐ CE-1984 (DESIGN_Sensor_View D-10) — View ▸ Sensor View's items; the map's sensor view drains them
+            foreach (int sensorAction in Hrot.Common.Diagnostics.Gizmos.SensorViewMenu.Actions)
+            {
+                int id = sensorAction;
+                actions.Register(id, (_, _) => bus.Publish(new Hrot.Common.Diagnostics.Gizmos.SensorViewMenuEvent { Action = id }));
+            }
             // ⭐ CE-1293 (DESIGN_Unit_Camera UC-2) — a unit's "Follow with the camera"; the view-mode layer drains it
             actions.Register(Hrot.Common.Constants.GlobalActionIds.FollowUnit, (_, target) =>
                 bus.Publish(new Hrot.Common.Diagnostics.Gizmos.FollowUnitEvent { Target = target }));
@@ -459,7 +465,8 @@ namespace Hrot.ScenarioEditor.Map
                 OrderForm      = orderForm,
                 Host           = host,   // ⭐ CE-1150
             };
-            map.EffectSpawn.FeatureGate = ctx.FeatureGate;   // ⭐ CE-4148 — the hit memory is recorded only while a hud.* reader is on
+            map.EffectSpawn.FeatureGate = ctx.FeatureGate;
+            map.HudFeed.FeatureGate = ctx.FeatureGate;   // ⭐ CE-4671 LK-S1 — the feeds moved out of the spawner keep the same gate   // ⭐ CE-4148 — the hit memory is recorded only while a hud.* reader is on
             return map;
         }
 
@@ -632,6 +639,9 @@ namespace Hrot.ScenarioEditor.Map
             viewSwitch.Build = map3D;
             canvas.AddLayer(map3D);
             canvas.AddLayer(bodies);
+            // ⭐ CE-5034 (glass windows GW-3, DESIGN_Glass_Windows §5) — the window glass: a translucent pass AFTER the terrain and the bodies (a man behind a pane shows through),
+            //   panes and cracks from the replicated window state, a local shard burst when a pane turns broken. Every map host gets it here.
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.GlassLayer3D(worldProvider, () => viewSwitch.Camera3D.Eye));
             // ⭐ CE-1042 E3 — muzzle flashes, tracers, explosions and decals, from their TKB type, in both modes (VE-F).
             var effects = new Hrot.UI.Common.Effects.EffectLayer(worldProvider, tkb, bodies) { GroundHeight = viewSwitch.Camera3D.GroundHeight };
             canvas.AddLayer(effects);
@@ -649,7 +659,20 @@ namespace Hrot.ScenarioEditor.Map
             canvas.AddLayer(new MapCanvasLink(canvas, worldProvider));   // ⭐ CE-1134 — Center View finds this canvas by the world
             // ⭐ CE-3370 (Player Join S3-d) — the Player's spawn area is chosen by a click on the 2-D map: its outlines while the deploy flow is Choosing. Here, so no map host can lack it; only a node with a DeployFlowSystem (the Player) ever acts. Added after the gizmo layer, so its click is offered first.
             canvas.AddLayer(Hrot.UI.Common.Map2D.DeployAreaMapLayer.ForWorld(worldProvider, () => !viewSwitch.Is3D));
-            canvas.AddLayer(new Hrot.UI.Common.Map3D.WeatherSkyLayer(viewSwitch, worldProvider));   // ⭐ CE-1146 — the weather's sky: the free camera at what it looks at, first person at the eye
+            // ⭐ CE-1984 (docs/designs/sensor-view/DESIGN_Sensor_View.md D-1, D-3, D-10) — the sensor views (night vision; thermal CE-1985), here so no map
+            //   host can lack them: the canvas runs the post-process around its 3-D layers, the sky layer lights the scene for it, the View menu
+            //   and POST /view/sensor drive it
+            var sensorView = new Hrot.UI.Common.Map3D.SensorView(viewSwitch, bus);
+            canvas.PostProcess = sensorView.Post;
+            canvas.AddLayer(sensorView);
+            viewMode.Sensor = sensorView;
+            bodies.UnitHeat = sensorView.UnitHeat;   // ⭐ CE-1985 — the thermal pass' bodies, from the same view
+            // ⭐ CE-1985 (D-10) — the thermal debugging aids: the spot meter under the pointer, the selected observer's outlines on the drawn bodies
+            sensorView.Pointer = () => canvas.Input.IsMouseCaptured ? null : canvas.Input.MousePosition;
+            sensorView.World = worldProvider;
+            sensorView.Bodies = bodies;
+            if (LayerControlOf.TryGetValue(buffer, out var sensorMenu)) { sensorMenu.SensorMenuState = () => sensorView.MenuState; sensorMenu.SensorMenuKey = () => sensorView.CycleKey; }
+            canvas.AddLayer(new Hrot.UI.Common.Map3D.WeatherSkyLayer(viewSwitch, worldProvider) { Sensor = sensorView });   // ⭐ CE-1146 — the weather's sky: the free camera at what it looks at, first person at the eye
             canvas.AddLayer(new Hrot.UI.Common.Map3D.RubberBandOverlay3D(viewSwitch, worldProvider));   // ⭐ CE-1136 — the 3-D marquee
             var stats = new Hrot.UI.Common.Map3D.MapStatsOverlay(viewSwitch, worldProvider, canvas.Camera);   // ⭐ CE-1262 — + the 2-D camera
             canvas.AddLayer(stats);   // ⭐ CE-1145 / CE-1132 — FPS, RTS legend

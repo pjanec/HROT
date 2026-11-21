@@ -194,8 +194,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         public static void Judge(EntityRepository world, Entity e, double now)
         {
-            if (!JudgeCompute(world, e, now, out var edge, out bool broken)) return;
-            JudgeApply(world, e, edge, broken);
+            bool judged = JudgeCompute(world, e, now, out var edge, out bool broken);
+            if (judged) JudgeApply(world, e, edge, broken);
+            // ⭐ CE-3462 (D-6) — independent of the break: a CALM man is judged nothing (JudgeCompute is false under his break line) and can still be cornered
+            if (!broken && CorneredCandidate(world, e)) GiveUpIfCornered(world, e);
         }
 
         /// <summary>⭐ P-1 (the parallel experiment) — the part of <see cref="Judge"/> that writes only <paramref name="e"/>'s own Stress: the
@@ -204,11 +206,19 @@ namespace Hrot.AI.Behaviors.Brains
         {
             edge = null; broken = false;
             if (!world.HasComponent<Stress>(e) || !Feels(world, e)) return false;   // a man down (or no longer a combatant) breaks no more
+            // ⭐⭐ CE-4652 — an InertSop man ("no reactions", CE-2322) is never JUDGED broken: his level still rises (it shows), but being broken also
+            //   ends his aimed fire elsewhere — 📐 live: with only the Break reaction blocked, uf-squad's two hostile shooters (stress 0.99, Broken) still
+            //   fired 1 and 0 rounds in 30 s
+            if (IsInertSop(world, e)) return false;
             float breakAt = BreakLevel(world, e);
             var s = world.GetComponentRO<Stress>(e);
             if (s.Broken == 0)
             {
                 if (s.Level < breakAt) return false;
+                // ⭐ D-11 A (CE-4666, user-approved 2026-11-19) — a man MOVING TO HIS ORDERED POST takes the near misses as "go to cover": his
+                //   post is his cover, so the break waits until he is there or his move has stalled (his level stays — he breaks on arrival
+                //   if it is still over the line)
+                if (HeadingToPost(world, e)) return false;
                 s.Broken = 1;
                 s.CalmSince = (SimInstant)0;
                 edge = SensorChange.StressBreak;
@@ -235,6 +245,11 @@ namespace Hrot.AI.Behaviors.Brains
         public static void StartBreak(EntityRepository world, Entity e)
         {
             if (!world.HasComponent<BehaviorState>(e)) return;
+            // ⭐⭐ CE-4652 / CE-3461 — InertSop is "the explicit NONE: no idle choice and no reactions" (CE-2322, AQ97 C) ⇒ no break either: his stress
+            //   still rises (it shows), but nothing takes his task off him. 📐 Measured live: the scenarios' hostile shooters (InertSop, on an authored
+            //   CombatPosture / FireAtPoint) were fired back at, broke within 2–5 s and fell silent after 0–2 rounds — so the militia, the squad's movers,
+            //   never met the sustained fire those scenarios are about (ts-fire-discipline, uf-squad-under-fire).
+            if (IsInertSop(world, e)) return;
             var task = world.GetComponentRO<BehaviorState>(e);
             if (task.Origin == BehaviorOrigin.Reaction && task.ActiveBehaviorHash != BehaviorIds.None
                 && (task.Urgency == ReactionUrgency.Grenade || task.Urgency == ReactionUrgency.Break)) return;   // the grenade first; his break runs
@@ -246,8 +261,40 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
             var dto = new Hrot.Map.Definitions.Behavior.BreakParamsJsonDto();
-            if ((Flees(world, e) && Flee(world, e, out var to)) || Retreat(world, e, out to)) { dto.HasRetreat = true; dto.Retreat = to; }   // ⭐ CE-2376 (DS-3)
+            if ((Flees(world, e) && Flee(world, e, out var to)) || PostRetreat(world, e, out to) || Retreat(world, e, out to)) { dto.HasRetreat = true; dto.Retreat = to; }   // ⭐ CE-2376 (DS-3) · D-11 A
             SopActions.React(world, e, Hrot.Map.Definitions.Behavior.BehaviorNames.Break, ReactionUrgency.Break, in dto);
+        }
+
+        private static readonly int s_inertSop = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.InertSop);
+
+        /// <summary>⭐ CE-4652 — his SOP is <c>InertSop</c> (no reactions).</summary>
+        public static bool IsInertSop(EntityRepository world, Entity e)
+            => world.IsComponentTypeRegistered<SopState>() && world.HasComponent<SopState>(e) && world.GetComponentRO<SopState>(e).SopHash == s_inertSop;
+
+        /// <summary>⭐ <c>CE-3462</c> (D-6, user-approved; TS-6 row) — a CORNERED man is a rifle this close (m).</summary>
+        public const float CorneredMetres = 5f;
+
+        /// <summary>⭐ <c>CE-3462</c> (D-6) — the part of the cornered rule that reads only HIM (parallel-safe): resolve under
+        /// <see cref="SurrenderResolve"/>, not InertSop, and no break / grenade / surrender reaction already running.</summary>
+        public static bool CorneredCandidate(EntityRepository world, Entity e)
+        {
+            if (!world.HasComponent<BehaviorState>(e) || !world.HasComponent<Stress>(e) || !Feels(world, e) || IsInertSop(world, e)) return false;
+            if (TemperamentOf.Effective(world, e, TemperamentTrait.Resolve) >= SurrenderResolve) return false;
+            var task = world.GetComponentRO<BehaviorState>(e);
+            return !(task.Origin == BehaviorOrigin.Reaction && task.ActiveBehaviorHash != BehaviorIds.None
+                     && (task.Urgency == ReactionUrgency.Grenade || task.Urgency == ReactionUrgency.Break));
+        }
+
+        /// <summary>⭐⭐ <c>CE-3462</c> (D-6, user-approved; TS-6 row) — a low-resolve man with a forces rifle on him at close range
+        /// (<see cref="Covering.By"/> within <see cref="CorneredMetres"/>) GIVES UP at once, without waiting for his stress to break him: a room
+        /// entry is too fast for the near-miss stress to reach his break line (📐 ts-house-defenders: the Waverer peaked at 0.11 and was shot).
+        /// SERIAL (it reads the other men's weapon postures).</summary>
+        public static void GiveUpIfCornered(EntityRepository world, Entity e)
+        {
+            if (Covering.By(world, e, CorneredMetres).IsNull) return;
+            Fdp.Toolkit.Behavior.Diagnostics.BrainJournalOf.NoteReactionCause(world, e, (byte)SensorChange.StressBreak);
+            SopActions.React(world, e, Hrot.Map.Definitions.Behavior.BehaviorNames.Surrender, ReactionUrgency.Break,
+                             new Hrot.Map.Definitions.Behavior.SurrenderParamsJsonDto { Seconds = 0f });
         }
 
         /// <summary>TS-6 — he gives up: effective resolve under <see cref="SurrenderResolve"/> and a forces rifle on him (<see cref="Covering.By"/>).</summary>
@@ -273,6 +320,43 @@ namespace Hrot.AI.Behaviors.Brains
             if (!UnderFire.CoverNear(world, e, at, FleeMetres, FleeGainMetres, out var cover, out _)) return false;
             if (Flat(cover - threat).Length() < Flat(at - threat).Length() + FleeGainMetres) return false;
             to = cover;
+            return true;
+        }
+
+        /// <summary>⭐ D-11 A — a moving man under this (m/s) has STALLED: his move no longer carries him to his post.</summary>
+        public const float StalledMps = 0.3f;
+
+        private static readonly int s_combatPosture = BehaviorHash.FromName(Hrot.Map.Definitions.Behavior.BehaviorNames.CombatPosture);
+
+        /// <summary>⭐ D-11 A — his ordered post: he runs a superior's <c>CombatPosture</c> (the squad's post order, <c>SquadManeuverRunner.Hold</c>)
+        /// and its move is active — the move's destination is the post. Own components only (safe in a parallel batch).</summary>
+        public static unsafe bool OrderedPost(EntityRepository world, Entity e, out Vector3 post, out bool running)
+        {
+            post = default; running = false;
+            if (!world.HasComponent<BehaviorState>(e) || !world.HasComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e)) return false;
+            ref readonly var task = ref world.GetComponentRO<BehaviorState>(e);
+            if (task.Origin != BehaviorOrigin.Superior || task.ActiveBehaviorHash != s_combatPosture) return false;
+            ref readonly var channel = ref world.GetComponentRO<Fdp.Toolkit.Behavior.Components.LocomotionChannel>(e);
+            if (channel.ActiveAction != Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo) return false;
+            fixed (byte* p = channel.Params) post = ((Fdp.Toolkit.Navigation.MoveToParams*)p)->Destination;
+            running = channel.Status == Fbt.NodeStatus.Running;
+            return true;
+        }
+
+        /// <summary>⭐ D-11 A — on his way to his ordered post and still getting there (not arrived, not stalled).</summary>
+        public static bool HeadingToPost(EntityRepository world, Entity e)
+        {
+            if (!OrderedPost(world, e, out _, out bool running) || !running) return false;
+            return Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, e, out _, out var v) && v.X * v.X + v.Y * v.Y >= StalledMps * StalledMps;
+        }
+
+        /// <summary>⭐ D-11 A — a broken man's retreat point is FIRST his own ordered post, when it is behind cover and he is not on it already.</summary>
+        public static bool PostRetreat(EntityRepository world, Entity e, out Vector3 to)
+        {
+            to = default;
+            if (!OrderedPost(world, e, out var post, out _) || !world.HasComponent<SimTransform>(e)) return false;
+            if (Flat(post - world.GetComponentRO<SimTransform>(e).Position).Length() < RetreatGainMetres || !InCover(world, e, post)) return false;
+            to = post;
             return true;
         }
 
@@ -307,6 +391,11 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < mem.Count; i++)
             {
                 if ((mem.Modalities[i] & (byte)SensorModality.Acoustic) == 0) continue;
+                // ⭐⭐ CE-4666 — weapon fire is not "someone walking behind the wall": a shot carries hundreds of metres and is heard FROM the last
+                //   opening on its way (AQ106 F), so its remembered place is his own window, not the shooter. 📐 live pc-defend-house: rifles
+                //   189 m off, heard through the house's opening 7 m from the reserve ⇒ no calming, +0.022 / s, every defender broke by 121 s.
+                //   Fire already has its own stimuli (near miss, friend down, outnumbered).
+                if (IsFireClass(mem.SourceClass[i])) continue;
                 uint seen = mem.LastSeenTick[i];
                 if (seen > now || (now - seen) * spf > HeardFreshSeconds) continue;
                 var where = new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]);
@@ -318,6 +407,12 @@ namespace Hrot.AI.Behaviors.Brains
             }
             return false;
         }
+
+        /// <summary>⭐ CE-4666 — a heard class that is weapon fire (small arms, a heavy weapon, an explosion, a flame roar): never the heard-close term.</summary>
+        public static bool IsFireClass(byte sourceClass)
+            => sourceClass is (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.SmallArms or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.HeavyWeapon
+                           or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Explosion
+                           or (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Flame;   // ⭐ CE-4635 — a flamethrower's roar is weapon fire
 
         internal static bool Ensure(EntityRepository world, Entity e, double now)
         {
@@ -352,8 +447,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// seconds on his phase (<see cref="CadenceGate.DueOnGrid"/>); 0 = every frame (the default). Stimuli still land at once. ✅ The step
         /// already integrates the time since his last step (<c>Stress.LastStepAt</c>), so a slower step loses no time. Experiment knob:
         /// <c>HROT_STRESS_PERIOD</c>.</summary>
+        [field: Fdp.Core.NotState("an experiment knob (`HROT_STRESS_PERIOD`), fixed at start-up (exp/perf)")]
         public double StepPeriod { get; set; } = double.TryParse(EnvVars.Read(EnvVars.HrotStressPeriod),
             System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : 0.0;
+        [Fdp.Core.WorldDerived("the previous frame's sim time for the step cadence; empty (−∞) or a later time makes every man due once (`CadenceGate.DueOnGrid`: now ≤ prev ⇒ due), and the step integrates from his own `Stress.LastStepAt` — nothing lost (exp/perf)")]
         private double _prevNow = double.NegativeInfinity;
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -400,6 +497,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
         }
 
+        [Fdp.Core.FrameScratch("scratch — refilled from 0 each run; the parallel job reads only [0, n)")]
         private Entity[] _list = new Entity[64];
 
         private struct StressJob : Fdp.Core.Jobs.IEntityBatchJob, Fdp.Core.Jobs.IStableReads
@@ -408,17 +506,24 @@ namespace Hrot.AI.Behaviors.Brains
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
                 .Unmanaged<Fdp.Toolkit.Replication.Components.TkbIdentity>()
                 .Unmanaged<StanceIntent>()
-                .Unmanaged<Fdp.Toolkit.Combat.Gesture>();   // a man's surrender / hands-up gesture (written by his brain, not here)
+                .Unmanaged<Fdp.Toolkit.Creatures.Demeanour>();   // a man's surrender / hands-up gesture (written by his brain, not here)
             public EntityRepository Repo;
             public double Now;
             public void Execute(Entity e, int index, Fdp.Core.Jobs.BatchContext ctx)
             {
                 StressModel.StepExisting(Repo, e, Now);
-                if (!StressModel.JudgeCompute(Repo, e, Now, out var edge, out bool broken)) return;
-                if (edge != null || broken) ctx.Defer(e, edge is { } w ? (int)w : -1, broken ? 1f : 0f);
+                bool judged = StressModel.JudgeCompute(Repo, e, Now, out var edge, out bool broken);
+                // ⭐ CE-3462 (D-6) — Value 2: not broken, but a cornered candidate (his own state only, judged or not — a calm man too); the rifle
+                //   check runs serially below
+                bool cornered = !broken && StressModel.CorneredCandidate(Repo, e);
+                if (!judged && !cornered) return;
+                if (edge != null || broken || cornered) ctx.Defer(e, edge is { } w ? (int)w : -1, broken ? 1f : cornered ? 2f : 0f);
             }
             public void ApplyDeferred(EntityRepository repo, in Fdp.Core.Jobs.Deferred d)
-                => StressModel.JudgeApply(repo, d.Entity, d.Code >= 0 ? (SensorChange)d.Code : null, d.Value != 0f);
+            {
+                StressModel.JudgeApply(repo, d.Entity, d.Code >= 0 ? (SensorChange)d.Code : null, d.Value == 1f);
+                if (d.Value == 2f) StressModel.GiveUpIfCornered(repo, d.Entity);
+            }
         }
 
         private bool Owned(EntityRepository repo, Entity e)

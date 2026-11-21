@@ -128,7 +128,12 @@ namespace Hrot.AI.Behaviors.Brains
             else if (s.Moving != 0)
             {
                 var c = Centre(ref s, s.ToCol, s.ToRow);
-                bool there = Vector2.Distance(new Vector2(here.X, here.Y), c) <= 1f || LocomotionMoveTo.Status(world, self) == NodeStatus.Success;
+                var move = LocomotionMoveTo.Status(world, self);
+                bool there = Vector2.Distance(new Vector2(here.X, here.Y), c) <= 1f || move == NodeStatus.Success;
+                // ⭐ CE-5040 (terrain) — a step that cannot be walked (FailedBlocked / no path) ends the sweep as a Failure — ⛔ before, it waited on the failed move
+                //   for good (📌 mf-clear-lane-and-cross: the walk at 0.2 m/s was failed as blocked, the sapper stood 400 s+ and the field was never marked).
+                //   Never a mark: the trace is not closed.
+                if (!there && move == NodeStatus.Failure) { LocomotionMoveTo.Stop(world, self); return NodeStatus.Failure; }
                 if (!there) return NodeStatus.Running;
                 s.Moving = 0;
                 s.Col = s.ToCol; s.Row = s.ToRow;
@@ -155,7 +160,14 @@ namespace Hrot.AI.Behaviors.Brains
         {
             var uv = MinePattern.ToField(new Vector2(p.At.X, p.At.Y), s.Anchor, s.Field.OrientationDeg) - s.OriginUv;
             float tc = uv.X / s.Cell - 0.5f - s.Col, tr = uv.Y / s.Cell - 0.5f - s.Row;
-            if (MathF.Abs(tc) < 0.5f && MathF.Abs(tr) < 0.5f) return s.Dir;
+            if (MathF.Abs(tc) < 0.5f && MathF.Abs(tr) < 0.5f)
+            {
+                // ⭐ CE-5040 (terrain) — at the point: on INTO the field, toward its centre. ⛔ Before: "keep the heading" — but the point an Engineers request
+                //   names is the field's NEAR side, OUTSIDE it (MinefieldAheadBehavior), so the man kept walking along the edge, turned back to the point, and
+                //   oscillated round it for good, never meeting the first mine (📌 mf-clear-lane-and-cross: (115, 70) ↔ (115, 90) beside a field at x ≥ 120).
+                tc = s.Cols * 0.5f - 0.5f - s.Col; tr = s.Rows * 0.5f - 0.5f - s.Row;
+                if (MathF.Abs(tc) < 0.5f && MathF.Abs(tr) < 0.5f) return s.Dir;   // standing in the centre cell itself: straight on
+            }
             return MathF.Abs(tc) >= MathF.Abs(tr) ? (tc > 0 ? 0 : 2) : (tr > 0 ? 1 : 3);
         }
 
@@ -195,21 +207,12 @@ namespace Hrot.AI.Behaviors.Brains
                     var w = MinePattern.At(in s.Field, s.Anchor, r, c);
                     var uv = MinePattern.ToField(w, s.Anchor, s.Field.OrientationDeg);
                     if (uv.X < u0 || uv.X >= u0 + s.Cell || uv.Y < v0 || uv.Y >= v0 + s.Cell) continue;
-                    if (!InOutline(ref s, w) || MinePattern.InLane(in s.Field, w)) continue;
+                    // ⭐ CE-4655 (terrain, cross-lane edit) — the ONE "does this lattice point hold a mine" test, edge inset included
+                    fixed (float* ox = s.OX, oy = s.OY)
+                        if (!MinePattern.Laid(in s.Field, new ReadOnlySpan<float>(ox, s.OutlineCount), new ReadOnlySpan<float>(oy, s.OutlineCount), w)) continue;
                     return true;
                 }
             return false;
-        }
-
-        private static unsafe bool InOutline(ref ReconMinefieldState s, Vector2 p)
-        {
-            bool inside = false;
-            for (int i = 0, j = s.OutlineCount - 1; i < s.OutlineCount; j = i++)
-            {
-                float ax = s.OX[i], ay = s.OY[i], bx = s.OX[j], by = s.OY[j];
-                if ((ay > p.Y) != (by > p.Y) && p.X < (bx - ax) * (p.Y - ay) / (by - ay) + ax) inside = !inside;
-            }
-            return inside;
         }
 
         private static unsafe void Report(EntityRepository world, Entity self, Entity field, ref ReconMinefieldState s, int col, int row, bool mined)

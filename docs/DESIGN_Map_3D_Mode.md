@@ -14,6 +14,7 @@ known-rot: ⚠ 2026-10-17 — the door row's *"a '2-D only' target (none exists�
 known-conflict: none. It REPLACES DESIGN_Godot_3D_Viewer.md as the current approach; that file is DEFERRED, not
   withdrawn (U13: "put godot aside but keep its design as deferred").
 related-designs:
+  - designs/sensor-view/DESIGN_Sensor_View.md — the sensor views: one mode switch in LitShader and one wrap of the canvas' 3-D pass (IScenePostProcess)
   - designs/person-looks/DESIGN_Person_Outfits.md — what a person wears moves into the TKB (`OutfitDto`, seeded within the type's lists); §6q's code palettes become data; Middle-East dress (CE-4648)
   - designs/air-attack/DESIGN_Air_Combat.md — air combat: the MiG body, missiles on rails, afterburner and vortex trails (§4d, ui)
   - docs/DESIGN_People_Display.md — OWNS the card's mind-state and health rows (§7e U20, §7f U21); §6am here makes every unit text a row of the card and hides the card behind terrain
@@ -1033,6 +1034,8 @@ graph TD
 *What the picture shows that prose hid:* the navmesh and the 3-D map still read ONE mesh builder — the tags ride alongside and
 the bake takes the untagged overload, so the walkable soup cannot drift from what is drawn; the road ribbons are not a road
 layer but the road GIZMO's own metre-wide lines, drawn at their width; and the gait rule is shared with Stride, not copied.
+
+✏ **CE-4401 (`terrain` lane, `2026-11-18`) — the ribbons lie ON the ground:** the road graph is 2-D (SUMO's net, `RoadNetworkBlob`) and the gizmo drew every point at a literal z 0 (`RoadNetworkGizmo.cs:45-55` before), so on a terrain at ≈ 500 m (the scale rig's `scale-1`) the roads hung 500 m under it. Now each point is `RoadNetworkGizmo.On(terrain, p)` = `TerrainWorld.GroundHeightAt` + 0.05 m (z 0 with no terrain). Rail `RoadNetworkGizmoTests.CE4401_*`. ⚠ It follows the BASE ground (a crater under a road is not followed).
 
 | built | where |
 |---|---|
@@ -3658,6 +3661,19 @@ parser's lone-tree prism; ⇒ no 3-D tree drawing exists. Reused: §6ah's chunks
 the hedge's) and wood pattern (244).
 
 ![the trees by distance](UX/terrain-trees-3d.svg)
+
+⭐ **CE-1968 as built (`terrain` lane, `2026-11-17`; user: *"the trees land ~10 m off the polygon, partly outside it"*):** the NEAR trees are planted from the forest POLYGONS
+(`TerrainWorldMesh.AddPolygonTrees`) on the woods' world-aligned 25 m cells with the same per-cell hash and density — a candidate is kept only inside its polygon (the last
+listed wins where woods overlap). ⛔ Was: a whole 25 m cell planted wherever its CENTRE fell inside the wood ⇒ trees up to ~12.5 m past the edge and bare strips inside it.
+The simulation's woods (sight, fire, the navmesh — R-4190 T-2) and the FAR canopy sheet stay per cell. Rail `TerrainChunkTreesTests.CE1968_*`.
+⭐ **CE-1966 (`terrain` lane, `2026-11-17`):** a placed terrain FEATURE / BLOCK (TKB 8818 / 8817) has no body — `EntityBodyLayer3D.LookOf`'s no-body list (it drew the
+
+⭐ **CE-4656 (`terrain` lane, `2026-11-18`) — ONE drawer per baked obstacle:** the obstacle bake (`StaticObstacleBakeSystem.CollectPrisms`) makes every static obstacle a terrain prism (collision, navmesh, sight); a PLATFORM-typed obstacle (DIS kind 1 — the parked car, drawn by `EntityBodyLayer3D` as a car) gets `TerrainPrism.DrawnByEntity`, and the terrain mesh (`TerrainWorldMesh.IsDrawn`, every draw path and the ground cut) skips it. 📐 Before: once the bake committed, a grey `car-body` box the size of the car's footprint was drawn over the car (user). ⚠ A cultural-feature obstacle (kind 5: sandbags, block, crate, barrel, barrier, booth, wreck) keeps its baked box — open question for ui: does the entity layer ALSO draw it (its family is `Unknown`)? If so, it is drawn twice and one drawer should go (`NOTE_Terrain_To_Ui_Obstacle_Drawing.md`). Rail `StaticObstacleBakeTests.CE4656_*`.
+
+⭐⭐ **CE-8309 (agg-behaviors, `2026-11-20`) — the self-drawn car stays SOLID; only the DRAWN soup skips it.** ⛔ CE-4656 put `IsDrawn` into the ONE soup (`TerrainWorldMesh.Build` / `BuildRegion`), and that soup is also the NAVMESH's input — so every parked car left the navmesh (while `TerrainWorld.SurfaceZ` still saw its prism): 📐 live `ts-aggression`, `ia-house-hunt`, `bt-window-duel` — a walker's path ran straight through a parked car, he stepped inside its footprint and `SurfaceZ`'s "inside a solid, every surface above reach ⇒ the lowest" put him on its 1.5 m roof for good (the obstacle rebake logged "0 baked, 18 from the cache": the car changed no tile). ⭐ Now `Build` / `BuildRegion` keep every solid prism (`TerrainWorldMesh.IsSolid` = not a volume effect) and the new `TerrainWorldMesh.BuildDrawn` (memoised; the same soup when no prism draws itself) skips `IsDrawn`'s prisms — `TerrainWorldQuery`'s render geometry (`Build`, `BuildTagged`: the 3-D terrain layer and its picker) reads it; the per-chunk draw (`TerrainWorldMesh.Chunks`) keeps its own `IsDrawn`. The ground under a self-drawn car is still not cut (harmless to the navmesh: the box's solid spans have no clearance). Rails `DirtyRegionBakeTests.CE8309_*` (a self-drawn car added by a dirty rebake is routed round; red-proved), `RecastNavmeshFactoryTests.CE8309_*`.
+
+⭐ **CE-4656 ui half (`2026-11-18`, answering terrain's note) — MEASURED: the seven cultural-feature obstacles (8807–8809, 8820–8822, the wreck 8819) resolved to `VisualFamily.Unknown`, so `EntityBodyLayer3D` ALSO drew an unknown box over each baked terrain box.** Now `LookOf` gives them the no-body look (`EntityBodyLayer3D.IsTerrainDrawnObstacle`: every obstacle type but the car, plus the wreck) — the terrain mesh is their one drawer; the car stays the body layer's. Rail `Map3DTests.CE4656_ACulturalFeatureObstacle_IsDrawnByTheTerrainOnly_TheCarByTheBodyLayer` (red before the fix, listing all seven).
+UNKNOWN box at the feature's anchor, the user's "pink cube"). Rail `Map3DTests.CE1966_*`.
 
 ```mermaid
 classDiagram

@@ -643,7 +643,7 @@ namespace Hrot.AI.Behaviors.Brains
             bool hit = FiredUponSince(world, self, ws.ExposedAt);
             bool overBudget = ws.SeenSince > 0 && now - ws.SeenSince >= ws.Budget;
             bool overTime = now - ws.ExposedAt >= p.ExposeSeconds;
-            bool launch = LaunchHeard(world, self, ws.ExposedTick, in threat);
+            bool launch = LaunchHeard(world, self, ws.ExposedTick, in threat) || LaunchedAtMe(world, self, ws.ExposedAt);   // ⭐ CE-4670 VA-S5
             // ⭐ CE-2218 (backend's handoff: "a shooter held Masked should move") — the gun holds MASKED: its round would stop in the
             //   wall or bank in front of the muzzle, so this firing point cannot shoot that target. Burn it and go; the next choice
             //   moves on. The one reader is PeekAndFire's (a stamped reason from THIS exposure only).
@@ -662,7 +662,8 @@ namespace Hrot.AI.Behaviors.Brains
                                      Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
             if (StartFire(ref ws, in p, self, world, in threat)) return;   // he showed himself
-            if (now >= ws.PhaseUntil || FiredUponSince(world, self, ws.ExposedAt)) Withdraw(ref ws, in p, ref mem, self, world, now);
+            if (now >= ws.PhaseUntil || FiredUponSince(world, self, ws.ExposedAt) || LaunchedAtMe(world, self, ws.ExposedAt))   // ⭐ CE-4670 VA-S5
+                Withdraw(ref ws, in p, ref mem, self, world, now);
         }
 
         /// <summary>
@@ -842,6 +843,11 @@ namespace Hrot.AI.Behaviors.Brains
             }
             return false;
         }
+
+        /// <summary>⭐ <c>CE-4670</c> VA-S5 — a guided missile was launched AT this vehicle since the exposure began (its brain's launch warning,
+        /// <c>SensorChange.MissileWarning</c>, fresh): out of the shooter's sight before it arrives, as for a hit (the smoke is the SOP's side step).</summary>
+        private static bool LaunchedAtMe(EntityRepository world, Entity self, SimInstant since)
+            => RecentSensesOf.WithinSince(world, self, SensorChange.MissileWarning, VehicleCrewNodes.SmokeFreshSeconds, (double)since);
 
         /// <summary>T5 — a HEARD heavy weapon (a launch) since the exposure began, within <see cref="LaunchBearingDegrees"/> of the threat.
         /// ⚠ Only an ANONYMOUS slot: a shot heard inside a SEEN contact's circle refreshes that contact (<c>TargetMemory.HearContact</c>), and

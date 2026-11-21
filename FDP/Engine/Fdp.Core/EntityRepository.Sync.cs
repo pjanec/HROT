@@ -89,6 +89,10 @@ namespace Fdp.Core
             try { SyncFromCore(source, mask, includeTransient, excludeTypes); } finally { AccessTrace.Unmute(); }
         }
 
+        /// <summary>⭐ CE-1979 — the world last synced INTO this one and its structural clock then (null = never synced).</summary>
+        private EntityRepository? _structureSource;
+        private long _structureSourceClock;
+
         private void SyncFromCore(EntityRepository source, BitMask512? mask, bool? includeTransient, Type[]? excludeTypes)
         {
             // 0. Determine Effective Mask
@@ -141,6 +145,16 @@ namespace Fdp.Core
             // 1. Sync EntityIndex
             // This copies critical structural data (Generations, IsActive, Masks)
             _entityIndex.SyncFrom(source._entityIndex);
+            // ⭐ CE-1979 — the copy rewrites the entity set wholesale, so THIS world's structural clock must move when the source's moved (an
+            //   entity created or destroyed there): a reader keyed on it (ChangeGate — the gizmo match pass, CE-1480 G5) otherwise reuses a
+            //   list with an entity that died, and the threaded editor's map faulted on it ("Entity … is not alive"). ⭐ Only when it moved:
+            //   an unchanged structure keeps the clock still, so a still world still skips the pass.
+            if (!ReferenceEquals(_structureSource, source) || _structureSourceClock != source._structuralChanges)
+            {
+                _structuralChanges++;
+                _structureSource = source;
+                _structureSourceClock = source._structuralChanges;
+            }
             
             // Always apply component filter (even if it's the default snapshotable mask)
             _entityIndex.ApplyComponentFilter(effectiveMask);
@@ -211,6 +225,7 @@ namespace Fdp.Core
             SyncSingletonById(source, GlobalComponentIds.SoundEmissionRing); // ⭐ CE-3282 (Q95 C) — the lossless sound ring; BORROWED live, read by seqlock
             SyncSingletonById(source, GlobalComponentIds.WorldEpoch); // ⭐ CE-3294 — which world this is: a background system forgets the last one's entities too
             SyncSingletonById(source, GlobalComponentIds.ReplayState); // ⭐ CE-3329 P2 — is this world a replay: a background writer stands down too (borrowed: the live flag)
+            CopySingletonValueById(source, GlobalComponentIds.UnderFireSightHolder); // ⭐ CE-2468 — the published under-fire sight, COPIED (not borrowed): the snapshot keeps its moment (R-219) — the EQS danger solve's CoveredByFire, the path solver's route price
 
             // 4. Sync BOTH version clocks.
             //
@@ -260,6 +275,23 @@ namespace Fdp.Core
         /// thread reads the singleton as immutable data and the main thread does not structurally
         /// replace the table object mid-frame.
         /// </summary>
+        /// <summary>
+        /// ⭐ CE-2468 — copies one singleton's VALUE into a table this repository owns (the <see cref="CopySingletonsFrom"/> rule for one id): a later write on the source
+        /// is not seen here, so a snapshot keeps its moment (R-219). For an IMMUTABLE managed singleton it is one reference copy; the table is made on the first sync only.
+        /// </summary>
+        private void CopySingletonValueById(EntityRepository source, int typeId)
+        {
+            if (source._singletons == null || typeId >= source._singletons.Length || source._singletons[typeId] is not IComponentTable st) return;
+            EnsureSingletonCapacity(typeId);
+            if (_singletons[typeId] is not IComponentTable mine || _borrowedSingletons.IsSet(typeId) || mine.GetType() != st.GetType())
+            {
+                mine = NewTableLike(st.GetType());
+                _singletons[typeId] = mine;
+                _borrowedSingletons.ClearBit(typeId);
+            }
+            mine.CopyRowFrom(st, 0, _globalVersion);
+        }
+
         private void SyncSingletonById(EntityRepository source, int typeId)
         {
             if (source._singletons == null || typeId >= source._singletons.Length)

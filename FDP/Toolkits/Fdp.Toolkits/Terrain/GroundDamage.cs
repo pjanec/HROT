@@ -149,6 +149,8 @@ namespace Fdp.Toolkit.Terrain
         public float LargeRadiusM { get; init; } = 3f;
         public float CoverAfterSmallSeconds { get; init; } = 30f;
         public float CoverAfterLargeSeconds { get; init; } = 60f;
+        /// <summary>⭐ CE-5019 (R-5064) — a burst that BREACHES a wall within this distance of its face makes no crater (a contact charge spends itself on the wall). 0 ⇒ never skipped.</summary>
+        public float WallContactM { get; init; } = 0.5f;
 
         private static readonly Lazy<CraterRuleTable> s_shared = new(() =>
         {
@@ -176,6 +178,7 @@ namespace Fdp.Toolkit.Terrain
                 LargeRadiusM = root.GetProperty("largeRadiusM").GetSingle(),
                 CoverAfterSmallSeconds = cover.GetProperty("small").GetSingle(),
                 CoverAfterLargeSeconds = cover.GetProperty("large").GetSingle(),
+                WallContactM = root.TryGetProperty("wallContactM", out var wc) ? wc.GetSingle() : 0.5f,
             };
         }
 
@@ -242,6 +245,7 @@ namespace Fdp.Toolkit.Terrain
     /// what a background snapshot copies; ⛔ a world singleton would be SHARED by every snapshot — the design's "singleton" is this table, measured and
     /// recorded as lane ruling R-5020). Built when the records change, handed back unchanged otherwise (R-220: 0 B a steady frame).</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("the craters as one view sees them: built from the GroundDamage entities, the same instance while they are unchanged")]
     public sealed class CraterTable
     {
         /// <summary>The side (m) of the lookup cells of <see cref="Offset"/>.</summary>

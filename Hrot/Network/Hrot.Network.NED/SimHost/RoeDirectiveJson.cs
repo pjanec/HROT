@@ -17,7 +17,7 @@ namespace Hrot.Network.NED.SimHost
         /// <summary>The JSON for <paramref name="evt"/> (everything but the entity and the origin).</summary>
         public static string Encode(in SetRoeEvent evt)
             => string.Create(CultureInfo.InvariantCulture,
-                $"{{\"Fire\":{(byte)evt.Fire},\"Reactions\":{(byte)evt.Reactions},\"Window\":{evt.ReturnFireWindowSeconds:R},\"Force\":{(byte)evt.ForceLevel}}}");
+                $"{{\"Fire\":{(byte)evt.Fire},\"Reactions\":{(byte)evt.Reactions},\"Window\":{evt.ReturnFireWindowSeconds:R},\"Force\":{(byte)evt.ForceLevel},\"Incendiary\":{(byte)evt.Incendiary}}}");
 
         /// <summary>The event the owner raises again; <c>false</c> when the JSON is not an ROE directive.</summary>
         public static bool TryDecode(string? json, Entity entity, BehaviorOrigin origin, out SetRoeEvent evt)
@@ -37,6 +37,7 @@ namespace Hrot.Network.NED.SimHost
                     Reactions               = (RoeReactions)Byte(root, "Reactions"),
                     ReturnFireWindowSeconds = root.TryGetProperty("Window", out var w) && w.TryGetSingle(out var f) ? f : 0f,
                     ForceLevel              = (RoeForceLevel)Byte(root, "Force"),
+                    Incendiary              = (RoeIncendiary)Byte(root, "Incendiary"),   // CE-3486 (F-9)
                 };
                 return true;
             }

@@ -24,7 +24,7 @@ namespace Fdp.Toolkit.Terrain.Tests
     /// </summary>
     public sealed class MineTriggerTests : IDisposable
     {
-        private const long TankType = 9201, CarType = 9202;
+        private const long TankType = 9201, CarType = 9202, CattleType = 9203, FlockType = 9204;   // ⭐ CE-4628 — an animal's species is its TKB type's
         private readonly EntityRepository _w = new();
         private readonly MineTriggerSystem _trigger = new();
         private readonly List<MineStruck> _struck = new();
@@ -41,6 +41,8 @@ namespace Fdp.Toolkit.Terrain.Tests
             var db = new TkbDatabase();
             var tank = new TkbTemplate("tank", TankType); tank.AddDescriptor(new VehicleParametersDto { Mass = 60000f }); db.Register(tank);
             var car = new TkbTemplate("car", CarType); car.AddDescriptor(new VehicleParametersDto { Mass = 1000f }); db.Register(car);
+            var cattle = new TkbTemplate("cattle", CattleType); cattle.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.Cattle }); db.Register(cattle);
+            var flock = new TkbTemplate("flock", FlockType); flock.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.BirdFlock }); db.Register(flock);
             var lineCharge = new TkbTemplate("line charge", Minefields.MunitionLineCharge);
             lineCharge.AddDescriptor(new AmmoWeaponBallisticsDto { WeaponGuid = 0, PenetrationMm = 0f, Damage = 100f });
             db.Register(lineCharge);
@@ -105,7 +107,35 @@ namespace Fdp.Toolkit.Terrain.Tests
             var d = Assert.Single(_bursts);
             Assert.Equal(Minefields.MunitionAntiPersonnel, d.Ammo);
             Assert.True(d.Target.IsNull);
+            Assert.Equal(man, d.TriggeredBy);   // ⭐ CE-4654 D-3 — the burst names the man who set it off (the area effect maims exactly him)
             Assert.Equal(0f, d.HitX, 3); Assert.Equal(0f, d.HitY, 3);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-4655 — a laid field keeps its mines off its marked edge (<see cref="MinePattern.EdgeInset"/>: half a spacing, ≥ 1 m): a man walking ALL FOUR edges just
+        /// inside the outline (0.2 m — where a route that skirts a known field runs) sets nothing off, every mine the pattern derives lies ≥ the inset inside, and a man
+        /// crossing the middle still strikes. 📐 Before: a 3 m field laid a column 0.5 m inside its east edge and the skirting squad walked onto it (user, `2026-11-18`).
+        /// 🔴 Red-proof: drop the edge term from <c>MinePattern.Laid</c> ⇒ strikes on the east edge, and a mine 0.5 m inside.
+        /// </summary>
+        [Fact]
+        public void CE4655_AManWalkingTheFieldsEdge_SetsNothingOff_EveryMineKeepsTheInset_TheMiddleStillStrikes()
+        {
+            var field = Field(MineType.AntiPersonnel, spacing: 3f);
+            var corners = new[] { new Vector2(-19.8f, -19.8f), new Vector2(19.8f, -19.8f), new Vector2(19.8f, 19.8f), new Vector2(-19.8f, 19.8f) };
+            var man = Body(LocomotionClass.Pedestrian, corners[0]);
+            Frame();
+            for (int e = 0; e < 4; e++)
+                for (int i = 1; i <= 200; i++) { var p = Vector2.Lerp(corners[e], corners[(e + 1) % 4], i / 200f); MoveTo(man, p.X, p.Y); Frame(); }
+            Assert.Empty(_struck);
+
+            var outline = new[] { new Vector2(-20, -20), new Vector2(20, -20), new Vector2(20, 20), new Vector2(-20, 20) };
+            var mines = new List<Mine>();
+            Assert.True(MinePattern.MinesIn(_w.GetComponentRO<Minefield>(field), Vector2.Zero, outline, mines) > 50);
+            foreach (var m in mines) Assert.True(MinePattern.EdgeDistanceSquared(outline, m.At) >= 1.5f * 1.5f - 1e-3f, $"a mine {MathF.Sqrt(MinePattern.EdgeDistanceSquared(outline, m.At)):0.00} m inside the edge");
+
+            MoveTo(man, -3f, 0.1f); Frame();
+            for (int i = 1; i <= 60; i++) { MoveTo(man, -3f + i * 0.1f, 0.1f); Frame(); }   // across row 0, mines at x = −3, 0, 3
+            Assert.NotEmpty(_struck);
         }
 
         /// <summary>A man walks over an anti-tank mine: nothing — across the whole field, mine by mine. 🔴 Red-proof: drop the "a man walks over it" test ⇒ he fires them ⇒ red.</summary>
@@ -172,14 +202,14 @@ namespace Fdp.Toolkit.Terrain.Tests
         public void CE4624_ABirdFlockNeverStrikes_LivestockStrikesAnAntiPersonnelMine()
         {
             Field(MineType.AntiPersonnel);
-            var flock = Body(LocomotionClass.Quadruped, new Vector2(0.1f, 0.1f));
-            _w.AddComponent(flock, new AnimalState { Species = AnimalSpecies.BirdFlock });
+            var flock = Body(LocomotionClass.Quadruped, new Vector2(0.1f, 0.1f), tkb: FlockType);
+            _w.AddComponent(flock, new AnimalState());
             var air = Body(LocomotionClass.Bird, new Vector2(0.1f, 0.1f));
             Frame(); Frame();
             Assert.Empty(_struck);
 
-            var cow = Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f));
-            _w.AddComponent(cow, new AnimalState { Species = AnimalSpecies.Cattle });
+            var cow = Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f), tkb: CattleType);
+            _w.AddComponent(cow, new AnimalState());
             Frame();
             MoveTo(cow, 0.1f, 0.1f);
             Frame();
@@ -199,8 +229,8 @@ namespace Fdp.Toolkit.Terrain.Tests
                 w.Field(MineType.AntiTank, spacing: 8f, seed: 0);
                 // burn entity indices so each animal has its own index (the hash is of the animal's index)
                 for (int k = 0; k < i; k++) w._w.CreateEntity();
-                var a = w.Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f));
-                w._w.AddComponent(a, new AnimalState { Species = AnimalSpecies.Cattle });
+                var a = w.Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f), tkb: CattleType);
+                w._w.AddComponent(a, new AnimalState());
                 w.Frame(); w.MoveTo(a, 0.1f, 0f); w.Frame();
                 if (w._struck.Count > 0) hits++;
             }
@@ -211,8 +241,8 @@ namespace Fdp.Toolkit.Terrain.Tests
                 using var w = new MineTriggerTests();
                 w.Field(MineType.AntiTank, spacing: 8f, seed: 0);
                 for (int k = 0; k < i; k++) w._w.CreateEntity();
-                var a = w.Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f));
-                w._w.AddComponent(a, new AnimalState { Species = AnimalSpecies.Cattle });
+                var a = w.Body(LocomotionClass.Quadruped, new Vector2(-1f, 0f), tkb: CattleType);
+                w._w.AddComponent(a, new AnimalState());
                 w.Frame(); w.MoveTo(a, 0.1f, 0f); w.Frame();
                 if (w._struck.Count > 0) again++;
             }
@@ -279,12 +309,18 @@ namespace Fdp.Toolkit.Terrain.Tests
             var mf = _w.GetComponent<Minefield>(field);
             var man = Body(LocomotionClass.Pedestrian, new Vector2(30f, 30f));
             Frame();
-            foreach (var (r, c) in new[] { (2, 1), (-3, 2), (0, -1) })
+            // ⭐ CE-4655 — only cells the pattern LAYS (a cell within the edge inset holds no mine); at least two of these are
+            var outline = new[] { new Vector2(-20, -20), new Vector2(20, -20), new Vector2(20, 20), new Vector2(-20, 20) };
+            int walked = 0;
+            foreach (var (r, c) in new[] { (2, 1), (-3, 2), (0, -1), (1, 1), (-1, 0) })
             {
                 var p = MinePattern.At(mf, Vector2.Zero, r, c);
+                if (!MinePattern.Laid(mf, outline, p)) continue;
                 MoveTo(man, p.X + 0.2f, p.Y); Frame();
                 Assert.Contains(_struck, x => x.Row == r && x.Col == c);
+                walked++;
             }
+            Assert.True(walked >= 2, $"only {walked} laid cells walked");
         }
 
         /// <summary>

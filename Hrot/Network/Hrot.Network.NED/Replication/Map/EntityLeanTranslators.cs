@@ -22,6 +22,7 @@ namespace Hrot.Map.Common.Replication.Egress
         //   destruction, a wipe or (as an unregister) a hand-over. One implementation for every egress translator.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityLean> _instances;
 
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.Lean };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityLean>();

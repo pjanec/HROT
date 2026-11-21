@@ -50,6 +50,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static unsafe void Resolve(string json, byte* memory, int capacity, EntityRepository world, Entity self)
             => BehaviorParams.RequireNoStoredFields(json, BehaviorNames.BasicSquadSop, typeof(NoParams).FullName!);
 
+        private const string NotClearingWhy = "CE-2453 (Building Clearing CB-66 / CB-72 / CB-73): a squad CLEARING a building whose every contact is inside that building — its room drill answers (a heard man suspects the room, a seen one or a hit at the way in holds the entry); ReactToContact would hold it at the door (measured live, ia-area-defend: 60 s+ at House A's entry).";
         private const string NotDefendingWhy =
             "CE-2359 (AQ102 H, DA-55 at the squad level): a defending squad's defence answers the contact (its posts, displacement, flank turns, " +
             "the hunter) — ReactToContact would pause SquadDefend and take the men out of the house (measured live, rf-wall-hugger: two defenders " +
@@ -122,13 +123,32 @@ namespace Hrot.AI.Behaviors.Brains
                     Id("c7029000-0000-0000-0000-000000000010"))
                     .Label("Drone → every man takes cover")
                     .Comment("CE-7029 (City Battle R-1d): a man senses a drone ⇒ the squad does (SquadSensing.AirThreat); every live man is sent ShelterFromAir (overhead cover, else keep moving; fire at it while seen) until the sky has been clear 10 s. Above 'under a platoon': a drone is the squad's own immediate threat, as the carrier rows are its own.")
+                .Sequence(row => row
+                    .Condition(bb => bb.AreaAhead, SquadSopConditions.MinefieldAhead, Id("c4624000-0000-0000-0000-000000000b41"))
+                        .Label("A minefield ahead (within 30 m)")
+                    .React(BehaviorNames.MinefieldAhead, ReactionUrgency.Alert, Id("c4624000-0000-0000-0000-000000000b42"))
+                        .Label("React: MinefieldAhead"),
+                    Id("c4624000-0000-0000-0000-000000000b40"))
+                    .Label("Minefield ahead → halt, call the engineers")
+                    .Comment("CE-4624 MS-B4 (Minefields KG-7): the route reaches a minefield the planner could not go round — halt short of it and call the engineers; never crossed as a drill. ⭐ CE-5040 (terrain, user: \"we cant wait for behaviors\"): ABOVE the UnderCommand row, like the carrier rows — the halt and the request are the squad's own (MS-B5 sends the Engineers request UP the chain, so the asking squad always has a commander); below it a squad under a live HQ never reached this row and walked into the field.")
+                .Sequence(row => row
+                    .Condition(bb => bb.AreaAhead, SquadSopConditions.CoveredByFireAhead, Id("c2466000-0000-0000-0000-000000000c11"))
+                        .Label("Ground a known enemy covers ahead (within 30 m)")
+                    .React(BehaviorNames.CoveredByFireAhead, ReactionUrgency.Alert, Id("c2466000-0000-0000-0000-000000000c12"))
+                        .Label("React: CoveredByFireAhead"),
+                    Id("c2466000-0000-0000-0000-000000000c10"))
+                    .Label("Covered ground ahead → hold short, ask for fire support")
+                    .Comment("CE-2466 R6 (Squad Tactics §7.9, R-2140): the route reaches ground its side knows an enemy covers (UnderFire, Minefields §9b) and the planner could not go round it — hold short, never cross it as a drill; after 120 s ask for fire support and report TaskFailed. ABOVE the UnderCommand row like the minefield halt (S3): a squad of a platoon never walks into known covered ground either.")
                 .Condition(SopConditions.UnderCommand, Id("c2123000-0000-0000-0000-0000000000c1"))
                     .Label("Under a platoon → the platoon reacts for the squad")
-                    .Comment("CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride). Every squad type now carries this SOP by default.")
+                    .Comment("CE-2358 (AQ102 G, R-2072): true = the row wins and nothing is ordered — a squad under a live platoon gets its fight from its platoon's play (AQ97 A at the squad level); the carrier rows above stay the squad's own (mount, dismount, ride) — ⭐ and the minefield halt (CE-5040: the squad stops and asks its HQ for engineers). Every squad type now carries this SOP by default.")
                 .Sequence(row => row
                     .Condition(SquadDefendBehavior.NotDefending, Id("c2359000-0000-0000-0000-0000000000d1"))
                         .Label("Not defending a position")
                         .Comment(NotDefendingWhy)
+                    .Condition(RoomSuspicion.NotClearingItsContact, Id("c2453000-0000-0000-0000-0000000000e1"))
+                        .Label("Not clearing the building the contact is in")
+                        .Comment(NotClearingWhy)
                     .Condition(bb => bb.UnderFire, SopConditions.SensedFresh, Id("c2123000-0000-0000-0000-000000000011"))
                         .Label("Squad under fire (fresh, 3 s)")
                     .React(BehaviorNames.ReactToContact, ReactionUrgency.UnderFire, Id("c2123000-0000-0000-0000-000000000012"))
@@ -140,6 +160,9 @@ namespace Hrot.AI.Behaviors.Brains
                     .Condition(SquadDefendBehavior.NotDefending, Id("c2359000-0000-0000-0000-0000000000d3"))
                         .Label("Not defending a position")
                         .Comment(NotDefendingWhy)
+                    .Condition(RoomSuspicion.NotClearingItsContact, Id("c2453000-0000-0000-0000-0000000000e3"))
+                        .Label("Not clearing the building the contact is in")
+                        .Comment(NotClearingWhy)
                     .Condition(bb => bb.LeaderDown, SopConditions.SensedFresh, Id("c2123000-0000-0000-0000-000000000031"))
                         .Label("Squad leader down (fresh, 3 s)")
                     .React(BehaviorNames.ReactToContact, ReactionUrgency.UnderFire, Id("c2123000-0000-0000-0000-000000000032"))
@@ -151,6 +174,9 @@ namespace Hrot.AI.Behaviors.Brains
                     .Condition(SquadDefendBehavior.NotDefending, Id("c2359000-0000-0000-0000-0000000000d4"))
                         .Label("Not defending a position")
                         .Comment(NotDefendingWhy)
+                    .Condition(RoomSuspicion.NotClearingItsContact, Id("c2453000-0000-0000-0000-0000000000e4"))
+                        .Label("Not clearing the building the contact is in")
+                        .Comment(NotClearingWhy)
                     .Condition(bb => bb.MemberDown, SopConditions.SensedFresh, Id("c2123000-0000-0000-0000-000000000051"))
                         .Label("Squad member down (fresh, 3 s)")
                     .React(BehaviorNames.ReactToContact, ReactionUrgency.UnderFire, Id("c2123000-0000-0000-0000-000000000052"))
@@ -170,6 +196,9 @@ namespace Hrot.AI.Behaviors.Brains
                     .Condition(SquadDefendBehavior.NotDefending, Id("c2359000-0000-0000-0000-0000000000d2"))
                         .Label("Not defending a position")
                         .Comment(NotDefendingWhy)
+                    .Condition(RoomSuspicion.NotClearingItsContact, Id("c2453000-0000-0000-0000-0000000000e2"))
+                        .Label("Not clearing the building the contact is in")
+                        .Comment(NotClearingWhy)
                     .Condition(bb => bb.Contact, SopConditions.SensedFresh, Id("c2123000-0000-0000-0000-000000000021"))
                         .Label("Squad contact (fresh, 3 s)")
                     .React(BehaviorNames.ReactToContact, ReactionUrgency.Contact, Id("c2123000-0000-0000-0000-000000000022"))
@@ -178,14 +207,6 @@ namespace Hrot.AI.Behaviors.Brains
                     Id("c2123000-0000-0000-0000-000000000020"))
                     .Label("Squad contact → react")
                 .Sequence(row => row
-                    .Condition(bb => bb.AreaAhead, SquadSopConditions.MinefieldAhead, Id("c4624000-0000-0000-0000-000000000b41"))
-                        .Label("A minefield ahead (within 30 m)")
-                    .React(BehaviorNames.MinefieldAhead, ReactionUrgency.Alert, Id("c4624000-0000-0000-0000-000000000b42"))
-                        .Label("React: MinefieldAhead"),
-                    Id("c4624000-0000-0000-0000-000000000b40"))
-                    .Label("Minefield ahead → halt, call the engineers")
-                    .Comment("CE-4624 MS-B4 (Minefields KG-7): the route reaches a minefield the planner could not go round — halt short of it and call the engineers; never crossed as a drill.")
-                .Sequence(row => row
                     .Condition(bb => bb.AreaAhead, SquadSopConditions.DangerAreaAhead, Id("c2123000-0000-0000-0000-000000000061"))
                         .Label("Danger area ahead (within 30 m, not yet crossed)")
                     .React(BehaviorNames.SquadDangerCrossing, ReactionUrgency.Alert, Id("c2123000-0000-0000-0000-000000000062"))
@@ -193,7 +214,16 @@ namespace Hrot.AI.Behaviors.Brains
                         .Comment("Security watches the near side; the rest cross by pairs on new lanes; the far side watches; security follows; reform. The march resumes after."),
                     Id("c2123000-0000-0000-0000-000000000060"))
                     .Label("Danger area ahead → cross it")
-                    .Comment("CE-2159 X-c (Squad Tactics §7.7.6): the march's route sensor shows a danger area within 30 m and the squad is not past it — cross it as a drill (Alert: any contact row replaces it)."),
+                    .Comment("CE-2159 X-c (Squad Tactics §7.7.6): the march's route sensor shows a danger area within 30 m and the squad is not past it — cross it as a drill (Alert: any contact row replaces it).")
+                .Sequence(row => row
+                    .Condition(SquadSopConditions.KnowsAnEnemy, Id("c2457000-0000-0000-0000-000000000001"))
+                        .Label("An enemy still known")
+                    .DoWhenIdle(BehaviorNames.SquadHold, Id("c2457000-0000-0000-0000-000000000002"))
+                        .Label("When idle: SquadHold")
+                        .Comment("Every man fights from cover where he is, eyes out; the lull row above still brings a casualty in."),
+                    Id("c2457000-0000-0000-0000-000000000000"))
+                    .Label("No task, an enemy still known → hold (consolidate)")
+                    .Comment("CE-2457 (Urban Fight Suite U1): a squad whose contact reaction ended with nothing to resume (no order) HOLDS instead of its men standing in the street. Do-when-idle: any order or contact row replaces it."),
                 Id("c2123000-0000-0000-0000-000000000002"))
                 .Label("Rows — first true wins")
                 .Comment("The squad leader's standing orders: each row is a SQUAD edge (published on the leader by SquadCoordinationSystem) → React. The reaction pauses the leader's task; when it ends, the task resumes (CE-2123 S2).");

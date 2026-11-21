@@ -66,6 +66,15 @@ namespace CarKinem.Systems
         public const int FrustrationTickLimit = 120;
 
         /// <summary>
+        /// ⭐ <c>CE-5040</c> (terrain, mf-clear-lane-and-cross) — the speed under which a move counts as frustrated: <see cref="FrustrationSpeedThreshold"/>, or half the
+        /// move's own <see cref="NavigationIntent.TargetSpeed"/> when that is lower. 📌 An engineer ordered to walk at detector pace (0.2 m/s, ReconMinefield) moved at
+        /// ~0.19 m/s, under the fixed 0.2 m/s threshold every tick ⇒ FailedBlocked after 0.29 m, and his sweep waited on the failed move for good. A body that is
+        /// truly stopped still fails at any commanded speed; every mover commanded at 0.4 m/s or more keeps the old threshold.
+        /// </summary>
+        public static float FrustrationSpeedFor(in NavigationIntent intent)
+            => intent.TargetSpeed > 0f ? MathF.Min(FrustrationSpeedThreshold, intent.TargetSpeed * 0.5f) : FrustrationSpeedThreshold;
+
+        /// <summary>
         /// ⭐ <c>CE-2304</c> — the path progress (metres) a walking move must gain within <see cref="NoProgressLimitSeconds"/>.
         /// A man crawling prone still gains it in about a second.
         /// </summary>
@@ -85,10 +94,14 @@ namespace CarKinem.Systems
         public NavigationExecutionSystem(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => _pool = trajectoryPool;
 
         /// <summary>Paths this system asked to replan because a tile they cross changed (rails / diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of tile replans, only incremented and exposed as a property")]
         public long TileReplans { get; private set; }
 
         /// <summary>How far apart (as a share of the tile edge) a path is sampled for the tiles it crosses: a quarter tile, so no tile it passes through is skipped.</summary>
         public const float TileSampleShare = 0.25f;
+
+        /// <summary>⭐ CE-4674 — failed (unreachable) moves this system re-planned because the navmesh changed after they failed (rails, diagnostics).</summary>
+        public long MeshReplans { get; private set; }
 
         /// <summary>
         /// ⭐ True when a tile of <paramref name="traj"/>'s REMAINING path (from <paramref name="progress"/>) has a version newer than <paramref name="sinceSequence"/>, i.e. a rebake changed
@@ -208,7 +221,20 @@ namespace CarKinem.Systems
                 // Once Arrived or a hard failure is written, do not mutate status further
                 // until the Brain issues a new intent (increments IntentId).
                 if (status.Result != NavResult.InProgress)
+                {
+                    // ⭐ CE-4674 (HANDOFF_Coordinator_To_Backend_Path_Retry; CE-5039's second half) — a move that FAILED because its target was unreachable
+                    //   re-plans ONCE when the navmesh changes after it failed (a breach, a building made enterable, an overlay bake): the tile change
+                    //   sequence it failed at (NavmeshVersionObserved, set by the failure) is older than the mesh's. Not on a timer; a still-unreachable
+                    //   target fails again at the new sequence and says so (P1) — one re-plan per mesh version, never a storm.
+                    if (status.Result == NavResult.FailedUnreachable && intent.Mode == NavMode.PathToPoint && tileSequence != 0
+                        && status.NavmeshVersionObserved < tileSequence)
+                    {
+                        status.NavmeshVersionObserved = tileSequence;
+                        RequestReplan(repo, entity, in intent, ref status, tf.Position);
+                        MeshReplans++;
+                    }
                     continue;
+                }
 
                 // ── Arrival check ─────────────────────────────────────────────────────────────────
                 // Trust NavState.HasArrived whenever NavState is present (set by CarKinematicsSystem).
@@ -218,6 +244,16 @@ namespace CarKinem.Systems
                 {
                     var nav = repo.GetComponent<NavState>(entity);
                     arrived = nav.HasArrived != 0;
+                    // ⭐ CE-167 (re-check, `2026-11-19`) — a POINT move issued to where the body already STANDS has arrived. 📌 hill-attack: a tank
+                    //   3.9 m from its baseline slot (radius 5) got a move there; the drive never started, so the kinematics never latched
+                    //   HasArrived, and the speed watchdog failed it as blocked 10 ticks later ⇒ the platoon waited on it for good. Only a body
+                    //   standing still (the watchdog's own speed test) and only to the resolved point (the door's near side, the surface Z).
+                    if (!arrived && (intent.Mode == NavMode.PathToPoint || intent.Mode == NavMode.DirectPoint)
+                        && vel.Linear.Length() < FrustrationSpeedThreshold)
+                    {
+                        var to = NavigationDestination.Of(repo, entity, intent);
+                        arrived = Vector2.Distance(new Vector2(tf.Position.X, tf.Position.Y), new Vector2(to.X, to.Y)) <= intent.ArrivalRadius;
+                    }
                 }
                 else
                 {
@@ -272,7 +308,7 @@ namespace CarKinem.Systems
                 //   to resolve; a shadow that is really gone ends the mode itself (TrafficShadowFollowSystem). 📌 cv-blocked-road (traced): FailedBlocked
                 //   6 s behind a broken truck with the shadow still driving — and every re-issue then lost the new shadow.
                 if (repo.HasComponent<NavState>(entity) && (repo.GetComponent<NavState>(entity).IsBlocked != 0 || repo.GetComponent<NavState>(entity).Mode == KinematicsMode.Traffic)
-                    || frustration.RecoverDir != 0)
+                    || frustration.RecoverDir != 0 || frustration.YieldingToAnimal != 0)   // ⭐ CE-3457 — standing for an animal in the way
                 {
                     if (frustration.Ticks != 0 || frustration.NoProgressSeconds != 0f)
                     {
@@ -288,7 +324,7 @@ namespace CarKinem.Systems
                 float speed = vel.Linear.Length();
                 bool stalled = Stalled(repo, entity, ref frustration, progressAtThisTick, deltaTime);   // ⭐ CE-2304
 
-                if (speed < FrustrationSpeedThreshold || stalled)
+                if (speed < FrustrationSpeedFor(in intent) || stalled)
                 {
                     frustration.Ticks++;
                     frustration.ElapsedSinceFirstReplan += deltaTime;

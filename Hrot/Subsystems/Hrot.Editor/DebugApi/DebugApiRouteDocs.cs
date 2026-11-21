@@ -956,8 +956,11 @@ namespace Hrot.Editor.DebugApi
             Group:   "Y — node diagnostics",
             Summary: "The Player's DEPLOY flow on this node (Player Join): its state, why it waits, whether a deploy server exists, the playable units on offer (with who holds them) and the player's slot. 404 on a node with no gameplay client.",
             Returns: "{ state (Waiting|Observing|Choosing|Requesting|TakingControl|Playing), reason, lastRefusal, serverExists, station, offers[{unitNetId, side, slotName, holderStation (0 = free), kind (Placed|Role|Area), count, max, kits[] (a role's kit labels by number, \"\" = unset)}], respawnAt, slot{state, unit} }",
-            Hint:    "No arguments. Example: get_deploy({})",
-            Params: new RouteParam[] { },
+            Hint:    "Example: get_deploy({}) — or get_deploy({ station: \"7/2\" }) for one gateway seat of the editor",
+            Params: new RouteParam[]
+            {
+                new("station", "string", Required: false, Description: "⭐ A further station of this node (a gateway seat): its whole station id (an integer) or node/seat, e.g. 7/2. Omitted = this node's own flow"),
+            },
             Notes: new[]
             {
                 "Only a Player (the Player host) composes the client; every other node answers 404 'no deploy flow on this node'.",
@@ -979,6 +982,7 @@ namespace Hrot.Editor.DebugApi
                 new("observe", "boolean", Required: false, Description: "true ⇒ observe on that side, no unit"),
                 new("kit", "integer", Required: false, Description: "A role's kit 0…3 (0 = the role's own type; see the offer's kits); 400 on anything else"),
                 new("areaNetId", "integer", Required: false, Description: "The spawn area chosen (an offer of kind Area); 0 or omitted = any area of the side"),
+                new("station", "string", Required: false, Description: "A further station of this node (a gateway seat): the whole station id or node/seat (7/2), in the body; omitted = this node's own flow"),
             },
             Notes: new[]
             {
@@ -2831,6 +2835,37 @@ namespace Hrot.Editor.DebugApi
             ExampleArgsJson: "{\"entity\":4242,\"distance\":20}",
             ExampleGist: "watch a unit the agent is debugging"),
 
+        [("GET", "/view/sensor")] = new RouteDoc(
+            Tool:    "get_sensor_view",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "The 3-D map's sensor view (CE-1984): off, night vision or thermal (CE-1985), its options, and under night vision the natural light it sees (sun, moon, stars) in lux and the moon.",
+            Returns: "{ available, mode, palette, halo, sensorResolution, noise, vignette, autoGain, thermalOffered, lux, moonElevationDeg, moonIllumination, framesProcessed }",
+            Hint:    "Example: get_sensor_view({})",
+            Params: Array.Empty<RouteParam>(),
+            Notes: new[] { "A display view only: it changes nothing in the simulation. framesProcessed counts the frames the post-process drew (0 while off or in 2-D)." },
+            ExampleArgsJson: "{}",
+            ExampleGist: "check what the night-vision view is lit by"),
+
+        [("POST", "/view/sensor")] = new RouteDoc(
+            Tool:    "set_sensor_view",
+            Group:   "O — Manual-assist (focus / annotations)",
+            Summary: "Switches the 3-D map's sensor view (CE-1984): mode off / nightVision / thermal (thermal refused until CE-1985) and its options. Lamps, flames and flashes are seen bright and bloom; they light nothing around them.",
+            Returns: "the same object as get_sensor_view; 409 with no map canvas, an unknown mode, or thermal before it is built.",
+            Hint:    "Example: set_sensor_view({mode:'nightVision', palette:0})",
+            Params: new RouteParam[]
+            {
+                new("mode", "string", false, "off · nightVision · thermal (body)"),
+                new("palette", "number", false, "night vision: 0 green P43, 1 white P45 · thermal: 0 white-hot, 1 black-hot, 2 ironbow (body)"),
+                new("halo", "boolean", false, "the bloom round bright sources (body)"),
+                new("sensorResolution", "boolean", false, "a soft ~600-line sensor picture (body)"),
+                new("noise", "boolean", false, "the sensor's grain, growing as the light falls (body)"),
+                new("vignette", "boolean", false, "darkened edges (body)"),
+                new("autoGain", "boolean", false, "the tube's automatic gain: a bright source in view pulls the picture down (body)"),
+            },
+            Notes: new[] { "Also View ▸ Sensor View in the map's menu, on every map host. The view is per map; it is not saved with the scenario." },
+            ExampleArgsJson: "{\"mode\":\"nightVision\"}",
+            ExampleGist: "see the scene as a night-vision device would"),
+
         [("GET", "/selection")] = new RouteDoc(
             Tool:    "get_selection",
             Group:   "O — Manual-assist (focus / annotations)",
@@ -2863,7 +2898,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "get_debug_settings",
             Group:   "K — AI behavior traces",
             Summary: "A unit's debug settings (CE-1329) — the ONE store the Brain tab's Show on map ticks and the map's right-click Pin gizmos / AI trace items use: the gizmo families pinned on it (they draw for it, selected or not; selection draws none), its trace (the user's switch; traceOn also counts a Brain tab showing it and an observe / breakpoint arming), and whether the 3-D camera follows it. Remembered per scenario.",
-            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow }",
+            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow, observeAll }",
             Hint:    "Req: networkId (number). Editor only. Example: get_debug_settings({networkId:1000})",
             Params: new RouteParam[] { new("networkId", "number", true, "Network entity ID (long)") },
             ExampleArgsJson: "{\"networkId\":1000}",
@@ -2873,8 +2908,8 @@ namespace Hrot.Editor.DebugApi
             Tool:    "set_debug_settings",
             Group:   "K — AI behavior traces",
             Summary: "Sets a unit's debug settings (CE-1329) — exactly what the Brain tab's ticks and the right-click menu set, and the operator sees it: pins (REPLACES the pinned gizmo families), trace (records the unit's BTree / HSM rings and utility trace), follow (the 3-D camera follows it), reset (forgets what is remembered for it first). Only what is given changes. Remembered per scenario (restored on its next load). ⛔ Replaces debug_unit.",
-            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow }",
-            Hint:    "Req: networkId (number); optional pins (string[] of: Perception, Contacts, EQS, Utility, Squad, Actions, Command picture, My units' contacts, Path), trace (bool), follow (bool), reset (bool). Editor only. Example: set_debug_settings({networkId:1000, pins:[\"Perception\",\"Contacts\"], trace:true})",
+            Returns: "{ networkId, pins:[family labels], trace, traceOn, follow, observeAll }",
+            Hint:    "Req: networkId (number); optional observeAll (bool — GLOBAL: trace every brain unit, CE-1283), pins (string[] of: Perception, Contacts, EQS, Utility, Squad, Actions, Command picture, My units' contacts, Path), trace (bool), follow (bool), reset (bool). Editor only. Example: set_debug_settings({networkId:1000, pins:[\"Perception\",\"Contacts\"], trace:true})",
             Params: new RouteParam[]
             {
                 new("networkId", "number", true, "Network entity ID (long)"),
@@ -2882,6 +2917,7 @@ namespace Hrot.Editor.DebugApi
                 new("trace", "boolean", false, "Record the unit's behaviour trace (remembered)"),
                 new("follow", "boolean", false, "The 3-D camera follows the unit (remembered); false lets go"),
                 new("reset", "boolean", false, "Forget everything remembered for this unit first"),
+                new("observeAll", "boolean", false, "CE-1283 — GLOBAL: trace every unit with a brain (remembered per scenario)"),
             },
             Notes: new[]
             {
@@ -3021,7 +3057,7 @@ namespace Hrot.Editor.DebugApi
             {
                 new("networkId", "number", true, "The unit the report comes FROM (its superior receives it)"),
                 new("kind", "string", true, "Contact · Spot · Sitrep · Lace · Progress · Request"),
-                new("subtype", "string", false, "Progress: Set · PhaseLine · Foothold · RoomClear · … · FireLifted · TaskFailed; Request: Casevac · FireSupport · Resupply · Reinforce · Permission"),
+                new("subtype", "string", false, "Progress: Set · PhaseLine · Foothold · RoomClear · … · FireLifted · TaskFailed · TargetsDown; Request: Casevac · FireSupport · Resupply · Reinforce · Permission"),
                 new("count", "number", false, "Spot / Contact: how many (0 = the element is lost); PhaseLine: the line's index"),
                 new("size", "string", false, "Individual · Team · SquadSize · PlatoonSize"),
                 new("at", "array", false, "[x, y, z] where (default: the unit's own position)"),

@@ -27,6 +27,21 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <summary>⭐ M5 — a tank's coaxial machine gun: on the turret beside the gun, a 200-round belt (6 s to change), 1 in 5 traces;
         /// it fires on the move (a machine gun, D-L).</summary>
+        /// <summary>
+        /// ⭐ <c>CE-4670</c> (vehicle appearance VA-S5, VA-9) — a tank's / an IFV's SMOKE DISCHARGERS, its LAST mount: one fire is a salvo of
+        /// <paramref name="tubes"/> screening grenades (<see cref="Hrot.Core.Tkb.MunitionTkbCatalog.TkbVehicleSmokeGrenade"/>) laid in a 110° fan centred on
+        /// the bearing it is fired towards, bursting 30 m out (each a cloud that blocks sight and the thermal sight); <paramref name="salvos"/> loads.
+        /// Self-protection, never a weapon (<see cref="WeaponCategory.SmokeDischarger"/>). Starter values (a 4- or 6-tube bank, a 76 mm grenade at ~30 m/s).
+        /// </summary>
+        private static WeaponMount SmokeDischargers(int tubes, int salvos) => new()
+        {
+            WeaponType = "smoke_discharger", Category = WeaponCategory.SmokeDischarger, TurretIndex = 0,
+            Ammunition = salvos, MagazineSize = salvos, Range = 30f, MuzzleVelocity = 30f, RateOfFire = 6f,
+            Pellets = tubes, PelletSpreadMils = 1920f,   // 110° in mils (÷1000 = the fan in radians, the pellet rule)
+            MuzzleOffset = new System.Numerics.Vector3(0f, 0f, 2.2f),
+            AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbVehicleSmokeGrenade),
+        };
+
         private static WeaponMount Coax(System.Numerics.Vector3 muzzle) => new()
         {
             WeaponType = "7.62mm_coax", Ammunition = 2000, Range = 900, RateOfFire = 600, Penetration = 8, DamagePerHit = 30, DispersionMils = 3f,
@@ -122,7 +137,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// as mount 0. DIS type the rifleman's (3.1.country.1) — the role rides <c>TacticalDesignation</c>, never the type. ⭐ <c>CE-3254</c>:
         /// the sniper and the marksmen are the same man with a scoped rifle.</summary>
         private static void MachineGunner(NedTkbBuilder builder, long type, string name, WeaponMount lmg, ushort country, byte faction,
-                                          WeaponMount? second = null)
+                                          WeaponMount? second = null, float thermalRange = 0f, float thermalMin = 0f)
         {
             builder
                 .DefineVehicle(type, name)
@@ -132,7 +147,8 @@ namespace Hrot.Map.Definitions.Tkb
                     p.Mass = 100; p.Length = 0.6f; p.Width = 0.4f; p.Height = 1.75f;
                     p.MaxSpeed = PersonRunSpeed; p.Acceleration = PersonAcceleration; p.TurnRate = 90.0f; p.Mobility = TerrainMobility.Infantry; p.AvoidanceRadius = Fdp.Toolkit.Tkb.Domain.VehicleParametersDto.CloseOrderAvoidanceRadius;   // ⭐ R-2065
                 })
-                .WithCombat(type, c => { c.ArmorFront = 5; c.Weapons.Add(lmg); if (second is { } w2) c.Weapons.Add(w2); c.SensorRange = 500; })
+                .WithCombat(type, c => { c.ArmorFront = 5; c.Weapons.Add(lmg); if (second is { } w2) c.Weapons.Add(w2); c.SensorRange = 500;
+                                         c.ThermalRange = thermalRange; c.ThermalMinContrastK = thermalMin; })   // ⭐ CE-4658 — a hand-held thermal sight (0 = none)
                 .WithFaction(type, faction)
                 .WithInjury(type, new Fdp.Toolkit.Tkb.Domain.InjuryDefDto())
                 .WithCarrier(type, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PersonCarrier())
@@ -414,6 +430,8 @@ namespace Hrot.Map.Definitions.Tkb
         private const float RotorRange         = 3000f;   // below the ~5 km detector figure for heavy military helicopters
         private const float JetRange           = 15000f;  // the low end of a jet's 15–25 km (⚠ a non-authoritative guide)
         private const float BombBurstRange     = 10000f;  // a 1 000 kg bomb heard ~10 km (⚠ news reports)
+        /// <summary>⭐ CE-3486 — a flame tank's ROAR (heard once a second while it burns, SoundEmissionSystem); ⚠ one class per type: its coax reads as it.</summary>
+        private static readonly Report FlameRoarReport = new(Hrot.Core.Tkb.UrbanCombatTkbCatalog.FlameRoarRange * 1.5f, SoundSourceClass.Flame);
         private static readonly Report TankGunReport = new(12000f, SoundSourceClass.HeavyWeapon, Burst: 12000f, Family: SoundFamily.Gun);   // 120 / 125 mm: ≥ the 1B19 floor for guns ≤ 90 mm (12 km)
 
         /// <summary>⭐ CE-3281 — a type's sounds: its movement, and its loudest weapon's report and burst (one figure each, §8.4) — the urban
@@ -856,6 +874,55 @@ namespace Hrot.Map.Definitions.Tkb
         /// <para>🛡 Heavier than the dozer (58 t against 49 t): 70 mm front, 50 sides and rear, 40 roof, health 1500; blast susceptibility 0.1 so a mine's burst under the hull stays survivable (the AT mine's 250 damage ×
         /// 6 hits, not 1). Starter numbers — the engine decides nothing by them but the "heavier than the dozer" order and the armour law.</para>
         /// </summary>
+        /// <summary>⭐ CE-3486 (flame FL-2, F-6/F-11) — the M67 FLAME TANK: an M48 hull and turret whose gun is a FLAMETHROWER (mount 0, its fuel as rounds:
+        /// 10 a second, ~60 s of flame), the coax kept for what the flame may not reach (or the ROE forbids — the weapon choice then takes it), and
+        /// the smoke dischargers. Armour of the M48 (a heavy hull never catches fire from a flame: side ≥ ArmorModel.SoftSkinArmourMm).</summary>
+        private static void DefineFlameTank(NedTkbBuilder builder)
+        {
+            const long type = TkbEntityTypes.Tank_FlameM67;
+            builder
+                .DefineVehicle(type, "M67 flame tank")
+                .WithVisual(type, v =>
+                {
+                    v.SymbolCode = "SFGPUCIZ-------";
+                    v.ColorHex = "#4A5A2E";
+                    v.Scale = 1.1f;
+                    v.ShowLabel = true;
+                })
+                .WithPhysics(type, p =>
+                {
+                    p.Mass = 48_000;
+                    p.Length = 6.9f;
+                    p.Width = 3.6f;
+                    p.Height = 3.1f;
+                    p.MaxSpeed = 13.0f; p.MaxSpeedRev = 6.0f; p.Acceleration = 1.8f; p.TurnRate = 18f;
+                    p.Mobility = TerrainMobility.Tracked;
+                })
+                .WithCombat(type, c =>
+                {
+                    c.ArmorFront = 120; c.ArmorSide = 76; c.ArmorRear = 50; c.ArmorTop = 40; c.ArmorBottom = 25;
+                    c.MaxHealth = 2000;
+                    c.BlastSusceptibility = 0.05f;
+                    c.EyeHeight = 2.6f;
+                    c.Weapons.Add(new WeaponMount
+                    {
+                        WeaponType = "M7-6_flamethrower", Category = WeaponCategory.Flamethrower, TurretIndex = 0,
+                        Ammunition = 600, MagazineSize = 600, RateOfFire = 600, Range = Hrot.Core.Tkb.MunitionTkbCatalog.TankFlameReachM, MuzzleVelocity = 40f,
+                        MuzzleOffset = new System.Numerics.Vector3(2.4f, 0f, 0f),
+                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel),
+                    });
+                    c.Weapons.Add(Coax(new System.Numerics.Vector3(1.0f, 0.5f, 0.1f)));
+                    c.Weapons.Add(SmokeDischargers(tubes: 8, salvos: 2));
+                    c.SensorRange = 2000;
+                })
+                .WithTurrets(type, new TurretDto { PivotX = -0.3f, PivotZ = 2.0f, TrunnionX = 1.2f,
+                    ElevationMinDeg = -9f, ElevationMaxDeg = 20f, TraverseRateDegPerSec = 24f, ElevationRateDegPerSec = 8f })
+                .WithFaction(type, 1)
+                .WithBehavior(type)
+                .WithSignatures(type, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, FlameRoarReport))
+                .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 1, Subcategory = 20 });
+        }
+
         private static void DefineMineClearer(NedTkbBuilder builder)
         {
             const long type = TkbEntityTypes.Engineer_MineClearer;
@@ -950,6 +1017,7 @@ namespace Hrot.Map.Definitions.Tkb
                         Loadout = TankLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb120mmApfsds, 20, 10, 12),
                     });
                     c.Weapons.Add(Coax(new System.Numerics.Vector3(1.0f, 0.5f, 0.1f)));   // ⭐ M5 — the coaxial M240
+                    c.Weapons.Add(SmokeDischargers(tubes: 12, salvos: 2));   // ⭐ CE-4670 (VA-S5) — the two M250 banks, fired together
                     c.SensorRange = 8000;
                     // ⛔ CE-2349 — NO thermal sight here yet (WITHDRAWN `2026-10-22`): carried, it changed ua-hill-attack (A/B: 4 tanks on the
                     //   slope at once vs 2 without) while seeing nothing — no template has a heat signature. Re-add with the signatures slice.
@@ -1006,6 +1074,7 @@ namespace Hrot.Map.Definitions.Tkb
                         AimSeconds = 1.5f,   // ⭐ M5 (§5) — the gunner's lay before the launch; the TOW then flies command-guided (MissileDto)
                         Category = WeaponCategory.Atgm, TurretIndex = 0,
                         MuzzleOffset = new System.Numerics.Vector3(0.4f, 1.0f, 0.35f) });   // ⭐ E4 — the launcher on the turret's left
+                    c.Weapons.Add(SmokeDischargers(tubes: 8, salvos: 2));   // ⭐ CE-4670 (VA-S5) — the two M257 banks
                     c.SensorRange = 5000;
                     // ⛔ CE-2349 — NO thermal sight here yet (WITHDRAWN `2026-10-22`): carried, it changed ua-hill-attack (A/B: 4 tanks on the
                     //   slope at once vs 2 without) while seeing nothing — no template has a heat signature. Re-add with the signatures slice.
@@ -1063,6 +1132,8 @@ namespace Hrot.Map.Definitions.Tkb
                     c.MaxHealth = 2500;
                     c.BlastSusceptibility = 0f;   // ⭐ R-2019 D-M2 (AE3) — an MBT
                     c.EyeHeight = 2.2f;   // ⭐ M5
+                    // ⭐ CE-4670 (VA-S1) — the autoloader's carousel sits in the HULL under the turret: a hull or turret kill sets the ammunition off (the turret thrown)
+                    c.AmmoStowage = new[] { (int)Fdp.Toolkit.Physics.BodyParts.VehiclePart.Hull, (int)Fdp.Toolkit.Physics.BodyParts.VehiclePart.Turret };
                     c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8, Penetration = 600, DamagePerHit = 1100,
                         AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds),   // ⭐ LR-1
                         Category = WeaponCategory.TankGun, TurretIndex = 0,   // ⭐ WL-1
@@ -1071,6 +1142,7 @@ namespace Hrot.Map.Definitions.Tkb
                         MuzzleOffset = new System.Numerics.Vector3(6.0f, 0f, 0f),   // ⭐ E4 — the 125 mm L/48 barrel
                         Loadout = TankLoadout(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb125mmApfsds, 18, 9, 12) });   // ⭐ M5 — the 39 as a loadout
                     c.Weapons.Add(Coax(new System.Numerics.Vector3(1.0f, 0.5f, 0.1f)));   // ⭐ M5 — the coaxial PKT (7.62 × 51 stands in)
+                    c.Weapons.Add(SmokeDischargers(tubes: 8, salvos: 1));   // ⭐ CE-4670 (VA-S5) — the 902 Tucha bank
                     c.SensorRange = 6000;
                 })
                 .WithTurrets(TkbEntityTypes.Tank_T72, new TurretDto { PivotX = -0.3f, PivotZ = 1.75f, TrunnionX = 1.2f,
@@ -1146,6 +1218,8 @@ namespace Hrot.Map.Definitions.Tkb
             // ⭐⭐ CE-4649 part D (AN-21g) — the HUNTER: the 12-gauge ONLY (the weapon choice prefers a rifle when both are carried, 📌 measured in part C) and a STANDING hunting rule: animals of the listed species, never people
             //   (Gen.HuntingRules — read through Animals.MayEngage by the weapon brain's target choice; a dog is never listed).
             MachineGunner(builder, TkbEntityTypes.Infantry_Hunter, "Hunter (12-gauge)", AntiDroneShotgun(), UnitedStates, faction: 1);
+            // ⭐ CE-4658 (thermal drivers TD-S2) — the thermal observer: a rifleman with a hand-held thermal sight (th-idling-tank's observer)
+            MachineGunner(builder, TkbEntityTypes.Infantry_ThermalObserver, "Observer (thermal sight)", M4Carbine(), UnitedStates, faction: 1, thermalRange: 1500f, thermalMin: 4f);   // ⭐ CE-1987 (R-1058) — 4 K of contrast (was a 0.3 signature)
             {   // his standing orders are the hunter's own SOP (the soldier's reaction takes cover in the open and never fires at game)
                 var hunter = tkbDb.GetByType(TkbEntityTypes.Infantry_Hunter)!;
                 hunter.AddDescriptor(hunter.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BehaviorProfileDto>()! with { DefaultSop = Hrot.Map.Definitions.Behavior.BehaviorNames.HunterSop });
@@ -1410,24 +1484,29 @@ namespace Hrot.Map.Definitions.Tkb
             DefineBomberDrone(builder);  // ⭐ CE-7027
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
             DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
+            DefineAttackHelicopter(builder, TkbEntityTypes.Heli_AH64Flame, "AH-64 (flame)", FlameChin(), specific: 1);   // ⭐ CE-3490 BA-9 — the same airframe
             // ⭐⭐ CE-3281 (Sensing §8.6) — the aircraft are HEARD: rotors 3 km, jets 15 km (⚠ a fixed-wing engine is class Rotor — "an aircraft
             //   overhead", the 3-bit class is full); the AH-64's Hydra-70 as the ATGM's report; the A-10's GAU-8 as the catalogue's autocannon,
             //   its burst a Mk-82's (the larger of its two).
             builder.WithSignatures(TkbEntityTypes.Heli_UH60, Heard(RotorRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Heli_UH60_DoorsOff, Heard(RotorRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Heli_AH64, Heard(RotorRange, SoundSourceClass.Rotor, AtgmReport))
+                   .WithSignatures(TkbEntityTypes.Heli_AH64Flame, Heard(RotorRange, SoundSourceClass.Rotor, AtgmReport))   // ⭐ CE-3490 BA-9 — the same airframe and pod
                    .WithSignatures(TkbEntityTypes.Jet_F16, Heard(JetRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Jet_MiG29, Heard(JetRange, SoundSourceClass.Rotor))   // ⭐ CE-10000 (AC-7)
                    .WithSignatures(TkbEntityTypes.Cargo_C130, Heard(JetRange, SoundSourceClass.Rotor))
-                   .WithSignatures(TkbEntityTypes.Jet_AttackA10, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }));
+                   .WithSignatures(TkbEntityTypes.Jet_AttackA10, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }))
+                   .WithSignatures(TkbEntityTypes.Jet_AttackA10Napalm, Heard(JetRange, SoundSourceClass.Rotor, CannonReport with { Burst = BombBurstRange }));   // ⭐ CE-3487 — the same airframe
             // ⭐ CE-4617 (RS-2; DESIGN_Radar_SAM, a lane decision) — what a radar sees of each aircraft (m²; a radar's range is stated against
             //   10 m² and scales as RCS^¼): open-source orders of magnitude, frontal. ⇒ an 8 km radar sees a UH-60 at ~6.4 km, an FPV at ~1.4 km.
             builder.WithRadarCrossSection(TkbEntityTypes.Heli_UH60, 4f)
                    .WithRadarCrossSection(TkbEntityTypes.Heli_UH60_DoorsOff, 4f)
                    .WithRadarCrossSection(TkbEntityTypes.Heli_AH64, 3f)
+                   .WithRadarCrossSection(TkbEntityTypes.Heli_AH64Flame, 3f)   // ⭐ CE-3490 BA-9
                    .WithRadarCrossSection(TkbEntityTypes.Jet_F16, 3f)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_MiG29, 4f)   // ⭐ CE-10000 (AC-7, §5a)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_AttackA10, 10f)
+                   .WithRadarCrossSection(TkbEntityTypes.Jet_AttackA10Napalm, 10f)   // ⭐ CE-3487
                    .WithRadarCrossSection(TkbEntityTypes.Cargo_C130, 40f)
                    .WithRadarCrossSection(TkbEntityTypes.Drone_Fpv, 0.01f)
                    .WithRadarCrossSection(TkbEntityTypes.Drone_Recon, 0.05f)
@@ -1438,6 +1517,7 @@ namespace Hrot.Map.Definitions.Tkb
             DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
             DefineBulldozer(builder);               // ⭐ CE-6006 — the engineering dozer
             DefineMineClearer(builder);             // ⭐ CE-4624 (MS-T4, MF-9) — the mine-clearing vehicle: plough / flail / line charge
+            DefineFlameTank(builder);               // ⭐ CE-3486 (flame FL-2) — the M67 flame tank
 
             // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
             //   a Strike to it resolves to ArtilleryUnitStrike (the behaviour lane's battery play). Three M109s, placed by hand (no auto spawn).
@@ -1582,6 +1662,9 @@ namespace Hrot.Map.Definitions.Tkb
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Barrel,        TkbEntityTypes.Obstacle_Barrel,        feature, maxHealth: 50f);
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.JerseyBarrier, TkbEntityTypes.Obstacle_JerseyBarrier, feature, maxHealth: 400f);
             RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.GuardBooth,    TkbEntityTypes.Obstacle_GuardBooth,    feature, maxHealth: 120f);
+            // ⭐ CE-3473 — the FILLED drums (the empty one is 8820): ~200 kg of water / ~350 kg of sand absorb a blast better than an empty shell. ⚠ Starter values.
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.BarrelWater,   TkbEntityTypes.Obstacle_BarrelWater,   feature, maxHealth: 150f);
+            RegisterObstacle(tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.BarrelSand,    TkbEntityTypes.Obstacle_BarrelSand,    feature, maxHealth: 250f);
             // ⭐ CE-6005 (city battle O-2, Peek and Fire §9.10) — the WRECK of a heavy vehicle: a box of car-body (sight 0) sized per instance from
             //   the hulk, as tough as a concrete block (the 8 kg charge or a blade clears it); and the heavy types that leave one (tanks, the IFV —
             //   a light car stays as it is). A host whose smaller catalogue lacks a type skips it.
@@ -1718,9 +1801,16 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         private static void DefineAttackPlane(NedTkbBuilder builder)
         {
-            const long type = TkbEntityTypes.Jet_AttackA10;
-            DefineAircraft(builder, type, "A-10C Thunderbolt II", "SFAPMFA-------", "#7A8076",
-                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 2 },
+            DefineAttackPlane(builder, TkbEntityTypes.Jet_AttackA10, "A-10C Thunderbolt II", "Mk-82 rack", Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb, 1200f, 0);
+            // ⭐ CE-3487 (flame FL-3, N-8) — the same aircraft with a Mk 77 FIREBOMB rack (napalm): one definition, the rack its only difference
+            DefineAttackPlane(builder, TkbEntityTypes.Jet_AttackA10Napalm, "A-10C (napalm)", "Mk-77 rack", Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk77Firebomb, 0f, 1);
+        }
+
+        /// <summary>The A-10 with its bomb rack of <paramref name="bomb"/> (<paramref name="disSpecific"/> tells the variants apart).</summary>
+        private static void DefineAttackPlane(NedTkbBuilder builder, long type, string name, string rack, int bomb, float bombDamage, byte disSpecific)
+        {
+            DefineAircraft(builder, type, name, "SFAPMFA-------", "#7A8076",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 2, Specific = disSpecific },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
                 {
                     ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
@@ -1747,8 +1837,8 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 25; c.ArmorSide = 25; c.ArmorRear = 10; c.ArmorTop = 10;
                     c.EyeHeight = 1f;
                     c.SensorRange = 5000;
-                    c.Weapons.Add(new WeaponMount { WeaponType = "Mk-82 rack", Ammunition = 4, Range = 3000f, DamagePerHit = 1200,
-                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbMk82Bomb), Category = WeaponCategory.Bomb });
+                    c.Weapons.Add(new WeaponMount { WeaponType = rack, Ammunition = 4, Range = 3000f, DamagePerHit = bombDamage,
+                        AmmoTkb = (Fdp.Core.TkbTypeId)bomb, Category = WeaponCategory.Bomb });
                     // ⭐ Air Ops slice 6a (AW-1, AW-2; §7a) — the GAU-8: FIXED forward in the nose (its arc is a 5° cone round the body's
                     //   forward, so the gun run points the plane), 1150 rounds, ~3900 rounds/min; HEI loaded, the penetrator for armour
                     //   (AmmoChoice, M8). Every round's numbers are the library's (MunitionTkbCatalog); dispersion 5 mils (80 % in ~5 mil).
@@ -1780,10 +1870,32 @@ namespace Hrot.Map.Definitions.Tkb
         /// the crew is the type itself (no seats). A brain (its behaviours are the behaviour lane's, slice 6). Friendly.
         /// </summary>
         private static void DefineAttackHelicopter(NedTkbBuilder builder)
+            => DefineAttackHelicopter(builder, TkbEntityTypes.Heli_AH64, "AH-64 Apache (attack helicopter)", new WeaponMount
+            {
+                WeaponType = "7.62mm_M134_chin", Ammunition = 4000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
+                DispersionMils = 6f, MagazineSize = 4000, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+                AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer), TracerEvery = 5,
+                MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
+            }, specific: 0);
+
+        /// <summary>⭐⭐ <c>CE-3490</c> BA-9 — the flame helicopter's chin weapon: a flame projector on the chin turret throwing the flame TANK's fuel
+        /// (<see cref="Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel"/>, 60 m, 5°) — a pump-fed projector like the tank's, not a man's backpack; 600 shots
+        /// at 10 a second (a minute of flame), from the nozzle 0.8 m past the turret.</summary>
+        private static WeaponMount FlameChin() => new()
         {
-            const long type = TkbEntityTypes.Heli_AH64;
-            DefineAircraft(builder, type, "AH-64 Apache (attack helicopter)", "SFAPMHA-------", "#56604F",
-                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 20 },
+            WeaponType = "chin flame projector", Category = WeaponCategory.Flamethrower, TurretIndex = 0,
+            Ammunition = 600, MagazineSize = 600, RateOfFire = 600, Range = Hrot.Core.Tkb.MunitionTkbCatalog.TankFlameReachM, MuzzleVelocity = 40f,
+            FireOnMove = true,
+            MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
+            AmmoTkb = (Fdp.Core.TkbTypeId)Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel,
+        };
+
+        /// <summary>The AH-64 airframe with <paramref name="chin"/> on its chin turret (mount 0) — ⭐ CE-3490 BA-9: shared by the gun ship (406) and the
+        /// flame helicopter (412, DIS specific 1), so the two cannot differ in anything but the chin weapon.</summary>
+        private static void DefineAttackHelicopter(NedTkbBuilder builder, long type, string name, WeaponMount chin, byte specific)
+        {
+            DefineAircraft(builder, type, name, "SFAPMHA-------", "#56604F",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 20, Specific = specific },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
                 {
                     ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
@@ -1817,13 +1929,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 20; c.ArmorSide = 15; c.ArmorRear = 8; c.ArmorTop = 8;
                     c.EyeHeight = 1f;
                     c.SensorRange = 6000;
-                    c.Weapons.Add(new WeaponMount
-                    {
-                        WeaponType = "7.62mm_M134_chin", Ammunition = 4000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
-                        DispersionMils = 6f, MagazineSize = 4000, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
-                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer), TracerEvery = 5,
-                        MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
-                    });
+                    c.Weapons.Add(chin);
                     c.Weapons.Add(new WeaponMount
                     {
                         WeaponType = "Hydra-70 pod", Ammunition = 38, Range = 4000f, RateOfFire = 300, DispersionMils = 10f,

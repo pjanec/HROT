@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Threading;
 using CarKinem.Road;
 using Fdp.Core;
+using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Terrain;
 using Hrot.Map.Common.Services;
@@ -146,6 +147,61 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(expansions, live.Expansions);
             Assert.True(live.CacheHits > hits, "the cached expansion was used");
             Assert.Single(sys.LastDirty!);   // the car's box only: the parts are unchanged
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-5028</c> BE-2 (📄 docs/DESIGN_Terrain_Base_Edits.md D-4; closes Authoring G-3) — the terrain's entities follow each live commit: a block's six huts each
+        /// gain their door entity (asked for ONCE, though two bakes commit before the creation system runs); then an <c>Edit</c> that REMOVES the base house takes its door
+        /// entity and its damage entity in the SAME commit, and the other doors stay. 🔴 Red-proof: drop the <c>Reconcile</c> call in <c>CommitObstacles</c> ⇒ no request, the
+        /// removed house's door and damage stay.
+        /// </summary>
+        [Fact]
+        public void CE5028_AddedHousesGainTheirDoors_ARemovedHouseTakesItsDoorAndDamage()
+        {
+            var sys = Editor();
+            var w0 = _world.GetSingletonManaged<TerrainWorld>()!;
+            var baseDoor = Assert.Single(w0.Doors);
+            Entity Door(string key, Vector3 at)
+            {
+                var d = _world.CreateEntity();
+                _world.AddComponent(d, new DoorState { State = TerrainDoorState.Closed });
+                _world.SetManagedComponent(d, new TerrainObjectKey { Key = key });
+                _world.AddComponent(d, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+                return d;
+            }
+            var bDoor = Door(baseDoor.Key, new Vector3(baseDoor.Center, baseDoor.SillZ));   // the load step made it
+            int b = Array.FindIndex(w0.Buildings.ToArray(), x => x.Label == "B");
+            var damage = _world.CreateEntity();
+            var bd = new BuildingDamage { Building = b };
+            BuildingDamages.Add(ref bd, new WallBreach(BuildingPanelIndex.ToGlobal(w0, b, 1), 3f, 5f, 0f, 2.2f, BreachKind.Passage), w0);
+            _world.AddComponent(damage, bd);
+            _world.SetManagedComponent(damage, new TerrainObjectKey { Key = BuildingDamages.KeyOf(w0, b) });
+
+            Block(250f, 250f, Guid.Parse("aaaaaaaa-0000-4000-8000-000000000001"));
+            RunUntilBaked(sys, 1);
+            var w1 = _world.GetSingletonManaged<TerrainWorld>()!;
+            Assert.Equal(7, w1.Doors.Count);                                       // the base house's + six huts'
+            _world.Bus.SwapBuffers();
+            var asked = _world.Bus.ReadManaged<EntityCreationRequest>().ToList();
+            Assert.Equal(6, asked.Count);                                         // G-3: each hut's door, the base door not again
+            Assert.All(asked, r => Assert.StartsWith("base-t/aaaaaaaa-", r.InitialComponents!.OfType<TerrainObjectKey>().Single().Key, StringComparison.Ordinal));
+            Car(60f);                                                             // a second bake before any of them is made: not asked again
+            RunUntilBaked(sys, 2);
+            _world.Bus.SwapBuffers();
+            Assert.Empty(_world.Bus.ReadManaged<EntityCreationRequest>());
+            foreach (var r in asked) Door(r.InitialComponents!.OfType<TerrainObjectKey>().Single().Key, Vector3.Zero);
+
+            var edit = _world.CreateEntity();                                    // remove the base house B
+            _world.AddComponent(edit, new SimTransform { Position = new Vector3(105f, 104f, 0f), Rotation = Quaternion.Identity });
+            _world.AddComponent(edit, new TerrainFeature { Kind = TerrainFeature.Edit, Template = new FixedString32("remove"), Target = new FixedString64("B") });
+            _world.AddComponent(edit, new EntityGuid(Guid.Parse("eeeeeeee-0000-4000-8000-000000000003")));
+            RunUntilBaked(sys, 3);
+            var w3 = _world.GetSingletonManaged<TerrainWorld>()!;
+            Assert.DoesNotContain(w3.Buildings, x => x.Label == "B");
+            Assert.False(_world.IsAlive(bDoor));                                   // its door went with it
+            Assert.False(_world.IsAlive(damage));                                  // and its damage
+            int doors = 0; foreach (var _ in _world.Query().With<DoorState>().Build()) doors++;
+            Assert.Equal(6, doors);                                               // the huts' doors stay
         }
 
         /// <summary>
@@ -393,6 +449,35 @@ namespace Hrot.SimHost.Tests
             for (int i = 0; i < 100; i++) plain.Execute(_world, 0.016f);
             long without = GC.GetAllocatedBytesForCurrentThread() - p0;
             Assert.True(withOverlay <= without, $"a steady frame with a live overlay allocated {withOverlay} B per 100 frames, the plain one {without} B");
+        }
+        /// <summary>
+        /// ⭐⭐ CE-5039 (docs/DESIGN_Cluster_Load_Phase.md §11.10d) — THE RUN WAITS FOR THE SCENARIO'S TERRAIN: the scenario load's readiness predicate (the one the run gate, the loading
+        /// screen and the HTTP load "done" all follow) stays false while the editor's live overlay holds a block the terrain has not baked, and turns true on the bake's commit. A world with
+        /// no blocks, and a host with no live overlay (every host but the editor), resolve at once — those loads are not delayed. 🔴 Red-proof: drop condition ⑤ from
+        /// <c>ScenarioLoadStep.IsResolved</c> ⇒ the first assertion (resolved before the bake) fails.
+        /// </summary>
+        [Fact]
+        public void CE5039_TheLoad_WaitsForTheLiveOverlaysFirstBake_AndANoOverlayLoadDoesNot()
+        {
+            var step = ScenarioLoadStepTests.MakeStep(null, ScenarioLoadStepTests.NewBus());
+
+            // a scenario with no blocks, on the editor: not delayed
+            var sys = Editor();
+            _wall += 1.0; sys.Execute(_world, 0.016f);
+            Assert.True(step.IsResolved(_world), "a scenario with no terrain overlay must not wait");
+
+            // the scenario's block arrives: the load waits until its bake has committed
+            Block(250f, 250f);
+            sys.Execute(_world, 0.016f);
+            Assert.False(step.IsResolved(_world), "the load must wait while the scenario's terrain overlay is not baked yet");
+            RunUntilBaked(sys, 1);
+            Assert.True(step.IsResolved(_world), "the overlay's first bake has committed: the load is done");
+
+            // a host with no live overlay (a SimHost, the player): the block is inert data there, nothing to wait for
+            var plain = new StaticObstacleBakeSystem(() => _wall);
+            Block(300f, 300f, Guid.Parse("22222222-2222-4333-8444-555555555555"));
+            plain.Execute(_world, 0.016f);
+            Assert.True(step.IsResolved(_world), "a host without a live overlay must not wait for one");
         }
     }
 }

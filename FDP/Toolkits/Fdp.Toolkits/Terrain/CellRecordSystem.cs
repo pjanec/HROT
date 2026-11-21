@@ -39,15 +39,21 @@ namespace Fdp.Toolkit.Terrain
         public const int PendingTimeoutTicks = 3600;
 
         /// <summary>Items written into an entity (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of items written (Applied)")]
         public long Applied { get; private set; }
         /// <summary>Creation requests published.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of creation requests (Requested)")]
         public long Requested { get; private set; }
         /// <summary>How many cells are waiting on a creation request (rails).</summary>
         public int PendingCount => _pending.Count;
 
         private sealed class Pending { public int CellX, CellY, Age; public readonly List<TItem> Later = new(); }
+        [Fdp.Core.ProtocolCache("cells waiting on an entity-creation request, with items queued: request in flight (Pending)")]
         private readonly Dictionary<long, Pending> _pending = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("keys resolved this drain: cleared at the top of DrainPending")]
         private readonly List<long> _done = new();
+        [Fdp.Core.FrameScratch("items of this tick: cleared in Execute before ReadItems")]
         private readonly List<TItem> _items = new();
         private EntityQuery? _query;
         private EntityRepository? _queryRepo;
@@ -65,13 +71,22 @@ namespace Fdp.Toolkit.Terrain
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pending.Clear();   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the record entities asked for (the requests died with the world)
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<TRecord>()) return;
             if (_pending.Count > 0) DrainPending(repo);
             _items.Clear();
             ReadItems(repo, _items);
             for (int i = 0; i < _items.Count; i++) Apply(repo, _items[i]);
+            AfterApply(repo);
         }
+
+        /// <summary>⭐ CE-3487 — is <paramref name="e"/> one of THIS writer's records? (a component held by other entities too — <c>FireState</c> on a vehicle —
+        /// is a record only on the writer's own type). Default: every holder.</summary>
+        protected virtual bool IsRecord(EntityRepository repo, Entity e) => true;
+
+        /// <summary>⭐ CE-3487 — after this tick's items are written: the writer's own upkeep of the records it owns (a ground fire's spots that went out).</summary>
+        protected virtual void AfterApply(EntityRepository repo) { }
 
         private void Apply(EntityRepository repo, in TItem item)
         {
@@ -80,7 +95,7 @@ namespace Fdp.Toolkit.Terrain
             Entity space = Entity.Null;
             foreach (var e in Query(repo))
             {
-                if (!Owns(repo, e)) continue;
+                if (!Owns(repo, e) || !IsRecord(repo, e)) continue;
                 var d = repo.GetComponentRO<TRecord>(e);
                 if (d.CellX != cx || d.CellY != cy) continue;
                 for (int k = 0; k < d.ItemCount; k++) if (d.Item(k).Equals(item)) return;   // already here
@@ -121,7 +136,7 @@ namespace Fdp.Toolkit.Terrain
                 bool here = false;
                 foreach (var e in Query(repo))
                 {
-                    if (!Owns(repo, e)) continue;
+                    if (!Owns(repo, e) || !IsRecord(repo, e)) continue;
                     var d = repo.GetComponentRO<TRecord>(e);
                     if (d.CellX == p.CellX && d.CellY == p.CellY) { here = true; break; }
                 }

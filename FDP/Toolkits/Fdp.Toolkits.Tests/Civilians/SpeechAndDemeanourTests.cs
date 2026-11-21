@@ -1,6 +1,7 @@
 using System;
 using Fdp.Core;
 using Fdp.Toolkit.Civilians;
+using Fdp.Toolkit.Creatures;
 using Xunit;
 
 namespace Fdp.Toolkit.Tests.Civilians
@@ -55,10 +56,17 @@ namespace Fdp.Toolkit.Tests.Civilians
             Assert.Equal((byte)4, Demeanours.Quarter(1.3f));
 
             var man = _world.CreateEntity();
-            Assert.True(Demeanours.Set(_world, man, CivilianMode.Protest, 0.2f, 0.6f));
-            Assert.False(Demeanours.Set(_world, man, CivilianMode.Protest, 0.24f, 0.55f));   // the same quarters
-            Assert.True(Demeanours.Set(_world, man, CivilianMode.Protest, 0.4f, 0.55f));     // fear crossed a quarter
-            Assert.True(Demeanours.Set(_world, man, CivilianMode.Riot, 0.4f, 0.55f));        // the mode changed
+            Assert.True(Demeanours.SetMood(_world, man, CivilianMode.Protest, 0.2f, 0.6f));
+            Assert.False(Demeanours.SetMood(_world, man, CivilianMode.Protest, 0.24f, 0.55f));   // the same quarters
+            // ⭐ CE-4628 — and an unchanged write does not even touch the chunk version (the recorder's and the egress' change mark).
+            //   🔴 Red-proof: compare through GetComponentRW ⇒ the version moves ⇒ red.
+            _world.Tick();
+            Assert.True(_world.TryGetTable(typeof(Demeanour), out var moods));
+            uint version = moods.GetVersionForEntity(man.Index);
+            Assert.False(Demeanours.SetMood(_world, man, CivilianMode.Protest, 0.24f, 0.55f));
+            Assert.Equal(version, moods.GetVersionForEntity(man.Index));
+            Assert.True(Demeanours.SetMood(_world, man, CivilianMode.Protest, 0.4f, 0.55f));     // fear crossed a quarter
+            Assert.True(Demeanours.SetMood(_world, man, CivilianMode.Riot, 0.4f, 0.55f));        // the mode changed
             Assert.True(Demeanours.Of(_world, man, out var d));
             Assert.Equal((CivilianMode.Riot, (byte)2, (byte)2), (d.Mode, d.Fear, d.Anger));
         }

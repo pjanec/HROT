@@ -12,7 +12,7 @@ namespace Hrot.Presentation.Tests.Effects;
 /// <summary>
 /// ⭐ CE-1461 W-M7 (docs/DESIGN_Node_Features.md §10) — the effect system keeps the player's messages only while <c>hud.messages</c> is on (null gate = ungated, as every
 /// <c>hud.*</c>), once per <c>MessageId</c> + origin, and the declaration is ON for the Player and for every other host.
-/// Red-proof (compiles): drop the <c>RecordsMessages</c> test in <c>TrackMessages</c> ⇒ the feature-off rail fails.
+/// Red-proof (compiles): drop the <c>RecordsMessages</c> test in <c>HudFeedSystem.Execute</c> (CE-4671 LK-S1 moved the feed there) ⇒ the feature-off rail fails.
 /// </summary>
 public sealed partial class EffectTests
 {
@@ -24,7 +24,7 @@ public sealed partial class EffectTests
         for (int i = 0; i < sends; i++)
         {
             world.Bus.PublishManaged(new PlayerMessageEvent { MessageId = 5, OriginNodeId = Fdp.Core.NodeId.None, ToKind = "All", Text = "go", Seconds = 6f, SentAt = (SimInstant)10.0 });
-            Tick(world, new EffectSpawnSystem { FeatureGate = () => gate }, 0.016f);   // the same message offered again on a later frame
+            Tick(world, new HudFeedSystem { FeatureGate = () => gate }, 0.016f);   // the same message offered again on a later frame
         }
         return PlayerMessages.Of(world)?.Log(default).Count ?? 0;
     }

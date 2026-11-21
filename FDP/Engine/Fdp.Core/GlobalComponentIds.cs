@@ -27,13 +27,23 @@ namespace Fdp.Core
     /// <para>⭐ R-4276 (2026-11-16) — the EXPERIMENTAL aggregate lanes (`exp/agg-*`, CE-4616) take the free holes 281–289 and 324–329:
     /// the contract 281 AggregateUnit · 282 UnitSlotTable · 283 UnitHoldings · 284 FireAllocation (declared below); then agg-backend 285–289,
     /// agg-behaviors ⭐ 119, 138, 139 (MOVED 2026-11-16: terrain took 324–326 for MinefieldLanes / MineClearing / MineBreadcrumbs before agg-behaviors used any), agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
+    /// <para>⭐ CE-4628 (ui, 2026-11-19; docs/designs/animals/DESIGN_Animals.md §10a) — the shared creature components take <c>Group</c> 139 (⚠ the agg-behaviors note above listed 139 as reserved for it; no branch declares it — measured 2026-11-19) and <c>AnimalTasks</c> 163 (was <c>InFormationTag</c>'s).</para>
     /// <para>⭐ R-4282 (2026-11-16) — the `convoy` lane (CE-4631, the road convoy) takes 108, 109, 157, 158 (measured free on all eight branches).</para>
     /// <para>⭐ R-10000 (2026-11-17, the `air` lane, CE-10000; docs/designs/air-attack/DESIGN_Air_Combat.md §7) — the air block is 128, 160, 277, 278, 279:
     /// measured by a full scan of every [ComponentId], every *Ids constant (int / ushort / byte) and every literal on coordinator, behaviors, backend,
     /// ui, terrain, convoy and the three exp/agg-* branches — those five were the ONLY ids nobody declares or uses. ⚠ 277–279 sit under NavFakeIds'
     /// stale "262–279" note, but NavFakeIds declares only 262–269 and 270–276 have been the squad block's production components for months; the
-    /// space 0–511 is otherwise FULL (the next lane needs the mask widened — a performance decision, BitMask512 is one cache line).</para>
+    /// space 0–511 is otherwise FULL (the next lane needs the mask widened — a performance decision, BitMask512 is one cache line). ⚠ CE-4670 (`2026-11-18`): that "FULL" was an OVERCOUNT — the vehicle-appearance
+    /// design's re-measure (docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §3) found ≈ 112 production-free ids; 290 / 291 came from them. A test-only
+    /// struct may sit on a production-free id only while its suite never registers the production type (the registry is process-wide — RegistryAuditTests
+    /// moved 290 / 291 → 506 / 507). ⚠ (user, 2026-11-18) the space is NOT full — many ids are free; measure before claiming otherwise.</para>
     ///
+    /// <para>⭐⭐ CE-4628 follow-up (user, 2026-11-19: "all component ids ... written at one single place"): THIS is the ONE catalogue of production
+    /// component ids. The side classes (HrotComponentIds, NavigationContractsComponentIds, BehaviorApplicationComponentIds, GeographicComponentIds,
+    /// UtilityApplicationComponentIds, PerceptionApplicationComponentIds, ReplayComponentIds, ScenarioComponentIds, NavFakeIds) are ALIASES of constants here;
+    /// a production <c>[ComponentId(…)]</c> names a constant here — never a literal (test / benchmark / example structs exempt). Rail
+    /// <c>Fdp.Core.Tests.ComponentIdCatalogueTests</c> enforces it, forbids one id on two production components, and PRINTS the free ids
+    /// (<c>dotnet test FDP/Engine/Fdp.Core.Tests --filter ComponentIdCatalogueTests --logger "console;verbosity=detailed"</c>) — ⛔ never a hand count.</para>
     /// <para>
     /// When adding a new component, pick the next unused ID within the appropriate block,
     /// add a constant here, and decorate the struct with
@@ -264,7 +274,7 @@ namespace Fdp.Core
         public const int Faction                 = 71;
 
         /// <summary><c>PerceptionReceptor</c> â€” combined sensor range/FOV parameters (FDP.Toolkit.Perception).</summary>
-        public const int PerceptionReceptor      = 72;
+        public const int PerceptionReceptor      = 251;   // ⭐ CE-4628 follow-up: was 72 here while the struct registered 251 (a literal) — the catalogue was wrong; 251 is what recordings carry
 
         /// <summary><c>TargetMemory</c> â€” fixed-size threat table for perceived targets (FDP.Toolkit.Perception).</summary>
         public const int TargetMemory            = 73;
@@ -364,6 +374,14 @@ namespace Fdp.Core
 
         /// <summary><c>EffectAnchor</c> — ⭐ CE-1042 E2: the shooter and weapon a muzzle flash / tracer is attached to.</summary>
         public const int EffectAnchor            = 125;
+
+        /// <summary><c>EffectCause</c> — ⭐ CE-11010 (RR-10, R-11004): what an effect made from a HIT struck (surface, material, target, damage, ammo); recorded,
+        /// never saved. Id measured 2026-11-20: production-free on every lane, its only other use a test struct in Fdp.Core.Tests (never registers Hrot types).</summary>
+        public const int EffectCause             = 72;
+
+        /// <summary><c>CameraSuggestion</c> — ⭐ CE-11006 (RR-6, R-11000): the node's CURRENT suggested camera (a world singleton; node-local advice, never recorded,
+        /// replicated or saved). Id measured 2026-11-20: production-free on every lane, its only other use a test struct in Fdp.ModuleHost.Tests (never registers Hrot types).</summary>
+        public const int CameraSuggestion        = 86;
 
         /// <summary><c>RamOrder</c> — ⭐ CE-4622 K-2 (DESIGN_Checkpoint_And_Ramming.md RM-2, §5a): a hull's "I am ramming this" (the target, or a crowd): its
         /// avoidance skips the target, its breach gate lets it break a weak barrier. Unmanaged, recorded; Brain group, replicated (<c>dtRamOrder</c>, 196).
@@ -989,10 +1007,7 @@ namespace Fdp.Core
         /// non-lethal effects (stunned / irritated / knocked down until), Brain group beside Health, replicated as <c>dtEffectState</c> (142).</summary>
         public const int EffectState = 397;
 
-        /// <summary><c>Gesture</c> — ⭐ CE-3224 (civilians B-6, CV-13; docs/DESIGN_Civilians_And_Crowd_Control.md §7.7): what a person
-        /// is doing with his arms (hands up, fist raised, a sign…), written by his behaviour on the brain owner, replicated as
-        /// <c>dtGesture</c> (143).</summary>
-        public const int Gesture = 398;
+        // ⛔ 398 BURNED (CE-4628 §10c): the <c>Gesture</c> component (CE-3224) was folded into <c>Demeanour</c> (435) — its <c>Kind</c>; a stale recording skips it. Never reuse.
 
         /// <summary><c>CivilianState</c> — ⭐ CE-2235 (civilians CIV-1, CV-3; docs/DESIGN_Civilians_And_Crowd_Control.md §5d): a civilian's
         /// fear, anger, hidden attitude and current mode, BRAIN-LOCAL on the node that runs his <c>CivilianHsm</c> (never replicated, never
@@ -1148,7 +1163,7 @@ namespace Fdp.Core
         /// (NOTE_Backend_To_All_Lanes_Component_Id_Space.md), not the contested sequential top; measured free on every lane 2026-10-19.</summary>
         public const int Utterance = 434;
 
-        /// <summary>⭐ <c>CE-3265</c> (backend, G2) — <c>Demeanour</c>: a civilian's mode, fear and anger in quarters, Brain group, replicated as
+        /// <summary>⭐ <c>CE-3265</c> (backend, G2) — <c>Mood</c> (was <c>Demeanour</c>, CE-4628): a creature's mode, fear and anger in quarters, Brain group, replicated as
         /// <c>dtDemeanour</c> (153). §7.18. Backend's proposed block; measured free on every lane 2026-10-19.</summary>
         public const int Demeanour = 435;
 
@@ -1311,6 +1326,11 @@ namespace Fdp.Core
         /// runtime entity its deciding node owns; replicated as <c>dtBuildingDamage</c> (183). NoScenario here (saved through the <c>terrainObjects</c> section, S-4).
         /// ⚠ 485 measured free in backend, ui, behaviors and coordinator 2026-11-10 (the highest in use was 484).</summary>
         public const int BuildingDamage = 485;
+        /// <summary><c>WindowDamage</c> — ⭐ CE-5033 GW-2 (docs/DESIGN_Glass_Windows.md D-3): the damaged window panes of ONE building (hits, cracks, broken), on the same
+        /// runtime entity as its <c>BuildingDamage</c>; replicated as <c>dtWindowDamage</c> (245). NoScenario (saved through the <c>terrainObjects</c> section).
+        /// ⚠ was 487 on the terrain branch — COLLIDED with backend's <c>HeatSource</c> (487) at the coordinator merge 2026-11-18; MOVED to 310 there
+        /// (production-free on every lane; only <c>Fdp.Core.Tests</c>' <c>EntityQueryHotFirstTests</c> uses 310, an assembly that never loads this type).</summary>
+        public const int WindowDamage = 310;
 
         /// <summary><c>GroundDamage</c> — ⭐ CE-4591 (P-4, docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7, V-7): the craters ONE deciding node made in ONE ground cell, on a
         /// runtime entity that node owns; recorded, replicated (<c>dtGroundDamage</c>, 184). NoScenario (a save section carries the craters). ⚠ 490: the `terrain` lane's ids come from the free part of the
@@ -1325,6 +1345,18 @@ namespace Fdp.Core
         /// <summary><c>BladeCut</c> — ⭐ CE-4601 (B-4, docs/DESIGN_Vehicle_Breaching.md §7.6): a bulldozer's "my blade is cutting HERE" marker — set by its brain's
         /// <c>ClearObstacle</c> point order, read by the Muscle's <c>DozerCutSystem</c>. Brain group, replicated (<c>dtBladeCut</c>, 186). ⚠ 491 (terrain lane, top-down).</summary>
         public const int BladeCut = 491;
+
+        /// <summary><c>GroundHeatMarks</c> — ⭐ CE-4664 (thermal drivers TD-14, docs/designs/thermal/DESIGN_Thermal_Drivers.md §4b): the warm stands ONE moving node's vehicles left
+        /// in ONE ground cell (the crater record's shape), on a runtime entity that node owns; recorded, replicated (<c>dtGroundHeatMarks</c>, 242). NoScenario (a mark cools within
+        /// hours; never saved). ⚠ 493, fixed at dispatch (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md): free in production on every lane; the toolkit test struct
+        /// <c>KeyframeTestPos</c> moved 493 → 502 (Fdp.Core.Tests' <c>TwClock</c> keeps 493: that suite never registers this type).</summary>
+        public const int GroundHeatMarks = 493;
+
+        /// <summary>⭐ <c>CE-4657</c> (TD-3 / TD-6; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4) — <c>HeatSource</c> (an engine's or a body's state and its times; muscle group,
+        /// <c>dtHeatSource</c> 240) and <c>FireState</c> (up to 8 fire spots; brain group — the Health owner, <c>dtFireState</c> 241). ⚠ 487 / 488 fixed at dispatch
+        /// (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md): free in PRODUCTION on every lane; Fdp.Core.Tests (<c>Tiny2</c> / <c>Tiny3</c>) and Fdp.ModuleHost.Tests
+        /// (<c>RPos</c> / <c>RVel</c>) keep private test structs on them — those suites never register these types (the 489–491 precedent).</summary>
+        public const int HeatSource = 487, FireState = 488;
 
         /// <summary><c>TerrainBlock</c> — ⭐ O-4 (CE-4415, docs/DESIGN_Terrain_Authoring.md §18c): a placed block of terrain features (recipe, seed, heading, fit flags), one saved entity per block;
         /// the <c>OverlayCompiler</c> expands it at save. Unmanaged, authored, recorded and saved. ⚠ 494–495: the backend block (434–449) is full, so these are taken from the TOP of the coordinator / new-lane block (476–495), which allocates upward (highest in use 485, every lane, 2026-11-11) — NOTE_Backend_To_Coordinator_Component_Ids_494_495.md.</summary>
@@ -1360,6 +1392,12 @@ namespace Fdp.Core
         /// <c>dtMinefield</c> 191 · <c>dtMinefieldStrikes</c> 192 · <c>dtMinefieldKnowledge</c> 193. ⚠ 318 / 319 / 323: the terrain block's free ids, measured free on every lane 2026-11-16
         /// (500–511 are full: animals 500–507, test-local types 508–511). NOTE_Terrain_To_All_Minefield_Contract.md.</summary>
         public const int Minefield = 318, MinefieldStrikes = 319, MinefieldKnowledge = 323;
+        /// <summary>⭐ CE-2468 (DESIGN_Minefields.md §9b, R-2140) — <c>UnderFireKnowledge</c>: one side's knowledge of a place under fire (the second place-knowledge kind, TKB 7211,
+        /// <c>dtUnderFireKnowledge</c> 210). ⚠ 171: backend's block 434–449 is full; 171 measured free on every branch (the catalogue rail's FREE list + a grep), 2026-11-21.</summary>
+        public const int UnderFireKnowledge = 171;
+        /// <summary>⭐ CE-2468 — <c>UnderFireSightHolder</c>: the world's published under-fire sight (derived, snapshotted, never recorded) — so a background module's snapshot
+        /// sees it. 158 measured free on every branch and in every test (the catalogue rail's FREE list + a grep of ComponentId(158)), 2026-11-21.</summary>
+        public const int UnderFireSightHolder = 158;
 
         /// <summary>⭐ CE-4624 MS-T4 (DESIGN_Minefields.md MR-11, MR-15, MR-18) — <c>MinefieldLanes</c> (a runtime record of the lanes a deciding node CLEARED through one field;
         /// <c>dtMinefieldLanes</c> 194, TKB 7208) and <c>MineClearing</c> (a mine-clearer's "my plough / flail / line charge is working": Brain group, <c>dtMineClearing</c> 195 — the
@@ -1400,6 +1438,12 @@ namespace Fdp.Core
         /// <summary><c>AggregateChild</c> — a soldier / vehicle created by a stochastic unit's split: its unit, its slot, whether it is still HELD
         /// until the handover (SV-6). Node-local, recorded, NoScenario (a split's children are transient, SV-4) — ST-5, CE-8012.</summary>
         public const int AggregateChild = 288;
+        /// <summary>⭐ <c>CE-4670</c> (VA-S2, VA-4; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §4) — <c>VehicleOpenings</c>: per hatch / door / ramp of
+        /// the type (≤ 8) its state and <c>Since</c>, written by the boarding arbiter (the passenger list's owner, brain group), replicated (<c>dtVehicleOpenings</c> 243),
+        /// recorded, NoScenario. ⚠ Fixed at dispatch (HANDOFF_Coordinator_To_Backend_Vehicle_Appearance.md).</summary>
+        public const int VehicleOpenings = 290;
+        /// <summary>⭐ <c>CE-4670</c> (VA-S3, VA-3) — <c>VehicleLights</c> (reserved at dispatch; <c>dtVehicleLights</c> 244). ⏳ not built yet.</summary>
+        public const int VehicleLights = 291;
         // ⭐ CE-8300 (exp/agg-behaviors' own block 119, 138, 139 — §23.1; moved 2026-11-16) — measured free 2026-11-16.
         /// <summary><c>ResolutionPolicy</c> — the resolution manager's bands, timings and detail areas (§16b), an unmanaged World Environment
         /// component set by <c>SetResolutionPolicy</c>; saved with the scenario, recorded. ⭐ ST-5, R-8326.</summary>
@@ -1411,22 +1455,29 @@ namespace Fdp.Core
 
         // ⭐ CE-4623 (docs/designs/animals/DESIGN_Animals.md §6.1) — the animals' shared contract. ⚠ The backend block (434–449) is full; 500–505
         //   measured free on backend, behaviors, ui and coordinator 2026-11-16 (beyond every lane block).
-        /// <summary><c>Fear</c> — the ONE shared fear (civilians and animals), written by the one fear system (AR-3).</summary>
+        /// <summary><c>Fear</c> — the ONE shared fear (civilians and animals), written by the one fear system (AR-3). ⭐ CE-4628: namespace <c>Fdp.Toolkit.Creatures</c>, the union of the civilian's and the animal's fear fields; id kept.</summary>
         public const int Fear = 130;   // ⭐ CE-4623 AB-10 (2026-11-16): the animals' ids MOVED 500–507 → 130–137 — 500–511 is R-44's TEST-ONLY range (a test's own [ComponentId(503)] collided with HerdMember in one test process) and the terrain lane took 500 for PlacementGroup the same day; 130–137 measured free on backend, behaviors, ui and coordinator in every *ComponentIds*.cs and every literal ComponentId(n)
-        /// <summary><c>AnimalState</c> — an animal's mode and fear band, replicated (the presentation's pose and gait read it).</summary>
+        /// <summary><c>AnimalState</c> — an animal's mode and flags, replicated (the presentation's pose and gait read it). ⭐ CE-4628: species is read from the TKB, the fear band is <c>Mood</c>.</summary>
         public const int AnimalState = 131;
         /// <summary><c>FlockState</c> — a bird flock's count, seed and mode, replicated (drawn as N birds).</summary>
         public const int FlockState = 132;
-        /// <summary><c>HerdMember</c> — an animal's herd (AR-9).</summary>
-        public const int HerdMember = 133;
-        /// <summary><c>AnimalHome</c> — an animal's home: centre, radius, an optional tether (AN-5, AN-16).</summary>
-        public const int AnimalHome = 134;
-        /// <summary><c>HerdState</c> — a herd entity's centre, next grazing spot and lead animal (AR-9).</summary>
+        /// <summary><c>GroupMember</c> (was <c>HerdMember</c>, CE-4628) — the herd or crowd entity a creature belongs to (AR-9).</summary>
+        public const int GroupMember = 133;
+        /// <summary><c>Home</c> (was <c>AnimalHome</c>, CE-4628) — a creature's home: centre, radius, an optional tether (AN-5, AN-16).</summary>
+        public const int Home = 134;
+        /// <summary><c>HerdState</c> — a herd entity's next grazing spot, mode and species (AR-9); its centre / lead / count are <c>Group</c> (CE-4628).</summary>
         public const int HerdState = 135;
         /// <summary>⭐ AB-9 — <c>AnimalArea</c>: an animal area's species, count, seed, Enclosed (authored, saved). 506–507 measured free on every lane 2026-11-16.</summary>
         public const int AnimalArea = 136;
         /// <summary>⭐ AB-9 — <c>AnimalAreaPopulated</c>: the area was populated (recorded, never saved — a restore or replay never repopulates).</summary>
         public const int AnimalAreaPopulated = 137;
+
+        // ⭐ CE-4628 (docs/designs/animals/DESIGN_Animals.md §10a) — the components a civilian and an animal SHARE. Every reshaped component KEEPS its id
+        //   (Fear 130, GroupMember 133, Home 134, Mood 435, AnimalState 131, HerdState 135, CivilianState 399, Crowd 400); only these two are new.
+        /// <summary>⭐ CE-4628 — <c>Group</c>: the header every herd / crowd entity carries (kind, count, centre, lead). 139 measured free on every lane 2026-11-19 (the id space is near-full).</summary>
+        public const int Group = 139;
+        /// <summary>⭐ CE-4628 — <c>AnimalTasks</c>: an animal's intruder / handler / quarry, its bolt and its zone-look schedule (the non-fear fields that sat on the animals' <c>Fear</c>). 163 was <c>InFormationTag</c>'s (moved to navigation, id 70).</summary>
+        public const int AnimalTasks = 163;
 
         // ⭐ CE-10000 (R-10000, the `air` lane — docs/designs/air-attack/DESIGN_Air_Combat.md §4a, §7) — the air-combat contract. The five ids
         //   measured free on every lane branch 2026-11-17 (see the header). ⛔ Permanent: recorded and (three of them) on the wire.
@@ -1440,5 +1491,74 @@ namespace Fdp.Core
         public const int MissileDefenceState = 128;
         /// <summary><c>AirArena</c> — the show's stage, an authored entity (Brain group, <c>dtAirArena</c> 218).</summary>
         public const int AirArena = 160;
+
+        // ── ⭐ CE-4628 follow-up (terrain, user 2026-11-19: "all component ids ... written at one single place") ─────────────────────────
+        // Moved here from the side catalogues (HrotComponentIds, NavigationContractsComponentIds, BehaviorApplicationComponentIds, GeographicComponentIds,
+        // UtilityApplicationComponentIds, PerceptionApplicationComponentIds, ReplayComponentIds, ScenarioComponentIds — now aliases of these) and from the
+        // literal [ComponentId(n)] attributes. ⛔ NO value changed (recordings and the wire keep their ids). Rail: ComponentIdCatalogueTests.
+        // from BehaviorApplicationComponentIds
+        public const int BTreeTraceWorkingMemory = 146;
+        public const int HsmTraceWorkingMemory = 147;
+        public const int DebugState = 148;
+        public const int BehaviorStartRecord = 154;
+        public const int BehaviorOwnedPart = 155;
+        public const int BehaviorFaultLatch = 156;
+        // from GeographicComponentIds
+        public const int GroundClampingConfig = 77;
+        public const int TerrainClampBaseline = 78;
+        public const int TerrainQueryBatchData = 79;
+        // from HrotComponentIds
+        public const int EntityDamage = 161;
+        public const int ActiveMissionPlan = 162;
+        public const int RetiredPlayerHealthState = 165;
+        public const int ActivePerspective = 166;
+        public const int MapSymbolOverride = 167;
+        public const int RoutePlan = 168;
+        public const int PersonalRouteRef = 169;
+        public const int RouteTrajectoryCache = 170;
+        public const int InitialPassengersIntent = 177;
+        public const int InitialVehicleIntent = 178;
+        public const int InitialHierarchyIntent = 179;
+        public const int InitialRouteIntent = 180;
+        public const int InitialTargetsIntent = 181;
+        public const int GlobalDebugSettings = 185;
+        public const int CanvasContextMenuState = 186;
+        public const int InitialBlueprintsIntent = 187;
+        // from NavigationContractsComponentIds
+        public const int NavigationIntent = 67;
+        public const int NavigationStatus = 68;
+        public const int NavAgentProfile = 257;
+        public const int NavigationCorridorMuscle = 258;
+        public const int NavigationCorridorPreview = 259;
+        public const int NavigationPathDetailsBuffer = 260;
+        public const int CrowdAgent = 261;
+        public const int CrowdMotorIntent = 265;
+        // from PerceptionApplicationComponentIds
+        public const int SensorContactList = 172;
+        public const int ActiveSensorTracks = 173;
+        // from ReplayComponentIds
+        public const int EpisodeTag = 84;
+        public const int EpisodeReplayTag = 85;
+        // from ScenarioComponentIds
+        public const int ScenarioIgnoreTag = 200;
+        // from UtilityApplicationComponentIds
+        public const int UtilityDebugFlags = 149;
+        public const int UtilityTraceWorkingMemory = 150;
+        public const int UtilityResultBuffer = 151;
+        // from NavFakeIds (the fake navigation backend, Fdp.Toolkits Navigation/Fake)
+        public const int FakeNavmeshState = 262;
+        public const int FakeCrowdGlobalState = 263;
+        public const int FakeCrowdAgentState = 264;
+        public const int FakeBrainPathCacheEntry = 267;
+        public const int FakePathRegistryStats = 268;
+        public const int FakeVolumetricState = 269;
+        // from literal [ComponentId(n)] attributes
+        public const int Velocity = 230;   // Fdp.Toolkits Geographic
+        public const int MissionAdapterState = 129;   // Hrot.CGF
+        public const int BpComponentDemo = 188;   // Hrot.AI.Behaviors demo
+        public const int BpCollectionDemo = 189;   // Hrot.AI.Behaviors demo
+        public const int BpManagedCollectionDemo = 190;   // Hrot.AI.Behaviors demo
+        public const int BpFixedListDemo = 191;   // Hrot.AI.Behaviors demo
+        public const int BpGenListDemo = 192;   // Hrot.AI.Behaviors demo
     }
 }

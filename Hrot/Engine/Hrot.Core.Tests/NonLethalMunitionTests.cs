@@ -229,6 +229,40 @@ namespace Hrot.Map.Common.Tests
             Assert.True(clouds >= 3, $"tear-gas grenade, canister and smoke: {clouds}");
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4662</c> (thermal drivers TD-12) — the munition says whether its smoke blocks INFRARED and the cloud it leaves carries it: the
+        /// mortar smoke bombs (phosphorus screens) ⇒ 1, the hand smoke grenade (a signal smoke) and the tear gas ⇒ 0.
+        /// ✅ Red-proof: <c>AreaEffectSystem</c> not copying the flag ⇒ the 81 mm cloud says 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4662_TheCloudCarriesWhetherItsSmokeBlocksInfrared()
+        {
+            using var world = new EntityRepository();
+            world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+            world.RegisterComponent<SimTransform>();
+            world.RegisterEvent<DetonationNotification>();
+            world.RegisterEvent<DamageAssessedEvent>();
+            world.SetSingletonManaged<ITkbDatabase>(BuiltIn());
+
+            foreach (var (ammo, blocks) in new[]
+            {
+                ((long)MunitionTkbCatalog.Tkb60mmMortarSmoke, (byte)1),
+                ((long)MunitionTkbCatalog.Tkb81mmMortarSmoke, (byte)1),
+                ((long)MunitionTkbCatalog.Tkb120mmMortarSmoke, (byte)1),
+                ((long)MunitionTkbCatalog.TkbSmokeGrenade, (byte)0),
+                ((long)MunitionTkbCatalog.TkbTearGasGrenade, (byte)0),
+            })
+            {
+                world.Bus.Publish(new DetonationNotification { HitX = 0, HitY = 0, HitZ = 0.1f, Ammo = ammo });
+                world.Bus.SwapBuffers();
+                new AreaEffectSystem().Execute(world, 0.016f);
+                world.Bus.SwapBuffers();
+                var request = Assert.Single(world.Bus.ReadManaged<Fdp.Toolkit.NetworkSpawning.Events.EntityCreationRequest>().ToArray());
+                var cloud = Assert.Single(request.InitialComponents!.OfType<Fdp.Toolkit.Combat.AreaEffectCloud>());
+                Assert.True(blocks == cloud.BlocksInfrared, $"{ammo}: BlocksInfrared {cloud.BlocksInfrared}, expected {blocks}");
+            }
+        }
+
         [Fact]
         public void CE3219_EachCloudRound_AsksForItsCloud_AndHurtsNobodyOnTheSpot()
         {

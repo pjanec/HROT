@@ -26,6 +26,7 @@ namespace Fdp.Toolkit.Combat.Systems
         private EntityQuery? _query;
 
         /// <summary>Removals this node asked for (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of removals")]
         public long Removed { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -47,15 +48,8 @@ namespace Fdp.Toolkit.Combat.Systems
 
         private static void Remove(EntityRepository repo, ISimulationView view, Entity e)
         {
-            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
-                && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e)
-                && repo.Bus.IsRegisteredManaged<Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand>())
+            if (Fdp.Toolkit.NetworkSpawning.NetworkEntityDestroy.Request(repo, e, "Obstacle destroyed"))   // ⭐ CE-2468 UF-1 — the one network destroy
             {
-                repo.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
-                {
-                    NetworkId = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value,
-                    Reason    = "Obstacle destroyed",
-                });
                 // ⭐ marked TearDown at once, as the teardown's own first step does (NetworkSpawningSystem.ProcessDestroy): it leaves this system's
                 //   query (asked ONCE) and the obstacle bake's set (only Active / Constructing are terrain) from the next frame
                 view.GetCommandBuffer().SetLifecycleState(e, EntityLifecycle.TearDown);

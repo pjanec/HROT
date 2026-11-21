@@ -64,6 +64,7 @@ namespace Hrot.Network.NED.SimHost
                     SourceClass      = evt.SourceClass,
                     Family           = evt.Family,      // ⭐ CE-3283
                     Signature        = evt.Signature,
+                    Via              = evt.Via,         // ⭐ CE-4666 (D-8)
                 });
                 SentSampleCount++;
             }

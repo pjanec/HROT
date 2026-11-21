@@ -2,6 +2,7 @@
 state: LIVE
 build-state: BUILT (L-2, CE-4364) — baselines below; L-4 adds its findings to §5
 updated: 2026-11-10 (§7.8 N-2 budget kept, egress by translator, replica probe · §7.7 P-1 parallel EQS built, the worker sweep · §7.6 C-1 + G-1 built and re-measured · §7 many-core Windows measurements · §6 world-query timings, recording off by default — backend) · 2026-11-09 (backend — first version)
+stale-below: ⚠ every baseline dated before 2026-11-14 (§4, the scale-1 tables in §5, the §5.4 cost rows) was measured SERIAL — before the parallel programme merged (`e4af862f6`, 2026-11-14) — and as the ONE-SIDE march (`--sides 1`); history, not a comparison. ⭐ The current baseline is the 2026-11-19 two-side table in §5.4 (parallel simulation ON, threaded node off on these headless nodes)
 current-answer: §1 decisions · §3 how to run · §4 baselines · §5 findings (L-4) · §6 the world-query timings (CE-3427, the terrain's own cost) · ⭐ §7 on a physical many-core machine (2026-11-10, LATEST: the EQS cadence, the GC-bound bake, the frame split; §7.6 C-1 + G-1 built; §7.7 P-1 built)
 related-designs:
   - docs/designs/group-maneuvers/DESIGN_City_Battle_Showcase.md — the ~1 000-man city battle: the showcase scenario sized to this rig's budget (R-4192), measured with it
@@ -117,7 +118,7 @@ python3 scripts/scale-rig.py --terrain scale-1 --men 1000 --vehicles 50 --aircra
 HROT_SCALE_RIG=1 dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter Category=Scale
 ```
 
-## 4. Baselines *(Release, this cloud VM: 4 cores, 15 GB; orchestrator + cgf + simhost on the one VM; `--sides 1`; warm-up 20 s, measured 30 s sim; real-time factor 1.0 in every run)*
+## 4. Baselines — ⛔ HISTORY: serial, one side (before the 2026-11-14 parallel merge); the current baseline is §5.4's 2026-11-19 table *(Release, this cloud VM: 4 cores, 15 GB; orchestrator + cgf + simhost on the one VM; `--sides 1`; warm-up 20 s, measured 30 s sim; real-time factor 1.0 in every run)*
 
 | terrain | load | cgf work / garbage / peak | simhost work / garbage / peak | top cost (ms) | top garbage (B / frame) | movers moved |
 |---|---|---|---|---|---|---|
@@ -219,7 +220,19 @@ sequenceDiagram
 | 296 | 36.7 s | 28.7 ms · 240 KB | 19.2 ms · 146 KB | 1.62 GB | 11 / 12 |
 | 1 000 + 50 + 10 | **35.6 s** (was 70.1) | **69.7 ms · 0.49 MB** (was 89.0 · 4.23) | **31.7 ms · 0.28 MB** (was 45.4 · 1.55) | **1.99 GB** (was 3.08) ✅ | 4 / 12 ⚠ CE-3424 |
 
+⭐ **CE-3424 re-measured `2026-11-18` (terrain lane; the ONE-SIDE march, `--sides 1`, 1 000 men, Debug, 4 cores, real-time factor 1.0):** **5 / 12** and
+**4 / 12** sampled movers moved (two runs); a 40-man probe with `--keep`: **18 / 40** moved. ⛔ Paths are NOT the cause any more (`nav.PlanPath` 69–89 µs,
+~59 nodes and ~7 corridor polygons per plan — far under the 20 000-node cap and the 256-polygon corridor). 📐 Of the 22 stuck: **19 read
+`NavigationStatus.Result = Arrived` with `HasArrived = 1` after 2–3 m of progress toward a goal hundreds of metres away** (a SHORT path, then "arrived"),
+3 are Idle (one `FailedUnreachable`). ⇒ ⭐ the planner answered with the polygon NEAREST an unreachable goal — `DotRecastNavmeshProvider.PlanPath` drops its
+`complete` flag on purpose (*"a partial path is still returned — the agent goes as near as it can"*) — and the follower reports a partial path's end as
+ARRIVED. ⚠ Not yet measured: WHY the goal is unreachable for so many (the lean: a man spawned on a small navmesh ISLAND of scale-1's steep ground,
+heights 500–900 m — a stuck man's best reachable polygon lies ~3 m from his START, so HE is cut off, not the goal; the rig sets each squad's 8 men on a 2 m grid
+up to 6 m east / 2 m north of a random ROAD point (`scale-rig.py` `scenario()`), on the slope beside the road), and why the brain (CGF) holds intent 19 while the muscle (SimHost) still runs intent 15 (the re-orders do not reach it).
+
 ### 5.4 Still over budget — each a row with its numbers *(the biggest first)*
+
+⛔ **The rows directly below are 2026-11-10 (serial, one side) — history; the 2026-11-19 two-side table after them is the current baseline.**
 
 | cost at 1 000 men (cgf / simhost) | owner | row |
 |---|---|---|
@@ -227,6 +240,22 @@ sequenceDiagram
 | `BrainTickSystem` 14.6 ms (cgf) | behaviors (the brain) | CE-3425 |
 | `CycloneEgressSystem` 8.8 / 9.0 ms + `CycloneNetworkIngressSystem` 0.15 MB / frame | network egress (backend) | CE-3425 |
 | the warm load ≈ 36 s on a 4-core VM shared by three nodes (≈ 19.5 s alone) | measured on a 1-machine cluster; the budget is per node on its own machine | — |
+
+⭐ **Re-measured `2026-11-19` (backend, CE-3425 / CE-4395) — TWO SIDES FIGHTING** (`--sides 2`, the rig's default; the rows above are the one-side march, so not the same load), Release, 4 cores, recording off, load **33.0 s**:
+
+| | cgf work · garbage | simhost work · garbage | top costs |
+|---|---|---|---|
+| Debug, before | 869 ms · 4.1 MB | 1 069 ms · 2.7 MB | ⛔ **simhost `ConvoyLeadSystem` 683 ms** — every kinematic body carries a default Column `FormationController`, and the lead pass scanned every follower per lead (~1 M a frame); fixed `ba5bb322c` (one per-frame leader index, [DESIGN_Road_Convoy §6](designs/vehicle-tactics/DESIGN_Road_Convoy.md)) |
+| **Release, after** | **130.2 ms · 283 KB** | **59.8 ms · 1.86 MB** | cgf: `BrainTickSystem` 33.6, `WeaponDispatcherSystem` 15.6, `CycloneEgressSystem` 14.2 + 7.3, `StressSystem` 10.2 · simhost: [bg] `EqsSolverSystem` 160.9 ms / run and **1.69 MB / frame of garbage** (gc 86 / 37 / 19 in the window), [bg] `PathfindingSolverSystem` 26.7, `CycloneEgressSystem` 17.3 |
+| **Release, + the EQS sight once per tick** (`f1f4fc09b`) | **116.3 ms · 257 KB** | **52.3 ms · 402 KB** (EQS garbage 1.69 MB → 147 KB; its run 161 → 114 ms) | cgf: `BrainTickSystem` 29.9, `WeaponDispatcherSystem` 13.5, `CycloneEgressSystem` 12.0 + 6.2, `StressSystem` 10.2 · simhost: [bg] `EqsSolverSystem` 114 ms / run, `CycloneEgressSystem` 15.4 |
+
+⛔ **PARKED for Windows (`2026-11-19`, R-3113).** 🔒 User: *"please stop hunting the performance here in the virtual machine. It makes no sense. The measurements need to be done on Windows machine, so there is no point in doing it here."* ⭐ The last cloud trace's leads, for the Windows session (not acted on): ① the brain is half UTILITY SCORING — the same facts about a TARGET recomputed per observer per input (`Armament.ArmedByStatus` 7.9 %, `UnitSensors.OfTemplate` 11 %, `PartIndex.PartsOf` 9 %, `CombatTkb.TryGetTemplate` 5.7 % of `BrainTickSystem`) — a per-tick per-target memo is the candidate; ② CGF egress spends **4.2 ms / frame on `EqsSensorConfigTopic`** scanning every sensor — the visit gate built for it (`HROT_EQS_CONFIG_GATE=1`, POC 3 T-2: 75 % skipped, state equal at 1 / 4 / 8 threads) is still OFF by default, though R-4224 says every optimisation ON; it is not among `PerformanceSettings`' switches.
+
+⭐ **Fixed after it (`2026-11-19`):** the EQS sight (`EqsTerrainSight.Sight`) rebuilt every vehicle's cover box for EVERY batch of every sight test (a query, a list, a prism and a name per vehicle) — `CheapLineOfSightTest` + `ThreatExposureTest` ~385 KB / frame of the 1.69 MB; now one sight per thread per tick (same view, tick and world query ⇒ the same boxes). Rail `StaticObstacleTests.CE3425_TheSight_*` (red-proved).
+
+⭐ **CPU-traced the same day (Release, two sides, `HROT_QUERY_TIMINGS=0` — the timer on or off moved cgf only 116.3 → 116.7 ms, within the noise):** cgf spent **18.4 s of CPU in the 15 s window — ~1.2 cores** — while its frame took 116 ms: the frame is mostly WAITING for a core (three nodes and SimHost's background EQS on 4 cores), so these per-node wall times overstate a node on its own machine (the budget's basis). Where cgf's CPU goes: `BrainTickSystem` 18.7 % (~16 ms CPU a frame), `CycloneEgressSystem` 13.1 %, `WeaponDispatcherSystem` 6.1 %, `StressSystem` 4.7 %. Self time is spread — no lever above 5 %: `ParallelReadCheck.OtherUnmanagedRO` 4.8 % (the parallel phases' cross-entity read routing, not a debug check — from `Injury.StateOf`, `UnitSensors.OfTemplateCore`, `PartsOf`, `EvaluateCandidates`, `CombatTkb.TryGetTemplate`), `UnderFire.FriendNear` 4.3 % (already grid-based, CE-2410; asked per man per frame), `PartIndex.PartsOf` 2.9 %, dictionary lookups ~5 %, `NativeChunkTable.EnsureChunkAllocated` 3.5 % (its committed-chunk fast path, inlined in every `HasComponent` — not an allocation). ⚠ The first trace (timer on) put 11.6 % of self CPU in `QueryTimings.Begin` — the A/B above shows that is not frame time; do not chase it. Tooling fixed to get here: `perf-stress.py` `--trace` never traced on Linux (`node_pid` wanted a command line starting `dotnet `, and `DOTNET_ROOT` defaulted to a folder without a runtime) — both fixed, and dotnet-trace's own output now lands beside the trace.
+
+⚠ Measuring trap found on the way: `scripts/cluster-node.sh` killed by `pgrep -f 'ClusterRunner[.]dll'`, which also matched the CALLER (a `scale-rig.py --runner-dll …ClusterRunner.dll`, a shell holding that path) — the rig killed itself before the load. The patterns now match only a `dotnet … ClusterRunner.dll` command line.
 
 ## 6. ⭐ The world-query timings — the TERRAIN's cost apart from the logic's *(`CE-3427`, backend `2026-11-10`; build-state: BUILT)*
 
@@ -262,6 +291,8 @@ reading the code (§6 table).*
 | Q-2 | timed where ANSWERED (terrain, navmesh, EQS, cover, door scans), not where asked | one hook per query serves every asker; brain time stays out of it |
 | Q-3 | the rig runs with **recording OFF** (`/run-settings recordLiveRuns:false`, CE-4090) unless `--record` | the recorder (18.7 ms on cgf, §5.4) is not the terrain's; a live load without recording runs the same systems |
 | Q-4 | `--keep` leaves the nodes up after the report | to inspect what a measurement found (CE-3424's stuck movers) |
+
+✏ **CE-3440 (`terrain` lane, `2026-11-18`):** the switch (`QueryTimings.Enabled`) is PROCESS-WIDE and a thread's FIRST timed call registers its buffer (four arrays) — so a test that turns it on must run ALONE: `QueryTimingsCollection` is `DisableParallelization = true`. 📐 While it ran in parallel, a zero-allocation rail on another thread (`BuildingBreachTests.HotPath_ThroughABreachedWall_*`) counted that registration ⇒ red in 1 of 3 full runs. Rail `QueryTimingsTests.CE3440_*`.
 
 **Not timed, on purpose:** `GroundHeightAt` / `SurfaceZ` (called per entity per frame; the timer's two reads would cost a large share of
 the call). **Whole-terrain scans found by reading** (timed now, not yet measured at scale): `EnterableShelter` (every door per query —

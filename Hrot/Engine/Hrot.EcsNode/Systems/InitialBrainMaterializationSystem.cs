@@ -21,6 +21,7 @@ namespace Hrot.SimHost.Systems
     [TickMode(TickPolicy.EveryFrame)]
     public sealed class InitialBrainMaterializationSystem : IEcsModuleSystem
     {
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _done = new();
 
         /// <summary>Intents turned into orders since construction (a test / diagnostics probe).</summary>
@@ -38,7 +39,8 @@ namespace Hrot.SimHost.Systems
                 if (intent.Roe is { } roe && repo.Bus.IsRegistered<SetRoeEvent>())
                     repo.Bus.Publish(new SetRoeEvent { Entity = entity, Fire = roe.Fire, Reactions = roe.Reactions, Origin = roe.SetBy,
                                                        ReturnFireWindowSeconds = roe.ReturnFireWindowSeconds,   // CE-2095
-                                                       ForceLevel = roe.ForceLevel });   // CE-2239 part 1
+                                                       ForceLevel = roe.ForceLevel,     // CE-2239 part 1
+                                                       Incendiary = roe.Incendiary });  // CE-3486 (F-9)
                 if (intent.Sop is { } sop && repo.Bus.IsRegisteredManaged<AssignSopEvent>())
                     repo.Bus.PublishManaged(new AssignSopEvent { Entity = entity, BehaviorName = sop.Name, JsonParams = sop.Params, Origin = sop.Origin });
                 if (intent.Behavior is { } task && repo.Bus.IsRegisteredManaged<AssignBehaviorEvent>())

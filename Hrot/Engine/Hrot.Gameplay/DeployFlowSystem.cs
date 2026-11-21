@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Possession;
@@ -51,29 +50,56 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
     public const string KilledObserving = "killed — observing";
     private const long ServerCheckMs = 1_000;
 
+    [Fdp.Core.WorldDerived("static per-world registry of the flow system: filled at construction")]
     private static readonly ConditionalWeakTable<EntityRepository, DeployFlowSystem> PerWorld = new();
+    [Fdp.Core.WorldDerived("static per-world list of EVERY flow composed on the world (a node may host several stations): filled at construction")]
+    private static readonly ConditionalWeakTable<EntityRepository, List<DeployFlowSystem>> AllPerWorld = new();
 
-    /// <summary>The flow composed on <paramref name="world"/> (the screen's and the HTTP route's lookup); null when this node has none.</summary>
+    /// <summary>The flow composed on <paramref name="world"/> as its OWN (the screen's and the HTTP route's lookup); null when this node has none. ⭐ CE-11027 — a flow made with <c>register: false</c> (a gateway seat) never becomes it.</summary>
     public static DeployFlowSystem? Of(EntityRepository? world) => world is not null && PerWorld.TryGetValue(world, out var f) ? f : null;
 
-    private readonly GameplayWire _wire;
+    /// <summary>⭐ CE-11027 S12-2 — the flow of <paramref name="station"/> on <paramref name="world"/> (any of the node's stations, registered or not); null when there is none.</summary>
+    public static DeployFlowSystem? Of(EntityRepository? world, int station)
+    {
+        if (world is null || !AllPerWorld.TryGetValue(world, out var list)) return null;
+        for (int i = 0; i < list.Count; i++) if (list[i]._station == station) return list[i];
+        return null;
+    }
+
+    private readonly IGameplayWire _wire;
     private readonly EntityRepository _world;
     private readonly NetworkEntityMap _map;
     private readonly int _station;
+    [Fdp.Core.FrameScratch("offer samples taken this frame: cleared before and after each read")]
+    private readonly List<GameplaySample<DeployOfferTopic>> _takenOffers = new();
+    [Fdp.Core.FrameScratch("status samples taken this frame: cleared before and after each read")]
+    private readonly List<GameplaySample<DeployStatusTopic>> _takenStatus = new();
+    [Fdp.Core.NotState("injected DeployFlowEnvironment dependency")]
     private readonly DeployFlowEnvironment _env;
     private readonly Func<long> _now;
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private readonly Dictionary<int, DeployOffer> _offers = new();
+    [Fdp.Core.WorldDerived("sorted snapshot of _offers rebuilt when _offersDirty")]
     private List<DeployOffer> _offerList = new();
+    [Fdp.Core.WorldDerived("dirty flag for the sorted offers snapshot")]
     private bool _offersDirty;
+    [Fdp.Core.WorldDerived("polled whether a deploy server exists, refreshed every ServerCheckMs")]
     private bool _serverExists;
+    [Fdp.Core.WorldDerived("wall-clock throttle for the server existence poll")]
     private long _nextServerCheck;
+    [Fdp.Core.SessionState("this station's request id: never reused, an answer to an old one must not match")]
     private string _requestId = "";
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private int _pendingUnit;
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private bool _pendingObserve;
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private long _deadline;
+    [Fdp.Core.SessionState("local station choice to stay observer: client session flow state, not world")]
     private bool _explicitObserver;
 
-    public DeployFlowSystem(GameplayWire wire, EntityRepository world, NetworkEntityMap map, int station, DeployFlowEnvironment env)
+    /// <param name="register">⭐ CE-11027 S12-2 — true (the default): this flow is the world's own (<see cref="Of(EntityRepository?)"/>); false: a further station of the node (a gateway seat) — found by <see cref="Of(EntityRepository?, int)"/> only, it never replaces the world's own.</param>
+    public DeployFlowSystem(IGameplayWire wire, EntityRepository world, NetworkEntityMap map, int station, DeployFlowEnvironment env, bool register = true)
     {
         _wire = wire ?? throw new ArgumentNullException(nameof(wire));
         _world = world ?? throw new ArgumentNullException(nameof(world));
@@ -81,22 +107,38 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
         _station = station;
         _env = env ?? throw new ArgumentNullException(nameof(env));
         _now = env.NowMs ?? (() => Environment.TickCount64);
-        PerWorld.AddOrUpdate(world, this);
+        if (register) PerWorld.AddOrUpdate(world, this);
+        AllPerWorld.GetOrCreateValue(world).Add(this);
     }
+
+    /// <summary>⭐ CE-11027 S12-2 — a seat that ended: the flow is forgotten by <see cref="Of(EntityRepository?, int)"/> (and by <see cref="Of(EntityRepository?)"/> when it was the world's own).</summary>
+    public void Unregister()
+    {
+        if (AllPerWorld.TryGetValue(_world, out var list)) list.Remove(this);
+        if (PerWorld.TryGetValue(_world, out var own) && ReferenceEquals(own, this)) PerWorld.Remove(_world);
+    }
+
+    /// <summary>⭐ CE-11027 S12-2 — the side of this station's last request (<see cref="ForceId.Neutral"/> until it asked): what a host (the gateway seat) reports as the seat's side.</summary>
+    [field: Fdp.Core.SessionState("this station's join flow: the side of its last request")]
+    public ForceId Side { get; private set; } = ForceId.Neutral;
 
     /// <summary>⭐ S2 — where the flow reads its own slot (set by the pack to the slot reader); null ⇒ no slot-driven transitions (a test of the S1 flow).</summary>
     public SlotLookup? Slots { get; set; }
 
     private Fdp.Toolkit.Time.ISimClock? _clock;
+    [Fdp.Core.WorldDerived("sim time copied from the clock each frame (189) for display")]
     private double _simNow, _respawnAt;
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private bool _slotSeenPlaying;
 
+    [field: Fdp.Core.SessionState("deploy flow state machine (Waiting/Choosing/Requesting/Playing) of this station session")]
     public DeployFlowState State { get; private set; } = DeployFlowState.Waiting;
 
     /// <summary>⭐ S2 — when a Dead slot returns to Choosing (sim s); 0 = never (the Player observes for good); meaningless outside Dead.</summary>
     public double RespawnAtSim => State == DeployFlowState.Dead ? _respawnAt : 0.0;
 
     /// <summary>Why the flow is Waiting (empty when the gate is closed — the loading screen speaks then), or the last refusal / timeout while Choosing.</summary>
+    [Fdp.Core.WorldDerived("display text for the flow reason")]
     private string _reason = "";
 
     public string Reason
@@ -111,10 +153,13 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
         private set => _reason = value;
     }
 
+    [Fdp.Core.WorldDerived("seconds cache for the death message text")]
     private int _lastSecs = -1;
+    [Fdp.Core.WorldDerived("cached death message text")]
     private string _deadText = "";
 
     /// <summary>The last refusal ("WrongSide", "HeldByAnotherStation (held by station 7)", …) or timeout text; cleared by the next request.</summary>
+    [field: Fdp.Core.WorldDerived("last refusal text kept for the UI")]
     public string LastRefusal { get; private set; } = "";
 
     /// <summary>The last <see cref="DeployStatusTopic"/> answer's unit; 0 none.</summary>
@@ -156,6 +201,19 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
         return Send(side, 0, observe: true);
     }
 
+    /// <summary>
+    /// ⭐ CE-11027 S12-3 (Q114 E) — this station LEAVES the deploy (a seat that ended, a Player that quit): the server frees its slot and answer at once and every unit it holds is released. The flow goes back to Choosing
+    /// (Observing when no server exists). Not from Waiting (nothing was joined). Returns false when it did nothing.
+    /// </summary>
+    public bool Leave()
+    {
+        if (State == DeployFlowState.Waiting) return false;
+        _wire.RequestWriter?.Write(new DeployRequestTopic { RequestId = Guid.NewGuid().ToString("N"), StationNodeId = _station, Leave = true });
+        Reset();
+        State = _serverExists ? DeployFlowState.Choosing : DeployFlowState.Observing;
+        return true;
+    }
+
     /// <summary>The Player stops observing and goes back to choosing (the screen's "Choose a unit" after "keep observing").</summary>
     public bool StopObserving()
     {
@@ -166,13 +224,15 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
     }
 
     /// <summary>The kit and spawn area of the LAST request sent (S3) — what the Player's screen / HTTP asked for; the rails read them.</summary>
+    [field: Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     public byte RequestedKit { get; private set; }
 
+    [field: Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     public int RequestedAreaNetId { get; private set; }
 
     private bool Send(ForceId side, int unit, bool observe, byte kit = 0, int areaNetId = 0)
     {
-        RequestedKit = kit; RequestedAreaNetId = areaNetId;
+        RequestedKit = kit; RequestedAreaNetId = areaNetId; Side = side;
         var writer = _wire.RequestWriter;
         _requestId = Guid.NewGuid().ToString("N");
         _pendingUnit = unit; _pendingObserve = observe; LastRefusal = "";
@@ -234,20 +294,20 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
     {
         var reader = _wire.OfferReader;
         if (reader is null) return;
-        using var loan = reader.Take();
-        foreach (var s in loan)
+        _takenOffers.Clear();
+        if (reader.TakeInto(_takenOffers) == 0) return;
+        for (int i = 0; i < _takenOffers.Count; i++)
         {
-            if (s.IsValid)
+            var s = _takenOffers[i];
+            if (s.Alive)
             {
                 var o = s.Data;
                 _offers[o.UnitNetId] = new DeployOffer(o.UnitNetId, (ForceId)o.Side, o.SlotName ?? "", o.HolderStation, o.Kind, o.Count, o.Max, o.Kits is { Count: > 0 } k ? k.ToArray() : null);   // ⭐ S3 — no kits ⇒ null, so equality stays value-like
                 _offersDirty = true;
             }
-            else if (s.Info.InstanceState != DdsInstanceState.Alive)
-            {
-                if (_offers.Remove(DdsTypeSupport.FromNative<DeployOfferTopic>(s.NativePtr).UnitNetId)) _offersDirty = true;
-            }
+            else if (_offers.Remove(s.Data.UnitNetId)) _offersDirty = true;   // the key rides in Data
         }
+        _takenOffers.Clear();
     }
 
     /// <summary>
@@ -277,12 +337,14 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
         var reader = _wire.StatusReader;
         if (reader is not null)
         {
-            using var loan = reader.Take();
-            foreach (var s in loan)
+            _takenStatus.Clear();
+            reader.TakeInto(_takenStatus);
+            for (int i = 0; i < _takenStatus.Count; i++)
             {
-                if (!s.IsValid) continue;
-                var st = s.Data;
+                if (!_takenStatus[i].Alive) continue;
+                var st = _takenStatus[i].Data;
                 if (st.StationNodeId != _station || st.RequestId != _requestId) continue;
+                _takenStatus.Clear();
                 if (!st.Accepted)
                 {
                     BackToChoosing(st.HolderStation != 0 ? $"{st.Reason} (held by station {st.HolderStation})" : st.Reason ?? "");
@@ -297,12 +359,16 @@ public sealed class DeployFlowSystem : IEcsModuleSystem, IDeployFlow
                 TryPossess(now);
                 return;
             }
+            _takenStatus.Clear();
         }
         if (now >= _deadline) BackToChoosing(NoAnswer);
     }
 
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private bool _possessSent;
+    [Fdp.Core.WorldDerived("last possess refusal text for display/diagnostics")]
     private string _possessRefusal = "";
+    [Fdp.Core.SessionState("this station's join flow with the deploy server: the unit it asked for is checked live (IsAlive) before use")]
     private long _nextPossessTry;
 
     /// <summary>

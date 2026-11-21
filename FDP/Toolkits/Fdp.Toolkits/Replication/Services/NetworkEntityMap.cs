@@ -10,6 +10,7 @@ namespace Fdp.Toolkit.Replication.Services
     // ⭐ G-7 / CE-4354 NodeLocal (DESIGN_Review_Perspective §6.4 I9): this node's network-id → entity index (node-local entity handles) — never copied into a merged view.
     [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoReplay | DataPolicy.NodeLocal)]
     [ComponentId(GlobalComponentIds.NetworkEntityMap)]
+    [Fdp.Core.WorldDerived("net-id/entity maps rebuilt from world by RebuildFromWorld after restore")]
     public class NetworkEntityMap
     {
         private readonly Dictionary<int, Entity> _netToEntity = new();

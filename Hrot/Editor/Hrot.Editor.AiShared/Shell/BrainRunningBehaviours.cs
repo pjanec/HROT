@@ -10,7 +10,8 @@ namespace Hrot.Editor.AiShared.Shell;
 /// <param name="Label">The node label (or the hosted child's name).</param>
 /// <param name="Parameters">A hosted child's authored inputs; <c>null</c> for a working-state part.</param>
 /// <param name="Variables">The part's values.</param>
-public sealed record BrainBehaviourPart(string Label, object? Parameters, object? Variables, bool IsHostedChild);
+/// <param name="SlotLabel">⭐ CE-1286 — the slot's own label, as <c>OccurrenceSlotCatalog.ResolveField</c> names a part (null ⇒ unnamed).</param>
+public sealed record BrainBehaviourPart(string Label, object? Parameters, object? Variables, bool IsHostedChild, string? SlotLabel = null);
 
 /// <summary>One running behaviour as the Brain tab shows it — the task, the SOP, the paused task or an attached blueprint.</summary>
 /// <param name="Parameters">The authored inputs, as their own CLR struct (drawn by the inspector's dump).</param>
@@ -68,11 +69,11 @@ public static class BrainRunningBehaviours
                             hidden = new[] { "Cursor", "Params" };
                             break;
                         case SlotRole.Working when s.Boxed is not null:
-                            parts.Add(new BrainBehaviourPart(s.Label ?? $"slot {s.Key:X8}", null, s.Boxed, false));
+                            parts.Add(new BrainBehaviourPart(s.Label ?? $"slot {s.Key:X8}", null, s.Boxed, false, s.Label));
                             break;
                         case SlotRole.HostedChild:
                             var (p, v) = SplitBlock(s.Boxed);
-                            parts.Add(new BrainBehaviourPart($"{s.Label ?? "hosted"} · {s.Behaviour}", p, v, true));
+                            parts.Add(new BrainBehaviourPart($"{s.Label ?? "hosted"} · {s.Behaviour}", p, v, true, s.Label));
                             break;
                     }
                 }

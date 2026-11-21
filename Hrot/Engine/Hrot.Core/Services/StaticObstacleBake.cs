@@ -26,6 +26,29 @@ public sealed class StaticObstacleBakery
 
     /// <summary>The residency's base version (bumped by every terrain commit / unload).</summary>
     public int BaseVersion => Residency.BaseVersion;
+
+    // ⭐ CE-5039 — what the node's obstacle bake has COMMITTED of the live terrain overlay (the editor's blocks and features), so the load can wait for it.
+    //   Written by StaticObstacleBakeSystem only (frame thread); read by the scenario load's readiness predicate (frame thread).
+    [Fdp.Core.NotState("injected live-overlay dependency, handed over by the bake system")]
+    internal LiveOverlay? Overlay;
+    [Fdp.Core.WorldDerived("the overlay signature the last committed bake held; re-derived by the next bake")]
+    internal ulong CommittedOverlay = LiveOverlay.EmptySignature;
+    [Fdp.Core.WorldDerived("the base version that committed overlay was baked on; re-derived by the next bake")]
+    internal int CommittedOverlayBase = int.MinValue;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-5039</c> (DECISIONS_Terrain CE-5039, <c>docs/DESIGN_Cluster_Load_Phase.md</c> §11.10d) — true while this node's live terrain overlay (the scenario's blocks and features, expanded
+    /// live on the editor) holds something the terrain does NOT yet: its first bake for this world has not committed. ⭐ False at once on a node with no live overlay (every host but the
+    /// editor: the compiled overlay reaches them in the terrain itself) and for a scenario with no blocks or features — those loads are not delayed. Allocation-free (a cached query).
+    /// </summary>
+    public bool AwaitsLiveOverlay(EntityRepository world)
+    {
+        var overlay = Overlay;
+        if (overlay == null) return false;
+        ulong now = overlay.SignatureOfWorld(world);
+        if (now == LiveOverlay.EmptySignature) return false;
+        return now != CommittedOverlay || CommittedOverlayBase != BaseVersion;
+    }
 }
 
 /// <summary>
@@ -59,19 +82,33 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     public const double MaxLatencySeconds = 2.0;
 
     private readonly Func<double> _wallSeconds;
+    [Fdp.Core.WorldDerived("prism scratch cleared and refilled every frame from obstacle entities")]
     private readonly List<TerrainPrism> _prisms = new();
+    [Fdp.Core.WorldDerived("pending-entity scratch cleared and refilled every frame")]
     private readonly List<Entity> _pending = new();
     private readonly ObstacleSignatureProbe _probe = new();   // ⭐ CE-3436 — the cached query the per-frame signature walks
 
+    [Fdp.Core.WorldDerived("background obstacle bake; reset by WorldEpoch and re-baked from entities")]
     private Task<TerrainResidency.ObstacleBake>? _running;
     private TerrainResidency? _runningOn;
+    [Fdp.Core.ProtocolCache("obstacles of the in-flight bake awaiting ConstructionAck; re-collected from Constructing entities")]
     private List<Entity> _runningBatch = new();
+    [Fdp.Core.ProtocolCache("signature of the in-flight bake; just handshake bookkeeping")]
     private ulong _runningSignature;
+    [Fdp.Core.WorldDerived("live-overlay signature of the in-flight bake (CE-5039); re-derived by the next bake")]
+    private ulong _runningOverlay = LiveOverlay.EmptySignature;
+    [Fdp.Core.FrameScratch("the live overlay's signature this frame, set by SignatureNow before every use")]
+    private ulong _overlayNow = LiveOverlay.EmptySignature;
 
+    [Fdp.Core.WorldDerived("what terrain holds baked; empty just triggers an identical rebake")]
     private ulong _bakedSignature = EmptySignature;
+    [Fdp.Core.WorldDerived("terrain base version of last bake; empty just triggers a rebake")]
     private int _bakedBase = int.MinValue;
+    [Fdp.Core.WorldDerived("debounce signature; empty restarts the quiet period")]
     private ulong _seenSignature = EmptySignature;
+    [Fdp.Core.WorldDerived("wall-clock debounce timestamp; empty restarts the quiet period")]
     private double _seenAt;
+    [Fdp.Core.WorldDerived("wall-clock when a pending obstacle change was first seen: debounce marker, reset at world change (140)")]
     private double _changedSince = double.NaN;   // ⭐ CE-4596 (V-1) — when the change now waiting was first seen (NaN = none waits)
     private int _epoch;   // ⭐ CE-3294 — the world the bake state above describes
 
@@ -93,6 +130,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     /// Set by the host that owns it, right after <c>EntityCreationPack.Build</c>; ⚠ a forwarding rail asserts it on the editor's constructed system (B-4).
     /// </summary>
     public LiveOverlay? LiveOverlay { get => _liveOverlay; set => _liveOverlay = value; }
+    [Fdp.Core.NotState("injected live-overlay dependency (settable property)")]
     private LiveOverlay? _liveOverlay;
 
     /// <summary>
@@ -100,19 +138,25 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     /// failed, <c>SimTransform</c> or <c>ObstacleShape</c> is missing) could never be baked and, the wait being unbounded, would hang for ever — it is acked here, loudly.
     /// </summary>
     public Fdp.Toolkit.Lifecycle.EntityLifecycleModule? Lifecycle { get; set; }
+    [Fdp.Core.FrameScratch("sole-waiter list: filled by CollectSoleWaiters each pass")]
     private readonly List<Entity> _soleWaiters = new();
+    [Fdp.Core.ProtocolCache("entities already acked to the lifecycle module for unbakeable obstacles: ack latch")]
     private readonly HashSet<Entity> _unbakeableAcked = new();
 
     /// <summary>The overlay parts of the last committed bake (diagnostics / rails) — empty when none.</summary>
+    [field: Fdp.Core.WorldDerived("last bake output parts, rebuilt by the bake and read by consumers")]
     public IReadOnlyList<OverlayPart> BakedParts { get; private set; } = Array.Empty<OverlayPart>();
 
     /// <summary>The last committed bake's dirty rectangles (null = unknown / everything) — what ui's 3-D chunk rebuild redoes (B-5).</summary>
+    [field: Fdp.Core.WorldDerived("last bake dirty rectangles, rebuilt by the bake and read by consumers")]
     public IReadOnlyList<(Vector2 Min, Vector2 Max)>? LastDirty { get; private set; }
 
     /// <summary>Bakes committed (diagnostics / rails).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostics counter of bakes")]
     public int Bakes { get; private set; }
 
     /// <summary>The last bake's wall-clock duration (ms; diagnostics).</summary>
+    [field: Fdp.Core.WorldDerived("diagnostics: last bake duration")]
     public long LastBakeMilliseconds { get; private set; }
 
     /// <summary>True while a bake runs in the background.</summary>
@@ -139,6 +183,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         ulong obstacleSig = SignatureOfWorld(world, _probe, _pending);
         bool hasObstacles = obstacleSig != EmptySignature;
 
+        if (bakery != null) bakery.Overlay = _liveOverlay;   // ⭐ CE-5039 — the load's readiness predicate asks the bakery whether the overlay is baked yet
         if (bakery == null)
         {
             // No terrain on this node: nothing to bake — the obstacle needs no wait here.
@@ -203,6 +248,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         // ⭐ O-7 B — the editor's blocks and features join the input hash (allocation-free: a cached query, no strings)
         ulong overlayHash = _liveOverlay?.SignatureOfWorld(world) ?? LiveOverlay.EmptySignature;
         hasOverlay = overlayHash != LiveOverlay.EmptySignature;
+        _overlayNow = overlayHash;
         if (hasOverlay) { signature ^= overlayHash; signature *= 1099511628211UL; }
         return signature;
     }
@@ -218,6 +264,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         _runningOn = residency;
         _runningBatch = new List<Entity>(_pending);
         _runningSignature = signature;
+        _runningOverlay = hasOverlay ? _overlayNow : LiveOverlay.EmptySignature;   // ⭐ CE-5039 — what this bake will have committed of the overlay
         // ⭐ O-7 B — the blocks are read here, on the frame thread; their EXPANSION runs on the bake's task (B-2: only a changed entity re-expands)
         var overlay = _liveOverlay;
         var sources = hasOverlay && overlay != null ? overlay.Snapshot(world) : null;
@@ -282,6 +329,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
             //    node's terrain does not hold them — said loudly.
             FdpLog<StaticObstacleBakeSystem>.Error(
                 $"[Obstacles] Bake of {batch.Count} obstacle(s) FAILED — they are live but NOT in this node's terrain: {task.Exception?.GetBaseException().Message}");
+            MarkOverlayCommitted(world, residency);   // ⭐ CE-5039 — a failed bake must not hold the load for ever either (said loudly above)
             foreach (var e in batch) Ack(world, e);
             return;
         }
@@ -292,6 +340,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 
         _bakedSignature = _runningSignature;
         _bakedBase = residency.BaseVersion;
+        MarkOverlayCommitted(world, residency);
         Bakes++;
         LastBakeMilliseconds = bake.Milliseconds;
         BakedParts = bake.Parts; LastDirty = bake.Dirty;
@@ -305,6 +354,14 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         foreach (var e in batch) Ack(world, e);
     }
 
+    /// <summary>⭐ CE-5039 — the bakery learns what of the live overlay the terrain now holds (the load's readiness predicate reads it: <see cref="StaticObstacleBakery.AwaitsLiveOverlay"/>).</summary>
+    private void MarkOverlayCommitted(EntityRepository world, TerrainResidency residency)
+    {
+        if (!world.HasSingletonManaged<StaticObstacleBakery>() || world.GetSingletonManaged<StaticObstacleBakery>() is not { } bakery || !ReferenceEquals(bakery.Residency, residency)) return;
+        bakery.CommittedOverlay = _runningOverlay;
+        bakery.CommittedOverlayBase = residency.BaseVersion;
+    }
+
     /// <summary>
     /// The static obstacles of <paramref name="world"/> (Active, and still Constructing when <paramref name="pending"/> is given) as terrain prisms. ⭐ O-8 (CE-4420) — the ONE collector: the node's
     /// bake system and the Replay Browser (which bakes the recording's obstacles into its displayed terrain once per seek) both read the world through it.
@@ -315,6 +372,8 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
         pending?.Clear();
         if (!world.IsComponentTypeRegistered<StaticObstacle>() || !world.IsComponentTypeRegistered<ObstacleShape>()) return;
         var library = (world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>()?.Materials : null) ?? TerrainMaterialLibrary.Shared;
+        var tkb = world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
+        bool tkbKnown = world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>();
 
         foreach (var e in world.Query().With<StaticObstacle>().With<ObstacleShape>().With<SimTransform>().WithLifecycle(EntityLifecycle.All).Build())
         {
@@ -329,9 +388,18 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
             if (!known)
                 FdpLog<StaticObstacleBakeSystem>.Warn($"[Obstacles] {e}: unknown material '{materialName}' — baked as concrete.");
             prisms.Add(TerrainObstacles.PrismOf(t.Position, TerrainObstacles.Yaw(t.Rotation), shape, material,
-                TerrainObstacles.LabelPrefix + e.Index));
+                TerrainObstacles.LabelPrefix + e.Index, drawnByEntity: DrawsItsOwnBody(world, e, tkb, tkbKnown)));
         }
     }
+
+    /// <summary>
+    /// ⭐ CE-4656 — true when obstacle <paramref name="e"/> is drawn by the entity layer as a body of its own: its TKB type is a PLATFORM (DIS kind 1 — the parked
+    /// car, a ground-vehicle avatar and the 3-D car kit, rail <c>Map3DTests.CE3148_*</c>). Its baked prism is then collision / navmesh / sight only. ⚠ A cultural
+    /// feature (kind 5: sandbags, a block, a crate, a wreck …) keeps its baked box drawn — the 3-D layer has no kit of its own for it.
+    /// </summary>
+    public static bool DrawsItsOwnBody(EntityRepository world, Entity e, Fdp.Interfaces.ITkbDatabase? tkb, bool tkbKnown)
+        => tkb != null && tkbKnown && world.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e)
+           && tkb.TryGetByType((long)world.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType, out var t) && t.DisType.Kind == 1;
 
     /// <summary>
     /// ⭐ O-8 (CE-4420) — the hash of the obstacle set read STRAIGHT FROM THE COMPONENTS, allocating nothing (HOT PATH: the Replay Browser asks it on every tick at playback speeds above one frame per tick):
@@ -388,6 +456,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 }
 
 /// <summary>⭐ O-8 — the cached obstacle query of <see cref="StaticObstacleBakeSystem.SignatureOfWorld"/>: built once per world (a query object allocates), reused while the world is the same.</summary>
+[Fdp.Core.WorldDerived("a cached obstacle query, rebuilt per world")]
 public sealed class ObstacleSignatureProbe
 {
     private EntityRepository? _for;

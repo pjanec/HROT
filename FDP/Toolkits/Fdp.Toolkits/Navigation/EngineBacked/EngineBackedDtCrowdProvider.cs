@@ -9,6 +9,7 @@ namespace Fdp.Toolkit.Navigation.EngineBacked
     /// All methods are safe no-ops; <c>GetAgentVelocity</c> always returns Zero.
     /// Humanoid navigation in this mode is handled by <c>LinearKinematicsSystem</c>.
     /// </summary>
+    [Fdp.Core.NotState("stateless no-op crowd stub")]
     public sealed class EngineBackedDtCrowdProvider : IDtCrowdProvider
     {
         /// <inheritdoc/>

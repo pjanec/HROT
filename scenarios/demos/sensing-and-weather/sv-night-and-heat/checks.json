@@ -1,0 +1,120 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-1984 / CE-1985 (DESIGN_Sensor_View \u00a77): the sensor views' scene \u2014 every heat and light source made by the simulation at night. The views themselves are judged by SensorViewFrameRail.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    {
+      "name": "the idling tank idles (warm engine)",
+      "on": "field",
+      "who": "Idling Tank",
+      "path": "HeatSource.State",
+      "op": "in",
+      "value": [
+        "Idle",
+        2
+      ],
+      "atEnd": true
+    },
+    {
+      "name": "the parked tank never warms",
+      "never": {
+        "on": "field",
+        "who": "Parked Tank",
+        "path": "HeatSource.State",
+        "op": "in",
+        "value": [
+          "Idle",
+          "Running",
+          2,
+          3
+        ]
+      }
+    },
+    {
+      "name": "the car's lamps are on (dark, engine idling)",
+      "on": "field",
+      "who": "Lit Car",
+      "path": "VehicleLights.OnMask",
+      "op": ">",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the man is a warm body (Standing)",
+      "on": "field",
+      "who": "Man",
+      "path": "HeatSource.State",
+      "op": "in",
+      "value": [
+        "Standing",
+        5
+      ],
+      "atEnd": true
+    },
+    {
+      "name": "the Gunner destroys the Wreck",
+      "on": "field",
+      "who": "Wreck",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 60
+    },
+    {
+      "name": "... and its hull burns (FireState)",
+      "on": "field",
+      "who": "Wreck",
+      "path": "FireState.Count",
+      "op": ">=",
+      "value": 1,
+      "atEnd": true
+    },
+    {
+      "name": "the leaving tank drove off",
+      "on": "field",
+      "who": "Leaving Tank",
+      "path": "SimTransform.Position.1",
+      "op": ">",
+      "value": 470,
+      "atEnd": true
+    },
+    {
+      "name": "the Gunner never shoots a Neutral (only the Wreck is hit)",
+      "never": {
+        "on": "field",
+        "who": "Idling Tank",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 2500
+      }
+    },
+    {
+      "name": "one warm vehicle-stand mark where the Leaving Tank idled (the cell's record, network id 1013 \u2014 measured; the Gunner's rounds take ids before it)",
+      "on": "field",
+      "who": "1013",
+      "path": "GroundHeatMarks.Count",
+      "op": "==",
+      "value": 1,
+      "atEnd": true,
+      "also": [
+        {
+          "path": "GroundHeatMarks.Kind.0",
+          "op": "==",
+          "value": 1
+        },
+        {
+          "path": "GroundHeatMarks.X.0",
+          "op": "==",
+          "value": 200
+        },
+        {
+          "path": "GroundHeatMarks.Y.0",
+          "op": "==",
+          "value": 450
+        }
+      ]
+    }
+  ]
+}

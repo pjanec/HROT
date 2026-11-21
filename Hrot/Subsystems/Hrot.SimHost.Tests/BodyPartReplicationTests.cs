@@ -23,7 +23,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<PartDamage>();
             w.RegisterComponent<HitMarks>();
             w.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
-            w.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            w.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             w.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();   // ⭐ CE-4617
             w.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();   // ⭐ CE-3238
             w.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();
@@ -96,7 +96,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void CE3219_F3_EffectState_WithCowering_ReachesTheOtherNode()
         {
-            var effects = new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)12.5, IrritatedUntil = (SimInstant)3, KnockedDownUntil = (SimInstant)7.25, Cowering = 1 };
+            var effects = new Fdp.Toolkit.Combat.EffectState { StunnedUntil = (SimInstant)12.5, IrritatedUntil = (SimInstant)3, KnockedDownUntil = (SimInstant)7.25, Cowering = 1, BurningUntil = (SimInstant)9.5 };   // ⭐ CE-4635 — the burning man rides along
             var sample = EntityEffectStateEgressTranslator.ToSample(44, effects);
 
             var (node, unit, map) = Node(44);
@@ -110,6 +110,7 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44, effects with { Cowering = 0 }));
+            Assert.NotEqual(sample, EntityEffectStateEgressTranslator.ToSample(44, effects with { BurningUntil = (SimInstant)0 }));   // ⭐ CE-4635 — burning out is a change
         }
 
         /// <summary>⭐ <c>CE-4617</c> (B-1, RS-10) — a radar's emission reaches the other node with its tracked target as THAT node's entity (by network
@@ -148,25 +149,31 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(sample, Hrot.Map.Common.Replication.Egress.EntityRadarEmissionEgressTranslator.ToSample(sender, 46, default));
         }
 
-        /// <summary>⭐ <c>CE-3224</c> (civilians B-6, §7.7) — a person's gesture reaches the other node, and going back to None is
-        /// published too (a protester lowering his fist is a change).</summary>
+        /// <summary>
+        /// ⭐ <c>CE-3224</c> / <c>CE-4628</c> §10c rail (2) — the ONE demeanour record reaches the other node whole: the gesture (<c>Kind</c>) AND the mood (Mode, Fear,
+        /// Anger) cross the wire (egress → ingress), and a change of the gesture alone — back to None included — is a different sample (a protester lowering his fist
+        /// is a change). 🔴 Red-proof: the egress or the ingress dropping <c>Kind</c> ⇒ red.
+        /// </summary>
         [Fact]
-        public void CE3224_Gesture_ReachesTheOtherNode_AndNoneIsAChange()
+        public void CE4628_TheDemeanour_ReachesTheOtherNode_KindModeFearAndAnger()
         {
-            var raised = new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.FistRaised };
-            var sample = EntityGestureEgressTranslator.ToSample(45, raised);
+            var sent = new Fdp.Toolkit.Creatures.Demeanour { Kind = Fdp.Toolkit.Combat.GestureKind.FistRaised, Mode = Fdp.Toolkit.Civilians.CivilianMode.Riot, Fear = 2, Anger = 3 };
+            var sample = Hrot.Map.Common.Replication.Egress.EntityDemeanourEgressTranslator.ToSample(45, sent);
 
             var (node, unit, map) = Node(45);
             using (node)
             {
-                var ingress = new EntityGestureIngressTranslator(participant: null, map);
+                var ingress = new Hrot.Map.Common.Replication.Ingress.EntityDemeanourIngressTranslator(participant: null, map);
                 using var cmd = new EntityCommandBuffer();
                 ingress.Apply(in sample, cmd, node);
                 cmd.Playback(node);
                 Assert.Equal(Fdp.Toolkit.Combat.GestureKind.FistRaised, Fdp.Toolkit.Combat.Gestures.Of(node, unit));
+                Assert.True(Fdp.Toolkit.Creatures.Demeanours.Of(node, unit, out var got));
+                Assert.Equal((sent.Kind, sent.Mode, sent.Fear, sent.Anger), (got.Kind, got.Mode, got.Fear, got.Anger));
             }
 
-            Assert.NotEqual(sample, EntityGestureEgressTranslator.ToSample(45, default));
+            var lowered = sent; lowered.Kind = Fdp.Toolkit.Combat.GestureKind.None;
+            Assert.NotEqual(sample, Hrot.Map.Common.Replication.Egress.EntityDemeanourEgressTranslator.ToSample(45, lowered));
         }
 
         /// <summary>⭐ <c>CE-3238</c> (civilians B-16, §7.16 HA-1) — a man's hostile act reaches the other node with its kind and its time, and
@@ -382,16 +389,19 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// ⭐ <c>AQ107 I</c> — a barrel's heat is a 0…1 FRACTION on the wire (the ECS <c>WeaponAmmo</c> keeps a percent byte): 50 % is 0.5,
-        /// 100 % is 1, 7 % is 0.07 and the ingress gives the same percent back (and clamps a hostile sample into 0..100).
-        /// ✅ Red-proof: the egress copying the percent byte ⇒ 50 on the wire ⇒ red.
+        /// ⭐ <c>CE-4659</c> (thermal drivers TD-5, §3d) — a mount's LAST BURST crosses the wire field for field (rounds, start, last shot, heat at it, cooling),
+        /// so another node computes the same barrel heat at any later time; the retired sampled heat goes as 0. (Was ⭐ AQ107 I: the sampled heat as a 0…1
+        /// fraction — retired with the sample.) 🔴 Red-proof: drop the <c>LastShotAt2</c> copy in the ingress ⇒ mount 2 reads cold ⇒ red.
         /// </summary>
         [Fact]
-        public void AQ107I_BarrelHeat_IsAFractionOnTheWire_AndAPercentInTheEcs()
+        public void CE4659_ALastBurst_CrossesTheWire_AndTheHeatIsTheSameEverywhere()
         {
-            var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 4, Heat0 = 50, Heat1 = 100, Heat2 = 7, Heat3 = 0, Hot = 0b10 };
+            var ammo = Fdp.Toolkit.Combat.Components.WeaponAmmo.Empty();
+            ammo.Count = 4; ammo.Hot = 0b10;
+            ammo.SetBurst(0, 12, 100.0, 101.5, 0.6f, 0.05f);
+            ammo.SetBurst(2, 3, 90.0, 90.4, 0.9f, 0.1f);
             var sample = EntityWeaponAmmoEgressTranslator.ToSample(62, ammo);
-            Assert.Equal((0.5f, 1f, 0.07f, 0f), (sample.Heat0, sample.Heat1, sample.Heat2, sample.Heat3));
+            Assert.Equal((0f, 0f, 0f, 0f), (sample.Heat0, sample.Heat1, sample.Heat2, sample.Heat3));   // the retired sample
             Assert.Equal((byte)0b10, sample.Hot);
 
             var (node, unit, map) = Node(62);
@@ -403,13 +413,11 @@ namespace Hrot.SimHost.Tests
                 ingress.Apply(in sample, cmd, node);
                 cmd.Playback(node);
                 var got = node.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(unit);
-                Assert.Equal((ammo.Heat0, ammo.Heat1, ammo.Heat2, ammo.Heat3, ammo.Hot), (got.Heat0, got.Heat1, got.Heat2, got.Heat3, got.Hot));
-
-                var hostile = sample with { Heat0 = 7.5f, Heat1 = -2f };
-                ingress.Apply(in hostile, cmd, node);
-                cmd.Playback(node);
-                got = node.GetComponentRO<Fdp.Toolkit.Combat.Components.WeaponAmmo>(unit);
-                Assert.Equal(((byte)100, (byte)0), (got.Heat0, got.Heat1));
+                Assert.True(got.Equals(ammo));
+                foreach (double now in new[] { 91.0, 101.5, 105.0, 120.0 })
+                    for (int m = 0; m < 4; m++) Assert.Equal(ammo.HeatAt(m, now), got.HeatAt(m, now));
+                Assert.Equal(0.6f - 0.05f * 3.5f, got.HeatAt(0, 105.0), 4);
+                Assert.True(double.IsNegativeInfinity(got.LastShotAtOf(1)));   // never fired
             }
         }
 
@@ -437,6 +445,53 @@ namespace Hrot.SimHost.Tests
             }
 
             Assert.NotEqual(sample, EntityAreaEffectCloudEgressTranslator.ToSample(46, cloud with { SightTransmittance = 0.6f }));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4662</c> (thermal drivers TD-12) — an IR-blocking smoke cloud SAYS SO on every node: <c>BlocksInfrared</c> rides
+        /// <c>dtAreaEffectCloud</c> both ways, and flipping it is a new sample. ✅ Red-proof: the egress not copying it ⇒ 0 on the other node ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4662_AnInfraredBlockingSmokeCloud_SaysSoOnEveryNode()
+        {
+            var cloud = new Fdp.Toolkit.Combat.AreaEffectCloud
+            {
+                Kind = Fdp.Toolkit.Combat.CloudKind.Smoke, Radius = 20f, Height = 8f, SightTransmittance = 0.1f,
+                BornAtSimSeconds = (SimInstant)5.0, Seconds = 90f, BlocksInfrared = 1,
+            };
+            var sample = EntityAreaEffectCloudEgressTranslator.ToSample(47, cloud);
+            Assert.Equal((byte)1, sample.BlocksInfrared);
+
+            var (node, unit, map) = Node(47);
+            using (node)
+            {
+                var ingress = new EntityAreaEffectCloudIngressTranslator(participant: null, map);
+                using var cmd = new EntityCommandBuffer();
+                ingress.Apply(in sample, cmd, node);
+                cmd.Playback(node);
+                Assert.Equal((byte)1, node.GetComponentRO<Fdp.Toolkit.Combat.AreaEffectCloud>(unit).BlocksInfrared);
+            }
+            Assert.NotEqual(sample, EntityAreaEffectCloudEgressTranslator.ToSample(47, cloud with { BlocksInfrared = 0 }));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4662</c> (thermal drivers TD-8) — a LATE JOINER reads how long it has rained: the owner stamps <c>Since</c> when the rain
+        /// starts (t = 100 s), a re-sent identical weather keeps it, and the sample a late joiner gets (TransientLocal) carries it ⇒ at t = 400 s it
+        /// has rained 300 s. ✅ Red-proof: the ingress dropping <c>Since</c> ⇒ 0 ⇒ "400 s" ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4662_ALateJoiner_ReadsHowLongItHasRained()
+        {
+            var dry = Fdp.Toolkit.Weather.WeatherConditions.Standard;
+            var rain = dry;
+            rain.Precipitation = 1; rain.PrecipitationMmPerHour = 4f;
+            rain.Restamp(dry, (SimInstant)100.0);                 // the owner: the rain began at 100 s
+            var again = rain;
+            again.Restamp(rain, (SimInstant)250.0);               // the same weather re-applied: it did not begin again
+            Assert.Equal(100.0, (double)again.Since);
+
+            var joined = EntityWeatherEgressTranslator.FromSample(EntityWeatherEgressTranslator.ToSample(61, again));
+            Assert.Equal(300.0, 400.0 - joined.Since, 1e-9);
         }
 
         [Fact]

@@ -160,11 +160,11 @@ namespace Fdp.Toolkit.Perception.Tests
             var sys  = new ThreatEvaluationSystem();
             var man = world.CreateEntity();
             var cow = world.CreateEntity();
-            world.AddComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+            world.AddComponent(cow, new Fdp.Toolkit.Animals.AnimalState());
             var area = world.CreateEntity();
             world.AddComponent(area, new Fdp.Toolkit.Animals.AnimalArea { Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle, Count = 8 });
             var dog = world.CreateEntity();
-            world.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Dog, Flags = Fdp.Toolkit.Animals.AnimalFlags.Dangerous });
+            world.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Flags = Fdp.Toolkit.Animals.AnimalFlags.Dangerous });
 
             var observer = world.CreateEntity();
             world.AddComponent(observer, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });

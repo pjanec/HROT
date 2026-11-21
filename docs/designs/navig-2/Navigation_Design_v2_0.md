@@ -295,6 +295,17 @@ the braking envelope's basis · `docs/DESIGN_Terrain_World.md` §8 — does not 
 > not toward the path, so a sideways offset is never corrected (the rail ends 8 m off to the side before homing) and a vehicle
 > facing exactly against the path gets zero steer (pure pursuit at 180°). That is `CE-3029`'s follower (`backend`).
 
+> ⭐ **AS-BUILT `2026-11-18` (`CE-3452`, backend — a bike from a standstill "FailedBlocked" while it moved):** rule ① gains nothing when the path's
+> first segment points AWAY from the vehicle's heading (a short join onto the lane): the bike drove 20 m along the lane with `ProgressS` 0, pure pursuit
+> chased the path's start and it looped back to it (or the 4 s no-progress watchdog failed the move). Now, when the motion along the tangent at the progress
+> is below `PathProgress.StuckAlong` (cos ~75°) while the vehicle moves (> 0.5 m/s), its progress is the FIRST point of the path ahead (within the
+> lookahead, ≥ 5 m) that it is ON (≤ 2 m) **and travelling along** (the segment within ~45° of its travel — `PathProgress.AlongAgree`) — never the
+> closest point, so a path that doubles back cannot skip its turn (📌 without the travel test a technical manoeuvring at its scoot point jumped onto a later
+> leg, `ua-technical-scoot`). In a corner the tangent still gains, so the CE-3029 clearance rails are untouched. Rails:
+> `CarKinematicsSystemTests.CE3452_APathStartingAtAnAngle_IsFollowedAlongTheLane_NeverBackToItsStart` (truck + car),
+> `CE3452_TheProgressResync_NeverJumpsOntoALegItCrosses`. The drive-by's pass now runs along its ESCAPE line (`DriveByBehavior.PassPoint`) — the
+> heading-based pass had only worked while this bug looped the bike back onto the road.
+
 The simplest and most common case: a BTree wants the entity to go somewhere and only cares about whether it arrived.
 
 > **Diagram convention.** The arrows labeled `DDS` below assume the **default collocated** topology where Brain is a separate process. In **all-in-one** mode (editor, headless tests, integration tests) every such arrow is a local `FdpEventBus` event in the single process — *no DDS traffic anywhere*. In **scale-out** mode the Muscle↔Solver hop additionally crosses DDS. The control flow and component writes are the same in all three modes; only the transport differs.
@@ -356,7 +367,19 @@ Brain BTree observes NavigationStatus.Result:
   FailedUnreachable     → BTree Failure  (no path existed)
 ```
 
+> ⭐ **As built, CE-3458 (`2026-11-18`, backend):** the move nodes (`CgfNodes` — `MoveToLocation`, `FollowRoute`, `JoinFormation`) DO answer
+> Failure on their OWN failed activation (`CgfNodes.OwnActivationFailed` / `OwnMoveFailed` / `OwnRouteFailed`: this behaviour's dispatched move to
+> THIS destination / route). ⛔ SUPERSEDED: they re-activated on ANY channel failure, their own included, so an unreachable move re-issued itself
+> every tick for good and the caller never heard (📌 a man ordered off the farm map stood still forever). A failure an earlier behaviour left on
+> the channel, or a fallback move elsewhere in the same tree, still issues. Rails: `MoveToLocationRoadUseTests.CE3458_*`.
+
 In the **scale-out** topology where the `NavigationSolverModule` is on its own node, the `PathfindingRequestEvent` is bridged across DDS via `PathRequestEgressTranslator` (Muscle side) and `PathResponseIngressTranslator` (Muscle side, ingress). The Brain-facing flow above is unchanged — only the Muscle↔Solver hop changes transport.
+
+> ⭐ **AS-BUILT `2026-11-19` (CE-167 re-check, backend — a move to where the body already stands):** a `PathToPoint` / `DirectPoint` move issued
+> from INSIDE its arrival radius never started a drive, so the kinematics never latched `HasArrived` and the speed watchdog (0.2 m/s for 10 ticks)
+> ended it `FailedBlocked` — 📌 a `hill-attack` tank 3.9 m from its baseline slot, the platoon then waiting on it for good. Now `NavigationExecutionSystem`
+> also writes `Arrived` for a body STANDING (the watchdog's own speed test) within `ArrivalRadius` of the RESOLVED point (`NavigationDestination.Of`). A
+> body moving through the radius is still left to the kinematics' latch (CE-167's braking envelope). Rails `NavigationExecutionSystemTests.CE167_*`.
 
 ### 3.2 `PlanRoute` flow (Brain wants the verdict and the handle, doesn't move yet)
 

@@ -22,6 +22,7 @@ namespace Hrot.Map.Common.Replication.Egress
         //   destruction, a wipe or (as an unregister) a hand-over.
         private readonly Fdp.Network.Cyclone.Translators.PublishedInstances<EntityAreaEffectCloud> _instances;
 
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.AreaEffectCloud };
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityAreaEffectCloud>();
@@ -73,6 +74,7 @@ namespace Hrot.Map.Common.Replication.Egress
             IrritantSeconds = c.IrritantSeconds, BornAtSimSeconds = c.BornAtSimSeconds, Seconds = c.Seconds,
             SourceNetworkId = c.SourceNetworkId,   // ⭐ CE-3236
             CreatorNetworkId = c.CreatorNetworkId, OriginalCreatorNetworkId = c.OriginalCreatorNetworkId,   // ⭐ CE-4155
+            BlocksInfrared = c.BlocksInfrared,   // ⭐ CE-4662 (TD-12)
         };
 
         public void Dispose(int networkEntityId) => _instances.Dispose(networkEntityId);   // ⭐ CE-4007 — the delete goes on the wire
@@ -137,6 +139,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             IrritantSeconds = d.IrritantSeconds, BornAtSimSeconds = (SimInstant)d.BornAtSimSeconds, Seconds = d.Seconds,
             SourceNetworkId = d.SourceNetworkId,   // ⭐ CE-3236
             CreatorNetworkId = d.CreatorNetworkId, OriginalCreatorNetworkId = d.OriginalCreatorNetworkId,   // ⭐ CE-4155
+            BlocksInfrared = d.BlocksInfrared,   // ⭐ CE-4662 (TD-12)
         };
 
         public void ScanAndPublish(ISimulationView view) { }

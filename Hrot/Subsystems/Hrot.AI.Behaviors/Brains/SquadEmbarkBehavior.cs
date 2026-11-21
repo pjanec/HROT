@@ -69,7 +69,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// UNIT, when every live one of ITS members is (a platoon's squad rides as soldiers).</summary>
         public static bool AboardIt(EntityRepository world, Entity member, Entity vehicle, int depth = 0)
         {
-            if (!world.IsAlive(member)) return true;   // the dead do not hold the squad back
+            // the dead do not hold the squad back — ⭐ CE-9023: a KILLED man too (his body stays: the entity lives, Health 0), not only a
+            //   destroyed entity (📐 uc-urban-battle: four bodies failed the remount and stalled the platoon 120 s). The incapacitated still count (carried).
+            if (!world.IsAlive(member) || !Fdp.Toolkit.Combat.CombatLife.IsAlive(world, member)) return true;
             if (SquadManeuverRunner.IsUnit(world, member))
             {
                 if (depth >= 4 || !world.HasComponent<UnitRoster>(member)) return true;

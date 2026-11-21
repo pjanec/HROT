@@ -424,17 +424,17 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(friend, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.3f });
             _world.AddComponent(friend, global::CarKinem.Core.VehiclePresets.GetPreset(global::CarKinem.Core.VehicleClass.Pedestrian));
             _world.AddComponent(friend, new Health { Current = 100f, Max = 100f });
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "a friend standing on the line holds it");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "a friend standing on the line holds it");
             _world.GetComponentRW<Health>(friend).Current = 0f;
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "a friend lying dead on the line: the round flies over him");
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, new Vector3(20f, 0f, 0f)), "…a burst at the point too");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "a friend lying dead on the line: the round flies over him");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, new Vector3(20f, 0f, 0f), 0f), "…a burst at the point too");
 
             var wreck = _world.CreateEntity();
             _world.AddComponent(wreck, new SimTransform { Position = new Vector3(8f, 0f, 0f), Rotation = Quaternion.Identity });
             _world.AddComponent(wreck, new EntityInfo { ForceId = ForceId.Friend });
             _world.AddComponent(wreck, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3f });
             _world.AddComponent(wreck, new Health { Current = 0f, Max = 1000f });
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "a wrecked friendly hull still stops the round");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "a wrecked friendly hull still stops the round");
         }
 
         /// <summary>
@@ -470,11 +470,11 @@ namespace Fdp.Toolkit.Combat.Tests
             }
 
             var friend = Man(ForceId.Friend, radius + (reach - radius) * 0.5f);   // centre beyond the collider, inside the arm reach
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "entity form: his arm covers the line");
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point), "point form: the same");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "entity form: his arm covers the line");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0f), "point form: the same");
             _world.GetComponentRW<SimTransform>(friend).Position = new Vector3(20f, reach + 0.2f, 0f);
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), "beyond his reach: not held");
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point));
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "beyond his reach: not held");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0f));
 
             _world.DestroyEntity(friend);
             Man(ForceId.Neutral, radius + (reach - radius) * 0.5f);
@@ -514,15 +514,15 @@ namespace Fdp.Toolkit.Combat.Tests
                     var target = bodies[rng.Next(bodies.Count)];
                     var point = new Vector3(rng.NextSingle() * 600f - 300f, rng.NextSingle() * 600f - 300f, 0f);
                     float sigma = rng.NextSingle() * 0.05f;
-                    bool f1 = Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target);
-                    bool f2 = Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point);
+                    bool f1 = Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f);
+                    bool f2 = Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0f);
                     bool n1 = Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, sigma);
                     bool n2 = Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, point, sigma);
                     Fdp.Toolkit.Combat.LineOfFire.Bodies.EveryBodyForRails = true;
                     try
                     {
-                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target), f1);
-                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point), f2);
+                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), f1);
+                        Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0f), f2);
                         Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, sigma), n1);
                         Assert.Equal(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, point, sigma), n2);
                     }
@@ -530,7 +530,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 }
             }
             int held = 0;
-            foreach (var b in bodies) if (Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, b, new Vector3(0f, 0f, 0f))) held++;
+            foreach (var b in bodies) if (Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, b, new Vector3(0f, 0f, 0f), 0f)) held++;
             Assert.True(held > 20, $"the premise: plenty of lines are held ({held})");
 
             _world.Tick();
@@ -541,11 +541,11 @@ namespace Fdp.Toolkit.Combat.Tests
 
             _world.Tick();
             var shooterA = bodies[1];
-            Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooterA, Vector3.Zero);
+            Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooterA, Vector3.Zero, 0f);
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 200; i++)
             {
-                Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, bodies[i], new Vector3(i, -i, 0f));
+                Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, bodies[i], new Vector3(i, -i, 0f), 0f);
                 Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, bodies[i], new Vector3(-i, i, 0f), 0.02f);
             }
             Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
@@ -601,9 +601,148 @@ namespace Fdp.Toolkit.Combat.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8308</c> (D-14, user-approved 2026-11-20: "one rule for friends and civilians") — a FRIEND just off the line holds the shot
+        /// exactly when a NEUTRAL there would: within the weapon's spread at his range. 📐 <c>pc-corridor-fight</c>: a friend 0.65 m off a burst's
+        /// line 45 m out (the point 172 m away) was hit. Both forms (target and point), with and without spread, give the neutral's answer.
+        /// 🔴 Red-proof: the spread term dropped from the friend's circle ⇒ held with σ 0.02 is false ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8308_LineOfFire_AFriendInTheSpread_HoldsTheShot_LikeANeutral()
+        {
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            var target = SpawnTarget(new Vector3(172f, 0f, 0f));
+            _world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
+            var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
+            var point = new Vector3(172f, 0f, 0f);
+
+            var friend = Neutral(new Vector3(45f, 0.65f, 0f), person: true, radius: 0.3f);   // 0.65 m off the line at 45 m
+            _world.GetComponentRW<EntityInfo>(friend) = new EntityInfo { ForceId = ForceId.Friend };
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f), "an exact aim passes him");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0f));
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0.02f), "20 mils: ±0.9 m at 45 m reaches him");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, point, 0.02f), "a burst at the point too");
+
+            _world.GetComponentRW<EntityInfo>(friend) = new EntityInfo { ForceId = ForceId.Neutral };   // the same man, a civilian: the same answers
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f));
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0.02f));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3486</c> (flame FL-2, F-9 — Protocol III; docs/designs/weapons/DESIGN_Flame_Weapons.md) — a FLAMETHROWER is held while a neutral
+        /// person is anywhere in the FLAME: the whole reach (beyond the target, which a bullet's line stops at) and the cone (tan of the half-angle),
+        /// not just the bullet's line. A rifle at the same aim is not held by the same man. 🔴 Red-proof: the flame cone call dropped ⇒ the man past
+        /// the target does not hold it.
+        /// </summary>
+        [Fact]
+        public void CE3486_AFlamethrower_IsHeld_WhileANeutralIsAnywhereInItsFlame()
+        {
+            const long Fuel = 0x6C02;
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            _world.RegisterComponent<Health>();
+            var db = _world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? (Fdp.Toolkit.Tkb.TkbDatabase)_world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : new Fdp.Toolkit.Tkb.TkbDatabase();
+            var fuel = new Fdp.Interfaces.TkbTemplate("test flame fuel", Fuel);
+            fuel.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Incendiary, FlameRangeM = 40f, FlameHalfAngleDeg = 6f });
+            db.Register(fuel);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var mount = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower, AmmoGuid = Fuel };
+            var rifle = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms };
+
+            var target = SpawnTarget(new Vector3(20f, 0f, 0f));
+            _world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
+            var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
+            _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, mount, 0L, target), "no one in the flame");
+
+            var past = Neutral(new Vector3(30f, 0f, 0f), person: true);   // 10 m BEYOND the target, inside the 40 m reach
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, mount, 0L, target), "the flame goes on past the target");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, rifle, 0L, target), "a rifle is not a flame");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f), "the bullet's line stops at the target");
+            _world.AddComponent(past, new Health { Current = 0f, Max = 100f });
+
+            Neutral(new Vector3(35f, 3f, 0f), person: true);    // 3 m off the axis at 35 m: the 6° cone is ±3.7 m there
+            //   ⭐ CE-3490 BA-6 — the hold is the 3-D jet FlameSystem burns with: aimed at chest height (a jet aimed at the GROUND 20 m out is under it at 35 m)
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, mount, 0L, new Vector3(20f, 0f, 1f)), "inside the cone, toward a point");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3487</c> (flame FL-3 N-7, F-9) — a NAPALM bomb is held while a neutral person stands anywhere inside the ellipse it would lay at the impact point
+        /// (80 × 25 m along the carrier's flight line — east for a carrier with no motion); one outside it does not hold it; a Mk 82-like bomb is never asked.
+        /// 🔴 Red-proof: the ellipse test replaced by "within the half-width of the point" ⇒ the man 30 m along the axis does not hold it.
+        /// </summary>
+        [Fact]
+        public void CE3487_ANapalmBomb_IsHeld_WhileANeutralIsInsideItsEllipse()
+        {
+            const long Firebomb = 0x6C21, Iron = 0x6C22;
+            _world.RegisterComponent<EntityInfo>();
+            _world.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            _world.RegisterComponent<Health>();
+            var db = _world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? (Fdp.Toolkit.Tkb.TkbDatabase)_world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : new Fdp.Toolkit.Tkb.TkbDatabase();
+            var napalm = new Fdp.Interfaces.TkbTemplate("test firebomb", Firebomb);
+            napalm.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Incendiary, Indirect = true, AreaLengthM = 80f, AreaWidthM = 25f });
+            db.Register(napalm);
+            var iron = new Fdp.Interfaces.TkbTemplate("test iron bomb", Iron);
+            iron.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.HighExplosive, Indirect = true, ExplosiveKg = 90f });
+            db.Register(iron);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var rack = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = Firebomb };
+            var ironRack = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb, AmmoGuid = Iron };
+            var plane = _world.CreateEntity();
+            _world.AddComponent(plane, new SimTransform { Position = new Vector3(-2000f, 0f, 300f), Rotation = Quaternion.Identity });
+            _world.AddComponent(plane, new EntityInfo { ForceId = ForceId.Friend });
+            var impact = new Vector3(500f, 500f, 0f);
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInNapalm(_world, plane, rack, 0L, impact), "no one there");
+
+            var aside = Neutral(new Vector3(500f, 520f, 0f), person: true);        // 20 m across the axis: outside the 12.5 m half-width
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInNapalm(_world, plane, rack, 0L, impact), "outside the ellipse");
+            Neutral(new Vector3(530f, 503f, 0f), person: true);                     // 30 m along the (east) axis: inside
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInNapalm(_world, plane, rack, 0L, impact), "inside the ellipse");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInNapalm(_world, plane, ironRack, 0L, impact), "an iron bomb never asks it");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3486</c> (flame F-9) — the INCENDIARY rule of the ROE: a flamethrower's round is refused where the ROE forbids it, ordered on the
+        /// man or on his commander (down the chain, as every ROE field); no rule ⇒ allowed; a rifle's round never asks it; and the weapon choice drops
+        /// a forbidden flamethrower mount (so a flame tank's coax is taken). 🔴 Red-proof: IncendiaryPermits always true ⇒ the forbidden man fires.
+        /// </summary>
+        [Fact]
+        public void CE3486_TheRoesIncendiaryRule_ForbidsAFlame_DownTheChain_AndTheWeaponChoiceDropsIt()
+        {
+            const long Fuel = 0x6C12;
+            _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.Roe>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()) _world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            var db = _world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? (Fdp.Toolkit.Tkb.TkbDatabase)_world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : new Fdp.Toolkit.Tkb.TkbDatabase();
+            var fuel = new Fdp.Interfaces.TkbTemplate("test flame fuel 2", Fuel);
+            fuel.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Incendiary, FlameRangeM = 40f, FlameHalfAngleDeg = 6f });
+            db.Register(fuel);
+            _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            var flame = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower, AmmoGuid = Fuel };
+            var rifle = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms };
+
+            var man = _world.CreateEntity();
+            Assert.True(Fdp.Toolkit.Combat.ForceLevels.IncendiaryPermits(_world, man, 0L, flame), "no ROE: allowed (a military force)");
+            _world.AddComponent(man, new Fdp.Toolkit.Behavior.Components.Roe { Incendiary = Fdp.Toolkit.Behavior.Components.RoeIncendiary.IncendiaryForbidden,
+                                                                               SetBy = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator });
+            Assert.False(Fdp.Toolkit.Combat.ForceLevels.IncendiaryPermits(_world, man, 0L, flame), "forbidden on the man");
+            Assert.False(Fdp.Toolkit.Combat.ForceLevels.IncendiaryPermits(_world, man, Fuel, null), "the loaded fuel says it too");
+            Assert.True(Fdp.Toolkit.Combat.ForceLevels.IncendiaryPermits(_world, man, 0L, rifle), "a rifle never asks it");
+            Assert.False(Fdp.Toolkit.Combat.ForceLevels.AllowsMount(_world, man, Entity.Null, flame), "the weapon choice drops the flamethrower");
+            Assert.True(Fdp.Toolkit.Combat.ForceLevels.AllowsMount(_world, man, Entity.Null, rifle), "and keeps the rifle");
+
+            var squad = _world.CreateEntity();   // ordered on the SQUAD: every man under it
+            _world.AddComponent(squad, new Fdp.Toolkit.Behavior.Components.Roe { Incendiary = Fdp.Toolkit.Behavior.Components.RoeIncendiary.IncendiaryForbidden,
+                                                                                 SetBy = Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Superior });
+            var member = _world.CreateEntity();
+            _world.AddComponent(member, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = squad });
+            Assert.False(Fdp.Toolkit.Combat.ForceLevels.IncendiaryPermits(_world, member, 0L, flame), "forbidden on his commander");
+        }
+
+        /// <summary>
         /// ⭐ <c>AW-20</c> — the line test itself: a neutral PERSON just off the line holds the shot only when the weapon's spread at his range
         /// reaches him (σ × his distance along it); one behind the shooter, beyond the target, dead, or of the shooter's own side does not
-        /// (his own side is <see cref="LineOfFire.BlockedByFriendly(EntityRepository, Entity, Entity)"/>'s); a NEUTRAL shooter is never held by it.
+        /// (his own side is <see cref="LineOfFire.BlockedByFriendly(EntityRepository, Entity, Entity, float)"/>'s); a NEUTRAL shooter is never held by it.
         /// </summary>
         [Fact]
         public void AW20_LineOfFire_ANeutralPersonInTheSpread_HoldsTheShot_ButNotBehindBeyondOrDead()
@@ -632,7 +771,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f));
             _world.GetComponentRW<EntityInfo>(shooter).ForceId = ForceId.Neutral;   // a neutral shooter: they are his friends (BlockedByFriendly)
             Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f));
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target));
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f));
             _ = onLine;
         }
 
@@ -952,7 +1091,7 @@ namespace Fdp.Toolkit.Combat.Tests
                 _world.AddComponent(f, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 3.5f });
             }
 
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target));
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByFriendly(_world, shooter, target, 0f));
         }
             // ── CE-3136 P-3 — aim time (D3) and the sight gate (D4) ────────────────────────────────────────────────────────
 
@@ -1538,7 +1677,7 @@ namespace Fdp.Toolkit.Combat.Tests
         public void CV13a_TheAiHoldsAtAHostileShowingHandsUp_AndFiresTheMomentTheyComeDown()
         {
             if (!_world.IsComponentTypeRegistered<EntityInfo>()) _world.RegisterComponent<EntityInfo>();
-            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Gesture>()) _world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) _world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             var rifle = new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms };
             var (shooter, ch, enemy) = TypedShooter(rifle, range: 50f);
             _world.AddComponent(enemy, new EntityInfo { ForceId = ForceId.Hostile });
@@ -2420,6 +2559,13 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.False(BodyAim.OutsideFixedCone(_world, plane, mount! with { FixedConeDeg = 0f }, new Vector3(0f, 1000f, 0f)));
             Assert.False(BodyAim.OutsideFixedCone(_world, plane, mount with { TurretIndex = 0 }, new Vector3(0f, 1000f, 0f)));
             Assert.True(BodyAim.OutsideFixedCone(_world, plane, mount, new Vector3(0f, 1000f, 300f)));
+
+            // ⭐ CE-1960 — the OPERATOR's round from the fixed gun aimed BEHIND the plane goes along the bore (never toward the tail); inside the cone unchanged.
+            //   🔒 User, 2026-11-17: "the tracers and the fire is directed behind the aircraft". ✅ Red-proof: IntoFixedCone returning `at` ⇒ red.
+            var behind = BodyAim.IntoFixedCone(_world, plane, mount, new Vector3(-800f, 0f, 300f));
+            Assert.Equal(new Vector3(800f, 0f, 300f), behind);
+            var near = new Vector3(1000f, 30f, 300f);   // ~1.7° off the nose: inside the 5° cone
+            Assert.Equal(near, BodyAim.IntoFixedCone(_world, plane, mount, near));
         }
 
         // ── WL-4 W-12e (docs/DESIGN_Weapon_Layers.md §5f, L-2/L-3) — a hidden target gets a grenade at its last-known spot ────
@@ -2578,6 +2724,58 @@ namespace Fdp.Toolkit.Combat.Tests
             _executor.OnEnter(unit, ref channel, _world);
             Assert.Equal(0, Step(unit, ref channel, 0.1f));
             Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2452</c> (I-4's L-2 rule on the AIMED path too) — the engagement chose the M67 (mount 1) against a man 18 m off: with a
+        /// friend 3 m from him (inside the M67's 7.6 m lethal radius) the RIFLE (mount 0, on the unit) fires instead; with the rifle empty the
+        /// M67 stands (nothing else to fire); a friend 9 m off (outside it), or none, changes nothing. 📐 <c>rf-wall-hugger</c>: an aimed M67
+        /// burst among the thrower's own squad (164–202 at 3.4 m). ✅ Red-proof: <c>SpareFriends</c> returning its index unjudged ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData("no friend", 1)]
+        [InlineData("friend 3 m from him", 0)]
+        [InlineData("friend 3 m, rifle empty", 1)]
+        [InlineData("friend 9 m from him", 1)]
+        public void CE2452_AnAimedGrenade_WithAFriendInItsBurst_GivesWayToTheRifle(string why, int expected)
+        {
+            var at = new Vector3(0f, 18f, 0f);
+            var (unit, grenade, _, target) = Grenadier(at);
+            SetSight(unit, target, visual: true);
+            if (why.StartsWith("friend"))
+            {
+                var friend = SpawnTarget(at + new Vector3(why.Contains("9 m") ? 9f : 3f, 0f, 0f));
+                _world.AddComponent(friend, new EntityInfo { ForceId = (Fdp.Core.ForceId)1 });
+            }
+            if (why.Contains("rifle empty"))
+            {
+                ref var rifle = ref _world.GetComponentRW<WeaponState>(unit);
+                rifle.Ammo = 0;
+            }
+            Entity mount = grenade;
+            int fired = AimAndFireExecutor.SpareFriends(_world, unit, target, 1, ref mount);
+            Assert.Equal(expected, fired);
+            Assert.Equal(expected == 0 ? unit : grenade, mount);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2452</c> — the friend check counts the WALL (the room drill's CB-70 law, <see cref="GrenadeRules.Hurts"/>): a man hugging
+        /// the brick house's south wall from outside, a friend 1.9 m from him INSIDE behind it — the M67 stands (the wall stops its fragments);
+        /// the same two with no house — the rifle. ✅ Red-proof: the trace left out (a flat radius, the old <c>FriendlyInBurst</c>) ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(true, 1)]
+        [InlineData(false, 0)]
+        public void CE2452_AFriendBehindAWall_DoesNotVetoTheGrenade_InTheOpenHeDoes(bool house, int expected)
+        {
+            var at = new Vector3(25f, 19.6f, 0f);
+            var (unit, grenade, _, target) = Grenadier(at);
+            if (house) _world.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(Fdp.Toolkit.Terrain.Tests.BreachFixtures.BrickHouse, "range"));
+            SetSight(unit, target, visual: true);
+            var friend = SpawnTarget(new Vector3(25f, 21.5f, 0f));
+            _world.AddComponent(friend, new EntityInfo { ForceId = (Fdp.Core.ForceId)1 });
+            Entity mount = grenade;
+            Assert.Equal(expected, AimAndFireExecutor.SpareFriends(_world, unit, target, 1, ref mount));
         }
 
         // ── CE-2360 I-4 (AQ102 R2-4, R-2073) — WHICH grenade the hidden-target throw picks ───────────────────────────────────────
@@ -3584,7 +3782,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
                 _world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)(7) });
             Assert.True(WeaponSystems.CanFire(_world, m2, out why), $"held by {why}");
         }
 
@@ -3603,7 +3801,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
                 _world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });
+            _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)(7) });
             Assert.Equal(gunner, WeaponSystems.ControllerOf(_world, m2));                   // seat switching: the gunner's gun
             Span<Entity> keys = stackalloc Entity[4];
             Assert.Equal(1, WeaponSystems.Controlled(_world, gunner, keys));
@@ -3612,7 +3810,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(WeaponSystems.OperatesAStation(_world, gunner));
             Assert.True(WeaponSystems.CanFire(_world, m2, out var why), $"held by {why}");
 
-            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });   // the driver seat too
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)(7) });   // the driver seat too
             Assert.Equal(pickup, WeaponSystems.ControllerOf(_world, m2));
             _world.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(pickup);
             _world.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(gunner);                         // released

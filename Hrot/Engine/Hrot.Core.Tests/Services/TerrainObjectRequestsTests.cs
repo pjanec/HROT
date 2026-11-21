@@ -179,5 +179,49 @@ namespace Hrot.Core.Tests.Services
                     switch (c) { case MinefieldKnowledge a: world.AddComponent(world.CreateEntity(), a); break; case MinefieldStrikes b: world.AddComponent(world.CreateEntity(), b); break; case MinefieldLanes d: world.AddComponent(world.CreateEntity(), d); break; }
             Assert.Empty(TerrainObjectRequests.ForPlaceKnowledge(world, saved, new Ids()));
         }
+
+        /// <summary>
+        /// ⭐ CE-2468 UF-3 (DESIGN_Minefields.md §9b.1 K1) — a place under fire is saved by AGE, never by its absolute time: a record learned at t = 2 950 s and saved at
+        /// t = 3 000 s is written <c>"age": 50</c>; read back, it becomes a LOADED record holding that age (its writer rebases it on the loading node's clock); two slices of one
+        /// key merge to the NEWEST (the smaller age). A re-commit doubles nothing. 🔴 Red-proof: write the absolute learned-at in place of the age ⇒ "age" is 2 950.
+        /// </summary>
+        [Fact]
+        public void CE2468_APlaceUnderFire_IsSavedByAge_AndLoadedHoldingIt()
+        {
+            using var src = new EntityRepository();
+            src.RegisterComponent<UnderFireKnowledge>();
+            src.SetSingleton(new GlobalTime { TotalTime = 3000.0 });
+            var subject = UnderFireRules.SubjectOf(UnderFireCause.Direct, new Vector3(300, 400, 0));
+            var r = new UnderFireKnowledge { Cause = UnderFireCause.Direct, Point = new Vector3(300, 400, 2), RangeM = 150f, EnemyStrength = 0.75f };
+            r.Header.SubjectKind = SubjectKind.Place; r.Header.Subject = subject; r.Header.ObjectIndex = -1; r.Header.SidePlus1 = 2; r.Header.Kind = PlaceKnowledgeKind.UnderFire;
+            r.Header.LearnedAt = (SimInstant)2950.0; r.Header.Source = KnowledgeSource.Contact;
+            src.AddComponent(src.CreateEntity(), r);
+
+            var section = PlaceKnowledgeSection.Write(src)!;
+            var entry = Assert.Single(section).Value!.AsObject();
+            Assert.Equal(50.0, entry["age"]!.GetValue<double>(), 6);
+            Assert.Null(entry["learnedAt"]);
+            var saved = PlaceKnowledgeSection.Read(new JsonObject { [PlaceKnowledgeSection.Name] = JsonNode.Parse(section.ToJsonString()) });
+            var u = Assert.Single(saved.UnderFire);
+            Assert.Equal((subject, (byte)2, UnderFireCause.Direct, new Vector3(300, 400, 2), 150f, 0.75f, 50.0), (u.Subject, u.SidePlus1, u.Cause, u.Point, u.RangeM, u.EnemyStrength, u.AgeSeconds));
+
+            using var world = new EntityRepository();
+            world.RegisterComponent<UnderFireKnowledge>();
+            var request = Assert.Single(TerrainObjectRequests.ForPlaceKnowledge(world, saved, new Ids()));
+            Assert.Equal(UnderFireKnowledge.TkbType, (long)request.TkbType);
+            Assert.True(request.IsTransient);
+            var loaded = request.InitialComponents!.OfType<UnderFireKnowledge>().Single();
+            Assert.Equal((UnderFireKnowledge.StateLoaded, 50.0, SubjectKind.Place, PlaceKnowledgeKind.UnderFire), (loaded.Header.State, (double)loaded.Header.LearnedAt, loaded.Header.SubjectKind, loaded.Header.Kind));
+            Assert.False(loaded.FreshAt(0));   // no reader treats it as fresh before its rebase
+
+            string key = Assert.Single(section).Key;   // two slices, one key: the newest (the smaller age) wins
+            var older = (JsonObject)entry.DeepClone(); older["age"] = 400.0; older["underFire"]![4] = 90f;
+            var merged = PlaceKnowledgeSection.Merge(key, older, (JsonObject)entry.DeepClone());
+            Assert.Equal(50.0, merged["age"]!.GetValue<double>(), 6);
+            Assert.Equal(150f, merged["underFire"]![4]!.GetValue<float>());
+
+            world.AddComponent(world.CreateEntity(), loaded);   // a re-commit
+            Assert.Empty(TerrainObjectRequests.ForPlaceKnowledge(world, saved, new Ids()));
+        }
     }
 }

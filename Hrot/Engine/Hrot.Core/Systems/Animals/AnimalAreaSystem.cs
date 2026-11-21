@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Animals;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Determinism;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication;
@@ -22,7 +23,7 @@ namespace Hrot.Core.Animals
     /// that many birds), through the ONE creation path in the shape <c>MacroInsertion</c> uses — TRANSIENT (never saved: the scenario keeps only the area), each
     /// GUID DERIVED from the area's GUID and the animal's slot (a replay re-derives the same ids). Then it marks the area <see cref="AnimalAreaPopulated"/> —
     /// recorded, so a restore or a replay NEVER repopulates. The area becomes the HERD entity of a herding species (its own <see cref="HerdState"/> and
-    /// <see cref="AnimalHome"/>); the <see cref="HerdSystem"/> links the arriving animals to it. ⭐ Every animal's home is the area (its centre and reach,
+    /// <see cref="Home"/>); the <see cref="HerdSystem"/> links the arriving animals to it. ⭐ Every animal's home is the area (its centre and reach,
     /// and ENCLOSED: a pen nothing runs out of).
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
@@ -32,6 +33,7 @@ namespace Hrot.Core.Animals
         /// <summary>The most animals one area asks for (an authoring slip of 60 000 cows stops here).</summary>
         public const int MaxPerArea = 300;
 
+        [Fdp.Core.FrameScratch("this run's owned animal areas: cleared and refilled from this frame's world")]
         private readonly List<Entity> _due = new();
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -55,7 +57,7 @@ namespace Hrot.Core.Animals
                 ? ((ISimulationView)repo).GetManagedComponentRO<EditablePolyline>(area).Points : Array.Empty<Vector2>();
             Outline(outline, out var centroid, out float radius, out var min, out var max);
             var centre = new Vector3(anchor.X + centroid.X, anchor.Y + centroid.Y, anchor.Z);
-            var home = new AnimalHome { Centre = centre, Radius = MathF.Max(radius, 5f), Enclosed = a.Enclosed };
+            var home = new Home { Centre = centre, Radius = HomeRadius(outline, centroid, radius, a.Enclosed != 0), Enclosed = a.Enclosed };   // ⭐ CE-1958 — a pen: the circle INSIDE its outline
             int species = (int)a.Species;
             long type = TkbEntityTypes.Animal_Cattle + species;
             var row = species >= 0 && species < AnimalTkbCatalog.Species.Length ? AnimalTkbCatalog.Species[species] : null;
@@ -96,8 +98,10 @@ namespace Hrot.Core.Animals
             if (herding && !flock)
             {
                 if (repo.IsComponentTypeRegistered<HerdState>() && !repo.HasComponent<HerdState>(area))
-                    repo.AddComponent(area, new HerdState { Species = a.Species, Centre = centre });
-                if (repo.IsComponentTypeRegistered<AnimalHome>() && !repo.HasComponent<AnimalHome>(area)) repo.AddComponent(area, home);
+                    repo.AddComponent(area, new HerdState { Species = a.Species });
+                if (repo.IsComponentTypeRegistered<Group>() && !repo.HasComponent<Group>(area))   // ⭐ CE-4628 — the herd's header: its centre starts at the area's, the HerdSystem keeps it
+                    repo.AddComponent(area, new Group { Kind = GroupKind.Herd, Centre = centre });
+                if (repo.IsComponentTypeRegistered<Home>() && !repo.HasComponent<Home>(area)) repo.AddComponent(area, home);
             }
             repo.AddComponent(area, new AnimalAreaPopulated { At = (SimInstant)now });
             return count;
@@ -111,6 +115,30 @@ namespace Hrot.Core.Animals
             for (int i = 0; i < pts.Count; i++) { centroid += pts[i]; min = Vector2.Min(min, pts[i]); max = Vector2.Max(max, pts[i]); }
             centroid /= pts.Count;
             for (int i = 0; i < pts.Count; i++) radius = MathF.Max(radius, Vector2.Distance(pts[i], centroid));
+        }
+
+        /// <summary>⭐ CE-1958 — the room a body needs between its home circle's edge and the outline: half the longest common body (a cow, 2.2 m) and a step.</summary>
+        public const float BodyClearanceM = 1.5f;
+
+        /// <summary>
+        /// ⭐ <c>CE-1958</c> — the radius of the HOME circle every choice keeps to (the herd's grazing spot, a member's spot, a pen's flight). An ENCLOSED area
+        /// (a pen — its outline is its wall, nothing leaves it, AN-18) gets the largest circle round the outline's centre that stays INSIDE it, less
+        /// <see cref="BodyClearanceM"/>. 📌 It was the distance to the farthest VERTEX: for farm-under-fire's 12 m square pen 8.5 m, so a grazing spot in a
+        /// corner past the wall sent a pig into it for good. ⭐ An OPEN area keeps that reach — its home is also the animal's GROUND (a guard dog barks at a
+        /// man inside it + 15 m and bites one close inside it; 📐 the inner circle shrank ua-animal-guard-dog's 12 × 8 m yard from 7.2 m to 2.5 m and the dog
+        /// never bit). An outline of fewer than 3 points, or a concave one whose centre lies outside it, keeps the reach too (at least 5 m).
+        /// </summary>
+        public static float HomeRadius(IReadOnlyList<Vector2> outline, Vector2 centroid, float farthest, bool enclosed)
+        {
+            if (!enclosed || outline.Count < 3 || !PolygonMath.Contains(outline, centroid)) return MathF.Max(farthest, 5f);
+            float nearest = float.MaxValue;
+            for (int i = 0; i < outline.Count; i++)
+            {
+                Vector2 a = outline[i], b = outline[(i + 1) % outline.Count], ab = b - a;
+                float t = ab.LengthSquared() > 1e-8f ? Math.Clamp(Vector2.Dot(centroid - a, ab) / ab.LengthSquared(), 0f, 1f) : 0f;
+                nearest = MathF.Min(nearest, Vector2.Distance(centroid, a + ab * t));
+            }
+            return MathF.Max(nearest - BodyClearanceM, 1f);
         }
 
         /// <summary>A seeded point inside the outline (rejection in its box; a degenerate outline: round its centre).</summary>

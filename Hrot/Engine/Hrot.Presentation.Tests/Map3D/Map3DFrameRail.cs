@@ -607,7 +607,7 @@ public sealed class Map3DFrameRail
 
         // the kills happen at sim 0, through the production spawner (a crossing makes flames and smoke)
         At(0.0);
-        var wrecks = new Hrot.UI.Common.Effects.WreckSpawnSystem();
+        var wrecks = new Hrot.Presentation.Tests.BurningWrecks(world);   // ⭐ CE-4660 — the kill lights the hull, the flames read its FireState
         void Tick()
         {
             wrecks.Execute(world, 0f);
@@ -616,7 +616,7 @@ public sealed class Map3DFrameRail
         Tick();
         Kill(m1); Kill(bradley); Kill(car);
         Tick();
-        Assert.Equal(6, wrecks.Spawned);
+        Assert.Equal(0, wrecks.Spawned);   // ⭐ CE-4635 — the wreck rule is retired: no effect entity; the flames below are drawn from each hull's FireState
 
         using var frame = UiFrameHarness.Begin(1280, 800);
         LitShader.Reset();   // a new window: the shared shader compiles in THIS context
@@ -668,7 +668,10 @@ public sealed class Map3DFrameRail
         At(150.0);
         frame.Step(canvas.Draw);
         frame.Screenshot(Path.Combine(shots, "wreck-5-fading-smoke-150s.png"));
-        Assert.Equal(3, effects.Drawn);
+        Assert.Equal(6, effects.Drawn);   // ⭐ CE-4635 — the flames burn as long as the hull's FireSeconds (a wheeled hull 10 min, a tracked one 30), each with its small smoke
+        At(2000.0);
+        frame.Step(canvas.Draw);
+        Assert.Equal(0, effects.Drawn);   // every spot is out: nothing is drawn
 
         // the 2-D map at 8.3 s: the symbols (the production EntityPresentationGizmo) with the X on the three wrecks, the puffs from above
         At(8.3);
@@ -1860,7 +1863,7 @@ public sealed class Map3DFrameRail
         world.SetSingletonManaged(map);
         world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
         {
-            StationNodeId = (Fdp.Core.NodeId)(0), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,   // this node (no authority data ⇒ 0)
+            StationNodeId = (Fdp.Core.StationId)(0), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,   // this node (no authority data ⇒ 0)
         });
 
         string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
@@ -1986,7 +1989,7 @@ public sealed class Map3DFrameRail
         Man(stand + new Vector2(6f, -0.4f), 10f, 1003, StanceId.Prone);   // another, out of reach
         world.AddComponent(me, new Fdp.Toolkit.Behavior.Possession.PossessedBy
         {
-            StationNodeId = (Fdp.Core.NodeId)(0), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,
+            StationNodeId = (Fdp.Core.StationId)(0), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1,
         });
 
         string shots = Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } d ? d : Path.Combine(Path.GetTempPath(), "hrot-map3d");
@@ -3757,10 +3760,10 @@ public sealed class Map3DFrameRail
         Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityShield, 2.5f);
         Person(Hrot.Core.Tkb.CivilianTkbCatalog.TkbSecurityLauncher, 4.5f, posture: Fdp.Toolkit.Combat.Components.WeaponPostureKind.Ready);
         // ⭐ CE-1179 (U18) — a surrendered soldier, his rifle laid at his feet, hands up; a placed charge beside the toy, its light on
-        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+        world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
         var surrendered = Person(Hrot.Core.Tkb.UrbanCombatTkbCatalog.TkbInfantrySoldier, 8.5f, posture: Fdp.Toolkit.Combat.Components.WeaponPostureKind.AtEase);
         Fdp.Toolkit.Combat.WeaponLaying.LayDown(world, surrendered, 0);
-        world.AddComponent(surrendered, new Fdp.Toolkit.Combat.Gesture { Kind = Fdp.Toolkit.Combat.GestureKind.HandsUp });
+        world.AddComponent(surrendered, new Fdp.Toolkit.Creatures.Demeanour { Kind = Fdp.Toolkit.Combat.GestureKind.HandsUp });
         var placed = world.CreateEntity();
         world.AddComponent(placed, new SimTransform { Position = new Vector3(spot.X + 7.4f, spot.Y - 0.9f, G(spot.X + 7.4f, spot.Y - 0.9f)), Rotation = Quaternion.Identity });
         world.AddComponent(placed, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_ExplosiveCharge) });
@@ -3793,7 +3796,7 @@ public sealed class Map3DFrameRail
         Assert.Equal(1, bodies.ChargeLightsDrawn);   // the placed charge's light, on at t = 0
 
         // ⭐ CE-1177 (U16) — four faces close up: calm, afraid, angry, in pain
-        world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();
+        world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
         float fy = spot.Y + 6f;
@@ -3808,8 +3811,8 @@ public sealed class Map3DFrameRail
             return e;
         }
         Face(-1.2f);                                                                                                  // calm
-        Fdp.Toolkit.Civilians.Demeanours.Set(world, Face(-0.4f), Fdp.Toolkit.Civilians.CivilianMode.Panic, fear: 1f, anger: 0f);
-        Fdp.Toolkit.Civilians.Demeanours.Set(world, Face(0.4f), Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0f, anger: 1f);
+        Fdp.Toolkit.Creatures.Demeanours.SetMood(world, Face(-0.4f), Fdp.Toolkit.Civilians.CivilianMode.Panic, fear: 1f, anger: 0f);
+        Fdp.Toolkit.Creatures.Demeanours.SetMood(world, Face(0.4f), Fdp.Toolkit.Civilians.CivilianMode.Riot, fear: 0f, anger: 1f);
         var hurt = Face(1.2f);
         world.AddComponent(hurt, new Fdp.Toolkit.Combat.Components.Health { Current = 40f, Max = 100f });
         world.AddComponent(hurt, new Fdp.Toolkit.Combat.Components.InjuryThresholds { WoundedBelow = 0.6f, IncapacitatedBelow = 0.3f, WoundedSpeedFactor = 0.6f });
@@ -3988,7 +3991,7 @@ public sealed class Map3DFrameRail
         world.RegisterComponent<TkbIdentity>();
         world.RegisterComponent<NetworkIdentity>();
         world.RegisterComponent<EntityInfo>();
-        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();
+        world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
         world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);

@@ -54,6 +54,45 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>The speed counted as "running" for heat (m/s); 0 ⇒ 5 m/s.</summary>
         [EditUnit("m/s")]
         public float ReferenceSpeed { get; init; } = 5f;
+
+        // ── ⭐ CE-4657 (thermal drivers TD-3, TD-14, TD-16; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4 "type data") — read by the calculator and
+        //    the writers, NEVER sent at runtime (a reader knows the type). APPENDED.
+
+        /// <summary>An ENGINE (a vehicle, an aircraft, a generator) — its <c>HeatSource</c> is Off · Idle · Running · Dead; false: a BODY (a person, an
+        /// animal) — Standing · Moving.</summary>
+        public bool HasPowerPlant { get; init; }
+
+        /// <summary>Its power class (car · truck · tank · aircraft) — how long the ground it warmed stays warm (terrain's one enum, ruling 9).</summary>
+        public Fdp.Toolkit.Terrain.ThermalPowerClass PowerClass { get; init; }
+
+        /// <summary>Which end carries the engine and exhaust — the hot end of the hull and of the ground mark it leaves (terrain's one enum).</summary>
+        public Fdp.Toolkit.Terrain.HeatMarkEnd HotEnd { get; init; }
+
+        /// <summary>Its heat (0..1) with the engine IDLING, warmed through — our sensor's calculator (a body: standing).</summary>
+        [EditRange(0, 1)]
+        public float IdleHeat { get; init; } = 0.35f;
+
+        /// <summary>Its heat (0..1) RUNNING at <see cref="ReferenceSpeed"/>, warmed through (a body: running).</summary>
+        [EditRange(0, 1)]
+        public float RunningHeat { get; init; } = 0.8f;
+
+        /// <summary>How long a destroyed one of this type burns (s); 0 ⇒ it does not burn (TD-16 ①: "a fuelled type destroyed").</summary>
+        [EditUnit("s")]
+        public float FireSeconds { get; init; }
+
+        /// <summary>A person's clothing class (0 = none / not a person) — the image generator's emissivity hint; our sensor ignores it.</summary>
+        public byte ClothingClass { get; init; }
+
+        // ── ⭐ CE-4670 (vehicle appearance VA-S4, VA-5; docs/designs/vehicle-appearance/DESIGN_Vehicle_Appearance_State.md §4 "Gen.PowerPlant gains") — how
+        //    fast the engine (and a rotor / propeller with it) comes up to speed and runs down; read by <c>VehicleLook.RotorSpeed</c>, never sent. APPENDED.
+
+        /// <summary>Seconds from stopped to full speed (an engine start, a rotor run-up); 0 ⇒ instant.</summary>
+        [EditUnit("s")]
+        public float SpinUpSeconds { get; init; }
+
+        /// <summary>Seconds from full speed to stopped (a shutdown, a rotor run-down); 0 ⇒ instant.</summary>
+        [EditUnit("s")]
+        public float SpinDownSeconds { get; init; }
     }
 
     /// <summary>⭐ <c>CE-3062</c> — how far this entity's sounds carry (metres). 0 ⇒ that sound is not made.</summary>
@@ -169,5 +208,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         Rotor         = 7,
         /// <summary>⭐ CE-4623 AB-8 (Animals AR-7) — an animal's ALARM or a bark: heard by everyone, a fright to other animals (never to a civilian).</summary>
         Animal        = 8,
+        /// <summary>⭐ <c>CE-4635</c> (DESIGN_Flame_Weapons §6) — a flamethrower's ROAR: weapon fire, heard once a second for as long as the burst lasts,
+        /// at a shorter range than a rifle.</summary>
+        Flame         = 9,
+        /// <summary>⭐ <c>CE-4634</c> (DESIGN_Dragon, the ui NOTE's sound) — a great BEAST's roar and wingbeat (a dragon): heard while it flies, far; the
+        /// listener's side plays the wingbeat by the wing pose and the roar on its own cues.</summary>
+        Roar          = 10,
     }
 }

@@ -10,6 +10,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis3D;
+using Hrot.Common.Messages;
 using Hrot.Common.Orders;
 using Raylib_cs;
 
@@ -80,7 +81,7 @@ namespace Hrot.UI.Common.Map3D
             var map = w.HasSingletonManaged<NetworkEntityMap>() ? w.GetSingletonManaged<NetworkEntityMap>() : null;
             int net = map is not null && map.TryGetNetworkId(unit, out int id) ? id : 0;
             var side = w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(unit) ? w.GetComponentRO<EntityInfo>(unit).ForceId : ForceId.Neutral;
-            int station = map is not null ? (int)new EntityOrders(w, map, geo: null).StationFor(unit) : 0;
+            var station = map is not null ? (Fdp.Core.StationId)new EntityOrders(w, map, geo: null).StationFor(unit) : default;
             return new MessageViewer(net, side, station);
         }
 
@@ -565,7 +566,8 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, verdict, cx - vw / 2, uy, Color.SkyBlue);
             }
             var lines = Hud.Lines(w, _driver.Unit, _driver.Mount, _driver.IsVehicle, _driver.HullLocked, _driver.Stance, _driver.ShotPending,
-                                  _driver.Scheme, _driver.Running, _driver.LookFree, Hud.SeatLine(w, _driver.Unit), _driver.FireModeLine(w));
+                                  _driver.Scheme, _driver.Running, _driver.LookFree, Hud.SeatLine(w, _driver.Unit), _driver.FireModeLine(w),
+                                  _driver.CrewLines(w));   // ⭐ CE-4670 (§7d D-6)
             if (OverShoulder && lines.Length > 0) lines = [.. lines[..^1], Hud.ShoulderLine, lines[^1]];   // ⭐ CE-1201 (§8p OS-1)
             // ⭐ CE-1140 — bottom-left of the VISIBLE map (out of the forward view), the labels' font (Roboto, smoothed), a colour per kind
             int width = 0;
@@ -1046,13 +1048,16 @@ namespace Hrot.UI.Common.Map3D
                 if (line.StartsWith("STANCE", StringComparison.Ordinal)) return new Color(120, 220, 255, 255);
                 if (line == LookFreeLine) return new Color(255, 220, 120, 255);   // ⭐ CE-1204
                 if (line.StartsWith("SPD", StringComparison.Ordinal)) return new Color(150, 200, 255, 255);
+                if (line.StartsWith(CrewControls.HatchPrefix, StringComparison.Ordinal) || line.StartsWith(CrewControls.HeadOutPrefix, StringComparison.Ordinal))
+                    return new Color(159, 215, 255, 255);   // ⭐ CE-4670 — the mockup's pale blue
+                if (line.StartsWith(CrewControls.LightsPrefix, StringComparison.Ordinal)) return new Color(242, 192, 51, 255);   // the mockup's amber
                 return Color.RayWhite;
             }
 
             public static string[] Lines(EntityRepository w, Entity unit, int mount, bool vehicle, bool hullLocked,
                                          Fdp.Toolkit.Tkb.Domain.StanceId? stance = null, bool shotPending = false,
                                          ControlScheme scheme = ControlScheme.Person, bool running = false, bool lookFree = false,
-                                         string? seat = null, string? fireMode = null)
+                                         string? seat = null, string? fireMode = null, (string? Hatch, string? Lights) crew = default)
             {
                 var lines = new System.Collections.Generic.List<string>();
                 bool flyer = scheme is ControlScheme.Rotorcraft or ControlScheme.FixedWing;
@@ -1089,6 +1094,8 @@ namespace Hrot.UI.Common.Map3D
                               + (st != Fdp.Toolkit.Tkb.Domain.StanceId.Standing && Hrot.MuscleCharacter.Animation.Components.LogicalStance.Refuses(w, unit)
                                   ? $"  - {st.ToString().ToUpperInvariant()}: not for this unit" : ""));
                 if (lookFree && !vehicle && !flyer) lines.Add(LookFreeLine);   // ⭐ CE-1204 (§8l LK-4)
+                if (crew.Hatch != null) lines.Add(crew.Hatch);                 // ⭐ CE-4670 (§7d D-6)
+                if (crew.Lights != null) lines.Add(crew.Lights);
                 if (seat != null) lines.Add(seat);                             // ⭐ CE-1210 (§8n MS-3)
                 lines.Add(scheme switch
                 {
@@ -1162,35 +1169,13 @@ namespace Hrot.UI.Common.Map3D
             }
 
             /// <summary>⭐ CE-1158 — a unit's type name from the TKB (<c>BMP-2</c>, <c>ZU-23-2</c>), or null.</summary>
-            public static string? TypeName(EntityRepository w, Entity e)
-            {
-                if (e.IsNull || !w.IsAlive(e) || !w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()
-                    || !w.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e) || !w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return null;
-                long type = w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType;
-                return w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!.TryGetByType(type, out var t) && t != null ? t.Name : null;
-            }
+            public static string? TypeName(EntityRepository w, Entity e) => Hrot.Look.Hud.HudWords.TypeName(w, e);   // ⭐ CE-11005 (RR-5) — the shared words
 
             /// <summary>⭐ CE-1158 (§8h U-1) — an action as the HUD names it: <c>Open door</c>, <c>Drag</c>, <c>Drive BMP-2</c>, <c>Man ZU-23-2</c>.</summary>
-            public static string Label(EntityRepository w, in UseAction a)
-                => a.Verb is UseVerbKind.Drive or UseVerbKind.Pilot or UseVerbKind.Board or UseVerbKind.Man
-                         or UseVerbKind.Take or UseVerbKind.Drop or UseVerbKind.PickUpRound && TypeName(w, a.Target) is { } name   // ⭐ CE-1207
-                    ? $"{a.Label} {name}" : a.Label;
+            public static string Label(EntityRepository w, in UseAction a) => Hrot.Look.Hud.HudWords.Label(w, in a);
 
             /// <summary>⭐ CE-1158 (§8h U-3) — why an action cannot be done, in the HUD's words.</summary>
-            public static string ReasonText(UseReason r) => r switch
-            {
-                UseReason.OutOfReach => "too far",
-                UseReason.Locked => "locked",
-                UseReason.DoorRefuses => "will not move",
-                UseReason.NotDown => "not down",
-                UseReason.SeatTaken => "seat taken",
-                UseReason.OtherSide => "enemy aboard",   // ⭐ R-4096
-                UseReason.Unfit => "you are down",
-                UseReason.Carrying => "hands full",
-                UseReason.NothingToDo => "nothing to do",
-                UseReason.Failed => "failed",
-                _ => "",
-            };
+            public static string ReasonText(UseReason r) => Hrot.Look.Hud.HudWords.ReasonText(r);
 
             /// <summary>⭐ CE-1158 (§8h U-1, U-3) — the prompt: <c>F  Open door</c>, or greyed with its reason <c>F  Open door (too far)</c> (⭐ CE-1212 — E before).</summary>
             public static string Prompt(EntityRepository w, in UseAction a)
@@ -1239,8 +1224,11 @@ namespace Hrot.UI.Common.Map3D
                 }
                 if (a.IsBusy(m)) line.Append("  LOADING");
                 // ⭐ CE-1358 (DESIGN_Weapon_Layers §5k) — the barrel: held while too hot, its heat once it is worth watching
-                if (a.IsHot(m)) line.Append("  OVERHEATED ").Append(a.HeatPercentOf(m)).Append('%');
-                else if (a.HeatPercentOf(m) >= HeatShownFromPercent) line.Append("  HEAT ").Append(a.HeatPercentOf(m)).Append('%');
+                // ⭐ CE-4659 (backend, a cross-lane edit — NOTE_Backend_To_Ui_Barrel_Heat_Computed.md): the heat is COMPUTED from the mount's last shot
+                double now = w.HasSingletonUnmanaged<GlobalTime>() ? w.GetSingletonUnmanagedRO<GlobalTime>().TotalTime : 0.0;
+                int heatPercent = a.HeatPercentAt(m, now);
+                if (a.IsHot(m)) line.Append("  OVERHEATED ").Append(heatPercent).Append('%');
+                else if (heatPercent >= HeatShownFromPercent) line.Append("  HEAT ").Append(heatPercent).Append('%');
                 return line.ToString();
             }
 
@@ -1268,29 +1256,10 @@ namespace Hrot.UI.Common.Map3D
             /// <summary>⭐ CE-1358 — the weapon line shows the barrel's heat from this percent (below it the barrel is not worth a word).</summary>
             public const int HeatShownFromPercent = 25;
 
-            public static string KindOf(Fdp.Toolkit.Tkb.Domain.WeaponCategory c) => c switch
-            {
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms => "RIFLE",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun => "MG",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon => "AUTOCANNON",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun => "CANNON",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm => "MISSILE",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar => "MORTAR",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade => "GRENADE",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb => "BOMB",        // ⭐ Air Ops (backend, cross-lane: a name only)
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket => "ROCKETS",   // ⭐ Air Ops 6a (AW-3)
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Howitzer => "HOWITZER",   // ⭐ IF-1 (I8)
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Sam => "SAM",             // ⭐ CE-2187 (backend, cross-lane: a name only)
-                _ => "WEAPON",
-            };
+            public static string KindOf(Fdp.Toolkit.Tkb.Domain.WeaponCategory c) => Hrot.Look.Hud.HudWords.KindOf(c);
 
             /// <summary>⭐ CE-1079 — a round's name from the TKB (its munition template; a trailing " round" dropped), or null.</summary>
-            public static string? RoundName(EntityRepository w, long ammo)
-            {
-                if (ammo == 0 || !w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return null;
-                if (!w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!.TryGetByType(ammo, out var t) || t == null) return null;
-                return t.Name.EndsWith(" round", StringComparison.Ordinal) ? t.Name[..^6] : t.Name;
-            }
+            public static string? RoundName(EntityRepository w, long ammo) => Hrot.Look.Hud.HudWords.RoundName(w, ammo);
         }
     }
 
@@ -1301,8 +1270,19 @@ namespace Hrot.UI.Common.Map3D
     /// V (a vehicle's hull-locked view, where the mouse steers) and Esc (release), and sends ONE control frame per frame. It consumes
     /// the input, so no click or menu reaches the map's layers while the operator is in the unit.
     /// </summary>
-    public sealed class FpsCameraDriver : ICameraDriver
+    public sealed class FpsCameraDriver : ICameraDriver, ICameraSuggests
     {
+        /// <summary>⭐ CE-11006 (RR-6) — the operator in a unit: over its shoulder (the side and distance he set) or at its eyes.</summary>
+        public void Describe(EntityRepository world, ref Hrot.Map.Common.Components.CameraSuggestion s)
+        {
+            s.Source = Hrot.Map.Common.Components.CameraSource.Operator;
+            bool shoulder = ShoulderViewOn;
+            s.Mode = shoulder ? Hrot.Map.Common.Components.CameraMode.Shoulder : Hrot.Map.Common.Components.CameraMode.Eyes;
+            s.Bound = Unit;
+            s.Distance = shoulder ? _station.ShoulderDistance(Scheme) : 0f;
+            s.ShoulderSide = shoulder ? (sbyte)Math.Sign(_station.ShoulderSide) : (sbyte)0;
+        }
+
         /// <summary>Radians of look per pixel of mouse movement.</summary>
         public const float LookSensitivity = 0.0025f;
         /// <summary>⭐ <c>CE-1351</c> — how far ahead of a flyer's nose A/D put the heading it turns to (rad): held, it turns at its own rate
@@ -1420,6 +1400,14 @@ namespace Hrot.UI.Common.Map3D
                    + (Fdp.Toolkit.Combat.OperatorFireModes.CanChoose(dto) ? $"  ({_keys.ChordOf(EmbodiedKeys.FireMode)}: switch)" : "");
         }
 
+        /// <summary>⭐ CE-4670 (§7d D-6) — the HUD's hatch and lights lines for the held crewman (null where they do not apply), the keys as bound.</summary>
+        public (string? Hatch, string? Lights) CrewLines(EntityRepository w)
+        {
+            if (!IsVehicle && SeatSwitch.VehicleOf(w, Unit).IsNull) return default;
+            var tkb = w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
+            return (CrewControls.HatchLine(w, tkb, Unit, _keys.ChordOf(EmbodiedKeys.HeadOut) ?? "H"), CrewControls.LightsLine(w, tkb, Unit, _keys.ChordOf(EmbodiedKeys.Lights) ?? "U"));
+        }
+
         /// <summary>⭐ CE-4143 (R-2) — L: toggle the selected weapon's SIGHT / LOCK preference where both apply; else say which one only.</summary>
         private void ToggleFireMode()
         {
@@ -1454,6 +1442,10 @@ namespace Hrot.UI.Common.Map3D
         public int AimTarget { get; private set; }
         public bool HullLocked { get; private set; }
         public bool IsVehicle => Scheme == ControlScheme.Vehicle;
+
+        /// <summary>⭐ <c>CE-1973</c> — the possessed body is an ANIMAL on legs (<c>LocomotionClass.Quadruped</c>): it walks like a person for the camera and the look, but its
+        /// body is steered like a vehicle (DESIGN_Animals AB-2), so A/D go out as <c>Steer</c>. 🔒 User, 2026-11-17: "The animals can be possessed, but they cannot turn left and right".</summary>
+        public bool IsAnimal => _world() is { } w && Fdp.Toolkit.Motion.Locomotions.Of(w, Unit) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Quadruped;
 
         /// <summary>⭐ <c>CE-1204</c> (§8l LK-4, R-1017) — how fast A/D turn a person's body while his look is free (rad/s, 120°/s).</summary>
         public static readonly float FreeLookTurnRate = 120f * MathF.PI / 180f;
@@ -1539,7 +1531,7 @@ namespace Hrot.UI.Common.Map3D
             bool vehicle = IsVehicle;
             _hullYaw = hullYaw;
             if (HullLocked && (vehicle || IsFlyer)) _yaw = hullYaw + _hullLook;   // ⭐ CE-1351 — V: the view turns with the hull, the mouse looks off it
-            _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);   // ⭐ CE-1210 (MS-5) — at his seat
+            _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), _station.Bodies, out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);   // ⭐ CE-1210 (MS-5) — at his seat
             _eyeKnown = true;
             _centre = new Vector3(_eye.X, _eye.Y, (tf.Position.Z + _eye.Z) * 0.5f);   // ⭐ CE-1293 — the far end of the continuum
             StepKick(w, dt);   // ⭐ CE-1216 (§8k S-3)
@@ -1627,7 +1619,7 @@ namespace Hrot.UI.Common.Map3D
             bool vehicle = IsVehicle;
             _hullYaw = HullYaw(tf.Rotation);
             if (HullLocked && (vehicle || IsFlyer)) _yaw = _hullYaw + _hullLook;
-            _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);
+            _eye = SeatSwitch.TryEye(w, Unit, Tkb(w), _station.Bodies, out var seatEye) ? seatEye : EyeOf(w, tf, vehicle);
             _centre = new Vector3(_eye.X, _eye.Y, (tf.Position.Z + _eye.Z) * 0.5f);
             _roll = IsFlyer ? Fdp.Toolkit.Motion.RotorcraftModel.TiltOf(tf.Rotation).Roll : 0f;
             float dt = _dt;
@@ -1998,6 +1990,13 @@ namespace Hrot.UI.Common.Map3D
             // R moves the selected weapon to its next round (⭐ CE-1212, §8j L-2 — F before; F is the use key now)
             if (_keys.Pressed(EmbodiedKeys.NextRound)) unchecked { _ammoSeq++; }
             if (_keys.Pressed(EmbodiedKeys.FireMode)) ToggleFireMode();   // ⭐ CE-4143 (§8r R-2)
+            // ⭐ CE-4670 (§7d D-6) — a crewman's head out / in, the vehicle's lights: requests to the vehicle's owner, the HUD follows the replicated state
+            if ((_keys.Pressed(EmbodiedKeys.HeadOut) || _keys.Pressed(EmbodiedKeys.Lights)) && _world() is { } cw)
+            {
+                var ctkb = cw.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? cw.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
+                if (_keys.Pressed(EmbodiedKeys.HeadOut)) CrewControls.ToggleHeadOut(cw, ctkb, Unit);
+                if (_keys.Pressed(EmbodiedKeys.Lights)) CrewControls.CycleLights(cw, ctkb, Unit);
+            }
             // ⭐ CE-1212 (§8j L-1) — a person leans while Q / E is held (both, or neither: upright); the sim's own rule ignores it prone
             bool leftHeld = _keys.Held(EmbodiedKeys.LeanLeft), rightHeld = _keys.Held(EmbodiedKeys.LeanRight);
             Leaning = Scheme != ControlScheme.Person || leftHeld == rightHeld ? Fdp.Toolkit.Combat.LeanSide.LeanNone
@@ -2054,8 +2053,8 @@ namespace Hrot.UI.Common.Map3D
             {
                 Seq = ++_seq,
                 Forward = forward,
-                Lateral = vehicle ? 0f : side,
-                Steer = vehicle ? side : 0f,   // ⭐ CE-1351 — A/D steer, hull-locked or not
+                Lateral = vehicle || IsAnimal ? 0f : side,
+                Steer = vehicle || IsAnimal ? side : 0f,   // ⭐ CE-1351 — A/D steer, hull-locked or not; ⭐ CE-1973 — an ANIMAL too (a legged CarKinematics body that steers while it moves, AB-2: it reads Steer, never Lateral or Yaw)
                 Yaw = IsFlyer ? flyerHeading : BodyYaw,   // ⭐ CE-1204 — the body's heading (the look's while it is locked); ⭐ CE-1351 a flyer's from A/D
                 Vertical = vertical,
                 Gait = run ? (byte)0 : (byte)1,

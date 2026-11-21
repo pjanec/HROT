@@ -1,0 +1,103 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "demo-city",
+    "description": "What: on demo-city, BEYOND the terrain's 800 m bounds (where its SUMO net and its car-only traffic run - 600 cars, 0 pedestrians), 'Gunner' (IFV, TKB 101) fires 40 rounds (FireAtPoint) at 'Target Car' parked 35 m north on the road at (172.8, 905). Judge: (1) Gunner fires; (2) its rounds HIT Target Car. Fail: every round passes through the car (the collider grid stopped at the terrain's bounds - CE-1959). Not expressible (section 9: no cue on a unit by its kind, and a SUMO car has no name): that the SUMO drivers near the fire abandon their cars - rail PedestriansPanicIntoCiviliansTests.CE1959_* and the live run in STATUS_Terrain_Convoy_User_Observations."
+  },
+  "entities": {
+    "c1959000-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8850
+      },
+      "TrafficDemand": {
+        "TargetCars": 600,
+        "Seed": 1,
+        "StepSeconds": 0.5,
+        "TargetPedestrians": 0,
+        "CarSpawnPerStep": 40
+      }
+    },
+    "c1959000-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          172.8,
+          870,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 101
+      },
+      "EntityInfo": {
+        "Name": "Gunner",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FireAtPoint",
+        "Origin": "Superior",
+        "Params": {
+          "x": 172.8,
+          "y": 905,
+          "z": 1.2,
+          "mount": 0,
+          "rounds": 40,
+          "cooldownSeconds": 1.3
+        }
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c1959000-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          172.8,
+          905,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 1051
+      },
+      "EntityInfo": {
+        "Name": "Target Car",
+        "ForceId": "Neutral"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -29,9 +29,9 @@
       "name": "the herd is out at pasture",
       "on": "field",
       "who": "*Pasture ",
-      "path": "AnimalState.Species",
+      "path": "TkbIdentity.TkbType",
       "op": "==",
-      "value": "Cattle",
+      "value": 700,
       "quantifier": "all"
     },
     {

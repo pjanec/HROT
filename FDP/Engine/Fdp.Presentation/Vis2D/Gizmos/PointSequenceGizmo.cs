@@ -83,7 +83,10 @@ public sealed class PointSequenceGizmo : IEntityStatefulGizmo
     }
 
     /// <inheritdoc/>
-    public string? ToolMenuJson => Session.Menu?.Json;
+    // ⭐ CE-1969 — the menu (Finish · Remove last · Cancel · Stop drawing) only while there is something to finish: with no point placed yet (a fresh tool,
+    //   or the one re-armed after a Finish) only the way out (⭐ CE-1977 — Stop drawing). 🔒 User, 2026-11-17: "I would expect the finish to appear only
+    //   when I before clicked the points on the map, so there is something to finish actually".
+    public string? ToolMenuJson => Session.Points.Count > 0 ? Session.Menu?.Json : Session.Menu?.EmptyJson;
 
 
 

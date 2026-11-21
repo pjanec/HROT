@@ -28,6 +28,7 @@ namespace Hrot.SimHost.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class EqsSolverSystem : IEcsModuleSystem
     {
         // Query cached after first use.
@@ -35,10 +36,12 @@ namespace Hrot.SimHost.Systems
 
         private readonly EqsSchedule _schedule = new();
         private readonly SensorMemoryStage _memory = new();
+        [Fdp.Core.FrameScratch("this tick's schedule (cleared before it is built); read by diagnostics")]
         private readonly List<Entity> _lastSchedule = new();
 
         // ⭐ CE-3056 — this tick's answers by what DECIDES them; a twin due later in the tick copies instead of solving.
         //   📄 docs/DESIGN_Sensors_And_Doctrine.md §5.6. Cleared every tick, so an answer is never older than its delivery.
+        [Fdp.Core.WorldDerived("this-tick shared answers, cleared every tick")]
         private readonly Dictionary<QueryShareKey, SharedAnswer> _shared = new();
 
         /// <summary>A shared answer: the first <c>Count</c> entries of a reused buffer (CE-3427 P-1).</summary>
@@ -53,6 +56,7 @@ namespace Hrot.SimHost.Systems
         // Frame context for the per-sensor evaluation.
         private IEntityCommandBuffer _currentCmd = null!;
         private ISimulationView _currentView = null!;
+        [Fdp.Core.WorldDerived("set each Execute from PerceptionClock")]
         private uint _currentTick;
         private EntityRepository _currentRepo = null!;
 
@@ -72,6 +76,7 @@ namespace Hrot.SimHost.Systems
         /// each tick — what the old perception chain did — and beyond that the oldest go first (measured 2026-10-04, debug
         /// build: 500 units = 142 k units / 76 ms; DESIGN_Sensors_And_Doctrine.md §9.4).
         /// </summary>
+        [field: Fdp.Core.NotState("work-unit budget configuration, default 150000")]
         public int BudgetUnits { get; set; } = ConfiguredBudgetUnits;
 
         /// <summary>The default <see cref="BudgetUnits"/>.</summary>
@@ -86,9 +91,11 @@ namespace Hrot.SimHost.Systems
         public IReadOnlyList<Entity> LastSchedule => _lastSchedule;
 
         /// <summary>Work units spent last tick.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostics counter reset each tick")]
         public int LastSpentUnits { get; private set; }
 
         /// <summary>⭐ CE-3056 — sensors answered last tick by COPYING a twin's answer instead of solving (diagnostics / rails).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostics counter reset each tick")]
         public int LastSharedCopies { get; private set; }
 
         /// <summary>The memory stage (test hook).</summary>
@@ -134,6 +141,9 @@ namespace Hrot.SimHost.Systems
             _currentCmd  = view.GetCommandBuffer();
             _currentTick = Fdp.Toolkit.Perception.PerceptionClock.Now(view);   // ⭐ CE-3292 — the sim step, not the frame
             _currentRepo = repo;
+            // ⭐ CE-1987 (R-1058, docs/DESIGN_Thermal_And_Acoustic_Sensing.md §9 C-5) — the thermal background for this frame, SERIALLY, before any parallel
+            //   solve: the thermal filters only read it (cross-lane, ui — the lane that owns thermal)
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.ThermalState>()) Fdp.Toolkit.Perception.Signatures.ThermalBackground.Prepare(repo);
             _memory.Begin(repo);
             _lastSchedule.Clear();
             _shared.Clear();
@@ -220,6 +230,7 @@ namespace Hrot.SimHost.Systems
         private static readonly int S_RunIdle     = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.idle (end to next start)");
         private static readonly int S_RunParallel  = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.parallel (count)");
         private static readonly int S_RunDiscarded = Fdp.Toolkit.Diagnostics.QueryTimings.Slot("eqs.run.discarded (count)");
+        [Fdp.Core.WorldDerived("diagnostics: the last run's start timestamp (CE-3427 `eqs.run.interval`)")]
         private long _lastRunStart, _lastRunEnd;
 
         // ── CE-3427 P-1 — the window ────────────────────────────────────────────────────────────────────────────────────────────
@@ -228,6 +239,7 @@ namespace Hrot.SimHost.Systems
         /// ⭐ CE-3427 P-1 (§5.8) — threads that solve a sensor (the solver's own included): <c>HROT_EQS_WORKERS</c>, else a quarter of the
         /// logical CPUs (three nodes share a machine). <c>1</c> = no worker threads — every solve inline, in schedule order.
         /// </summary>
+        [field: Fdp.Core.NotState("configuration: solve threads (HROT_EQS_WORKERS, else CPUs / 4), CE-3427 P-1")]
         public int Workers { get; set; } = DefaultWorkers;
 
         /// <summary>The default <see cref="Workers"/>: <c>HROT_EQS_WORKERS</c>, else ⭐ N-16 the ONE pool's budget (<c>FdpWorkerPool.Shared.Threads</c> —
@@ -238,15 +250,21 @@ namespace Hrot.SimHost.Systems
             int.TryParse(EnvVars.Read(EnvVars.HrotEqsWorkers), out int w) && w > 0 ? w : Math.Max(1, Fdp.Core.Jobs.FdpWorkerPool.Shared.Threads);
 
         /// <summary>⭐ CE-3427 P-1 — sensors solved on the window (any thread) and committed last tick (diagnostics / rails).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostics counter reset each tick (CE-3427 P-1)")]
         public int LastParallelSolves { get; private set; }
 
         /// <summary>⭐ CE-3427 P-1 — sensors solved ahead last tick that did not start (wasted work, no trace).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostics counter reset each tick (CE-3427 P-1)")]
         public int LastDiscardedSolves { get; private set; }
 
         private const int PlacesPerParticipant = 8;   // a window's size per thread: the tail of a band wastes at most this many solves each
+        [Fdp.Core.WorldDerived("scratch: the window's solve slots, overwritten per window (CE-3427 P-1)")]
         private SolveSlot[] _slots = Array.Empty<SolveSlot>();
+        [Fdp.Core.WorldDerived("scratch: place in the order → window slot, rewritten per window (CE-3427 P-1)")]
         private int[] _slotOf = Array.Empty<int>();   // place in the order → its window slot, −1 = run inline
+        [Fdp.Core.WorldDerived("scratch: the slot an inline solve fills, overwritten per sensor (CE-3427 P-1)")]
         private readonly SolveSlot _inline = new();
+        [Fdp.Core.WorldDerived("scratch: share keys seen in the current window, cleared per window (CE-3427 P-1)")]
         private readonly HashSet<QueryShareKey> _windowKeys = new();
         private Action<int>? _solveAt;
 
@@ -616,7 +634,9 @@ namespace Hrot.SimHost.Systems
         }
 
         // ⭐ CE-3427 P-1 — this tick's shared answers live in buffers reused tick after tick (the memo used to allocate one per answer).
+        [Fdp.Core.WorldDerived("reused buffers of this tick's shared answers; _shareUsed restarts each tick (CE-3427 P-1)")]
         private readonly List<EqsResult[]> _shareBuffers = new();
+        [Fdp.Core.WorldDerived("the shared-answer buffers used this tick, reset each Execute (CE-3427 P-1)")]
         private int _shareUsed;
 
         private EqsResult[] ShareCopy(ReadOnlySpan<EqsResult> answer)
@@ -656,7 +676,7 @@ namespace Hrot.SimHost.Systems
         {
             var areas = new Fdp.Toolkit.Squad.DangerArea.DangerAreaDescriptor[8];
             int count = Fdp.Toolkit.Squad.DangerArea.DangerAlongRouteSolve.Solve(_currentRepo, entity, in sensor, areas,
-                _routePlanner, RoadSource?.Invoke());
+                _routePlanner, RoadSource?.Invoke(), out var steer, out bool hasSteer);   // ⭐ CE-2469 SP-1 — and the route's steer point
             var answer = new Fdp.Toolkit.Squad.DangerArea.DangerAreaResultEvent
             {
                 ParentNetworkId = parentNetworkId,
@@ -665,6 +685,8 @@ namespace Hrot.SimHost.Systems
                 RefreshTick     = _currentTick,
                 Areas           = areas,
                 Count           = count,
+                SteerPoint      = steer,
+                HasSteer        = hasSteer ? (byte)1 : (byte)0,
             };
             // ⛔ NOT _currentRepo.Bus: EqsModule is SlowBackground — asynchronous, on a SNAPSHOT — so a direct publish lands
             //   on the snapshot's bus and is lost (measured: the cross-host rail never got an answer). The command buffer is
@@ -675,8 +697,10 @@ namespace Hrot.SimHost.Systems
 
         // ⭐ CE-3249 (WS-7) — per survey: when it was last solved and published, and what it said (node-local; the epoch restarts it).
         private readonly record struct SurveyMemo(uint Epoch, double SolvedAt, double PublishedAt, ulong Hash);
+        [Fdp.Core.WorldDerived("survey solve/publish memo; empty re-solves and republishes identical answer")]
         private readonly Dictionary<(int, int), SurveyMemo> _surveys = new();
         private int _worldEpoch;   // ⭐ CE-3301 — the world _surveys describes
+        [Fdp.Core.WorldDerived("scratch reused per survey solve")]
         private readonly List<Fdp.Toolkit.World.TraceCrossing> _surveyScratch = new();
 
         /// <summary>⭐ CE-3249 — the survey heartbeat: an unchanged answer is still published this often (s), so its age is measurable (WS-8).</summary>

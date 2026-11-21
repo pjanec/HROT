@@ -29,6 +29,7 @@ namespace Hrot.SimHost.Systems.Routing;
 /// </summary>
 [UpdateInPhase(SystemPhase.BeforeSync)]
 [TickMode(TickPolicy.EveryFrame)]
+[Fdp.Core.NotState("a system/module, classified on its own")]
 public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
 {
     private readonly TrajectoryPoolManager _pool;
@@ -39,6 +40,7 @@ public sealed class RouteTrajectorySyncSystem : IEcsModuleSystem
     /// Key = entity handle; Value = pool trajectory ID (> 0).
     /// ⭐ <c>R-3039</c> S2 — derived: at a world replacement it is rebuilt from the routes' restored <see cref="RouteTrajectoryCache"/>.
     /// </summary>
+    [Fdp.Core.WorldDerived("R-3039 S2 (§7b; was C): rebuilt at a world replacement from the routes' restored RouteTrajectoryCache, each route compiled again under the id it names")]
     private readonly Dictionary<Entity, int> _knownTrajectories = new();
     private int _epoch;   // ⭐ CE-3294 — the world _knownTrajectories describes
 

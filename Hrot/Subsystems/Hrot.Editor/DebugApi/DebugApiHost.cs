@@ -1356,6 +1356,14 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(409, error) : Ok(node);
             }));
 
+            // ⭐ CE-1984 (DESIGN_Sensor_View D-10) — the map's sensor view (night vision; thermal CE-1985): read and set it.
+            _routes.Add(new("GET", "/view/sensor", _ => RunMain(s => s.GetSensorView())));
+            _routes.Add(new("POST", "/view/sensor", ctx => RunMainResult(s =>
+            {
+                var (node, error) = s.SetSensorView(ctx.Body);
+                return error is null ? Ok(node) : Fail(409, error);
+            })));
+
             // ⭐ RB-7 (R-4083) — point the operator's panels at a unit, on every host, through SelectEntityCommand → SelectionRequestSystem.
             _routes.Add(new("POST", "/selection", ctx => RunMainResult(s =>
             {
@@ -2005,7 +2013,7 @@ namespace Hrot.Editor.DebugApi
             })));
 
             // ⭐ Player Join S1 — the Player's deploy flow: state, offers, and the request (404 on a node with no gameplay client).
-            _routes.Add(new("GET", "/deploy", _ => RunMainResult(s => { var (r, e, h, st) = s.Deploy(null, post: false); return e is null ? Ok(r) : Fail(st, e, h); })));
+            _routes.Add(new("GET", "/deploy", ctx => RunMainResult(s => { var (r, e, h, st) = s.Deploy(null, post: false, ctx.Query("station")); return e is null ? Ok(r) : Fail(st, e, h); })));
             _routes.Add(new("POST", "/deploy", ctx => RunMainResult(s => { var (r, e, h, st) = s.Deploy(ctx.Body, post: true); return e is null ? Ok(r) : Fail(st, e, h); })));
 
             // ⭐⭐ MD-002 — diagnostics live on the SHARED service so a cluster-limited node (a SimHost

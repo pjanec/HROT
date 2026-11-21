@@ -50,9 +50,24 @@ namespace Hrot.AI.Behaviors.Brains
             if (state == (pack ? WeaponDeploy.Stowed : WeaponDeploy.Deployed)) { p.Started = 0; return NodeStatus.Success; }
             if (state == (pack ? WeaponDeploy.Packing : WeaponDeploy.Deploying)) { p.Started = 1; return NodeStatus.Running; }
             if (p.Started != 0) { p.Started = 0; return NodeStatus.Failure; }   // it was on its way and turned back
-            if (!(pack ? WeaponDeployment.Pack(world, weapon) : WeaponDeployment.Deploy(world, weapon))) return NodeStatus.Failure;
+            // ⭐⭐ CE-3470 — the weapon is ANOTHER entity: in the parallel brain phase its deploy state is never written here (R-4212) — decided now,
+            //   written by a follow-up after the phase (next tick it reads Deploying / Packing ⇒ Running, as before). Outside a phase, at once.
+            if (!WeaponDeployment.CanBegin(world, weapon, deploy: !pack)) return NodeStatus.Failure;
+            if (ParallelReadCheck.Defers(world)) ParallelReadCheck.CurrentBatch!.Later(DeployAfterPhase.Instance, weapon, pack ? 0 : 1, 0L);
+            else if (!(pack ? WeaponDeployment.Pack(world, weapon) : WeaponDeployment.Deploy(world, weapon))) return NodeStatus.Failure;
             p.Started = 1;
             return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ CE-3470 — the deploy / pack-up a gunner asked for in the phase, applied after it (in batch order).</summary>
+        private sealed class DeployAfterPhase : Fdp.Core.Jobs.IPhaseFollowUp
+        {
+            public static readonly DeployAfterPhase Instance = new();
+            public void Apply(EntityRepository repo, Entity e, int code, long arg)
+            {
+                if (code != 0) WeaponDeployment.Deploy(repo, e);
+                else WeaponDeployment.Pack(repo, e);
+            }
         }
     }
 

@@ -21,6 +21,18 @@ namespace Fdp.Toolkit.Combat
         Stun = 3,
         /// <summary>A shove (a shield line, later a water cannon): knocked down, briefly.</summary>
         Push = 4,
+        /// <summary>
+        /// ⭐⭐ <c>CE-1967</c> (R-2139) — a LETHAL blow that also knocks the man down: a vehicle striking or running over a person. ⛔ Unlike <see cref="Blunt"/>
+        /// (a baton, a stone — non-lethal force, floored at the incapacitated line) its damage is NOT floored: it can kill. Appended: the value rides
+        /// the wire as a byte (<c>EntityHitDamage.EffectKind</c>).
+        /// </summary>
+        Impact = 5,
+
+        /// <summary>
+        /// ⭐ <c>CE-4635</c> / <c>CE-4637</c> (R-3111; docs/designs/weapons/DESIGN_Flame_Weapons.md F-4) — set alight by a flame or napalm: burning for a
+        /// while (<see cref="EffectState.BurningUntil"/>); the Health owner's <c>BurnSystem</c> burns him each second meanwhile. Appended (a wire byte).
+        /// </summary>
+        Burning = 6,
     }
 
     /// <summary>
@@ -39,6 +51,9 @@ namespace Fdp.Toolkit.Combat
         /// <summary>⭐ ui finding F-3 (design §7.6) — 1 while the person cowers: a MODE its behaviour sets and clears (the CivilianHsm's
         /// Cower state), not a timed effect of a hit. Written through <see cref="Effects.SetCowering"/> on the brain owner.</summary>
         public byte Cowering;
+        /// <summary>⭐ <c>CE-4635</c> (R-3111, flame weapons F-4) — until when the person is ON FIRE (a flame or napalm set him alight); the renderer
+        /// draws flames on the body while <see cref="Effects.IsBurning(ISimulationView, Entity, double)"/>. Appended (the layout and the wire grow at the end).</summary>
+        public SimInstant BurningUntil;
     }
 
     /// <summary>⭐ <c>CE-3219</c> — the one reader and the one writer rule of <see cref="EffectState"/>.</summary>
@@ -53,9 +68,11 @@ namespace Fdp.Toolkit.Combat
             switch (kind)
             {
                 case HitEffect.Blunt:
+                case HitEffect.Impact:   // ⭐ CE-1967 — knocked down as a blunt hit, but lethal (no floor)
                 case HitEffect.Push:     state.KnockedDownUntil = (SimInstant)(Math.Max(state.KnockedDownUntil, until)); return true;
                 case HitEffect.Irritant: state.IrritatedUntil   = (SimInstant)(Math.Max(state.IrritatedUntil, until));   return true;
                 case HitEffect.Stun:     state.StunnedUntil     = (SimInstant)(Math.Max(state.StunnedUntil, until));     return true;
+                case HitEffect.Burning:  state.BurningUntil     = (SimInstant)(Math.Max(state.BurningUntil, until));     return true;   // ⭐ CE-4635
                 default: return false;
             }
         }
@@ -64,6 +81,12 @@ namespace Fdp.Toolkit.Combat
         public static bool IsIrritated(EntityRepository repo, Entity e)   => Read(repo, e, out var s) && s.IrritatedUntil > HitModel.Now(repo);
         public static bool IsKnockedDown(EntityRepository repo, Entity e) => Read(repo, e, out var s) && s.KnockedDownUntil > HitModel.Now(repo);
         public static bool IsCowering(EntityRepository repo, Entity e)    => Read(repo, e, out var s) && s.Cowering != 0;
+        public static bool IsBurning(EntityRepository repo, Entity e)     => Read(repo, e, out var s) && s.BurningUntil > HitModel.Now(repo);
+
+        /// <summary>⭐ CE-4635 (flame weapons F-4) — THE renderer's question, on any node and any view: is <paramref name="e"/> on fire at
+        /// <paramref name="now"/> (sim seconds)? Reads the replicated <see cref="EffectState.BurningUntil"/>; false without the component.</summary>
+        public static bool IsBurning(ISimulationView view, Entity e, double now)
+            => view.HasComponent<EffectState>(e) && view.GetComponentRO<EffectState>(e).BurningUntil > now;
 
         /// <summary>⭐ F-3 — the behaviour's writer of <see cref="EffectState.Cowering"/>; call it on the node that owns the person's brain
         /// (and so <c>dtEffectState</c>). Leaves the timed effects as they are. False when the type is not registered or the entity is gone.</summary>

@@ -25,6 +25,10 @@ public sealed class ImportReport
     public int OpeningsDroppedOnPartyWall { get; set; }
     public int OpeningsDroppedOverlap { get; set; }
     public int OpeningsDroppedOther { get; set; }
+    /// <summary>⭐ CE-5029 — enterable houses that got their door from the ≥ 1 door rule (the data had none that fit).</summary>
+    public int DoorsAdded { get; set; }
+    /// <summary>⭐ CE-5029 — enterable houses left with no door: every wall shared (warned per building).</summary>
+    public int Doorless { get; set; }
     public int OpeningsDropped => OpeningsDroppedOffWall + OpeningsDroppedOnPartyWall + OpeningsDroppedOverlap + OpeningsDroppedOther;
     /// <summary>Ramps written (a straight stair is one, a switch-back two).</summary>
     public int Stairs { get; set; }

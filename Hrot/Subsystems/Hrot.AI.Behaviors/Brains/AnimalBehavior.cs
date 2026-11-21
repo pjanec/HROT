@@ -7,6 +7,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Animals;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Diagnostics;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Determinism;
 using Fhsm.Compiler;
 using Fhsm.Compiler.Graph;
@@ -217,22 +218,22 @@ namespace Hrot.AI.Behaviors.Brains
         public const float RangeAheadMetres = 30f, RangeSideMetres = 25f, ChaseSeconds = 4f, ChaseMetres = 18f, RangeHandlerLeashMetres = 70f;
 
         /// <summary>
-        /// ⭐⭐ <c>CE-4649</c> PART D (AN-21f) — the HUNTING DOG's play over the one brain (beside the guard dog): it RANGES AHEAD of its handler (<see cref="Fear.Handler"/>, the nearest hunter — the fear system's serial step) in
-        /// SWEEPS (a point <see cref="RangeAheadMetres"/> ahead and <see cref="RangeSideMetres"/> to a side, the side alternating); an animal it has FLUSHED (<see cref="Fear.Quarry"/>, in flight — the dog is a threat in the animal's
+        /// ⭐⭐ <c>CE-4649</c> PART D (AN-21f) — the HUNTING DOG's play over the one brain (beside the guard dog): it RANGES AHEAD of its handler (<see cref="AnimalTasks.Handler"/>, the nearest hunter — the fear system's serial step) in
+        /// SWEEPS (a point <see cref="RangeAheadMetres"/> ahead and <see cref="RangeSideMetres"/> to a side, the side alternating); an animal it has FLUSHED (<see cref="AnimalTasks.Quarry"/>, in flight — the dog is a threat in the animal's
         /// own fear) it chases a short way, BARKING, then comes back to its sweeps. ⛔ It never attacks a person: it is not <c>Territorial</c>, has no Bark/Attack state and nothing here targets a person.
         /// </summary>
         private static NodeStatus Range(ref AnimalParams p, ref GrazeState ws, Entity self, EntityRepository world, double now, Vector3 here)
         {
-            var fear = FearOf(world, self);
-            var handler = fear.Handler;
+            var tasks = TasksOf(world, self);
+            var handler = tasks.Handler;
             if (ws.Phase == 1)
             {
                 if (now >= (double)ws.ChaseUntil || LocomotionMoveTo.Status(world, self) != NodeStatus.Running) { ws.Phase = 2; ws.Walking = 0; LocomotionMoveTo.Stop(world, self); }
                 else return NodeStatus.Running;
             }
-            if (ws.Phase == 0 && !fear.Quarry.IsNull && Present(world, fear.Quarry))
+            if (ws.Phase == 0 && !tasks.Quarry.IsNull && Present(world, tasks.Quarry))
             {
-                var q = Here(world, fear.Quarry);
+                var q = Here(world, tasks.Quarry);
                 var d = q - here; d.Z = 0f;
                 float len = d.Length();
                 if (len > 3f && len <= RangeHandlerLeashMetres)
@@ -269,9 +270,9 @@ namespace Hrot.AI.Behaviors.Brains
             var rng = SimRng.FromSim((int)self.Index, 0x4630 + ws.Legs, (float)now);
             ws.Legs++;
             var target = centre + fwd * (RangeAheadMetres * (0.7f + 0.6f * rng.NextSingle())) + left * ((ws.Side == 1 ? 1f : -1f) * RangeSideMetres * (0.6f + 0.4f * rng.NextSingle()));
-            if (world.IsComponentTypeRegistered<AnimalHome>() && world.HasComponent<AnimalHome>(self))
+            if (world.IsComponentTypeRegistered<Home>() && world.HasComponent<Home>(self))
             {
-                var home = world.GetComponentRO<AnimalHome>(self);
+                var home = world.GetComponentRO<Home>(self);
                 if (home.Radius > 0f) target = KeepHome(world, self, target);
             }
             if (LocomotionMoveTo.Issue(world, self, target, p.Walk * 2f, ArrivalMetres, MoveGait.Upright, onSurface: true, source: MoveSource.Wander)) ws.Walking = 1;
@@ -495,7 +496,7 @@ namespace Hrot.AI.Behaviors.Brains
             SetMode(world, self, AnimalMode.Guard);
             SetFlags(world, self, AnimalFlags.Calling, AnimalFlags.Dangerous);
             double now = world.SimulationTime;
-            var who = FearOf(world, self).Intruder;
+            var who = TasksOf(world, self).Intruder;
             if (now < (double)ws.NextAimAt || !Present(world, who)) return NodeStatus.Running;
             ws.NextAimAt = (SimInstant)(now + BarkAimSeconds);
             Say(world, self, Fdp.Toolkit.Civilians.UtteranceKind.Bark, BarkAimSeconds);   // ⭐ AB-8 — the bark, every re-aim
@@ -526,7 +527,7 @@ namespace Hrot.AI.Behaviors.Brains
             SetMode(world, self, AnimalMode.Guard);
             SetFlags(world, self, AnimalFlags.Calling | AnimalFlags.Dangerous, 0);
             double now = world.SimulationTime;
-            var who = FearOf(world, self).Intruder;
+            var who = TasksOf(world, self).Intruder;
             if (!Present(world, who)) return NodeStatus.Running;
             if (Fdp.Toolkit.Combat.Melee.InReach(world, self, who))
             {
@@ -556,16 +557,16 @@ namespace Hrot.AI.Behaviors.Brains
 
         [SharedAiCondition]
         public static bool IntruderOnItsGround(ref AnimalParams p, Entity self, EntityRepository world)
-            => p.Territorial != 0 && Present(world, FearOf(world, self).Intruder);
+            => p.Territorial != 0 && Present(world, TasksOf(world, self).Intruder);
 
         [SharedAiCondition]
-        public static bool NoIntruder(ref AnimalParams p, Entity self, EntityRepository world) => !Present(world, FearOf(world, self).Intruder);
+        public static bool NoIntruder(ref AnimalParams p, Entity self, EntityRepository world) => !Present(world, TasksOf(world, self).Intruder);
 
         /// <summary>The man is within <see cref="AttackMetres"/> AND on its ground (inside its home, when it has one).</summary>
         [SharedAiCondition]
         public static bool IntruderClose(ref AnimalParams p, Entity self, EntityRepository world)
         {
-            var who = FearOf(world, self).Intruder;
+            var who = TasksOf(world, self).Intruder;
             if (!Present(world, who)) return false;
             var there = Here(world, who);
             if (Flat(there - Here(world, self)) > AttackMetres) return false;
@@ -576,7 +577,7 @@ namespace Hrot.AI.Behaviors.Brains
         [SharedAiCondition]
         public static bool IntruderBackedOff(ref AnimalParams p, Entity self, EntityRepository world)
         {
-            var who = FearOf(world, self).Intruder;
+            var who = TasksOf(world, self).Intruder;
             if (!Present(world, who)) return true;
             var there = Here(world, who);
             if (Flat(there - Here(world, self)) > AttackMetres * 2f) return true;
@@ -604,7 +605,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Its herd lies down for the night (the <see cref="HerdSystem"/>'s verdict; a lone animal has no night yet).</summary>
         [SharedAiCondition]
         public static bool Night(ref AnimalParams p, Entity self, EntityRepository world)
-            => HerdOf(world, self, out var herd) && herd.Mode == AnimalMode.Rest;
+            => HerdOf(world, self, out var herd, out _) && herd.Mode == AnimalMode.Rest;
 
         [SharedAiCondition]
         public static bool Day(ref AnimalParams p, Entity self, EntityRepository world) => !Night(ref p, self, world);
@@ -621,6 +622,10 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static Fear FearOf(EntityRepository world, Entity self)
             => world.IsComponentTypeRegistered<Fear>() && world.HasComponent<Fear>(self) ? world.GetComponentRO<Fear>(self) : default;
+
+        /// <summary>⭐ <c>CE-4628</c> — its animal-only tasks (intruder, handler, quarry): the part of its fear state that is not shared with a civilian.</summary>
+        private static AnimalTasks TasksOf(EntityRepository world, Entity self)
+            => world.IsComponentTypeRegistered<AnimalTasks>() && world.HasComponent<AnimalTasks>(self) ? world.GetComponentRO<AnimalTasks>(self) : default;
 
         private static Vector3 Here(EntityRepository world, Entity self)
             => world.HasComponent<SimTransform>(self) ? (Vector3)world.GetComponentRO<SimTransform>(self).Position : Vector3.Zero;
@@ -645,7 +650,7 @@ namespace Hrot.AI.Behaviors.Brains
         private static void CallAtRest(ref AnimalParams p, ref GrazeState ws, Entity self, EntityRepository world, double now)
         {
             if (p.CallInterval <= 0f) return;
-            int herd = HerdOf(world, self, out var h) ? Math.Max(1, (int)h.Members) : 1;
+            int herd = HerdOf(world, self, out _, out var g) ? Math.Max(1, g.Count) : 1;
             long k = AnimalCalls.CallDue((uint)self.Index, now, p.CallInterval, herd);
             if (k < 0 || k == ws.LastCall) return;
             ws.LastCall = k;
@@ -654,11 +659,11 @@ namespace Hrot.AI.Behaviors.Brains
 
         private static bool Present(EntityRepository world, Entity who) => !who.IsNull && Fdp.Toolkit.Combat.Injury.IsInTheFight(world, who);
 
-        private static bool TryHome(EntityRepository world, Entity self, out AnimalHome home)
+        private static bool TryHome(EntityRepository world, Entity self, out Home home)
         {
             home = default;
-            if (!world.IsComponentTypeRegistered<AnimalHome>() || !world.HasComponent<AnimalHome>(self)) return false;
-            home = world.GetComponentRO<AnimalHome>(self);
+            if (!world.IsComponentTypeRegistered<Home>() || !world.HasComponent<Home>(self)) return false;
+            home = world.GetComponentRO<Home>(self);
             return home.Radius > 0f || home.TetherMetres > 0f;
         }
 
@@ -686,17 +691,23 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ AB-5 — a flock's (or a lone bird's) flying / landed / perched, on its own <see cref="FlockState"/>, on a change.</summary>
         private static void SetFlock(EntityRepository world, Entity self, FlockMode mode)
         {
+            // ⭐ CE-11008 (RR-8, R-11002; cross-lane edit by ui — the brain is the ONE writer of AnimalState) — a LONE bird has no FlockState, so its flight is
+            //   said on its own flags too: every node, a recording and an external renderer read "flying" from state
+            if (mode == FlockMode.Flying) SetFlags(world, self, AnimalFlags.InFlight, AnimalFlags.None);
+            else SetFlags(world, self, AnimalFlags.None, AnimalFlags.InFlight);
             if (!world.IsComponentTypeRegistered<FlockState>() || !world.HasComponent<FlockState>(self)) return;
             if (world.GetComponentRO<FlockState>(self).Mode != mode) world.GetComponentRW<FlockState>(self).Mode = mode;
         }
 
-        private static bool HerdOf(EntityRepository world, Entity self, out HerdState herd)
+        /// <summary>⭐ <c>CE-4628</c> — the herd it belongs to: the herd entity's <see cref="HerdState"/> and its <see cref="Group"/> header (the count, the centre).</summary>
+        private static bool HerdOf(EntityRepository world, Entity self, out HerdState herd, out Group group)
         {
-            herd = default;
-            if (!world.IsComponentTypeRegistered<HerdMember>() || !world.HasComponent<HerdMember>(self)) return false;
-            var h = world.GetComponentRO<HerdMember>(self).Herd;
-            if (h.IsNull || !world.IsAlive(h) || !world.HasComponent<HerdState>(h)) return false;
+            herd = default; group = default;
+            if (!world.IsComponentTypeRegistered<GroupMember>() || !world.HasComponent<GroupMember>(self)) return false;
+            var h = world.GetComponentRO<GroupMember>(self).Group;
+            if (h.IsNull || !world.IsAlive(h) || !world.HasComponent<HerdState>(h) || !world.HasComponent<Group>(h)) return false;
             herd = world.GetComponentRO<HerdState>(h);
+            group = world.GetComponentRO<Group>(h);
             return true;
         }
 
@@ -719,16 +730,18 @@ namespace Hrot.AI.Behaviors.Brains
             var rng = SimRng.FromSim((int)self.Index, 0x4625 + ws.Legs, (float)now);
             float ang = rng.NextSingle() * MathF.Tau;
             float u = MathF.Sqrt(rng.NextSingle());
-            if (HerdOf(world, self, out var herd) && herd.NextGrazing != Vector3.Zero)
+            if (HerdOf(world, self, out var herd, out _) && herd.NextGrazing != Vector3.Zero)
             {
                 float spread = TightSpreadMetres + LooseSpreadMetres * (1f - Math.Clamp(p.Cohesion, 0f, 1f));
-                return herd.NextGrazing + new Vector3(MathF.Cos(ang), MathF.Sin(ang), 0f) * (u * spread);
+                // ⭐ CE-1958 — a member's spot round the herd's is kept in its HOME: the spread (up to 11 m for a pig) reached past a pen's wall, and the
+                //   pig walked into the wall for good
+                return KeepHome(world, self, herd.NextGrazing + new Vector3(MathF.Cos(ang), MathF.Sin(ang), 0f) * (u * spread));
             }
             Vector3 centre = ws.Origin;
             float radius = LoneGrazeMetres;
-            if (world.IsComponentTypeRegistered<AnimalHome>() && world.HasComponent<AnimalHome>(self))
+            if (world.IsComponentTypeRegistered<Home>() && world.HasComponent<Home>(self))
             {
-                var home = world.GetComponentRO<AnimalHome>(self);
+                var home = world.GetComponentRO<Home>(self);
                 if (home.Radius > 0f) { centre = home.Centre; radius = home.Radius; }
             }
             var spot = centre + new Vector3(MathF.Cos(ang), MathF.Sin(ang), 0f) * (u * radius * 0.85f);

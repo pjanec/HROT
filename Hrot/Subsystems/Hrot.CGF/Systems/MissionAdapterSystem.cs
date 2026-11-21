@@ -29,6 +29,7 @@ namespace Hrot.CGF.Systems
     /// </remarks>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public class MissionAdapterSystem : IEcsModuleSystem
     {
         public MissionAdapterSystem() { }

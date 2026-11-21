@@ -25,7 +25,7 @@ namespace Hrot.Presentation.Tests.Audio;
 /// ⭐ CE-1120 (docs/designs/audio/DESIGN_FPS_Audio.md) — FPS audio: the generated sounds, the spatial rules, the voice budget, which sound a
 /// shot / burst / mover makes, and the layer — silent until a unit is held, a sound device optional — all on the recording null output.
 /// </summary>
-public sealed class AudioTests
+public sealed partial class AudioTests
 {
     private static readonly Ear North = new(new Vector3(0f, 0f, 1.7f), Vector3.UnitY);
 
@@ -58,6 +58,23 @@ public sealed class AudioTests
     }
 
     // ── the spatial rules (AU-2, §4) ──────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>⭐ <c>CE-1239</c> (FPS Audio §8.2, Film Director §8.4) — a clip defined from an <c>.ogg</c> file is KEPT for the film's sound track
+    /// (decoded to mono 16-bit at its own rate), as a WAV clip always was. ✅ Red-proof: <c>DefineFile</c> without the <c>OggReader</c> term ⇒ the
+    /// track has no clip and the first assert fails.</summary>
+    [Fact]
+    public void CE1239_AnOggClip_IsKeptForTheFilmsSoundTrack()
+    {
+        var track = new SoundTrack(() => 0d);
+        var output = new RecordingAudioOutput(new NullAudioOutput(), track);
+        string ogg = System.IO.Path.Combine(AppContext.BaseDirectory, "Audio", "Fixtures", "tone-440.ogg");
+        output.DefineFile(9001, ogg);
+        Assert.True(track.HasClip(9001), "the .ogg clip is in the track");
+        Assert.True(OggReader.TryRead(ogg, out var samples, out var rate));
+        Assert.Equal(22050, rate);
+        Assert.InRange(samples.Length, 5000, 6000);                         // 0.25 s at 22.05 kHz
+        Assert.True(samples.Max(x => Math.Abs((int)x)) > 3000, "a tone, not silence");
+    }
 
     [Fact]
     public void CE1120_GainFallsToSilenceAtTheRange_PanBySide_DopplerBySense_DelayBySpeedOfSound()
@@ -565,9 +582,9 @@ public sealed class AudioTests
         world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>(); world.RegisterComponent<Fdp.Toolkit.Animals.FlockState>();
         var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, North.Position);
         var cow = Unit(world, 700, North.Position + new Vector3(0f, 30f, 0f));
-        world.AddComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm, Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+        world.AddComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm });
         var far = Unit(world, 700, North.Position + new Vector3(0f, 900f, 0f));
-        world.AddComponent(far, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm, Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+        world.AddComponent(far, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm });
         var (layer, output) = Listening(world, tkb, me);
         long call = AnimalSoundCatalog.TypeOf(0, AnimalSoundCatalog.Call), alarm = AnimalSoundCatalog.TypeOf(0, AnimalSoundCatalog.Alarm);
         int Heard(long clip) => output.Played.Count(v => v.Clip == clip);
@@ -585,15 +602,15 @@ public sealed class AudioTests
         At(t1 + 0.2); Assert.Equal(1, Heard(call));         // not again for the same count
         // the brain turns Flee: an alarm (a bellow), once — a second of the herd's quiet later (the throttle is per herd, on the audio clock)
         for (int i = 0; i < 70; i++) layer.Update(0.016f);
-        world.SetComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Flee, Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle });
+        world.SetComponent(cow, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Flee });
         At(t1 + 5.0);
         Assert.Equal(1, Heard(alarm));
         At(t1 + 5.2); Assert.Equal(1, Heard(alarm));
         // a dog guarding barks, over and over (the special: not throttled like a herd's call)
         var dog = Unit(world, 705, North.Position + new Vector3(10f, 0f, 0f));
-        world.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm, Species = Fdp.Toolkit.Animals.AnimalSpecies.Dog });
+        world.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Calm });
         At(t1 + 6.0);
-        world.SetComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Guard, Species = Fdp.Toolkit.Animals.AnimalSpecies.Dog });
+        world.SetComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Mode = Fdp.Toolkit.Animals.AnimalMode.Guard });
         long bark = AnimalSoundCatalog.TypeOf(5, AnimalSoundCatalog.Special);
         for (int i = 0; i < 12; i++) At(t1 + 6.1 + i * 0.7);
         Assert.InRange(Heard(bark), 5, 8);
@@ -954,6 +971,33 @@ public sealed class AudioTests
         Assert.Equal(ContactCues.BreakingText, cue.Text); Assert.Equal(0.4f, cue.Progress);
         Assert.Null(ContactCues.Of(world)!.For(tank, 10.4));                     // the push stopped
         Assert.Equal(1, Puffs(EffectTkbCatalog.ImpactPuffLarge));                // a push makes no dust
+    }
+
+    /// <summary>
+    /// ⭐ CE-5034 (glass windows GW-3, D-8; DESIGN_Glass_Windows §5a) — a pane SHATTERED 20 m off (a <c>WindowBrokenEvent</c>, as every node receives it) is the sound of breaking
+    /// glass the listener hears once it arrives — once. 🔴 Red-proof: drop the <c>TrackWindows</c> call ⇒ nothing played.
+    /// </summary>
+    [Fact]
+    public void CE5034_AShatteredPane_IsHeardAsBreakingGlass_Once()
+    {
+        var (world, tkb) = World();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.WindowBrokenEvent>();
+        var me = Unit(world, TkbEntityTypes.Infantry_Rifleman, Vector3.Zero);
+        var (layer, output) = Listening(world, tkb, me);
+        world.Bus.Publish(new Fdp.Toolkit.Terrain.WindowBrokenEvent { Building = 0, Panel = 3, Opening = 0, X = -20f, Y = 0f, Z = 1.5f });
+        world.Bus.SwapBuffers();
+        var spawner = new EffectSpawnSystem();
+        spawner.Execute(world, 0.016f);
+        Assert.Equal(1, spawner.WindowsBroken);
+        layer.Update(0.016f);
+        layer.Update(0.2f);   // 20 m: ~0.06 s of travel
+        var glass = Assert.Single(output.Played, v => v.Clip == SoundTkbCatalog.Glass);
+        Assert.True(glass.Pan < -0.5f, "20 m to his left");
+        world.Bus.SwapBuffers();
+        spawner.Execute(world, 0.016f);
+        layer.Update(0.2f);
+        Assert.Single(output.Played, v => v.Clip == SoundTkbCatalog.Glass);   // once
+        Assert.NotEmpty(SoundSynthesizer.Make(SoundSynth.Glass));
     }
 
     private static (EntityRepository World, ITkbDatabase Tkb) World()

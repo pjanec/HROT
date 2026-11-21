@@ -37,12 +37,14 @@ public readonly record struct TrafficBody(int NetworkId, TrafficBodyKind Kind, d
 [TickMode(TickPolicy.WhenTimeAdvances)]
 public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
 {
+    [Fdp.Core.WorldDerived("log throttle for SUMO told-vehicle count")]
     private int _toldVehicles = -1, _toldPersons = -1;
 
     /// <summary>A person's disc radius when its footprint names no width.</summary>
     public const float PersonRadius = 0.4f;
 
     private readonly TrafficRuntime _runtime;
+    [Fdp.Core.WorldDerived("scratch cleared in Gather each frame")]
     private readonly List<TrafficBody> _scratch = new();
 
     public TrafficBodyFeedSystem(TrafficRuntime runtime) => _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
@@ -160,9 +162,11 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
             if (!found || !world.HasComponent<SimTransform>(pred)) continue;
             float lf = EntityFootprint.DefaultLengthMetres, wf = lf * EntityFootprint.DefaultWidthFactor, lp = lf, wp = wf;
             if (sized) { EntityFootprint.Dimensions(world, e, out lf, out wf); EntityFootprint.Dimensions(world, pred, out lp, out wp); }
-            var v = velocity && world.HasComponent<SimVelocity>(e) ? world.GetComponentRO<SimVelocity>(e).Linear : Vector3.Zero;
-            var (vx0, vy0) = placement.ToNet(0, 0);
-            var (vx1, vy1) = placement.ToNet(v.X, v.Y);
+            // ⭐⭐ CE-1972 (R-5063) — the squares are told AT REST (velocity 0): they are re-fed every frame, so they move with the column anyway. ⛔ They carried the
+            //   follower's velocity, and SumoSharp projects a moving obstacle forward: whenever the lead's SUMO shadow was slower than its follower (the C-6 speed
+            //   cap, a start, a light) the square at its rear was projected INTO it and the shadow swerved sideways (B6 evasion, 2 m/s) — the lead weaving from lane
+            //   edge to lane edge, its followers copying it on the trail (📐 measured: SumoSharp alone, a capped priority shadow, 146 of 180 samples swerving)
+            const float vx1 = 0f, vy1 = 0f, vx0 = 0f, vy0 = 0f;
             float side = MathF.Max(wf, 1f);
 
             if (trails && world.HasComponent<CarKinem.Convoy.ConvoyTrail>(lead) && world.HasComponent<CarKinem.Convoy.ConvoyProgress>(e)

@@ -51,7 +51,7 @@ namespace Hrot.SimHost.Tests
                     () => { if (!Repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(); },
                     () => { if (!Repo.IsComponentTypeRegistered<WeaponChannel>()) Repo.RegisterComponent<WeaponChannel>(); },
                     () => { if (!Repo.IsComponentTypeRegistered<LaidDownWeapons>()) Repo.RegisterComponent<LaidDownWeapons>(); },
-                    () => { if (!Repo.IsComponentTypeRegistered<Gesture>()) Repo.RegisterComponent<Gesture>(); },
+                    () => { if (!Repo.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) Repo.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>(); },
                 }) reg();
                 var geo = UtmTransform.AtOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(geo);

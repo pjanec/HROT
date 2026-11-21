@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Numerics;
 using ImGuiNET;
 
 namespace Fdp.Presentation.Icons;
@@ -18,10 +19,54 @@ public static class SplitArrow
     /// </summary>
     public static bool Begin(string arrowId, string popupId, string? arrowTooltip = null)
     {
-        Gui.SameLine(0f, 1f);
-        if (Gui.ArrowButton(arrowId, ImGuiDir.Down)) Gui.OpenPopup(popupId);
-        if (arrowTooltip is not null && Gui.IsItemHovered()) Gui.SetTooltip(arrowTooltip);
+        // ⭐ CE-1965 — the face just drawn: right-clicking it opens the menu too; the bar stands beside it at its full height
+        var faceMin = Gui.GetItemRectMin(); var faceMax = Gui.GetItemRectMax();
+        bool rightOnFace = Gui.IsItemHovered() && Gui.IsMouseReleased(ImGuiMouseButton.Right);
+        Gui.SameLine(0f, BarGap);
+        if (Bar(arrowId, faceMax.Y - faceMin.Y, arrowTooltip ?? "Choose…") || rightOnFace) Gui.OpenPopup(popupId);
+        LastFace = (faceMin, faceMax);
+        LastBar = (Gui.GetItemRectMin(), Gui.GetItemRectMax());
         return Gui.BeginPopup(popupId);
+    }
+
+    /// <summary>⭐ <c>CE-1965</c> — the ▾ bar's width at the default font size (px): narrow, but a whole column to aim at — the face and the bar are two buttons,
+    /// each lit on its own hover. 🔒 User, 2026-11-18: "Will the icon and the vertical bar on the right be separated hit zones? … in current implementation …
+    /// the little button in the corner, it was very difficult to click it. And I never knew if I clicked the icon or the arrow."</summary>
+    public const float BarWidth = 14f;
+
+    /// <summary>The gap between the face and its bar (px).</summary>
+    public const float BarGap = 1f;
+
+    /// <summary>The bar's width at the current font size.</summary>
+    public static float BarWidthNow => BarWidth * Gui.GetFontSize() / 14f;
+
+    /// <summary>⭐ CE-1965 — the face and the bar of the split drawn last (screen px): the rails measure that they are two hit zones, side by side, one height.</summary>
+    public static (Vector2 Min, Vector2 Max) LastFace { get; private set; }
+    /// <inheritdoc cref="LastFace"/>
+    public static (Vector2 Min, Vector2 Max) LastBar { get; private set; }
+
+    private static readonly Vector4 BarFill = new(0x1C / 255f, 0x1C / 255f, 0x22 / 255f, 1f), BarBorder = new(0x2E / 255f, 0x2E / 255f, 0x36 / 255f, 1f),
+                                    BarHover = new(1f, 1f, 1f, 0.16f), ArrowColour = new(0.80f, 0.80f, 0.85f, 1f);
+
+    /// <summary>
+    /// ⭐ CE-1965 — THE ▾ bar of every split button: a narrow button as tall as <paramref name="height"/> (the face beside it), the ▾ centred in it, its own
+    /// hover highlight and tooltip. True on a click. Allocates nothing.
+    /// </summary>
+    public static bool Bar(string id, float height, string? tooltip)
+    {
+        var size = new Vector2(BarWidthNow, height > 1f ? height : Gui.GetFrameHeight());
+        var pos = Gui.GetCursorScreenPos();
+        bool clicked = Gui.InvisibleButton(id, size);
+        bool hovered = Gui.IsItemHovered();
+        var dl = Gui.GetWindowDrawList();
+        float r = 3f * Gui.GetFontSize() / 14f;
+        dl.AddRectFilled(pos, pos + size, Gui.GetColorU32(BarFill), r);
+        if (hovered) dl.AddRectFilled(pos, pos + size, Gui.GetColorU32(BarHover), r);
+        dl.AddRect(pos, pos + size, Gui.GetColorU32(BarBorder), r);
+        float m = size.X * 0.28f; var c = pos + size * 0.5f;
+        dl.AddTriangleFilled(c + new Vector2(-m, -m * 0.5f), c + new Vector2(m, -m * 0.5f), c + new Vector2(0f, m * 0.6f), Gui.GetColorU32(ArrowColour));
+        if (hovered && tooltip is { Length: > 0 }) Gui.SetTooltip(tooltip);
+        return clicked;
     }
 
     /// <summary>One menu line (✓ when <paramref name="isChecked"/>); true on the frame it is clicked. A disabled line never reports a click.</summary>

@@ -2,6 +2,7 @@ using System.Linq;
 using System.Numerics;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Squad.Command;
+using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.AI.Behaviors.Brains;
 using Hrot.Map.Definitions.Behavior;
 using Xunit;
@@ -102,6 +103,56 @@ namespace Hrot.SimHost.Tests
             foreach (var m in s.Members) s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponAmmo>(m).Ammo0 -= SupportByFireBehavior.EstablishRoundsPerMan;
             s.Tick();
             Assert.Single(Queued(s, s.Commander), r => r.Kind == ReportKind.Progress && r.Subtype == (byte)ProgressKind.Set);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4667</c> (D-7, user-approved) exit (a) — a man of the base of fire whose rounds are gone is no base of fire: he is re-ordered to
+        /// hold with return fire where he is (<c>CombatPosture</c>), the others keep suppressing. ✅ Red-proof: the empty check dropped ⇒ he keeps
+        /// his Suppress order ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4667_AManOfTheBaseOfFire_WithNoRoundsLeft_HoldsWhereHeIs_TheRestFire()
+        {
+            var s = new Squad(3);
+            foreach (var m in s.Members)
+                s.Repo.AddComponent(m, new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 1, Ammo0 = 200, Max0 = 200 });
+            s.Order(SupportByFireJson(new Vector3(4f, 0f, 0f), new Vector3(0f, 150f, 0f)), BehaviorNames.SupportByFire);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.WeaponAmmo>(s.Members[0]).Ammo0 = 0;   // out of ammo
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.CombatPosture, LastIntent(s, s.Members[0]));
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[1]));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4667</c> (D-7, user-approved) exit (b) — when every man the squad knows at its posts is DOWN for
+        /// <see cref="SupportByFireBehavior.TargetsDownSeconds"/>, the base of fire stops firing: every man holds where he is and the squad reports
+        /// PROGRESS TargetsDown (the platoon decides what is next); one of them back in the fight ⇒ the fire resumes. A post with nobody known
+        /// near it keeps the blind fire (the first rail of this file). ✅ Red-proofs: the stop dropped ⇒ still Suppress ⇒ red; the resume dropped ⇒
+        /// still holding ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE4667_TheBaseOfFire_StopsWhenEveryKnownManAtItsPostsIsDown_AndResumesIfOneGetsUp()
+        {
+            var s = new Squad(3);
+            var post = new Vector3(0f, 150f, 0f);
+            var enemies = s.PoolMany(2, post);
+            foreach (var e in enemies) s.Repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            s.Order(SupportByFireJson(new Vector3(4f, 0f, 0f), post), BehaviorNames.SupportByFire);
+            s.Tick(); s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));
+            s.Pause(SupportByFireBehavior.TargetsDownSeconds + 1); s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));                       // they are alive: fire on
+
+            foreach (var e in enemies) s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(e).Current = 0f;
+            s.Tick(); s.Pause(SupportByFireBehavior.TargetsDownSeconds + 1); s.Tick(); s.Tick();
+            foreach (var m in s.Members) Assert.Equal(BehaviorNames.CombatPosture, LastIntent(s, m));   // every known man down: hold
+            Assert.Single(Queued(s, s.Commander), r => r.Kind == ReportKind.Progress && r.Subtype == (byte)ProgressKind.TargetsDown);
+
+            s.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemies[0]).Current = 50f;      // one gets up
+            s.Tick(); s.Tick();
+            Assert.Equal(BehaviorNames.Suppress, LastIntent(s, s.Members[0]));
         }
 
         /// <summary>
@@ -475,5 +526,43 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(first, repo.GetComponentRO<WeaponChannel>(w.Man).ActionInstanceId);
             Assert.Null(w.Finished);
         }
-}
+        /// <summary>
+        /// ⭐⭐ D-11 B (CE-4666, user-approved 2026-11-19; Assault Under Fire §9.1b) — the base of fire's men are PLACED by the squad's own post plan
+        /// (<see cref="DefencePlan"/>, facing the reported posts), not held on ONE point: its cover ask answers four points and each man is ordered
+        /// to a DIFFERENT one of them, his post set (<c>CombatPosture</c> with <c>Post</c>). Until the plan answers he heads for the support point.
+        /// ✅ Red-proof: phase 0 back to <c>Hold(…, p.Position)</c> ⇒ every man's objective is the support point ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D11B_TheBaseOfFire_TakesPostsFromTheSquadsOwnPlan_NotOnePoint()
+        {
+            var s = new Squad(4);
+            var support = new Vector3(6f, 60f, 0f);
+            s.Order(SupportByFireJson(support, new Vector3(0f, 180f, 0f), new Vector3(20f, 185f, 0f)), BehaviorNames.SupportByFire);
+            s.Tick(); s.Tick(); s.Tick();
+            foreach (var m in s.Members) Assert.Equal(support, PostureObjective(s, m));   // the plan not answered yet: to the point
+
+            var cover = new[] { support + new Vector3(-9f, 4f, 0f), support + new Vector3(-3f, 5f, 0f), support + new Vector3(3f, 5f, 0f), support + new Vector3(9f, 4f, 0f) };
+            for (int k = 0; k < 80; k++)
+            {
+                var c = EqsChildSensor.Find(s.Repo, s.Commander, SquadDefendPlay.CoverSite);
+                if (!c.IsNull && !s.Repo.GetComponentRO<EqsCognitiveBuffer>(c).IsReady) AnswerAll(s, c, cover);
+                foreach (int site in new[] { SquadDefendPlay.WindowSite, SquadDefendPlay.RoofSite })
+                {
+                    var a = EqsChildSensor.Find(s.Repo, s.Commander, site);
+                    if (!a.IsNull && !s.Repo.GetComponentRO<EqsCognitiveBuffer>(a).IsReady) AnswerAll(s, a);
+                }
+                s.Pause(0.25);
+                s.Tick();
+            }
+            var objectives = s.Members.Select(m => PostureObjective(s, m)).ToArray();
+            Assert.All(objectives, o => Assert.Contains(o, cover));
+            Assert.Equal(objectives.Length, objectives.Distinct().Count());   // no two men on one point
+        }
+
+        /// <summary>The objective of the last <c>CombatPosture</c> order to <paramref name="m"/>.</summary>
+        private static Vector3 PostureObjective(Squad s, Fdp.Core.Entity m)
+            => System.Text.Json.JsonSerializer.Deserialize<CombatPostureParamsJsonDto>(
+                   s.Orders.Last(o => o.Entity.Equals(m) && o.IntentId == BehaviorNames.CombatPosture).JsonParams,
+                   Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed)!.Advance.Objective;
+    }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -9,6 +10,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Navigation;
+using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 using Fbt.Kernel;
 using Fdp.Toolkit.Tkb.Domain;
@@ -27,6 +29,10 @@ namespace Hrot.AI.Behaviors.Brains
         public float ScoreDeltaThreshold;
         /// <summary>Which forces count as threats for the exposure scoring (bit N = force N; 0 = every acquired contact).</summary>
         public uint FactionFilter;
+        /// <summary>⭐ <c>CE-4652</c> — how far the COVER query looks (m), when it differs from <see cref="SearchRadius"/> (0 = the same). The
+        /// decision's cover score must see only the cover its TakeCover branch can use: <c>CombatPosture</c> sets the branch's (PeekAndFire)
+        /// search radius, so with none in reach HoldProne wins (§3.3f) instead of a TakeCover that waits, fails and is chosen again.</summary>
+        public float CoverSearchRadius;
     }
 
     /// <summary>⭐ <c>CE-2073</c> — the posture's sensors and the threat they are pointed at.</summary>
@@ -83,6 +89,34 @@ namespace Hrot.AI.Behaviors.Brains
         public Entity Threat;
     }
 
+    /// <summary>⭐⭐ <c>CE-8311</c> (D-15) — <see cref="PostureNodes.Suppress"/>'s values: its fire, and the move to a firing position on the
+    /// hidden threat's last-known spot (<see cref="EqsTacticsNodes.SuppressFromSite"/>; its own fire off — Suppress fires).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SuppressParams
+    {
+        public EngageParams Engage;
+        public EqsTacticsParams From;
+    }
+
+    /// <summary>⭐⭐ <c>CE-8311</c> (D-15) + <c>CE-8314</c> — a suppressor's PLACEMENT memory (<see cref="PostureNodes.PlaceSuppressor"/>, the ONE rule both
+    /// suppressors use — the posture's Suppress and the squad-ordered <c>SuppressContact</c>): its firing-position move, the phase (0 = seeking ·
+    /// 1 = moving there · 2 = holding where he is) and when it sought / last chose a stance.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SuppressPlacement
+    {
+        public EqsTacticsState From;
+        public byte Phase;
+        public double SeekSince, StanceAt;
+    }
+
+    /// <summary>⭐⭐ <c>CE-8311</c> (D-15) — <see cref="PostureNodes.Suppress"/>'s memory: its fire and its placement.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SuppressRunState
+    {
+        public EngageState Fire;
+        public SuppressPlacement Place;
+    }
+
     /// <summary>⭐ AQ89 C/D (R-269) — the Suppress branch's closing gate (<see cref="PostureNodes.WillingToClose"/>).</summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct WillingToCloseParams
@@ -104,6 +138,8 @@ namespace Hrot.AI.Behaviors.Brains
     public struct FrameWatchState
     {
         public byte Moving, Failed, Leaned;
+        /// <summary>⭐ <c>CE-3463</c> — how many times his frame move was STOPPED from outside (not failed by the mover) and re-issued.</summary>
+        public byte Stopped;
     }
 
     /// <summary>⭐ <c>CE-3170</c> — the target an attack order named (<see cref="PostureNodes.UntilTargetDown"/>).</summary>
@@ -181,8 +217,10 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus PostureSensors(ref PostureSensorsParams p, ref PostureSensorsState ws, Entity self, EntityRepository world)
         {
             // ⭐ CE-3063 ③ — an entity, or a HEARD contact's point: cover is scored against either.
+            var cover = p;
+            if (p.CoverSearchRadius > 0f) cover.SearchRadius = p.CoverSearchRadius;   // ⭐ CE-4652 — the cover its branch can use
             KeepPair(ref ws.Cover, CoverSite, FindCoverFromTarget.BlueprintId, ref ws.Retreat, RetreatSite, FindSafeRetreatPoint.BlueprintId,
-                     ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in p, self, world);
+                     ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in cover, in p, self, world);
             return NodeStatus.Running;
         }
 
@@ -200,7 +238,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus ApproachSensors(ref PostureSensorsParams p, ref ApproachSensorsState ws, Entity self, EntityRepository world)
         {
             KeepPair(ref ws.Flank, FlankScoreSite, FindFlankingPosition.BlueprintId, ref ws.Firing, FiringScoreSite, FindOpenFiringPosition.BlueprintId,
-                     ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in p, self, world);
+                     ref ws.Threat, ref ws.HeardId, ref ws.HeardPoint, in p, in p, self, world);
             // ⭐ WL-4 W-12f (Weapon_Layers §5f L-5) — a grenadier's third sensor: where to THROW from, around the threat's
             //   LAST-KNOWN point (never the live entity). A unit with no throwable keeps none (it would only cost a query).
             if (Fdp.Toolkit.Combat.HiddenTargetThrow.ThrowableMount(world, self, out _, out _, out _, out _)
@@ -224,13 +262,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// when it moves.</summary>
         private static void KeepPair(ref EqsSensorHandle a, int siteA, uint templateA, ref EqsSensorHandle b, int siteB, uint templateB,
                                      ref Entity threatEntity, ref long heardId, ref Vector3 heardPoint,
-                                     in PostureSensorsParams p, Entity self, EntityRepository world)
+                                     in PostureSensorsParams pA, in PostureSensorsParams pB, Entity self, EntityRepository world)
         {
             var was = new ThreatAim(threatEntity, heardId, heardPoint);
             if (!EqsTacticsNodes.TopAim(world, self, in was, out var threat)) return;   // nothing to score yet
             bool retarget = EqsTacticsNodes.Moved(in was, in threat);
-            a = Keep(a, world, self, siteA, templateA, in p, in threat, retarget);
-            b = Keep(b, world, self, siteB, templateB, in p, in threat, retarget);
+            a = Keep(a, world, self, siteA, templateA, in pA, in threat, retarget);
+            b = Keep(b, world, self, siteB, templateB, in pB, in threat, retarget);
             if (retarget || heardId != threat.HeardId) heardPoint = threat.Point;
             threatEntity = threat.Entity;
             heardId = threat.HeardId;
@@ -246,10 +284,124 @@ namespace Hrot.AI.Behaviors.Brains
         /// ⭐⭐ AQ89 A (R-269) — <see cref="Engage"/> that SUPPRESSES: aimed fire while the top threat is seen, and while it is hidden
         /// slow rounds at where the memory last placed it (the weapon brain's blind fire) instead of an idle hold — they strike his
         /// cover and spoil his aim (<c>UnderFire</c>, AQ85 E). Running; Failure when the unit has no weapon channel.
+        /// ⭐⭐ <c>CE-8311</c> (D-15, user-approved 2026-11-20) — and it PLACES him where his rounds can reach the spot: a FIRING POSITION in reach
+        /// (<see cref="EqsTacticsNodes.FiringPositionOnRemembered"/>: a nearby point that sees the last-known spot) — he runs there crouched,
+        /// firing — then, there or where he stands when none answers in <see cref="SuppressSeekSeconds"/>, the LOWEST stance whose line to
+        /// the spot is clear (<see cref="SuppressStance"/>: prone, else crouched, else standing over the car's bonnet). He never stops firing.
+        /// ⛔ Was (the same day): cover in reach, crouched — the cover hid him from the spot, so his rounds struck his own cover (📐 bt-window-duel:
+        /// 0 rounds from 2 s to 37 s behind Van 1); before that the take-cover cycle, which fires blind only on evidence ≤ 5 s old.
         /// </summary>
         [SharedAiAction]
-        public static NodeStatus Suppress(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+        public static NodeStatus Suppress(ref SuppressParams p, ref SuppressRunState ws, Entity self, EntityRepository world)
+        {
+            if (!Fire(world, self, ref ws.Fire, p.Engage.CooldownSeconds, blind: true)) return NodeStatus.Failure;
+            PlaceSuppressor(ref p.From, ref ws.Place, self, world, ws.Fire.Threat, default);
+            return NodeStatus.Running;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8311</c> (D-15) + <c>CE-8314</c> — THE suppressor placement, one step per tick: with <paramref name="threat"/> remembered and a
+        /// search reach (<paramref name="from"/>.SearchRadius &gt; 0), a FIRING POSITION on its last-known spot
+        /// (<see cref="EqsTacticsNodes.FiringPositionOnRemembered"/>), run to crouched; there — or where he is when none answers in
+        /// <see cref="SuppressSeekSeconds"/>, or with only a reported <paramref name="point"/> — the lowest stance whose line reaches the aim
+        /// (<see cref="SuppressStance"/> / <see cref="StanceToReach"/>), re-picked every <see cref="SuppressStanceSeconds"/>. The caller fires.
+        /// </summary>
+        public static void PlaceSuppressor(ref EqsTacticsParams from, ref SuppressPlacement st, Entity self, EntityRepository world, Entity threat, Vector3? point)
+        {
+            double now = world.SimulationTime;
+            if (st.Phase == 0 && st.SeekSince == 0) st.SeekSince = now > 0 ? now : 1e-6;
+            if (st.Phase < 2 && (threat.IsNull || from.SearchRadius <= 0f)) st.Phase = 2;   // a point only, or no reach: he holds where he stands
+            if (st.Phase < 2)
+            {
+                var status = EqsTacticsNodes.FiringPositionOnRemembered(ref from, ref st.From, self, world);
+                if (status == NodeStatus.Running && st.From.Moving == 1) st.Phase = 1;   // on his way, crouched (the move's gait)
+                else if (status != NodeStatus.Running || (st.Phase == 0 && now - st.SeekSince >= SuppressSeekSeconds))
+                {
+                    EqsTacticsNodes.ReleaseSensor(ref st.From, self, world);   // there, no answer, or nothing to aim at: he holds here
+                    st.Phase = 2;
+                }
+            }
+            if (st.Phase == 1 || (st.StanceAt != 0 && now - st.StanceAt < SuppressStanceSeconds)) return;
+            st.StanceAt = now > 0 ? now : 1e-6;
+            var stance = !threat.IsNull ? SuppressStance(world, self, threat)
+                       : point is Vector3 at ? StanceToReach(world, self, at, null) : StanceId.Prone;
+            StanceRequest.Set(world, self, stance, stance == StanceId.Prone ? GoProneSeconds : PeekAndFireNodes.StanceBlendSeconds);
+        }
+
+        /// <summary>⭐ <c>CE-8314</c> — leaving a suppression: the firing-position search and its move stop, and — when the placement set his stance —
+        /// he gets up.</summary>
+        public static void ReleaseSuppressor(ref EqsTacticsParams from, ref SuppressPlacement st, Entity self, EntityRepository world)
+        {
+            EqsTacticsNodes.Deactivate_FiringPosition(ref from, ref st.From, self, world);
+            if (st.StanceAt != 0) StanceRequest.Set(world, self, StanceId.Standing, GetUpSeconds);
+            st = default;
+        }
+
+        /// <summary>⭐ <c>CE-8311</c> — how long a suppressor waits for a firing position to answer before he suppresses from where he is (s); how
+        /// often he re-picks his stance while holding (s).</summary>
+        public const double SuppressSeekSeconds = 2.0, SuppressStanceSeconds = 1.0;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8311</c> (D-15) — the LOWEST stance from which the man's round reaches <paramref name="threat"/>'s last-known spot, judged on the
+        /// SAME line the round flies: from his eye for that stance (<c>TerrainWorldLosStrategy.EyeHeightFor</c> — the fire chain's muzzle rule)
+        /// to the point the fire chain aims at — a remembered BODY (the memory knows the stance he was seen in) aimed as a live one
+        /// (<see cref="AimPoint.ForBodyAt"/>, CE-2326: the chest, or the band over his cover), else the blind aim (<see cref="AimPoint.BlindAt"/>, CE-8315: the spot + the blind height, or through the nearest opening of the building it is in)
+        /// — not blocked (<c>IWorldQuery.SightBlocked</c>). Prone, else crouched, else standing; none clear (or no spot) ⇒ prone (his rounds cannot
+        /// reach it from here, so he does not stand in it). No world ⇒ every line is clear ⇒ prone. 📐 live ia-house-hunt: aimed at the spot + 0.5 m,
+        /// a defender seen at an upstairs window sat below the sill — no stance cleared, the attacker lay behind his car and fired into it.
+        /// </summary>
+        public static unsafe StanceId SuppressStance(EntityRepository world, Entity self, Entity threat)
+        {
+            if (threat.IsNull || !world.HasComponent<TargetMemory>(self)) return StanceId.Prone;
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
+            for (int i = 0; i < mem.Count; i++)
+                if (mem.EntityIds[i] == (long)threat.PackedValue)
+                    return StanceToReach(world, self, new Vector3(mem.PositionsX[i], mem.PositionsY[i], mem.PositionsZ[i]), TargetMemory.StanceSeen(in mem, i));
+            return StanceId.Prone;
+        }
+
+        /// <summary>⭐ <c>CE-8311</c> / <c>CE-8314</c> — <see cref="SuppressStance"/> for a spot (<paramref name="feet"/>) and the stance a body there was
+        /// SEEN in (null = never seen: the blind aim).</summary>
+        public static StanceId StanceToReach(EntityRepository world, Entity self, Vector3 feet, StanceId? seen)
+        {
+            if (!world.HasComponent<SimTransform>(self)) return StanceId.Prone;
+            var query = Fdp.Toolkit.World.WorldQuery.Of(world);
+            if (query == null) return StanceId.Prone;
+            var at = world.GetComponentRO<SimTransform>(self).Position;
+            var scratch = _aimScratch ??= new List<Vector3>(4);   // ⭐ per thread (the parallel brain phase)
+            for (var stance = StanceId.Prone; ; stance = stance == StanceId.Prone ? StanceId.Crouched : StanceId.Standing)
+            {
+                var eye = at + new Vector3(0f, 0f, Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeHeightFor(world, self, stance));
+                var aim = seen is StanceId body
+                    ? AimPoint.ForBodyAt(query, eye, feet, body, 0f, scratch)
+                    : AimPoint.BlindAt(world, query, eye, feet, AimAndFireExecutor.BlindAimHeightMetres);   // ⭐ CE-8315 — the round's own blind aim
+                if (!query.SightBlocked(eye, aim)) return stance;
+                if (stance == StanceId.Standing) return StanceId.Prone;
+            }
+        }
+
+        [ThreadStatic] private static List<Vector3>? _aimScratch;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8313</c> — the man holds a POST his squad gave him (any kind: <see cref="PeekAndFireParams.AnchorRadius"/> &gt; 0 — window, frame,
+        /// roof, a room, an open dispersal spot). The Suppress branch then fires from it (<see cref="SuppressFromPost"/>) instead of placing him
+        /// (<see cref="Suppress"/>, D-15): the post already IS his place and his stance. 📐 Live <c>bt-window-duel</c>: D-15 laid the window
+        /// rifleman prone behind his sill once the attacker dropped out of sight — he never fired again.
+        /// </summary>
+        [SharedAiCondition]
+        public static NodeStatus Posted(ref PeekAndFireParams p, Entity self, EntityRepository world)
+            => p.AnchorRadius > 0f ? NodeStatus.Success : NodeStatus.Failure;
+
+        /// <summary>⭐ <c>CE-8313</c> — a POSTED man's suppression: blind fire at the top threat's last-known spot from where he is, stance
+        /// untouched (the post set it). Running; Failure when he has no weapon.</summary>
+        [SharedAiAction]
+        public static NodeStatus SuppressFromPost(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
             => Fire(world, self, ref ws, p.CooldownSeconds, blind: true) ? NodeStatus.Running : NodeStatus.Failure;
+
+        /// <summary>Leaving a posted man's suppression: the fire stops; he keeps his stance and his place.</summary>
+        [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.SuppressFromPost")]
+        public static void Deactivate_SuppressFromPost(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
+            => StopFiring(world, self, ref ws);
 
         /// <summary>
         /// ⭐⭐ AQ89 C (R-269) — may the Suppress branch CLOSE to throw? All of: the top threat identified, remembered live and HIDDEN
@@ -376,7 +528,12 @@ namespace Hrot.AI.Behaviors.Brains
                 var status = LocomotionMoveTo.Status(world, self);
                 if (status == NodeStatus.Running) return NodeStatus.Running;
                 ws.Moving = 0;
-                if (status != NodeStatus.Success) { ws.Failed = 1; return NodeStatus.Running; }
+                // ⭐⭐ CE-3463 — a move STOPPED from outside (the channel no longer runs a MoveTo: the branch he left stopped him as he came
+                //   in, 📐 live ia-area-defend: one NAV_NONE 0.8 s after the frame move, then never another) is not the mover failing: it is
+                //   sent again (a few times — never a ping-pong forever). Only the mover's own failure leaves him where he is.
+                bool stopped = world.HasComponent<LocomotionChannel>(self)
+                               && world.GetComponentRO<LocomotionChannel>(self).ActiveAction != NavigationConstants.ActionIdMoveTo;
+                if (status != NodeStatus.Success && !(stopped && ws.Stopped++ < FrameMoveRetries)) { ws.Failed = 1; return NodeStatus.Running; }
             }
             var at = world.GetComponentRO<SimTransform>(self).Position;
             if (Vector3.Distance(at, p.Anchor) > FrameWatchMetres)
@@ -403,6 +560,8 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>⭐ D-2l — farther than this from his frame point he walks to it before he leans (m) · at this pace (m/s).</summary>
         public const float FrameWatchMetres = 0.75f, FrameWatchSpeed = 1.5f;
+        /// <summary>⭐ <c>CE-3463</c> — how many times a frame move stopped from outside is sent again before he holds where he is.</summary>
+        public const int FrameMoveRetries = 5;
 
         private static void Straighten(ref FrameWatchState ws, Entity self, EntityRepository world)
         {
@@ -536,6 +695,25 @@ namespace Hrot.AI.Behaviors.Brains
             => AtOpeningPost(ref p, self, world) == NodeStatus.Success && EqsTacticsNodes.TopAim(world, self, default, out _)
                 ? NodeStatus.Success : NodeStatus.Failure;
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3463</c> — the man is posted at a FRAME post (D-2l): with nothing to fight he WATCHES from it (<see cref="HoldWatch"/>:
+        /// leaned out at the opening) whatever the decision says — the quiet twin of <see cref="PostedWithThreat"/> (CE-2366 A). 📐 The
+        /// decision cannot get him there: AdvanceAndAttack has no "anything to attack" input, so with no enemy it scores ≈ 1.0 against
+        /// Hold's 0.38 (live <c>ia-area-defend</c>) — and its branch never leans, so a frame-posted guard stood behind the wall, blind.
+        /// </summary>
+        [SharedAiCondition]
+        public static NodeStatus AtFramePost(ref PeekAndFireParams p, Entity self, EntityRepository world)
+            => p.Frame != 0 && p.AnchorRadius > 0f ? NodeStatus.Success : NodeStatus.Failure;
+
+        /// <summary>
+        /// ⭐⭐ D-13 (CE-4666, the prone half) — the man is posted at an OPEN post (<see cref="PeekAndFireParams.Open"/>: his squad's dispersal
+        /// spot, no cover in reach). <c>CombatPosture</c> then holds him PRONE there (<see cref="HoldProne"/>), threat or not — the occupy
+        /// branch before it walks him onto the post first. 📄 Defend &amp; Attack §8f D-2n.
+        /// </summary>
+        [SharedAiCondition]
+        public static NodeStatus AtOpenPost(ref PeekAndFireParams p, Entity self, EntityRepository world)
+            => p.Open != 0 && p.AnchorRadius > 0f ? NodeStatus.Success : NodeStatus.Failure;
+
         /// <summary>⭐ D-2e — this close to his post he has occupied it (m): the advance's own arrival (1 m) plus a step.</summary>
         public const float OccupiedMetres = 1.5f;
 
@@ -568,10 +746,16 @@ namespace Hrot.AI.Behaviors.Brains
         public static void Deactivate_Engage(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
             => StopFiring(world, self, ref ws);
 
-        /// <summary>⭐ AQ89 A — leaving the suppression: the weapon stops.</summary>
+        /// <summary>⭐ AQ89 A — leaving the suppression: the weapon stops; ⭐ CE-8311 (D-15) — the firing-position search and its move stop,
+        /// and he gets up (he may have suppressed prone).</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.Suppress")]
-        public static void Deactivate_Suppress(ref EngageParams p, ref EngageState ws, Entity self, EntityRepository world)
-            => StopFiring(world, self, ref ws);
+        public static void Deactivate_Suppress(ref SuppressParams p, ref SuppressRunState ws, Entity self, EntityRepository world)
+        {
+            StopFiring(world, self, ref ws.Fire);
+            ReleaseSuppressor(ref p.From, ref ws.Place, self, world);
+            StanceRequest.Set(world, self, StanceId.Standing, GetUpSeconds);
+            ws = default;
+        }
 
         /// <summary>⭐ <c>CE-3090</c> — leaving the prone hold: the weapon stops and the unit gets up (<c>CE-2121</c>).</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.PostureNodes.HoldProne")]

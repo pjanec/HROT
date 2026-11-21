@@ -67,6 +67,58 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(1f / 16f, StandardInputs.EqsResultCount(in ctx), 3);
         }
 
+        /// <summary>⭐ CE-4652 — the posture's scoring sensor and the TakeCover branch's own (PeekAndFire) run ONE template for ONE run; the
+        /// branch's fresh one takes the lowest free part id, and while it has not answered the cover score must still read the answered one.
+        /// 📐 Live (uf-squad-under-fire): it read 0 ⇒ HoldProne for a tick ⇒ the branch released its sensor ⇒ TakeCover again — ~33 flips in
+        /// 30 s and no aimed fire.</summary>
+        [Fact]
+        public void CE4652_TwoOfTheRunsOwnSensorsOnOneTemplate_TheAnsweredOneIsRead_NotAFreshOneWithALowerPartId()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorState>())
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>())
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
+            const uint template = 0xC0FE4652u;
+            var unit = repo.CreateEntity();
+            repo.AddComponent(unit, new Fdp.Toolkit.Behavior.Components.BehaviorState { InstanceId = 5 });
+            var answered = _world.SpawnEqsSensor(unit, template, topScore: 0.9f, count: 1, instanceId: 3);
+            repo.AddComponent(answered, new Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart { OwnerInstanceId = 5 });
+            var fresh = repo.CreateEntity();   // the branch's own, made this tick: no answer yet, a LOWER part id (a freed slot)
+            repo.AddComponent(fresh, new EqsSensor { BlueprintId = template });
+            repo.AddComponent(fresh, new EqsCognitiveBuffer { Count = 0, LastUpdateTick = 0 });
+            repo.AddComponent(fresh, new Fdp.Toolkit.Replication.Components.PartMetadata { ParentEntity = unit, InstanceId = 1 });
+            repo.AddComponent(fresh, new Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart { OwnerInstanceId = 5 });
+
+            var ctx = MakeCtx(unit, parms: new InputParams { BlueprintId = template });
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+        }
+
+        /// <summary>⭐ CE-4652 — a sensor RE-ASKED (re-pointed at a new threat) scores its last answer until the new one lands; one whose last
+        /// answer was empty still reads 0. 📐 Live (uf-squad-under-fire): the posture's own cover sensor was refreshed every ~0.5 s as the
+        /// hostile's top threat changed, the decision re-scored in that tick, read 0 ⇒ HoldProne ⇒ TakeCover again — no aimed fire.</summary>
+        [Fact]
+        public void CE4652_AReAskedSensor_ScoresItsLastAnswer_UntilTheNewOneLands_AnEmptyOneStillReadsZero()
+        {
+            var repo = _world.Repo;
+            const uint template = 0xC0DE4652u;
+            var unit = repo.CreateEntity();
+            var sensor = _world.SpawnEqsSensor(unit, template, topScore: 0.9f, count: 1, instanceId: 1);
+            var ctx = MakeCtx(unit, parms: new InputParams { BlueprintId = template });
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+
+            Assert.True(EqsChildSensor.Refresh(repo, sensor));
+            Assert.False(repo.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);   // no reader takes a POINT from it
+            Assert.Equal(0.9f, StandardInputs.EqsTopScore(in ctx), 3);
+
+            // an EMPTY answer, then re-asked: nothing to hold
+            ref var buffer = ref repo.GetComponentRW<EqsCognitiveBuffer>(sensor);
+            buffer.Count = 0; buffer.LastUpdateTick = 7;
+            Assert.Equal(0f, StandardInputs.EqsTopScore(in ctx));
+            Assert.True(EqsChildSensor.Refresh(repo, sensor));
+            Assert.Equal(0f, StandardInputs.EqsTopScore(in ctx));
+        }
+
         // ── SC-P1-06-1: AmmoFraction ─────────────────────────────────────────────
 
         [Fact]
@@ -656,6 +708,42 @@ namespace Fdp.Toolkit.Tests.Utility
             Assert.Equal(0.8f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(tow, tank)),  precision: 4);
             Assert.Equal(0.6f, StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(gun, rifle)), precision: 4);
             Assert.Equal(1f,   StandardInputs.WeaponEffectivenessVsTarget(MakeCtx(tow, rifle)), precision: 4);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2451</c> D-9 (user-approved `2026-11-19`; Aggregate Squad R-3) — an RPG man (mount 0 an RPG whose round is a SHAPED
+        /// CHARGE, mount 1 a rifle): against a soldier 13 m off the RPG suits nothing (0) and the rifle does (1); against a tank the RPG suits (1);
+        /// with the rifle EMPTY the RPG suits the soldier again (1 — his only loaded mount: he does not stand idle). 📐 Before: the RPG won a near
+        /// tie against a man (`ts-house-defenders`, one rocket into the stack). ✅ Red-proof: <c>HeldForArmour</c> never true ⇒ the first row red.
+        /// </summary>
+        [Fact]
+        public void CE2451_D9_AnRpg_SuitsATankNotASoldier_UnlessItIsHisOnlyLoadedMount()
+        {
+            const long RpgRound = 9601, RpgMan = 9602;
+            var round = new Fdp.Interfaces.TkbTemplate("RPG round", RpgRound);
+            round.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.ShapedCharge, FragmentRadiusM = 20f });
+            var type = new Fdp.Interfaces.TkbTemplate("RPG man", RpgMan);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts =
+            {
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 3,   Range = 300, Penetration = 500, DamagePerHit = 400, AmmoGuid = (ulong)RpgRound },
+                new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { InitialAmmunition = 150, Range = 400, Penetration = 8,   DamagePerHit = 35 },
+            } });
+            _world.UseTkb(type, round, UtilityTestWorld.TankTemplate(), UtilityTestWorld.InfantryTemplate());
+            var man = _world.Repo.CreateEntity();
+            _world.Repo.AddComponent(man, new SimTransform { Position = Vector3.Zero });
+            _world.SetType(man, RpgMan);
+            var rpg   = _world.SpawnWeaponMount(man, mountIndex: 0, weaponGuid: 1, effRange: 300f, ammo01: 1f, initialAmmunition: 3);
+            var rifle = _world.SpawnWeaponMount(man, mountIndex: 1, weaponGuid: 2, effRange: 400f, ammo01: 1f, initialAmmunition: 150);
+            var soldier = _world.SpawnTypedTarget(UtilityTestWorld.InfantryType, 13f, maxHealth: 100f);
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Motion.Locomotion>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+            _world.Repo.AddComponent(soldier, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Pedestrian });
+            var tank = _world.SpawnTypedTarget(UtilityTestWorld.TankType, 300f, maxHealth: 2500f);
+
+            Assert.Equal(0f, StandardInputs.MountSuitsTarget(MakeCtx(rpg, soldier)));
+            Assert.Equal(1f, StandardInputs.MountSuitsTarget(MakeCtx(rifle, soldier)));
+            Assert.Equal(1f, StandardInputs.MountSuitsTarget(MakeCtx(rpg, tank)));
+            _world.Repo.GetComponentRW<WeaponState>(rifle).Ammo = 0;
+            Assert.Equal(1f, StandardInputs.MountSuitsTarget(MakeCtx(rpg, soldier)));
         }
 
         /// <summary>

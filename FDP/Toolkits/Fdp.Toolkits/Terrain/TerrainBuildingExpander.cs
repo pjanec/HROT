@@ -271,9 +271,11 @@ namespace Fdp.Toolkit.Terrain
                     var state = ParseDoorState((string?)o["initial"], ow);
                     if (doorId != null && doorOverrides != null && doorOverrides.TryGetValue(doorId, out var over)) state = over;
                     string? key = doorId == null ? null : DoorKey(terrainName, label, doorId);
+                    bool glazed = o["glazed"] is JsonNode gn ? gn.GetValue<bool>() : kind == TerrainOpeningKind.Window;   // ⭐ CE-5032 GW-1 — a window has glass unless it says not
+                    if (glazed && kind != TerrainOpeningKind.Window) throw new ArgumentException($"Terrain world {ow}: only a window may be glazed.");
                     openings.Add(new TerrainOpening
                     {
-                        Kind = kind, At = atAlong, Width = width, SillZ = floor + sill, HeadZ = floor + head, DoorKey = key,
+                        Kind = kind, At = atAlong, Width = width, SillZ = floor + sill, HeadZ = floor + head, DoorKey = key, Glazed = glazed,
                     });
                     if (doorId != null) doorIds.Add((openings.Count - 1, doorId, state));
                 }

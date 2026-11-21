@@ -28,12 +28,19 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
     public sealed class TraceBufferLifecycleSystem : IEcsModuleSystem
     {
         // Buffer reused across ticks to avoid allocating per-call.
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _toAddBTree = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _toRemoveBTree = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _toAddHsm = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _toRemoveHsm = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _toAddUtility = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _toRemoveUtility = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world (CE-1319, the sibling of the other _toAdd/_toRemove lists)")]
         private readonly List<Entity> _toAddLog = new();
 
         public void Execute(ISimulationView view, float deltaTime)

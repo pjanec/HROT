@@ -59,6 +59,9 @@ internal sealed class StanceStatusIngressTranslator : INetworkTranslator, IDisca
             Phase = (StanceTransitionPhase)msg.Phase,
             TransitionProgress = msg.TransitionProgress,
             AckVersion = msg.AckVersion,
+            TransitionStartedAt = (SimInstant)msg.TransitionStartedAt,   // ⭐ CE-11014
+            FromStance = (StanceId)msg.FromStance,
+            TransitionSeconds = new SimDuration(msg.TransitionSeconds),
         });
         ReceivedSampleCount++;
     }

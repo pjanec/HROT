@@ -23,6 +23,7 @@ namespace Hrot.Map.Common.Replication.Egress
         // ⭐ CE-2407 (DESIGN_Egress_Change_Detection §5, E1) — skips the entities none of these inputs changed for; NetworkIdentity is implied
         private readonly Fdp.Toolkit.Replication.Utilities.EgressVisitGate _gate = new(typeof(WeatherConditions));
 
+        [Fdp.Core.NotState("static readonly component-id list, fixed at type load")]
         private static readonly int[] s_targetIds = { GlobalComponentIds.WeatherConditions };
         // ⭐⭐ CE-4007 (Cluster Load Phase §8.3) — what this writer published: the send-on-change cache AND the instances it deletes on a
         //   destruction, a wipe or (as an unregister) a hand-over.
@@ -69,6 +70,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 SeaLevelPressure = WireUnits.HectopascalToPascal(w.SeaLevelPressureHpa), RelativeHumidity = w.RelativeHumidity, VisibilityM = w.VisibilityM,
                 FogTopM = w.FogTopM, FogVisibilityM = w.FogVisibilityM, Precipitation = w.Precipitation,
                 PrecipitationRate = WireUnits.MillimetresPerHourToMetresPerSecond(w.PrecipitationMmPerHour), FeatherM = w.FeatherM, WindCount = w.WindCount, CloudCount = w.CloudCount,
+                Since = w.Since,   // ⭐ CE-4662 (TD-8)
             };
             s.W0Alt = w.WindAltitudeM[0]; s.W0From = WireUnits.DegToRad(w.WindFromDeg[0]); s.W0Speed = w.WindSpeedMps[0]; s.W0Gust = w.WindGustMps[0];
             s.W1Alt = w.WindAltitudeM[1]; s.W1From = WireUnits.DegToRad(w.WindFromDeg[1]); s.W1Speed = w.WindSpeedMps[1]; s.W1Gust = w.WindGustMps[1];
@@ -95,6 +97,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 RelativeHumidity = s.RelativeHumidity, VisibilityM = s.VisibilityM, FogTopM = s.FogTopM, FogVisibilityM = s.FogVisibilityM,
                 Precipitation = s.Precipitation, PrecipitationMmPerHour = WireUnits.MetresPerSecondToMillimetresPerHour(s.PrecipitationRate), FeatherM = s.FeatherM,
                 WindCount = s.WindCount, CloudCount = s.CloudCount,
+                Since = (SimInstant)s.Since,   // ⭐ CE-4662 (TD-8)
             };
             w.WindAltitudeM[0] = s.W0Alt; w.WindFromDeg[0] = WireUnits.RadToDeg(s.W0From); w.WindSpeedMps[0] = s.W0Speed; w.WindGustMps[0] = s.W0Gust;
             w.WindAltitudeM[1] = s.W1Alt; w.WindFromDeg[1] = WireUnits.RadToDeg(s.W1From); w.WindSpeedMps[1] = s.W1Speed; w.WindGustMps[1] = s.W1Gust;
@@ -130,7 +133,10 @@ namespace Hrot.Map.Common.Replication.Ingress
         private const long OrdinalValue = (long)EDescriptorType.dtWeather;
         private readonly DdsReader<EntityWeather>? _reader;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.ProtocolCache("sample held until vehicle/target is known here; applied then removed")]
         private readonly Dictionary<int, EntityWeather> _pending = new();
+        private int _worldEpoch;   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the pending samples (they named the old world)
+        [Fdp.Core.WorldDerived("scratch list cleared at end of every Flush")]
         private readonly List<int> _done = new();
 
         public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<EntityWeather>();
@@ -151,6 +157,7 @@ namespace Hrot.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pending.Clear();   // ⭐ R-4297 ④ (CE-1980; DESIGN_System_State_Inventory §9) — the precedent: MapVisualOverlayIngressTranslator
             if (_reader is not null)
             {
                 using var loan = _reader.Take();

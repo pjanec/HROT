@@ -116,9 +116,7 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-3219 (civilians B-1, CV-6) — a person's stored non-lethal effects, beside Health (Brain group → every node).
         //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.3. Measured free on ui, behaviors, backend, coordinator.
         dtEffectState                 = 142,
-        // ⭐ CE-3224 (civilians B-6, CV-13) — what a person is doing with his arms (Brain group → every node).
-        //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.7. Measured free on ui, behaviors, backend, coordinator.
-        dtGesture                     = 143,
+        // 143 retired (CE-4628 §10c: dtGesture's gesture is the Kind of dtDemeanour 153 now; never reuse)
         // ⭐ CE-3219 part 3 (civilians B-1, R-3014) — a gas / smoke cloud's description, its creator → every node (no group).
         //   📄 docs/DESIGN_Civilians_And_Crowd_Control.md §7.3b. Measured free on ui, behaviors, backend, coordinator.
         dtAreaEffectCloud             = 144,
@@ -215,6 +213,8 @@ namespace Hrot.NED.Descriptors
         dtMinefield                   = 191,
         dtMinefieldStrikes            = 192,
         dtMinefieldKnowledge          = 193,
+        // ⭐ CE-2468 (DESIGN_Minefields.md §9b) — a side's knowledge of a place under fire (the deciding node → every node). 210 measured free on every branch 2026-11-21 (210–215 unassigned).
+        dtUnderFireKnowledge          = 210,
         // ⭐ CE-4624 MS-T4 — the lanes a node cleared through a field (the deciding node → every node); a clearer's tool marker (Brain group → the Muscle). 194–195 free on every lane 2026-11-16.
         dtMinefieldLanes              = 194,
         dtMineClearing                = 195,
@@ -239,6 +239,20 @@ namespace Hrot.NED.Descriptors
         dtFormationFollower           = 199,
         // ⭐ CE-4622 K-2 — a hull's ram order (Brain group → the node that moves it). 196 fixed by the coordinator (197 held).
         dtRamOrder                    = 196,
+        // ⭐ CE-4664 (thermal drivers TD-14; docs/designs/thermal/DESIGN_Thermal_Drivers.md §4b) — one ground cell's warm vehicle stands, the node that moves the
+        //   vehicles (no group: the entity's creator keeps it) → every node. 242 fixed at dispatch (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md; 240 / 241 backend's).
+        //   ⚠ the toolkit states it too (GroundHeatMarkSystem.DescriptorOrdinal; a rail pins it).
+        dtGroundHeatMarks             = 242,
+        // ⭐ CE-4657 (thermal drivers TD-3 / TD-6; DESIGN_Thermal_Drivers.md §4) — an entity's heat source (the node that moves it, the Muscle group → every node) and
+        //   its fire spots (the Health owner, the Brain group → every node). 240 / 241 fixed at dispatch (HANDOFF_Coordinator_To_Backend_Thermal_Drivers.md).
+        dtHeatSource                  = 240,
+        dtFireState                   = 241,
+        // ⭐ CE-4670 (vehicle appearance VA-S2, VA-12) — a vehicle's hatches / doors / ramps (the boarding arbiter → every node). 244 dtVehicleLights reserved (VA-S3).
+        dtVehicleOpenings             = 243,
+        dtVehicleLights               = 244,   // ⭐ CE-4670 (VA-S3) — lights (the Brain group → every node)
+        // ⭐ CE-5033 (glass windows GW-2; docs/DESIGN_Glass_Windows.md D-3) — a building's damaged window panes, on its damage entity, the deciding node (no group) → every node.
+        //   245 measured free on backend, ui, behaviors, coordinator 2026-11-18 (243 / 244 are backend's). ⚠ the toolkit states it too (BuildingDamageSystem.WindowDescriptorOrdinal; a rail pins it).
+        dtWindowDamage                = 245,
         // etc., all known descriptor types here
     }
 

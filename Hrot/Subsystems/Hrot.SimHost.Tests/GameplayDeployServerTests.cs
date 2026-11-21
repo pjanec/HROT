@@ -27,36 +27,45 @@ namespace Hrot.SimHost.Tests
     /// slot reader that fills <see cref="StationReservations"/>, and the WIRE rail — a node with the pack composed and the feature OFF creates no gameplay topic.
     /// Each test is its own instance ⇒ its own DDS domain (the station is a SECOND participant on it, as a Player node is).
     /// </summary>
-    public sealed class GameplayDeployServerTests : IDisposable
+    ///
+    /// <para>⭐ CE-11027 S12-2 — <b>ONE fixture over BOTH transports</b> (Q114 D): this abstract class holds every rail; <see cref="GameplayDeployServerOverDdsTests"/> runs them on DDS and <see cref="GameplayDeployServerOverLocalHubTests"/> on the
+    /// editor's in-process <see cref="LocalGameplayHub"/>. The station is the CLIENT end of whichever transport (<see cref="IGameplayWire"/>); the few rails that are about DDS itself live in the DDS subclass.</para>
+    public abstract class GameplayDeployServerTests : IDisposable
     {
-        private static int _domain = 140;
+        protected static int _domain = 140;
 
         private const int Server = 5, StationA = 20, StationB = 21;
         private const int Rifleman = 100, Plane = 101;
 
-        private readonly DdsParticipant _serverP, _stationP;
-        private readonly GameplayWire _wire;
+        protected IGameplayWire _wire = null!;      // the SERVER's end
+        protected IGameplayWire _station = null!;   // the STATION's (client) end
         private readonly EntityRepository _w = new();
         private readonly NetworkEntityMap _map = new();
         private readonly DeployProcessorSystem _proc;
         private readonly ServerPlayerSlotReaderSystem _slots;
-        private readonly DdsWriter<DeployRequestTopic> _request;
-        private readonly DdsReader<DeployStatusTopic> _status;
-        private readonly DdsReader<PlayerSlotTopic> _slotSamples;
+        private readonly List<GameplaySample<DeployStatusTopic>> _takenStatus = new();
+        private readonly List<GameplaySample<PlayerSlotTopic>> _takenSlots = new();
+        private readonly List<GameplaySample<DeployOfferTopic>> _takenOffers = new();
         private readonly List<DeployStatusTopic> _statuses = new();
         private readonly List<int> _statusDisposed = new();
         private readonly List<(bool valid, PlayerSlotTopic slot)> _slotLog = new();
-        private readonly DdsReader<DeployOfferTopic> _offerSamples;
         private readonly Dictionary<int, DeployOfferTopic> _offersSeen = new();
         private readonly List<(long Tkb, SimTransform At, object[] Components, int NetId)> _spawnCalls = new();
         private double _now = 100;
         private long _wallMs = 1_000;
 
-        public GameplayDeployServerTests()
+        /// <summary>Makes the transport: the server's wire and the station's wire (each a field of the subclass assigned here).</summary>
+        protected abstract void CreateTransport(out IGameplayWire server, out IGameplayWire station);
+
+        /// <summary>DDS: waits until the station's volatile request writer has matched the server's reader. A hub has nothing to match.</summary>
+        protected virtual void AwaitStationMatched() { }
+
+        /// <summary>A writer of SLOT samples that plays the SERVER for the slot reader (the reader's own rail).</summary>
+        protected abstract IGameplayOut<PlayerSlotTopic> SlotWriterPlayingTheServer();
+
+        protected GameplayDeployServerTests()
         {
-            uint domain = (uint)Interlocked.Increment(ref _domain);
-            _serverP = new DdsParticipant(domain);
-            _stationP = new DdsParticipant(domain);
+            CreateTransport(out _wire, out _station);
             _w.RegisterComponent<Playable>();
             _w.RegisterComponent<NetworkIdentity>();
             _w.RegisterComponent<PossessedBy>();
@@ -66,21 +75,17 @@ namespace Hrot.SimHost.Tests
             _w.RegisterComponent<EntityInfo>(); _w.RegisterComponent<TkbIdentity>(); _w.RegisterComponent<Locomotion>();
             _w.RegisterComponent<SimTransform>(); _w.RegisterManagedComponent<EditablePolyline>();
             SetTime(_now);
-            _wire = new GameplayWire(_serverP);
             _proc = new DeployProcessorSystem(_wire, _map, Server, election: null, nowMs: () => _wallMs,
                 spawner: (tkb, at, comps) => { int id = 200 + _spawnCalls.Count; _spawnCalls.Add((tkb, at, comps.ToArray(), id)); return id; }, rng: new Random(7));
             _slots = new ServerPlayerSlotReaderSystem(_wire);
-            _request = new DdsWriter<DeployRequestTopic>(_stationP);
-            _status = new DdsReader<DeployStatusTopic>(_stationP);
-            _slotSamples = new DdsReader<PlayerSlotTopic>(_stationP);
-            _offerSamples = new DdsReader<DeployOfferTopic>(_stationP);
+            _ = _station.RequestWriter; _ = _station.StatusReader; _ = _station.SlotReader; _ = _station.OfferReader;   // the station's ends exist from the start (DDS: created, and matched below)
             Tick();   // creates the server's request reader (the wire is lazy) so the station's volatile writer can match it
-            Until(() => _request.CurrentStatus.CurrentCount > 0, "the station's request writer must match the server's reader");
+            AwaitStationMatched();
         }
 
-        public void Dispose()
+        public virtual void Dispose()
         {
-            _request.Dispose(); _status.Dispose(); _slotSamples.Dispose(); _offerSamples.Dispose(); _wire.Dispose(); _stationP.Dispose(); _serverP.Dispose(); _w.Dispose();
+            _w.Dispose();
         }
 
         // ── helpers ─────────────────────────────────────────────────────────────────────────
@@ -98,7 +103,7 @@ namespace Hrot.SimHost.Tests
         }
 
         private void Hold(Entity unit, int station)
-            => _w.AddComponent(unit, new PossessedBy { StationNodeId = (NodeId)station, Mode = PossessionMode.Fps, Epoch = 1 });
+            => _w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)station, Mode = PossessionMode.Fps, Epoch = 1 });
 
         private void Tick()
         {
@@ -111,19 +116,14 @@ namespace Hrot.SimHost.Tests
 
         private void Drain()
         {
-            using (var l = _offerSamples.Take())
-                foreach (var s in l)
-                {
-                    if (s.IsValid) _offersSeen[s.Data.UnitNetId] = s.Data;
-                    else _offersSeen.Remove(DdsTypeSupport.FromNative<DeployOfferTopic>(s.NativePtr).UnitNetId);
-                }
-            using (var l = _status.Take())
-                foreach (var s in l)
-                    if (s.IsValid) _statuses.Add(s.Data);
-                    else _statusDisposed.Add(DdsTypeSupport.FromNative<DeployStatusTopic>(s.NativePtr).StationNodeId);
-            using (var l = _slotSamples.Take())
-                foreach (var s in l)
-                    _slotLog.Add(s.IsValid ? (true, s.Data) : (false, DdsTypeSupport.FromNative<PlayerSlotTopic>(s.NativePtr)));
+            _takenOffers.Clear(); _station.OfferReader!.TakeInto(_takenOffers);
+            foreach (var o in _takenOffers)
+                if (o.Alive) _offersSeen[o.Data.UnitNetId] = o.Data; else _offersSeen.Remove(o.Data.UnitNetId);
+            _takenStatus.Clear(); _station.StatusReader!.TakeInto(_takenStatus);
+            foreach (var st in _takenStatus)
+                if (st.Alive) _statuses.Add(st.Data); else _statusDisposed.Add(st.Data.StationNodeId);
+            _takenSlots.Clear(); _station.SlotReader!.TakeInto(_takenSlots);
+            foreach (var sl in _takenSlots) _slotLog.Add((sl.Alive, sl.Data));
         }
 
         private void Until(Func<bool> done, string what, int timeoutMs = 15_000)
@@ -137,6 +137,8 @@ namespace Hrot.SimHost.Tests
                 Drain();
             }
         }
+
+        protected void PumpUntilPublic(Func<bool> done, string what) => Until(done, what);
 
         private void PumpUntil(Func<bool> done, string what, int timeoutMs = 15_000)
         {
@@ -152,7 +154,7 @@ namespace Hrot.SimHost.Tests
         private DeployStatusTopic Request(int station, ForceId side, int unitNetId, bool observe = false)
         {
             string id = Guid.NewGuid().ToString("N");
-            _request.Write(new DeployRequestTopic { RequestId = id, StationNodeId = station, Side = (byte)side, UnitNetId = unitNetId, Observe = observe });
+            _station.RequestWriter!.Write(new DeployRequestTopic { RequestId = id, StationNodeId = station, Side = (byte)side, UnitNetId = unitNetId, Observe = observe });
             DeployStatusTopic answer = default;
             PumpUntil(() => { foreach (var s in _statuses) if (s.RequestId == id) { answer = s; return true; } return false; }, "a status for the request");
             return answer;
@@ -198,7 +200,7 @@ namespace Hrot.SimHost.Tests
         private string Ask(int station, ForceId side, int unitNetId, byte kit = 0, int areaNetId = 0)
         {
             string id = Guid.NewGuid().ToString("N");
-            _request.Write(new DeployRequestTopic { RequestId = id, StationNodeId = station, Side = (byte)side, UnitNetId = unitNetId, Kit = kit, AreaNetId = areaNetId });
+            _station.RequestWriter!.Write(new DeployRequestTopic { RequestId = id, StationNodeId = station, Side = (byte)side, UnitNetId = unitNetId, Kit = kit, AreaNetId = areaNetId });
             return id;
         }
 
@@ -335,6 +337,121 @@ namespace Hrot.SimHost.Tests
             PumpUntil(() => _statusDisposed.Contains(StationA) && _statusDisposed.Contains(StationB), "both stations' answers deleted");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-1 (Q114 A′) — a departed NODE frees EVERY station on it: three stations <c>Of(node, 0..2)</c> each hold a slot and an answer; <c>NodeDeparted(node)</c> disposes all three slots and
+        /// all three answers, and a station of ANOTHER node keeps its slot. 🔴 Mutation: the departure compares the whole station with the node id ⇒ only station 0 goes.
+        /// </summary>
+        [Fact]
+        public void CE11027_ADepartedNode_FreesEveryStationOnIt_SlotsAndAnswers()
+        {
+            const int node = 9;
+            var seats = new[] { (int)Fdp.Core.StationId.Of((NodeId)node, 0), (int)Fdp.Core.StationId.Of((NodeId)node, 1), (int)Fdp.Core.StationId.Of((NodeId)node, 2) };
+            for (int i = 0; i < seats.Length; i++) Unit(Rifleman + 10 + i, ForceId.Friend);
+            Unit(Rifleman + 20, ForceId.Friend);
+            for (int i = 0; i < seats.Length; i++) Assert.True(Request(seats[i], ForceId.Friend, Rifleman + 10 + i).Accepted);
+            Assert.True(Request(StationA, ForceId.Friend, Rifleman + 20).Accepted);
+            Assert.Equal(4, _proc.SlotCount);
+
+            _w.Bus.Publish(new NodeDeparted { NodeId = (NodeId)node });
+            _w.Bus.SwapBuffers();
+            _proc.Execute(_w, 0.016f);
+
+            Assert.Equal(1, _proc.SlotCount);                                   // only StationA's remains
+            Assert.True(_proc.TryGetSlot(StationA, out _, out _));
+            foreach (int seat in seats) Assert.False(_proc.TryGetSlot(seat, out _, out _));
+            PumpUntil(() => seats.All(seat => _statusDisposed.Contains(seat)), "the answers of all three stations deleted");
+            Assert.DoesNotContain(StationA, _statusDisposed);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-3 (Q114 E) — a station that LEAVES (<c>Leave</c> request): its slot is disposed, its durable answer deleted and a <c>ReleaseStationEvent</c> for it is published on the world bus at once; another
+        /// station's slot stays. 🔴 Mutation: the leave frees the slot but publishes no <c>ReleaseStationEvent</c> ⇒ the event assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE11027_ALeavingStation_LosesItsSlotAndAnswer_AndTheReleaseIsPublished()
+        {
+            Unit(Rifleman, ForceId.Friend); Unit(Rifleman + 1, ForceId.Friend);
+            Assert.True(Request(StationA, ForceId.Friend, Rifleman).Accepted);
+            Assert.True(Request(StationB, ForceId.Friend, Rifleman + 1).Accepted);
+            Assert.Equal(2, _proc.SlotCount);
+
+            _station.RequestWriter!.Write(new DeployRequestTopic { RequestId = "leave", StationNodeId = StationA, Leave = true });
+            PumpUntil(() => _proc.SlotCount == 1, "the slot freed");
+            // the release is on the bus: published by the Execute that freed the slot (no swap since), readable after the next swap
+            _w.Bus.SwapBuffers();
+            var released = _w.Bus.Read<ReleaseStationEvent>().ToArray();
+            Assert.Contains(released, e => e.StationNodeId == StationA);
+            Assert.DoesNotContain(released, e => e.StationNodeId == StationB);
+            Assert.False(_proc.TryGetSlot(StationA, out _, out _));
+            Assert.True(_proc.TryGetSlot(StationB, out _, out _));
+            PumpUntil(() => _statusDisposed.Contains(StationA) && _slotLog.Exists(s => !s.valid && s.slot.StationNodeId == StationA), "the answer and the slot disposed");
+            Assert.DoesNotContain(StationB, _statusDisposed);
+            Assert.False(StationReservations.Of(_w).TryReservedFor(Rifleman, out _));
+            Assert.True(StationReservations.Of(_w).TryReservedFor(Rifleman + 1, out _));
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-3 (Q114 G) — two stations ask for a role with ONE place left in ONE frame: exactly one spawn happens, the other is refused <c>RoleFull</c> (the pending spawn counts against the Max, per role).
+        /// 🔴 Mutation: <c>RoleFull</c> ignores the pending spawns ⇒ two spawns.
+        /// </summary>
+        [Fact]
+        public void CE11027_TwoStationsAskForTheLastPlaceOfARole_InOneFrame_OneSpawnHappens()
+        {
+            Area(ForceId.Friend, 0f, new Vector3(100f, 200f, 5f));
+            RoleEntity(300, ForceId.Friend, 2002, "Rifleman", 1);
+            string a = Ask(StationA, ForceId.Friend, 300);
+            string b = Ask(StationB, ForceId.Friend, 300);   // both written before the server runs a frame: both are read in ONE ReadRequests
+            PumpUntil(() => _spawnCalls.Count >= 1, "a spawn");
+            PumpUntil(() => _statuses.Exists(x => !x.Accepted), "the refusal");
+            var refused = _statuses.Find(x => !x.Accepted);
+            Assert.Equal("RoleFull", refused.Reason);
+            Assert.Contains(refused.RequestId, new[] { a, b });
+            Assert.Equal(1, _spawnCalls.Count);
+            for (int i = 0; i < 3; i++) Tick();
+            Assert.Equal(1, _spawnCalls.Count);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-3 (Q114 H) — a LOAD (the world epoch moves) clears the server's tables: slots, answers, offers and pending spawns are forgotten and DISPOSED on the wire; a stale slot from before is gone, also from
+        /// the reservations. 🔴 Mutation: no forgetting at <c>WorldEpoch.Moved</c> ⇒ the slot stays.
+        /// </summary>
+        [Fact]
+        public void CE11027_ALoad_ClearsTheServersTables_AndDisposesThemOnTheWire()
+        {
+            var unit = Unit(Rifleman, ForceId.Friend);
+            Assert.True(Request(StationA, ForceId.Friend, Rifleman).Accepted);
+            PumpUntil(() => _offersSeen.ContainsKey(Rifleman), "the offer");
+            Assert.Equal(1, _proc.SlotCount);
+
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Advance(_w);   // a load: the world was replaced
+            PumpUntil(() => _proc.SlotCount == 0, "the slot forgotten");
+            PumpUntil(() => _slotLog.Exists(s => !s.valid && s.slot.StationNodeId == StationA) && _statusDisposed.Contains(StationA), "the slot and the answer disposed on the wire");
+            Assert.False(StationReservations.Of(_w).TryReservedFor(Rifleman, out _));
+            Assert.False(_proc.TryGetSlot(StationA, out _, out _));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11027</c> S12-3 (Q114 H) — while a REPLAY restores (<c>IReplayRestoreGated.IsReplayRestoring</c>) the server publishes no offer and no slot and takes no request; when it ends it offers again. 🔴 Mutation: the gate
+        /// inverted ⇒ an offer is published during the replay (and none after).
+        /// </summary>
+        [Fact]
+        public void CE11027_DuringAReplayRestore_NoOfferAndNoSlotIsPublished_AndAfterItTheServerOffersAgain()
+        {
+            bool replaying = true;
+            _proc.IsReplayRestoring = () => replaying;
+            Unit(Rifleman, ForceId.Friend);
+            for (int i = 0; i < 6; i++) Tick();
+            Assert.Empty(_offersSeen);
+            _station.RequestWriter!.Write(new DeployRequestTopic { RequestId = "r", StationNodeId = StationA, Side = (byte)ForceId.Friend, UnitNetId = Rifleman });
+            for (int i = 0; i < 6; i++) Tick();
+            Assert.Equal(0, _proc.SlotCount);                       // the request of a live Player is not taken against the recording
+            Assert.Empty(_slotLog); Assert.Empty(_statuses);
+
+            replaying = false;
+            PumpUntil(() => _offersSeen.ContainsKey(Rifleman), "offers again after the replay");
+            Assert.Equal(0, _proc.SlotCount);                       // and the dropped request stays dropped
+        }
+
         /// <summary>An observer request (<c>Observe</c>) makes a Choosing slot of the side with no unit. ✅ Red-proof: the observe branch removed ⇒ the request is refused as no such unit ⇒ red.</summary>
         [Fact]
         public void AnObserveRequest_MakesAChoosingSlotWithNoUnit()
@@ -352,7 +469,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void TheSlotReader_FillsAndClearsTheReservations()
         {
-            using var writer = new DdsWriter<PlayerSlotTopic>(_stationP);
+            var writer = SlotWriterPlayingTheServer();
             writer.Write(new PlayerSlotTopic { StationNodeId = StationA, Name = "x", Side = (byte)ForceId.Friend, State = (byte)PlayerSlotState.TakingControl, UnitNetId = Rifleman });
             writer.Write(new PlayerSlotTopic { StationNodeId = StationB, Name = "y", Side = (byte)ForceId.Hostile, State = (byte)PlayerSlotState.Choosing });
             var res = StationReservations.Of(_w);
@@ -365,58 +482,6 @@ namespace Hrot.SimHost.Tests
             PumpUntil(() => res.Count == 1, "the dispose");
             Assert.False(res.TryOf(StationA, out _));
             Assert.False(res.TryReservedFor(Rifleman, out _));
-        }
-
-        // ── the wire ────────────────────────────────────────────────────────────────────────
-
-        /// <summary>⭐ THE WIRE RAIL (§9, "no gameplay topic on the wire"): a node with the pack COMPOSED and its feature OFF creates NO reader or writer of any gameplay topic — asserted on
-        /// <see cref="GameplayWire"/>'s created flags AND on a second participant that watches every gameplay topic and sees no peer. With the feature ON the same node creates them and the
-        /// observer's endpoints match (so the probe CAN see them). ✅ Red-proof (compiles): <c>[NodeFeature]</c> removed from <c>DeployProcessorSystem</c> (or the wire made eager) ⇒ the OFF half sees a request
-        /// reader ⇒ red.</summary>
-        [Fact]
-        public void APackComposedWithTheFeatureOff_PutsNoGameplayTopicOnTheWire_AndWithItOn_It_Does()
-        {
-            uint domain = (uint)Interlocked.Increment(ref _domain);
-            using var node = new DdsParticipant(domain);
-            using var watcher = new DdsParticipant(domain);   // a second participant on the node's domain, holding the OPPOSITE end of the node's endpoints (request writer, status reader, slot writer, offer reader — one end per topic, so they never match each other)
-            using var reqW = new DdsWriter<DeployRequestTopic>(watcher);
-            using var stR = new DdsReader<DeployStatusTopic>(watcher);
-            using var slW = new DdsWriter<PlayerSlotTopic>(watcher);
-            using var ofR = new DdsReader<DeployOfferTopic>(watcher);
-            int PeersSeen() => (int)(reqW.CurrentStatus.CurrentCount + stR.CurrentStatus.CurrentCount + slW.CurrentStatus.CurrentCount + ofR.CurrentStatus.CurrentCount);
-
-            var features = new NodeFeatures(new FeatureRegistry(new[] { GameplayFeatures.DeployServer }), NodeRole.Brain);
-            Assert.True(features.On(GameplayFeatures.DeployServerId));          // ON by default (R-4115)
-            var pack = new GameplayServerPack();
-            Assert.Equal(new[] { GameplayFeatures.DeployServer }, pack.Features);
-            var systems = new List<IEcsModuleSystem>();
-            var world = new EntityRepository();
-            world.RegisterComponent<Playable>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<PossessedBy>();
-            var map = new NetworkEntityMap();
-            var unit = world.CreateEntity();
-            world.AddComponent(unit, new NetworkIdentity { Value = 7 }); world.AddComponent(unit, new Playable { Side = ForceId.Friend, SlotName = new FixedString32("p") }); map.Register(7, unit);
-            pack.Compose(node, map, nodeId: 9, election: null, systems);
-            Assert.Equal(2, systems.Count);
-
-            var sch = new SystemScheduler { FeatureGate = features };
-            foreach (var s in systems) sch.RegisterSystem(s);
-            sch.BuildExecutionOrders();
-            void Frames(int n) { for (int i = 0; i < n; i++) { world.Bus.SwapBuffers(); sch.ExecutePhase(SystemPhase.Input, world, 0.016f); Thread.Sleep(20); } }
-
-            features.SetNodeOverride(GameplayFeatures.DeployServerId, "{\"Enabled\":false}");
-            Frames(60);                                                         // ~1.2 s: far more than DDS discovery needs on loopback
-            Assert.Equal(0, pack.Wire!.CreatedCount);
-            Assert.False(pack.Wire.RequestsCreated || pack.Wire.SlotReaderCreated || pack.Wire.OffersCreated || pack.Wire.StatusCreated || pack.Wire.SlotWriterCreated);
-            Assert.Equal(0, PeersSeen());
-
-            features.SetNodeOverride(GameplayFeatures.DeployServerId, "{\"Enabled\":true}");
-            var end = Environment.TickCount64 + 15_000;
-            while ((reqW.CurrentStatus.CurrentCount == 0 || ofR.CurrentStatus.CurrentCount == 0 || slW.CurrentStatus.CurrentCount == 0) && Environment.TickCount64 < end) Frames(1);
-            Assert.True(pack.Wire.RequestsCreated); Assert.True(pack.Wire.SlotReaderCreated); Assert.True(pack.Wire.OffersCreated);
-            Assert.True(reqW.CurrentStatus.CurrentCount > 0, "the node's request reader must match the watcher's request writer");
-            Assert.True(ofR.CurrentStatus.CurrentCount > 0, "the node's offer writer must match the watcher's offer reader");
-            Assert.True(slW.CurrentStatus.CurrentCount > 0, "the node's slot reader must match the watcher's slot writer");
-            pack.Wire.Dispose(); world.Dispose();
         }
 
         /// <summary>The election: the lowest node id that advertises the feature AND reports it ON serves; a candidate with a LOWER id stands this one down, one that reports it OFF does not. ✅ Red-proof: the
@@ -693,5 +758,99 @@ namespace Hrot.SimHost.Tests
             Assert.Equal((ForceId.Hostile, 2003L, "Insurgent", (byte)3), (back.Side, back.PersonTkbType, back.Name.ToString(), back.MaxCount));
             Assert.Equal((2004L, "Grenadier", 2005L, "Mortar", 2006L, "Javelin"), (back.Kit1Tkb, back.Kit1Name.ToString(), back.Kit2Tkb, back.Kit2Name.ToString(), back.Kit3Tkb, back.Kit3Name.ToString()));
         }
+    }
+
+    /// <summary>⭐ CE-11027 S12-2 — every <see cref="GameplayDeployServerTests"/> rail over a REAL DDS pair: the server on one participant, the station on a second, on a domain of its own per test.</summary>
+    public sealed class GameplayDeployServerOverDdsTests : GameplayDeployServerTests
+    {
+        private DdsParticipant _serverP = null!, _stationP = null!;
+        private GameplayWire _serverWire = null!, _stationWire = null!;
+
+        protected override void CreateTransport(out IGameplayWire server, out IGameplayWire station)
+        {
+            uint domain = (uint)Interlocked.Increment(ref _domain);
+            _serverP = new DdsParticipant(domain);
+            _stationP = new DdsParticipant(domain);
+            _serverWire = new GameplayWire(_serverP); _stationWire = new GameplayWire(_stationP);
+            server = _serverWire; station = _stationWire;
+        }
+
+        protected override void AwaitStationMatched()
+            => PumpUntilPublic(() => _stationWire.RequestWriter!.CurrentStatus.CurrentCount > 0, "the station's request writer must match the server's reader");
+
+        protected override IGameplayOut<PlayerSlotTopic> SlotWriterPlayingTheServer() => ((IGameplayWire)_stationWire).SlotWriter!;   // the station's own slot writer plays the server
+
+        public override void Dispose() { _stationWire.Dispose(); _serverWire.Dispose(); _stationP.Dispose(); _serverP.Dispose(); base.Dispose(); }
+
+        // ── the wire (about DDS itself: only this transport has endpoints to count) ──
+
+        /// <summary>⭐ THE WIRE RAIL (§9, "no gameplay topic on the wire"): a node with the pack COMPOSED and its feature OFF creates NO reader or writer of any gameplay topic — asserted on
+        /// <see cref="GameplayWire"/>'s created flags AND on a second participant that watches every gameplay topic and sees no peer. With the feature ON the same node creates them and the
+        /// observer's endpoints match (so the probe CAN see them). ✅ Red-proof (compiles): <c>[NodeFeature]</c> removed from <c>DeployProcessorSystem</c> (or the wire made eager) ⇒ the OFF half sees a request
+        /// reader ⇒ red.</summary>
+        [Fact]
+        public void APackComposedWithTheFeatureOff_PutsNoGameplayTopicOnTheWire_AndWithItOn_It_Does()
+        {
+            uint domain = (uint)Interlocked.Increment(ref _domain);
+            using var node = new DdsParticipant(domain);
+            using var watcher = new DdsParticipant(domain);   // a second participant on the node's domain, holding the OPPOSITE end of the node's endpoints (request writer, status reader, slot writer, offer reader — one end per topic, so they never match each other)
+            using var reqW = new DdsWriter<DeployRequestTopic>(watcher);
+            using var stR = new DdsReader<DeployStatusTopic>(watcher);
+            using var slW = new DdsWriter<PlayerSlotTopic>(watcher);
+            using var ofR = new DdsReader<DeployOfferTopic>(watcher);
+            int PeersSeen() => (int)(reqW.CurrentStatus.CurrentCount + stR.CurrentStatus.CurrentCount + slW.CurrentStatus.CurrentCount + ofR.CurrentStatus.CurrentCount);
+
+            var features = new NodeFeatures(new FeatureRegistry(new[] { GameplayFeatures.DeployServer }), NodeRole.Brain);
+            Assert.True(features.On(GameplayFeatures.DeployServerId));          // ON by default (R-4115)
+            var pack = new GameplayServerPack();
+            Assert.Equal(new[] { GameplayFeatures.DeployServer }, pack.Features);
+            var systems = new List<IEcsModuleSystem>();
+            var world = new EntityRepository();
+            world.RegisterComponent<Playable>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<PossessedBy>();
+            var map = new NetworkEntityMap();
+            var unit = world.CreateEntity();
+            world.AddComponent(unit, new NetworkIdentity { Value = 7 }); world.AddComponent(unit, new Playable { Side = ForceId.Friend, SlotName = new FixedString32("p") }); map.Register(7, unit);
+            pack.Compose(node, map, nodeId: 9, election: null, systems);
+            Assert.Equal(2, systems.Count);
+
+            var sch = new SystemScheduler { FeatureGate = features };
+            foreach (var s in systems) sch.RegisterSystem(s);
+            sch.BuildExecutionOrders();
+            void Frames(int n) { for (int i = 0; i < n; i++) { world.Bus.SwapBuffers(); sch.ExecutePhase(SystemPhase.Input, world, 0.016f); Thread.Sleep(20); } }
+
+            features.SetNodeOverride(GameplayFeatures.DeployServerId, "{\"Enabled\":false}");
+            Frames(60);                                                         // ~1.2 s: far more than DDS discovery needs on loopback
+            Assert.Equal(0, pack.Wire!.CreatedCount);
+            Assert.False(pack.Wire.RequestsCreated || pack.Wire.SlotReaderCreated || pack.Wire.OffersCreated || pack.Wire.StatusCreated || pack.Wire.SlotWriterCreated);
+            Assert.Equal(0, PeersSeen());
+
+            features.SetNodeOverride(GameplayFeatures.DeployServerId, "{\"Enabled\":true}");
+            var end = Environment.TickCount64 + 15_000;
+            while ((reqW.CurrentStatus.CurrentCount == 0 || ofR.CurrentStatus.CurrentCount == 0 || slW.CurrentStatus.CurrentCount == 0) && Environment.TickCount64 < end) Frames(1);
+            Assert.True(pack.Wire.RequestsCreated); Assert.True(pack.Wire.SlotReaderCreated); Assert.True(pack.Wire.OffersCreated);
+            Assert.True(reqW.CurrentStatus.CurrentCount > 0, "the node's request reader must match the watcher's request writer");
+            Assert.True(ofR.CurrentStatus.CurrentCount > 0, "the node's offer writer must match the watcher's offer reader");
+            Assert.True(slW.CurrentStatus.CurrentCount > 0, "the node's slot reader must match the watcher's slot writer");
+            pack.Wire.Dispose(); world.Dispose();
+        }
+
+    }
+
+    /// <summary>⭐ CE-11027 S12-2 — every <see cref="GameplayDeployServerTests"/> rail over the editor's in-process <see cref="LocalGameplayHub"/>: the server end and ONE client end (the station).</summary>
+    public sealed class GameplayDeployServerOverLocalHubTests : GameplayDeployServerTests
+    {
+        private LocalGameplayHub _hub = null!;
+        private LocalGameplayEnd _serverEnd = null!, _clientEnd = null!;
+
+        protected override void CreateTransport(out IGameplayWire server, out IGameplayWire station)
+        {
+            _hub = new LocalGameplayHub();
+            _serverEnd = _hub.ServerEnd(); _clientEnd = _hub.ClientEnd();
+            server = _serverEnd; station = _clientEnd;
+        }
+
+        protected override IGameplayOut<PlayerSlotTopic> SlotWriterPlayingTheServer() => _serverEnd.SlotWriter!;
+
+        public override void Dispose() { _clientEnd.Dispose(); _serverEnd.Dispose(); base.Dispose(); }
     }
 }

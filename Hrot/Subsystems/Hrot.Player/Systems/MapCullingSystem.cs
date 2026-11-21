@@ -39,6 +39,7 @@ namespace Hrot.Player.Systems;
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
 [TickMode(TickPolicy.EveryFrame)]
+[Fdp.Core.NotState("a system/module, classified on its own")]
 public class MapCullingSystem : IEcsModuleSystem
 {
     private readonly MapCameraViewport _viewport;
@@ -53,14 +54,18 @@ public class MapCullingSystem : IEcsModuleSystem
     private ISimulationView? _queryView;
 
     // the pass's constants, read once (fields, not locals: the per-entity step is a method)
+    [Fdp.Core.FrameScratch("viewport flag copied from the singleton each run (116)")]
     private bool _viewportIsSet;
+    [Fdp.Core.FrameScratch("viewport bound copied from the singleton each run (116)")]
     private float _minX, _maxX, _minY, _maxY;
+    [Fdp.Core.FrameScratch("LOD level copied from the singleton each run (116)")]
     private byte _lod;
 
     /// <summary>The gate (its counters) — for rails and diagnostics.</summary>
     public ChangeGate Gate => _gate;
 
     /// <summary>How many entity walks actually ran (the gate skipped the rest) — for rails and diagnostics.</summary>
+    [field: Fdp.Core.WorldDerived("diagnostic counter of passes")]
     public int Passes { get; private set; }
 
     /// <param name="viewport">

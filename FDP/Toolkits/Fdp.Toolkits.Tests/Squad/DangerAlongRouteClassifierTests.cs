@@ -63,6 +63,29 @@ namespace Fdp.Toolkit.Tests.Squad
         public void CE3072_B3_WalkingAlongAStreet_IsNotACrossing()
             => Assert.Empty(Run(new Vector3(200, 20, 0), new Vector3(200, 150, 0)));
 
+        /// <summary>⭐ <c>CE-2463</c> — walking ALONG Cross Street through the centre square: the street is no crossing, but the junction on
+        /// it is an Intersection, halted at the building line (<see cref="DangerAlongRouteClassifier.JunctionStandOff"/> short of the junction).</summary>
+        [Fact]
+        public void CE2463_AlongAStreet_ThroughAJunction_IsAnIntersection_HaltedShortOfIt()
+        {
+            var a = Assert.Single(Run(new Vector3(200, 20, 0), new Vector3(200, 380, 0)));
+            Assert.Equal(DangerAreaKind.Intersection, a.Kind);
+            Assert.InRange(a.DistanceAlongRoute, 169f, 171f);               // the junction's band starts at y 190 (radius 10)
+            Assert.InRange(a.NearSideHandle.Y, 177f, 179f);                  // 12 m short of it — not the crossing's 4 m
+            Assert.InRange(a.FarSideHandle.Y, 213f, 215f);                   // 4 m beyond it
+            Assert.InRange(a.Center.Y, 198f, 202f);
+        }
+
+        /// <summary>⭐ <c>CE-2463</c> — the junction's id holds while the unit walks up the street to it (the drill keys on it).</summary>
+        [Fact]
+        public void CE2463_AlongAStreet_TheJunctionsFeatureId_IsStable_AsTheUnitWalksUp()
+        {
+            var far = Assert.Single(Run(new Vector3(200, 20, 0), new Vector3(200, 380, 0)));
+            var near = Assert.Single(Run(new Vector3(200, 150, 0), new Vector3(200, 380, 0)));
+            Assert.Equal(far.FeatureId, near.FeatureId);
+            Assert.InRange(near.DistanceAlongRoute, 39f, 41f);
+        }
+
         [Fact]
         public void CE3072_B3_ThroughTheCentreSquare_IsAnIntersection()
         {

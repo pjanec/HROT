@@ -67,6 +67,10 @@ namespace Hrot.AI.Behaviors.Brains
         public fixed byte Dirty[Capacity];
         /// <summary>⭐ E-2 (DA-60) — 1 = this line squad was turned to a flank (once).</summary>
         public fixed byte Flank[Capacity];
+        /// <summary>⭐ <c>CE-4666</c> (D-8, user-approved) — the slice a squad held before it was turned to a flank: it turns back to it when no
+        /// fresh element is left in the turned slice.</summary>
+        public fixed float HomeLeft[Capacity];
+        public fixed float HomeRight[Capacity];
         /// <summary>⭐ E-2 (DA-59) — where the OP comes back to.</summary>
         /// <summary>⭐ <c>CE-7032</c> — 1 while this (former) OP is withdrawing under BreakContact to its Back point (it defends there after).</summary>
         public fixed byte Withdrawing[Capacity];
@@ -389,6 +393,16 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (p.Made == 0) return NodeStatus.Running;
             int n = Math.Min(RosterCount(world, self), PlatoonDefencePlan.Capacity);
+            // ⭐ CE-4666 (D-8, user-approved) — a squad turned to a flank (DA-60) turns back to its home slice once no fresh element is left in its
+            //   turned slice. 📌 pc-defend-house: a phantom flank (a shot heard through the reserve's window) kept the line facing away all fight
+            for (int s = 0; s < n; s++)
+            {
+                if (p.Flank[s] == 0 || p.Falling != 0 || FlankHeld(ref p, s, self, world)) continue;
+                p.Left[s] = p.HomeLeft[s];
+                p.Right[s] = p.HomeRight[s];
+                p.Flank[s] = 0;
+                p.Dirty[s] = 1;
+            }
             for (int slot = 0; slot < n; slot++)
             {
                 if (p.Role[slot] == PlatoonDefencePlan.NoRole) continue;
@@ -550,6 +564,8 @@ namespace Hrot.AI.Behaviors.Brains
             float width = SectorSplit.Norm(p.Right[slot] - p.Left[slot]);
             if (width <= 0f) width = 90f;
             float bearing = BearingOf(p.Area.ArcOrigin, at);
+            p.HomeLeft[slot] = p.Left[slot];   // ⭐ CE-4666 (D-8) — where it turns back to
+            p.HomeRight[slot] = p.Right[slot];
             p.Left[slot] = SectorSplit.Norm(bearing - width * 0.5f);
             p.Right[slot] = SectorSplit.Norm(bearing + width * 0.5f);
             p.Flank[slot] = 1;
@@ -808,6 +824,22 @@ namespace Hrot.AI.Behaviors.Brains
                     ? EngagementAreas.InArc(area.ArcOrigin, left, right, area.MinRange, area.MaxRange, at)
                     : EngagementAreas.Contains(world, in area, at));
                 if (inSlice) { squad = s; return true; }
+            }
+            return false;
+        }
+
+        /// <summary>⭐ <c>CE-4666</c> (D-8) — a fresh element is still inside turned slot <paramref name="slot"/>'s slice, within
+        /// <see cref="FlankMetres"/> of the position (what turned it, DA-60). A loop, no closure: it runs every tick.</summary>
+        private static unsafe bool FlankHeld(ref PlatoonDefencePlan p, int slot, Entity self, EntityRepository world)
+        {
+            if (!world.HasComponent<CommandPicture>(self)) return false;
+            ref readonly var picture = ref world.GetComponentRO<CommandPicture>(self);
+            SimInstant now = CommandPictureOps.Now(world);
+            for (int i = 0; i < picture.Elements.Count; i++)
+            {
+                ref readonly var e = ref picture.Elements.Items[i];
+                if (e.Count != 0 && now - e.ObservedAt <= TriggerFreshSeconds && Flat(e.At, p.Position) <= FlankMetres
+                    && EngagementAreas.InArc(p.Area.ArcOrigin, p.Left[slot], p.Right[slot], 0f, 0f, e.At)) return true;
             }
             return false;
         }

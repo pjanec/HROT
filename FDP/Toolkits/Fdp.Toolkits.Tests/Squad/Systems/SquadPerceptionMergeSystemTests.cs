@@ -287,6 +287,36 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             Assert.True((GetContact(commander, 1).Flags & SquadContact.AnonymousFlag) != 0);
         }
 
+        /// <summary>⭐⭐ <c>CE-4666</c> (D-8) — a sound heard only THROUGH AN OPENING is remembered as such (<c>IsHeardThroughAnOpening</c>) and pooled
+        /// with <c>HeardThroughFlag</c>; one STRAIGHT hearing fused into it — in the man's memory or in the pool — makes it a plain heard contact.
+        /// ✅ Red-proofs: <c>HearContact</c> ignoring <c>via</c> ⇒ the memory bit never set ⇒ red; the pool not clearing the flag on a straight
+        /// fusion ⇒ red.</summary>
+        [Fact]
+        public void CE4666_AShotHeardThroughAnOpening_IsMarkedSo_UntilHeardStraight()
+        {
+            var (repo, commander, members) = CreateSquadWorld(2);
+            const byte smallArms = 4;
+            ref var mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.HearContact(ref mem0, 100f, 0f, 0f, 20f, smallArms, 50f, 1, via: 1);
+            Assert.True(TargetMemory.IsAnonymous(in mem0, 0));
+            Assert.True(TargetMemory.IsHeardThroughAnOpening(in mem0, 0));
+
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 10, mergeIntervalTicks: 1);
+            Assert.Equal(1, GetState(commander).Contacts.Count);
+            Assert.True((GetContact(commander, 0).Flags & SquadContact.HeardThroughFlag) != 0, "pooled as heard through an opening");
+
+            ref var mem1 = ref repo.GetComponentRW<TargetMemory>(members[1]);
+            TargetMemory.HearContact(ref mem1, 105f, 3f, 0f, 20f, smallArms, 60f, 2);   // the other man hears it straight
+            Fdp.Toolkit.Squad.Systems.SquadPerceptionMergeSystem.Run(repo, commander, currentTick: 20, mergeIntervalTicks: 1);
+            Assert.Equal(1, GetState(commander).Contacts.Count);
+            Assert.True((GetContact(commander, 0).Flags & SquadContact.HeardThroughFlag) == 0, "one straight hearing makes it a source estimate");
+
+            mem0 = ref repo.GetComponentRW<TargetMemory>(members[0]);
+            TargetMemory.HearContact(ref mem0, 102f, 1f, 0f, 20f, smallArms, 50f, 3);   // and in his own memory too
+            Assert.False(TargetMemory.IsHeardThroughAnOpening(in mem0, 0));
+            Assert.True(TargetMemory.IsAnonymous(in mem0, 0));
+        }
+
         /// <summary>⭐ CE-2107 — one member SEES the enemy, another HEARS his shot inside the sound's circle: the pool holds ONE
         /// contact, the sighting (its position, both members' bits, the higher score), not the sighting plus an anonymous point
         /// that <c>SquadEnemyStrengthRatio</c> would count as a second armed enemy.</summary>

@@ -37,13 +37,21 @@ namespace Fdp.Toolkit.Terrain
     {
         public const int PendingTimeoutTicks = 3600;
 
+        [field: Fdp.Core.WorldDerived("diagnostic counter of items written (Applied)")]
         public long Applied { get; private set; }
+        [field: Fdp.Core.WorldDerived("diagnostic counter of creation requests (Requested)")]
         public long Requested { get; private set; }
+        [field: Fdp.Core.WorldDerived("diagnostic counter of record entities retired (Retired)")]
+        public long Retired { get; private set; }
         public int PendingCount => _pending.Count;
 
-        private sealed class Pending { public TKey Key; public int Age; public readonly List<TItem> Later = new(); }
+        private sealed class Pending { public TKey Key; public int Age; public bool Retired; public readonly List<TItem> Later = new(); }
+        [Fdp.Core.ProtocolCache("keys waiting on an entity-creation request, with items queued: request in flight (Pending)")]
         private readonly Dictionary<TKey, Pending> _pending = new();
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("keys resolved this drain: cleared at the top of DrainPending")]
         private readonly List<TKey> _done = new();
+        [Fdp.Core.FrameScratch("items of this tick: cleared in Execute before BeforeItems/ReadItems")]
         private readonly List<TItem> _items = new();
         private EntityQuery? _query;
         private EntityRepository? _queryRepo;
@@ -65,6 +73,7 @@ namespace Fdp.Toolkit.Terrain
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pending.Clear();   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the record entities asked for (the requests died with the world)
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<TRecord>() || !ShouldRun(repo)) return;
             if (_pending.Count > 0) DrainPending(repo);
@@ -128,11 +137,41 @@ namespace Fdp.Toolkit.Terrain
             {
                 var p = _pending[key];
                 _pending.Remove(key);
+                if (p.Retired) { RetireOwned(repo, key); continue; }   // ⭐ CE-2468 UF-1 — retired while its creation was in flight: it is ended as it arrives
                 for (int i = 0; i < p.Later.Count; i++) Apply(repo, p.Later[i]);
             }
         }
 
         protected bool Owns(EntityRepository repo, Entity e) => OwnsRecord(repo, e, DescriptorKey);
+
+        /// <summary>
+        /// ⭐⭐ CE-2468 UF-1 (DESIGN_Minefields.md §9b.1 K2 — "nothing lasts forever") — ENDS this node's record(s) of <paramref name="key"/>: every entity of the key
+        /// this node OWNS is destroyed through the network (<see cref="Fdp.Toolkit.NetworkSpawning.NetworkEntityDestroy"/>: the DDS dispose to the ghosts, the
+        /// recorder sees it gone, so a replay agrees) and marked <see cref="EntityLifecycle.TearDown"/> at once (this writer's query skips it from now on); a creation
+        /// still in flight for the key is dropped — its queued items are forgotten and the entity is ended as it arrives. ⛔ A ghost (another node's record) is never
+        /// touched: its owner retires it. ⭐ An ORPHAN (its owner node gone) is retired by the node that inherits its ownership — the handover makes this test true
+        /// there. Serial (the writer's own thread); call it from <see cref="BeforeItems"/> or an item pass. Returns how many entities were ended.
+        /// </summary>
+        protected int Retire(EntityRepository repo, in TKey key)
+        {
+            if (_pending.TryGetValue(key, out var waiting)) { waiting.Retired = true; waiting.Later.Clear(); }
+            return RetireOwned(repo, key);
+        }
+
+        private int RetireOwned(EntityRepository repo, in TKey key)
+        {
+            int ended = 0;
+            foreach (var e in Query(repo))
+            {
+                if (!Owns(repo, e) || !repo.GetComponentRO<TRecord>(e).RecordKey.Equals(key)) continue;
+                // serial, and the query is an index walk: changing the entity under it is safe
+                if (Fdp.Toolkit.NetworkSpawning.NetworkEntityDestroy.Request(repo, e, "record retired")) repo.SetLifecycleState(e, EntityLifecycle.TearDown);
+                else repo.DestroyEntity(e);
+                ended++;
+            }
+            Retired += ended;
+            return ended;
+        }
 
         /// <summary>The ownership test, shared by the writer and its save section.</summary>
         public static bool OwnsRecord(EntityRepository repo, Entity e, long descriptorKey)

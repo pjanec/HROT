@@ -17,21 +17,29 @@ public static class ToolStripLayout
     /// <paramref name="available"/> the client size. At least one icon sits on every line, however narrow. <paramref name="extent"/> is the size the placed cells cover.
     /// </summary>
     public static ToolStripOrientation Compute(int count, Vector2 cell, float spacing, Vector2 available, Span<Vector2> positions, out Vector2 extent)
+        => Compute(count, cell, spacing, available, positions, out extent, default);
+
+    /// <summary>
+    /// ⭐ <c>CE-1965</c> — the same, each cell with its OWN width (<paramref name="widths"/>[i]; empty ⇒ all <paramref name="cell"/>.X): a split button (a square face
+    /// and its ▾ bar) is wider than a plain icon. A ROW steps by each cell's width; a COLUMN is as wide as its widest cell (the others sit at its left edge).
+    /// </summary>
+    public static ToolStripOrientation Compute(int count, Vector2 cell, float spacing, Vector2 available, Span<Vector2> positions, out Vector2 extent, ReadOnlySpan<float> widths)
     {
         var orientation = available.Y > available.X ? ToolStripOrientation.Column : ToolStripOrientation.Row;
         bool column = orientation == ToolStripOrientation.Column;
-        float along = 0f, across = 0f, maxAlong = 0f;
-        float stepAlong = (column ? cell.Y : cell.X) + spacing, stepAcross = (column ? cell.X : cell.Y) + spacing;
+        float along = 0f, across = 0f, maxAlong = 0f, lineAcross = 0f;   // lineAcross: this line's thickness across (a column's widest cell; a row's height)
         float room = column ? available.Y : available.X;
-        float cellAlong = column ? cell.Y : cell.X;
         for (int i = 0; i < count; i++)
         {
-            if (along > 0f && along + cellAlong > room) { along = 0f; across += stepAcross; }
+            float w = i < widths.Length && widths[i] > 0f ? widths[i] : cell.X;
+            float cellAlong = column ? cell.Y : w, cellAcross = column ? w : cell.Y;
+            if (along > 0f && along + cellAlong > room) { along = 0f; across += lineAcross + spacing; lineAcross = 0f; }
             positions[i] = column ? new Vector2(across, along) : new Vector2(along, across);
-            along += stepAlong;
+            along += cellAlong + spacing;
             if (along - spacing > maxAlong) maxAlong = along - spacing;
+            if (cellAcross > lineAcross) lineAcross = cellAcross;
         }
-        float acrossUsed = count == 0 ? 0f : across + stepAcross - spacing;
+        float acrossUsed = count == 0 ? 0f : across + lineAcross;
         extent = count == 0 ? Vector2.Zero : column ? new Vector2(acrossUsed, maxAlong) : new Vector2(maxAlong, acrossUsed);
         return orientation;
     }

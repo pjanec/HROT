@@ -27,6 +27,8 @@ namespace Fdp.Toolkit.Behavior.Possession
         public const int PossessRequest = 5200;
         public const int ReleasePossession = 5201;
         public const int ControlFrame = 5202;
+        /// <summary>⭐ CE-11027 S12-3 — 5203 (free by a census of every <c>[EventId]</c> in the tree, <c>2026-11-21</c>).</summary>
+        public const int ReleaseStation = 5203;
     }
 
     /// <summary>
@@ -40,8 +42,8 @@ namespace Fdp.Toolkit.Behavior.Possession
     {
         public Entity Unit;
         public PossessionMode Mode;
-        /// <summary>The station — its node id (C-8: one operator per node).</summary>
-        public NodeId StationNodeId;
+        /// <summary>The station — ⭐ CE-11027 (Q114 A): a <see cref="StationId"/>, the node plus the seat on it (a node that hosts one station is its own id, so old recordings read unchanged).</summary>
+        public StationId StationNodeId;
         public bool IsRemote;
         /// <summary>⭐ Edit framework F4 (📄 docs/UX/DESIGN_Edit_Framework.md §3, Q2) — the user's request id (<c>Edits.Submit</c>); the applying node answers with
         /// <c>EntityEditOutcome</c> under it (accepted or refused + why). <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
@@ -54,11 +56,22 @@ namespace Fdp.Toolkit.Behavior.Possession
     public struct ReleasePossessionEvent
     {
         public Entity Unit;
-        public NodeId StationNodeId;
+        public StationId StationNodeId;
         public bool IsRemote;
         /// <summary>⭐ Edit framework F4 (📄 docs/UX/DESIGN_Edit_Framework.md §3, Q2) — the user's request id (<c>Edits.Submit</c>); the applying node answers with
         /// <c>EntityEditOutcome</c> under it (accepted or refused + why). <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
         public System.Guid RequestId;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-11027</c> S12-3 (<c>docs/DESIGN_Player_Join.md</c> §12.2, Q114 E) — a STATION LEFT (its deploy server freed its slot): <see cref="PossessionSystem"/> releases EVERY unit it holds — the man it rides AND the vehicle
+    /// it drives — by the path of Esc, so each paused task resumes. A station that holds nothing: a no-op.
+    /// </summary>
+    [EventId(PossessionEventIds.ReleaseStation)]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ReleaseStationEvent
+    {
+        public StationId StationNodeId;
     }
 
     /// <summary>
@@ -70,7 +83,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     public struct OperatorControlFrameEvent
     {
         public Entity Unit;
-        public NodeId StationNodeId;
+        public StationId StationNodeId;
         public uint Seq;
         public float Forward, Lateral, Steer, Yaw;
         /// <summary>⭐ CE-2168 (MD-D) — a flyer's climb axis ∈ [−1, 1].</summary>
@@ -128,7 +141,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     [DataPolicy(DataPolicy.NoScenario)]
     public struct PossessedBy
     {
-        public NodeId StationNodeId;
+        public StationId StationNodeId;
         public PossessionMode Mode;
         /// <summary>Bumped on every take-over.</summary>
         public uint Epoch;
@@ -195,9 +208,11 @@ namespace Fdp.Toolkit.Behavior.Possession
         }
 
         /// <summary>Possessions started (a rail and diagnostics read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Possessed { get; private set; }
 
         /// <summary>⭐ R-4096 — requests refused because another live station holds the unit, or it carries a player of another side.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Refused { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -209,6 +224,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             //   not make the next player's request for its unit look like a take-over (the sweeps key on facts, not on event order)
             ReleaseKilled(repo);
             ReleaseDeparted(repo);
+            ReleaseLeft(repo);
 
             if (repo.Bus.IsRegistered<PossessRequestEvent>())
                 foreach (ref readonly var req in repo.ReadEvents<PossessRequestEvent>())
@@ -272,11 +288,33 @@ namespace Fdp.Toolkit.Behavior.Possession
         private static void ReleaseKilled(EntityRepository repo)
         {
             foreach (var unit in repo.Query().With<PossessedBy>().Build())
-                if (OwnsBrain(repo, unit) && !Alive(repo, unit))
+                if (repo.HasComponent<PossessedBy>(unit) && OwnsBrain(repo, unit) && !Alive(repo, unit))   // (an earlier release of this sweep may have taken it)
                 {
+                    var held = repo.GetComponentRO<PossessedBy>(unit);
                     FreeSeatOf(repo, unit);
                     Release(repo, unit);
+                    // ⭐ CE-11027 S12-3 (Q114 G) — a RIDER killed: his station let go of the man only; the vehicle he drove is still held by it
+                    if (held.Mode == PossessionMode.Riding) ReleaseStation(repo, held.StationNodeId);
                 }
+        }
+
+        /// <summary>⭐ CE-11027 S12-3 — a station LEFT (<see cref="ReleaseStationEvent"/>): every unit it holds is released, as for a departed node.</summary>
+        private static void ReleaseLeft(EntityRepository repo)
+        {
+            if (!repo.Bus.IsRegistered<ReleaseStationEvent>()) return;
+            foreach (ref readonly var left in repo.ReadEvents<ReleaseStationEvent>())
+                ReleaseStation(repo, left.StationNodeId);
+        }
+
+        /// <summary>
+        /// ⭐ CE-11027 S12-3 (Q114 E) — releases EVERY unit this node runs the brain of whose <see cref="PossessedBy"/> names <paramref name="station"/> (the man it rides and the vehicle it drives), by <see cref="Release"/>: the paused task
+        /// resumes. A station that holds nothing is a no-op.
+        /// </summary>
+        public static void ReleaseStation(EntityRepository repo, StationId station)
+        {
+            if (!repo.IsComponentTypeRegistered<PossessedBy>()) return;
+            foreach (var unit in repo.Query().With<PossessedBy>().Build())
+                if (repo.HasComponent<PossessedBy>(unit) && OwnsBrain(repo, unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId == station) Release(repo, unit);
         }
 
         /// <summary>
@@ -289,7 +327,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             if (!repo.Bus.IsRegistered<Fdp.Toolkit.Replication.Messages.NodeDeparted>()) return;
             foreach (ref readonly var gone in repo.ReadEvents<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
                 foreach (var unit in repo.Query().With<PossessedBy>().Build())
-                    if (OwnsBrain(repo, unit) && HeldBy(repo, unit, gone.NodeId)) Release(repo, unit);
+                    if (OwnsBrain(repo, unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId.Node == gone.NodeId) Release(repo, unit);   // ⭐ CE-11027 A′ — every station ON the node, not only its station 0
         }
 
         /// <summary>⭐ R-4096 — a killed man that sits in a vehicle is asked to step out: <see cref="DisembarkEntityCommand"/> reaches the
@@ -332,7 +370,7 @@ namespace Fdp.Toolkit.Behavior.Possession
         private void Possess(EntityRepository repo, Entity unit, int station, PossessionMode mode)
         {
             uint epoch = repo.HasComponent<PossessedBy>(unit) ? repo.GetComponentRO<PossessedBy>(unit).Epoch + 1 : 1;
-            var held = new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(station), Mode = mode == PossessionMode.None ? PossessionMode.Fps : mode, Epoch = epoch };
+            var held = new PossessedBy { StationNodeId = (Fdp.Core.StationId)station, Mode = mode == PossessionMode.None ? PossessionMode.Fps : mode, Epoch = epoch };
             bool already = repo.GetComponentRO<BehaviorState>(unit).Origin == BehaviorOrigin.Possession;
             if (repo.HasComponent<PossessedBy>(unit)) repo.SetComponent(unit, held);
             else repo.AddComponent(unit, held);
@@ -376,6 +414,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             if (!repo.Bus.IsRegistered<PossessRequestEvent>()) repo.Bus.Register<PossessRequestEvent>();
             if (!repo.Bus.IsRegistered<ReleasePossessionEvent>()) repo.Bus.Register<ReleasePossessionEvent>();
             if (!repo.Bus.IsRegistered<OperatorControlFrameEvent>()) repo.Bus.Register<OperatorControlFrameEvent>();
+            if (!repo.Bus.IsRegistered<ReleaseStationEvent>()) repo.Bus.Register<ReleaseStationEvent>();
         }
     }
 }

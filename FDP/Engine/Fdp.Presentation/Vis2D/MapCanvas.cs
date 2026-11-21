@@ -9,6 +9,7 @@ using Fdp.Toolkit.Vis2D.Input;
 
 namespace Fdp.Toolkit.Vis2D
 {
+    [Fdp.Core.WorldDerived("2D map renderer/input canvas; presentation only")]
     public class MapCanvas : IResourceProvider
     {
         public MapCamera Camera { get; set; } = new MapCamera();
@@ -120,10 +121,27 @@ namespace Fdp.Toolkit.Vis2D
 
         public void Draw()
         {
+            // ⭐ CE-1984 (docs/designs/sensor-view/DESIGN_Sensor_View.md D-3) — a sensor view: the 3-D layers into the post-process' target, the
+            //   processed picture to the screen, then the screen-space overlays on top, sharp
+            var post = Camera.Is3D ? PostProcess : null;
+            var sensor = post?.Sensor ?? SceneSensor.None;
+            if (sensor != SceneSensor.None)
+            {
+                var size = Raylib.IsWindowReady() ? new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()) : Vector2.Zero;
+                post!.BeginScene(size);
+                var sctx = DrawLayers3D(sceneOnly: false, sensor: sensor, airC: post.AirC);
+                post.EndScene(size);
+                DrawOverlays(sctx, sceneOnly: false);
+                return;
+            }
             // ⭐ CE-1033 S5b (2-D: entity cards) / S3 (M13, 3-D: labels) — the screen-space pass over the finished map
             var ctx = Camera.Is3D ? DrawLayers3D(sceneOnly: false) : DrawLayers2D(sceneOnly: false);
             DrawOverlays(ctx, sceneOnly: false);
         }
+
+        /// <summary>⭐ <c>CE-1984</c> (DESIGN_Sensor_View D-3) — the pass around the 3-D scene (a sensor view); null = none. Set once by the host
+        /// (<c>AttachMapLayers</c>); it decides per frame whether it is on (<see cref="IScenePostProcess.Sensor"/>).</summary>
+        public IScenePostProcess? PostProcess { get; set; }
 
         /// <summary>
         /// ⭐ <c>CE-3289</c> (docs/DESIGN_Map_3D_Mode.md §6ab) — the WORLD alone, as a film frame shows it: the visible
@@ -155,8 +173,10 @@ namespace Fdp.Toolkit.Vis2D
             }
         }
 
-        private RenderContext NewContext(bool film, Vector2? targetSize = null) => new()
+        private RenderContext NewContext(bool film, Vector2? targetSize = null, SceneSensor sensor = SceneSensor.None, float airC = 15f) => new()
         {
+            Sensor            = sensor,   // ⭐ CE-1984
+            AirC              = airC,     // ⭐ CE-1985
             ViewSize          = targetSize ?? (Raylib.IsWindowReady() ? new Vector2(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()) : Vector2.Zero),   // ⭐ CE-1383
             Zoom              = Camera.Zoom,
             MouseWorldPos     = Camera.ScreenToWorld(GetMousePosition()),
@@ -185,10 +205,10 @@ namespace Fdp.Toolkit.Vis2D
         }
 
         /// <summary>The 3-D layer pass both <see cref="Draw"/> and <see cref="DrawScene"/> run (one loop).</summary>
-        private RenderContext DrawLayers3D(bool sceneOnly, Vector2? targetSize = null)
+        private RenderContext DrawLayers3D(bool sceneOnly, Vector2? targetSize = null, SceneSensor sensor = SceneSensor.None, float airC = 15f)
         {
             Camera.BeginMode();
-            var ctx = NewContext(sceneOnly, targetSize);
+            var ctx = NewContext(sceneOnly, targetSize, sensor, airC);
             int without = 0;
             foreach (var layer in _layers)
             {

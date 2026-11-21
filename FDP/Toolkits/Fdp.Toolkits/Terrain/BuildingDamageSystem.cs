@@ -11,6 +11,21 @@ using Fdp.Toolkit.Replication.Components;
 namespace Fdp.Toolkit.Terrain
 {
     /// <summary>
+    /// ⭐ <c>CE-3488</c> (flame FL-4 B-1; 📄 docs/designs/weapons/DESIGN_Flame_Weapons.md §7c) — "building <see cref="Building"/> is set alight": raised by the flame and
+    /// napalm igniters on the record writer's node, read by <see cref="BuildingDamageSystem"/> the same frame. The spot in WORLD metres. LOCAL.
+    /// </summary>
+    [EventId(TerrainEventIds.BuildingFire)]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BuildingFireEvent
+    {
+        public int Building;
+        public float X, Y, Z, Radius;
+        public SimInstant Since;
+        public float Seconds, Intensity;
+        public readonly Fdp.Toolkit.Perception.Signatures.FireSpot Spot => new(X, Y, Z, Radius, Since, Seconds, Intensity);
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-4391</c> S-1 (UTM §8.2 B-5) — "a detonation breached this wall": published by <c>AreaEffectSystem.BreachWalls</c> (the deciding node, a
     /// non-remote detonation) for each breach, read by <see cref="BuildingDamageSystem"/> the frame after. LOCAL (never on the wire): the entity the
     /// system writes is what replicates. <see cref="Panel"/> is the global panel index, <see cref="Kind"/> a <see cref="BreachKind"/>.
@@ -54,6 +69,9 @@ namespace Fdp.Toolkit.Terrain
         /// </summary>
         public const long DescriptorOrdinal = 183;
 
+        /// <summary>⭐ CE-5033 — the wire ordinal of the window descriptor (<c>EDescriptorType.dtWindowDamage</c>; a rail pins the two equal).</summary>
+        public const long WindowDescriptorOrdinal = 245;
+
         /// <summary>The ownership key a building-damage entity is published under — this system and the egress both gate on it.</summary>
         public static readonly long DescriptorKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DescriptorOrdinal, 0);
 
@@ -61,8 +79,10 @@ namespace Fdp.Toolkit.Terrain
         public const int PendingTimeoutTicks = 3600;
 
         /// <summary>Breaches written into an entity (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of breaches applied")]
         public long Applied { get; private set; }
         /// <summary>Creation requests published.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of creation requests")]
         public long Requested { get; private set; }
 
         private sealed class Pending
@@ -70,10 +90,15 @@ namespace Fdp.Toolkit.Terrain
             public int Building;
             public int Age;
             public readonly List<WallBreach> Later = new();
+            public readonly List<WindowHitEvent> LaterWindows = new();   // ⭐ CE-5033
+            public readonly List<BuildingFireEvent> LaterFires = new();   // ⭐ CE-3488
             public bool Collapse;
         }
 
+        [Fdp.Core.ProtocolCache("breaches/collapse waiting for the requested damage entity to appear: creation request in flight")]
         private readonly Dictionary<string, Pending> _pending = new(StringComparer.Ordinal);
+        private int _worldEpoch;
+        [Fdp.Core.FrameScratch("keys resolved this drain: cleared at 229 and filled in DrainPending")]
         private readonly List<string> _done = new();
         private EntityQuery? _query;
         private EntityRepository? _queryRepo;
@@ -83,6 +108,7 @@ namespace Fdp.Toolkit.Terrain
 
         public void Execute(ISimulationView view, float deltaTime)
         {
+            if (Fdp.Toolkit.Replication.Services.WorldEpoch.Moved(view, ref _worldEpoch)) _pending.Clear();   // ⭐ R-4297 ④ (CE-1980) — a world replacement forgets the record entities asked for (the requests died with the world)
             if (Fdp.Toolkit.Replay.ReplayState.IsActive(view)) return;   // a replay: the recording owns the world
             if (view is not EntityRepository repo) return;
             if (!repo.IsComponentTypeRegistered<BuildingDamage>() || !repo.HasSingletonManaged<TerrainWorld>()) return;
@@ -100,6 +126,110 @@ namespace Fdp.Toolkit.Terrain
                 if (evt.Collapse != 0) { if (WallGroups.IsBuilding(terrain, evt.Building)) ApplyCollapse(repo, terrain, evt.Building); continue; }
                 if ((uint)evt.Panel >= (uint)terrain.Panels.Count) continue;
                 Apply(repo, terrain, evt.Building, evt.Breach);
+                BreakWindowsUnder(repo, terrain, evt.Building, evt.Breach);   // ⭐ CE-5033 D-10 — the glass goes with its wall
+            }
+
+            // ⭐ CE-3488 (flame FL-4 B-1) — the buildings set alight: a FireState on the building's record (TD-6's second holder)
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>() && repo.Bus.IsRegistered<BuildingFireEvent>())
+            {
+                var fires = repo.ReadEvents<BuildingFireEvent>();
+                for (int i = 0; i < fires.Length; i++)
+                    if (WallGroups.IsBuilding(terrain, fires[i].Building)) ApplyFire(repo, terrain, in fires[i]);
+            }
+
+            // ⭐ CE-5033 (glass windows GW-2, D-4) — the panes rounds and bursts hit
+            if (!repo.IsComponentTypeRegistered<WindowDamage>() || !repo.Bus.IsRegistered<WindowHitEvent>()) return;
+            var hits = repo.ReadEvents<WindowHitEvent>();
+            for (int i = 0; i < hits.Length; i++)
+            {
+                ref readonly var h = ref hits[i];
+                if (!WallGroups.IsBuilding(terrain, h.Building) || (uint)h.Panel >= (uint)terrain.Panels.Count) continue;
+                var openings = terrain.Panels[h.Panel].Openings;
+                if (terrain.Panels[h.Panel].Building != h.Building || (uint)h.Opening >= (uint)openings.Count || !openings[h.Opening].Glazed) continue;
+                ApplyWindow(repo, terrain, in h);
+            }
+        }
+
+        /// <summary>Buildings set alight (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of buildings set alight")]
+        public long Ignited { get; private set; }
+
+        /// <summary>
+        /// ⭐ CE-3488 (flame FL-4 B-1) — writes a building's fire into THIS node's damage entity for it (the one with a <c>FireState</c>, else the first, which gains one
+        /// with its final value), else asks for an entity born holding it — the way a window is written. The spot is held in the record's frame (its anchor). v1: ONE
+        /// fire per building — a building already burning takes no second.
+        /// </summary>
+        private void ApplyFire(EntityRepository repo, TerrainWorld terrain, in BuildingFireEvent f)
+        {
+            string key = BuildingDamages.KeyOf(terrain, f.Building);
+            if (_pending.TryGetValue(key, out var waiting)) { waiting.LaterFires.Add(f); return; }
+            Entity target = Entity.Null;
+            foreach (var e in Query(repo))
+            {
+                if (!OwnsDamage(repo, e) || repo.GetComponentRO<BuildingDamage>(e).Building != f.Building) continue;
+                if (repo.HasComponent<Fdp.Toolkit.Perception.Signatures.FireState>(e)) { target = e; break; }
+                if (target.IsNull) target = e;
+            }
+            var anchor = WallGroups.Anchor(terrain, f.Building);
+            var local = f.Spot.Offset(-anchor);
+            double now = f.Since.Seconds;
+            bool has = !target.IsNull && repo.HasComponent<Fdp.Toolkit.Perception.Signatures.FireState>(target);
+            var fire = has ? repo.GetComponentRO<Fdp.Toolkit.Perception.Signatures.FireState>(target) : new Fdp.Toolkit.Perception.Signatures.FireState();
+            if (fire.IsBurning(now) || !fire.TryAdd(in local, now)) return;   // already alight (v1: one fire), or full
+            Ignited++;
+            if (target.IsNull) Request(repo, terrain, f.Building, key, default, fire: fire);
+            else if (has) repo.SetComponent(target, fire);
+            else repo.AddComponent(target, fire);   // a record made before it burned: added with its final value (D-31)
+        }
+
+        /// <summary>Panes broken (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of broken panes")]
+        public long PanesBroken { get; private set; }
+
+        /// <summary>
+        /// ⭐ CE-5033 (D-4, D-9) — writes one window hit / shatter into THIS node's damage entity for the building (the one with a <see cref="WindowDamage"/>, else the
+        /// first, which gains one), else asks for an entity born holding it. A pane that turns broken raises <see cref="WindowBrokenEvent"/> (unless silent).
+        /// </summary>
+        private void ApplyWindow(EntityRepository repo, TerrainWorld terrain, in WindowHitEvent h)
+        {
+            string key = BuildingDamages.KeyOf(terrain, h.Building);
+            if (_pending.TryGetValue(key, out var waiting)) { waiting.LaterWindows.Add(h); return; }
+            Entity target = Entity.Null;
+            foreach (var e in Query(repo))
+            {
+                if (!OwnsDamage(repo, e) || repo.GetComponentRO<BuildingDamage>(e).Building != h.Building) continue;
+                if (repo.HasComponent<WindowDamage>(e)) { target = e; break; }
+                if (target.IsNull) target = e;
+            }
+            var w = !target.IsNull && repo.HasComponent<WindowDamage>(target) ? repo.GetComponentRO<WindowDamage>(target) : new WindowDamage { Building = h.Building };
+            var change = h.Shatter != 0 ? WindowDamages.Break(ref w, h.Panel, h.Opening) : WindowDamages.Hit(ref w, h.Panel, h.Opening, h.U, h.V);
+            if (change is WindowChange.Unchanged or WindowChange.Full) return;
+            if (target.IsNull) { Request(repo, terrain, h.Building, key, default, windows: w); }
+            else if (repo.HasComponent<WindowDamage>(target)) repo.SetComponent(target, w);
+            else repo.AddComponent(target, w);   // an entity made before it had windows: added with its final value
+            if (change == WindowChange.Broke)
+            {
+                PanesBroken++;
+                if (h.Silent == 0 && repo.Bus.IsRegistered<WindowBrokenEvent>())
+                {
+                    var p = terrain.Panels[h.Panel]; var o = p.Openings[h.Opening];
+                    var dir = p.B - p.A; float len = dir.Length();
+                    var c = p.A + (len > 0f ? dir / len : Vector2.Zero) * (o.At + o.Width * 0.5f);
+                    repo.Bus.Publish(new WindowBrokenEvent { Building = h.Building, Panel = h.Panel, Opening = h.Opening, X = c.X, Y = c.Y, Z = (o.SillZ + o.HeadZ) * 0.5f, Source = h.Source });
+                }
+            }
+        }
+
+        /// <summary>⭐ CE-5033 D-10 — every glazed window of <paramref name="breach"/>'s panel that the breach overlaps is BROKEN (silently: the breach's debris is the effect).</summary>
+        private void BreakWindowsUnder(EntityRepository repo, TerrainWorld terrain, int building, in WallBreach breach)
+        {
+            if (!repo.IsComponentTypeRegistered<WindowDamage>()) return;
+            var openings = terrain.Panels[breach.Panel].Openings;
+            for (int oi = 0; oi < openings.Count; oi++)
+            {
+                var o = openings[oi];
+                if (!o.Glazed || o.At > breach.To || o.At + o.Width < breach.From || o.SillZ > breach.Top || o.HeadZ < breach.Bottom) continue;
+                ApplyWindow(repo, terrain, new WindowHitEvent { Building = building, Panel = breach.Panel, Opening = oi, Shatter = 1, Silent = 1 });
             }
         }
 
@@ -173,15 +303,22 @@ namespace Fdp.Toolkit.Terrain
                 _pending.Remove(key);   // first: Apply must not see it as waiting
                 if (p.Collapse) ApplyCollapse(repo, terrain, p.Building);
                 for (int i = 0; i < p.Later.Count; i++) Apply(repo, terrain, p.Building, p.Later[i]);
+                for (int i = 0; i < p.LaterWindows.Count; i++) ApplyWindow(repo, terrain, p.LaterWindows[i]);   // ⭐ CE-5033
+                for (int i = 0; i < p.LaterFires.Count; i++) ApplyFire(repo, terrain, p.LaterFires[i]);   // ⭐ CE-3488
             }
         }
 
-        private void Request(EntityRepository repo, TerrainWorld terrain, int building, string key, in WallBreach breach, bool collapse = false)
+        private void Request(EntityRepository repo, TerrainWorld terrain, int building, string key, in WallBreach breach, bool collapse = false, WindowDamage? windows = null,
+                             Fdp.Toolkit.Perception.Signatures.FireState? fire = null)
         {
             var d = new BuildingDamage { Building = building };
-            if (collapse) d.Collapsed = 1; else BuildingDamages.Add(ref d, in breach, terrain);
+            if (collapse) d.Collapsed = 1; else if (windows == null && fire == null) BuildingDamages.Add(ref d, in breach, terrain);
             var anchor = WallGroups.Anchor(terrain, building);   // ⭐ CE-4599 — a building's position, a line's first post
             int node = repo.HasSingletonManaged<INetworkTopology>() ? (int)(repo.GetSingletonManaged<INetworkTopology>()?.LocalNodeId ?? default) : 0;
+            var initial = new List<object> { new SimTransform { Position = anchor, Rotation = Quaternion.Identity }, d, new TerrainObjectKey { Key = key } };
+            // ⭐ CE-5033 — every damage entity carries its windows (born with their final value), where the world knows the component
+            if (repo.IsComponentTypeRegistered<WindowDamage>()) initial.Add(windows ?? new WindowDamage { Building = building });
+            if (fire is { } burning) initial.Add(burning);   // ⭐ CE-3488 — born burning (its final value)
             repo.Bus.PublishManaged(new EntityCreationRequest
             {
                 RequestId = Guid.NewGuid(),
@@ -189,12 +326,7 @@ namespace Fdp.Toolkit.Terrain
                 TkbType = (Fdp.Core.TkbTypeId)BuildingDamages.TkbType,
                 InitType = Fdp.Toolkit.Replication.ReliableInitType.None,   // a breach waits for no peer
                 IsTransient = true,                  // never written into a scenario as an entity: the terrain-object section saves the breaches (S-4)
-                InitialComponents = new List<object>
-                {
-                    new SimTransform { Position = anchor, Rotation = Quaternion.Identity },
-                    d,
-                    new TerrainObjectKey { Key = key },
-                },
+                InitialComponents = initial,
             });
             _pending[key] = new Pending { Building = building };
             Requested++;

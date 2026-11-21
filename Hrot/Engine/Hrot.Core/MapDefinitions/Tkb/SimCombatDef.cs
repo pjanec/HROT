@@ -184,6 +184,10 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         public float ThermalRange { get; init; }
 
+        /// <summary>⭐ <c>CE-4658</c> / <c>CE-1987</c> (R-1058) — the smallest °C contrast (K) that thermal sight resolves (<c>ThermalSensorDto.MinContrastK</c>; 0 = any): a cold hull's base
+        /// below it stays hidden, an idling engine above it is seen.</summary>
+        public float ThermalMinContrastK { get; init; }
+
         /// <summary>
         /// ⭐ <c>CE-4617</c> (docs/designs/air-attack/DESIGN_Radar_SAM.md RS-2) — the range (m) of an air-search RADAR the vehicle carries, stated
         /// against a 10 m² target; 0 = none. Like a thermal sight it makes the type LIST its sensors (one list: eyes, ears, thermal if any, radar).
@@ -216,9 +220,18 @@ namespace Hrot.Map.Definitions.Tkb
         public float BlastSusceptibility { get; set; } = -1f;
         public float PresentedAreaM2 { get; set; } = -1f;
         public float EyeHeight { get; set; }
+
+        /// <summary>⭐ CE-4670 (VA-S1, VA-7) — the part ids holding the AMMUNITION (null = the body class's); a killing hit there is a Catastrophic kill.
+        /// Goes to <c>CombatPlatformDefDto.AmmoStowage</c> only (not the frozen <see cref="SimCombatDef"/>).</summary>
+        public int[]? AmmoStowage { get; set; }
+        /// <summary>⭐ CE-4670 — the part ids holding the FUEL (null = the class's). <c>CombatPlatformDefDto.FuelStowage</c>.</summary>
+        public int[]? FuelStowage { get; set; }
+        /// <summary>⭐ CE-4670 — how long the wreck smokes after its flames (−1 = the class's). <c>CombatPlatformDefDto.SmoulderSeconds</c>.</summary>
+        public float SmoulderSeconds { get; set; } = -1f;
         public List<WeaponMount> Weapons { get; } = new();
         public float SensorRange { get; set; }
         public float ThermalRange { get; set; }
+        public float ThermalMinContrastK { get; set; }
         public float RadarRange { get; set; }
         public bool AutonomousEngagement { get; set; } = false;
 
@@ -242,6 +255,7 @@ namespace Hrot.Map.Definitions.Tkb
                 Weapons = Weapons.ToArray(),
                 SensorRange = SensorRange,
                 ThermalRange = ThermalRange,
+                ThermalMinContrastK = ThermalMinContrastK,
                 RadarRange = RadarRange,
                 AutonomousEngagement = AutonomousEngagement,
         };

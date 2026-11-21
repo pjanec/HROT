@@ -114,7 +114,7 @@ public sealed partial class EffectTests
     public void E1_EveryEffectTypeIsInTheSharedTkb_WithItsLook_AndTheMunitionsNameTheirs()
     {
         var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
-        Assert.Equal(23, EffectTkbCatalog.BuiltIn.Count);   // + ⭐ CE-4618's missile launch flash and smoke (7173 / 7174) + ⭐ CE-4145's two impact puffs and two kinetic marks · W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud + ⭐ CE-1231's huge burst
+        Assert.Equal(24, EffectTkbCatalog.BuiltIn.Count);   // + ⭐ CE-4618's missile launch flash and smoke (7173 / 7174) + ⭐ CE-4145's two impact puffs and two kinetic marks · W3's wreck fire and smoke + ⭐ CE-1090's backblast and gun blast + ⭐ CE-1115's flare and chaff cloud + ⭐ CE-1231's huge burst + ⭐ CE-4635's flame jet (7175)
         foreach (var (type, (_, look)) in EffectTkbCatalog.BuiltIn)
         {
             Assert.True(tkb.TryGetByType(type, out var t) && t != null, $"effect type {type} missing from CreateTkb");
@@ -581,12 +581,12 @@ public sealed partial class EffectTests
         var (_, tkb) = World();
         List<WeaponMountDto> Mounts(long type) => tkb.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts;
         var ah64 = Mounts(Hrot.Map.Common.TkbEntityTypes.Heli_AH64);
-        Assert.True(FireStreams.IsAutomatic(ah64[0]));
-        Assert.False(FireStreams.IsAutomatic(ah64[1]));
-        Assert.Contains(Mounts(Hrot.Map.Common.TkbEntityTypes.Jet_AttackA10), FireStreams.IsAutomatic);
-        Assert.DoesNotContain(Mounts(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman), FireStreams.IsAutomatic);
-        Assert.False(FireStreams.IsAutomatic(Mounts(Hrot.Map.Common.TkbEntityTypes.Tank_T72)[0]));
-        Assert.False(FireStreams.IsAutomatic(null));
+        Assert.True(Hrot.Look.Effects.FireStreams.IsAutomatic(ah64[0]));
+        Assert.False(Hrot.Look.Effects.FireStreams.IsAutomatic(ah64[1]));
+        Assert.Contains(Mounts(Hrot.Map.Common.TkbEntityTypes.Jet_AttackA10), Hrot.Look.Effects.FireStreams.IsAutomatic);
+        Assert.DoesNotContain(Mounts(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman), Hrot.Look.Effects.FireStreams.IsAutomatic);
+        Assert.False(Hrot.Look.Effects.FireStreams.IsAutomatic(Mounts(Hrot.Map.Common.TkbEntityTypes.Tank_T72)[0]));
+        Assert.False(Hrot.Look.Effects.FireStreams.IsAutomatic(null));
     }
 
     /// <summary>
@@ -599,7 +599,7 @@ public sealed partial class EffectTests
     {
         var into = new List<(Vector3 From, Vector3 To)>();
         var muzzle = new Vector3(10, 0, 5);
-        float s = FireStreams.Dashes(muzzle, muzzle + new Vector3(300, 0, 0), Vector3.UnitY, 0.1, into);
+        float s = Hrot.Look.Effects.FireStreams.Dashes(muzzle, muzzle + new Vector3(300, 0, 0), Vector3.UnitY, 0.1, into);
         Assert.Equal(1f - 0.1f / 0.35f, s, 3);
         Assert.Equal(19, into.Count);   // 0, 5, … 90
         for (int i = 0; i < into.Count; i++)
@@ -608,13 +608,13 @@ public sealed partial class EffectTests
             Assert.Equal(1.8f, Vector3.Distance(into[i].From, into[i].To), 2);
             Assert.Equal(0f, into[i].From.Y, 3);   // toward the aim, not the forward
         }
-        Assert.Equal(0f, FireStreams.Dashes(muzzle, muzzle + new Vector3(300, 0, 0), Vector3.UnitY, 0.36, into));
+        Assert.Equal(0f, Hrot.Look.Effects.FireStreams.Dashes(muzzle, muzzle + new Vector3(300, 0, 0), Vector3.UnitY, 0.36, into));
         Assert.Empty(into);
 
-        FireStreams.Dashes(muzzle, Vector3.Zero + muzzle, Vector3.UnitY, 0.1, into);   // no aim known
+        Hrot.Look.Effects.FireStreams.Dashes(muzzle, Vector3.Zero + muzzle, Vector3.UnitY, 0.1, into);   // no aim known
         Assert.All(into, d => Assert.True(MathF.Abs(d.From.X - muzzle.X) < 1e-3f && d.To.Y > d.From.Y));
 
-        FireStreams.Dashes(muzzle, muzzle + new Vector3(12, 0, 0), Vector3.UnitY, 0.3, into);   // a target 12 m away
+        Hrot.Look.Effects.FireStreams.Dashes(muzzle, muzzle + new Vector3(12, 0, 0), Vector3.UnitY, 0.3, into);   // a target 12 m away
         Assert.All(into, d => Assert.True(d.To.X <= muzzle.X + 12f + 1e-3f));
     }
 
@@ -628,9 +628,9 @@ public sealed partial class EffectTests
         var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(400, 0, 0));
         world.Bus.Publish(new WeaponFireNotification { Shooter = heli, Target = tank, WeaponIndex = 0 });
         Tick(world, new EffectSpawnSystem(), 0.016f);
-        var shot = Assert.Single(RecentShots.Of(world)!.Recent(7.1, FireStreams.Window));
+        var shot = Assert.Single(RecentShots.Of(world)!.Recent(7.1, Hrot.Look.Effects.FireStreams.Window));
         Assert.Equal((heli, 0, 7.0, new Vector3(400, 0, 0)), shot);
-        Assert.Empty(RecentShots.Of(world)!.Recent(7.5, FireStreams.Window));
+        Assert.Empty(RecentShots.Of(world)!.Recent(7.5, Hrot.Look.Effects.FireStreams.Window));
     }
 
     [Fact]
@@ -708,13 +708,21 @@ public sealed partial class EffectTests
         Assert.Equal(new System.Numerics.Vector2(100, 50), (c2 + d) / 2f);
     }
 
-    /// <summary>⭐ W3 (VE-P) — only a CROSSING to zero burns: a vehicle killed now gets flames (60 s) and smoke (180 s) attached to its
-    /// body; a soldier does not burn; ⭐ CE-1198 nor does a weapon system (it only goes dark, 🔒 user 2026-10-19: "weapons are usually
-    /// non-flammable"); a wreck first seen already dead does not; in a replay nothing is made (the recording has it).</summary>
-    [Fact]
-    public void W3_AVehicleKilledNowBurnsAndSmokes_ASoldierOrAWreckLoadedDeadDoesNot_AndAReplayMakesNothing()
+    /// <summary>The state source's items (flames, smoke, jets, scorch) — a fresh list through <see cref="EffectLayer.ResolveStateInto"/>.</summary>
+    private static List<EffectLayer.Resolved> State(EffectLayer layer)
     {
-        var (world, _) = World();
+        var l = new List<EffectLayer.Resolved>();
+        layer.ResolveStateInto(l);
+        return l;
+    }
+
+    /// <summary>⭐ CE-4635 (flame weapons §8 U-2) — the W3 wreck rule is RETIRED: a vehicle killed now makes NO effect entity any more (<c>WreckSpawnSystem</c> is an empty
+    /// registered shell, also in a replay); its simulation fire (<c>FireState</c>, lit by <c>BurnSystem</c> on a destroyed FUELLED hull — not a soldier, not a weapon, not a
+    /// wreck loaded dead) is drawn from the STATE: one Fire + one small Smoke per burning spot.</summary>
+    [Fact]
+    public void W3_AKilledVehicle_MakesNoEffectEntitiesNow_ItsFireStateIsDrawnFromTheState_ASoldierOrAWreckLoadedDeadDoesNotBurn()
+    {
+        var (world, tkb) = World();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
         At(world, 20.0);
         Entity Living(long type, float hp)
@@ -727,83 +735,74 @@ public sealed partial class EffectTests
         var soldier = Living(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman, 100f);
         var loadedWreck = Living(Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams, 0f);
         var hmg = Living(Hrot.Map.Common.TkbEntityTypes.WeaponSystem_M2Hmg, 100f);   // ⭐ CE-1198 — a weapon does not burn
-        var wrecks = new WreckSpawnSystem();
+        var wrecks = new BurningWrecks(world);   // ⭐ CE-4660 — the kill lights the hull (BurnSystem)
+        var layer = new EffectLayer(() => world, () => tkb);
         Tick(world, wrecks, 0.016f);
-        Assert.Empty(Effects(world));                                   // the loaded wreck is already dead: no crossing
+        Assert.Empty(State(layer));                                     // the loaded wreck is already dead: no crossing, no fire
 
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         world.SetComponent(soldier, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         world.SetComponent(hmg, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         Tick(world, wrecks, 0.016f);
-        var fx = Effects(world);
-        Assert.Equal(new[] { EffectTkbCatalog.Fire, EffectTkbCatalog.Smoke }, fx.Select(f => f.Type).OrderBy(t => t).ToArray());
-        foreach (var (type, e) in fx)
-        {
-            var anchor = world.GetComponentRO<EffectAnchor>(e);
-            Assert.Equal(tank, anchor.Shooter);
-            Assert.Equal(EffectAnchorKind.Body, anchor.Kind);
-            Assert.Equal(type == EffectTkbCatalog.Fire ? 60f : 180f, (float)(world.GetComponentRO<Lifespan>(e).Seconds));
-            Assert.Equal(20.0, world.GetComponentRO<Lifespan>(e).BornAtSimSeconds);
-        }
+        Assert.Empty(Effects(world));                                   // ⛔ the retired rule: no entity
+        Assert.Equal(0, wrecks.Spawned);
+        var items = State(layer);
+        Assert.Equal(new[] { EffectKind.Fire, EffectKind.Smoke }, items.Select(r => r.Look.Kind).OrderBy(k => k).ToArray());   // the tank's one spot, nothing else
         Tick(world, wrecks, 0.016f);
-        Assert.Equal(2, Effects(world).Count);                         // a wreck burns ONCE
+        Assert.Equal(2, State(layer).Count);                            // still one fire, not a second
 
         var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext
         {
             World = world,
         });
         Fdp.Toolkit.Replay.ReplayState.Enter(world);                  // ⭐ CE-3329 P2 — the world says it is a replay
-        var other = Living(Hrot.Map.Common.TkbEntityTypes.Tank_T72, 100f);
         Tick(world, mi.WreckSpawn, 0.016f);
-        world.SetComponent(other, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
-        Tick(world, mi.WreckSpawn, 0.016f);
-        Assert.Equal(2, Effects(world).Count);                         // a replayed kill makes nothing
+        Assert.Empty(Effects(world));                                   // a replay makes nothing (as before)
+        Assert.Equal(2, State(layer).Count);                            // ... and the recorded state still draws the fire
         Assert.Contains(mi.WreckSpawn, mi.InteractionSystems);
         Assert.Contains(typeof(WreckSpawnSystem), mi.RequiredSystems);
     }
 
-    /// <summary>⭐ W3 (VE-P) — the flames sit on the wreck's TOP and scale with it; the particles are STATELESS (the same seed and age
-    /// give the same puffs, so a jump or another frame cannot disagree); the fire dies down at the end; the smoke rises and fades.</summary>
+    /// <summary>⭐ W3 (VE-P) → CE-4635 U-2 — the flames sit at the wreck's burning SPOT (hull frame) and scale with its radius; the particles are STATELESS (the same seed and
+    /// age give the same puffs, so a jump or another frame cannot disagree); the fire dies down at the end of its burn; the smoke rises; both are gone when the spot is out.</summary>
     [Fact]
-    public void W3_FlamesSitOnTheWreck_AndTheirPuffsComeFromSeedAndAgeAlone()
+    public void W3_FlamesSitOnTheWreckSpot_AndTheirPuffsComeFromSeedAndAgeAlone()
     {
         var (world, tkb) = World();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
         At(world, 0.0);
         var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(50, 0, 0));
         world.AddComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
-        var wrecks = new WreckSpawnSystem();
+        var wrecks = new BurningWrecks(world);
         Tick(world, wrecks, 0f);
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         Tick(world, wrecks, 0f);
-        var bodies = new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => world, () => tkb);
-        var layer = new EffectLayer(() => world, () => tkb, bodies);
-        Assert.True(bodies.TryGetBox(world, tank, tkb, out var centre, out _, out var half));
+        var layer = new EffectLayer(() => world, () => tkb);
+        var spot = world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.FireState>(tank).Get(0);
 
         At(world, 10.0);
-        var fire = Assert.Single(layer.Resolve(), r => r.Look.Kind == EffectKind.Fire);
-        Assert.Equal(centre.Z + half.Z, fire.At.Z, 3);                 // on top of the drawn hull
-        Assert.Equal(50f, fire.At.X, 3);
+        var fire = Assert.Single(State(layer), r => r.Look.Kind == EffectKind.Fire);
+        Assert.Equal(50f + spot.X, fire.At.X, 3);                      // at the spot, in the hull's frame (identity rotation: an offset)
+        Assert.Equal(spot.Z, fire.At.Z, 3);
         Assert.Equal(10f, fire.Age, 3);
+        Assert.Equal(EffectLayer.SpotSize(spot.Radius), EffectLayer.SizeOf(fire), 3);
         var puffs = EffectLayer.Puffs(fire);
         Assert.Equal(EffectLayer.FirePuffs, puffs.Count);
         Assert.Equal(puffs, EffectLayer.Puffs(fire));                  // stateless: same input, same puffs
         Assert.NotEqual(puffs, EffectLayer.Puffs(fire with { Age = 10.3f }));
-        Assert.All(puffs, p => Assert.True(p.At.Z >= fire.At.Z - 0.01f, "flames rise off the top"));
+        Assert.All(puffs, p => Assert.True(p.At.Z >= fire.At.Z - 0.01f, "flames rise off the spot"));
 
         var dying = EffectLayer.Puffs(fire with { Phase = 0.99f });
         Assert.True(dying.Sum(p => (float)p.Colour.A) < puffs.Sum(p => (float)p.Colour.A) * 0.2f, "the fire dies down at the end");
 
-        var smoke = Assert.Single(layer.Resolve(), r => r.Look.Kind == EffectKind.Smoke);
+        var smoke = Assert.Single(State(layer), r => r.Look.Kind == EffectKind.Smoke);
+        Assert.True(EffectLayer.SizeOf(smoke) < EffectLayer.SizeOf(fire), "a spot sends up only a SMALL smoke");
         var column = EffectLayer.Puffs(smoke);
         Assert.Equal(EffectLayer.SmokePuffs, column.Count);
-        Assert.True(column.Max(p => p.At.Z) > smoke.At.Z + smoke.Look.Size * 2f, "the column rises well above the wreck");
-        Assert.Contains(layer.Resolve(), r => r.Look.Kind == EffectKind.Fire);   // still burning at 10 s
+        Assert.True(column.Max(p => p.At.Z) > smoke.At.Z + EffectLayer.SizeOf(smoke) * 2f, "the column rises above the spot");
 
-        At(world, 61.0);                                               // the fire's 60 s are up; the smoke's 180 s are not
-        Tick(world, new LifespanSystem(), 0f);
-        Assert.DoesNotContain(layer.Resolve(), r => r.Look.Kind == EffectKind.Fire);
-        Assert.Contains(layer.Resolve(), r => r.Look.Kind == EffectKind.Smoke);
+        At(world, spot.Since.Seconds + spot.Seconds + 1.0);            // the spot has burned out: nothing is drawn
+        Assert.Empty(State(layer));
     }
 
     /// <summary>
@@ -825,14 +824,14 @@ public sealed partial class EffectTests
         At(world, 0.0);
         var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(50, 0, 0));
         world.AddComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
-        var wrecks = new WreckSpawnSystem();
+        var wrecks = new BurningWrecks(world);   // ⭐ CE-4660 — the kill lights the hull (BurnSystem), the flames read its FireState
         Tick(world, wrecks, 0f);
         world.SetComponent(tank, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
         Tick(world, wrecks, 0f);
-        var layer = new EffectLayer(() => world, () => tkb, new Hrot.UI.Common.Map3D.EntityBodyLayer3D(() => world, () => tkb));
+        var layer = new EffectLayer(() => world, () => tkb);
         At(world, 10.0);
 
-        var smoke = Assert.Single(layer.Resolve(), r => r.Look.Kind == EffectKind.Smoke);
+        var smoke = Assert.Single(State(layer), r => r.Look.Kind == EffectKind.Smoke);
         Assert.True(smoke.Wind is { X: < -7f } w && MathF.Abs(w.Y) < 0.5f, $"the world's wind reaches the column: {smoke.Wind}");
         Vector2 Lean(EffectLayer.Resolved r)
         {
@@ -841,10 +840,10 @@ public sealed partial class EffectTests
             return new Vector2(top.Average(p => p.At.X), top.Average(p => p.At.Y)) - new Vector2(r.At.X, r.At.Y);
         }
         var lean = Lean(smoke);
-        Assert.True(lean.X < -smoke.Look.Size, $"leans west, downwind: {lean}");
+        Assert.True(lean.X < -EffectLayer.SizeOf(smoke), $"leans west, downwind: {lean}");
 
         var calm = Lean(smoke with { Wind = Vector2.Zero });
-        Assert.True(calm.Length() < smoke.Look.Size * 0.5f, $"calm rises straight: {calm}");
+        Assert.True(calm.Length() < EffectLayer.SizeOf(smoke) * 0.5f, $"calm rises straight: {calm}");
         var none = Lean(smoke with { Wind = null });
         Assert.True(none.X > 0f && none.Y > 0f, $"no weather modelled: the old north-east breeze: {none}");
         Assert.Equal(new Vector3(3f, 0f, 0f), EffectLayer.SmokeDrift(new Vector2(40f, 0f)));   // a gale is capped
@@ -924,11 +923,11 @@ public sealed partial class EffectTests
         foreach (var shape in Enum.GetValues<MunitionShape>())
         {
             var look = new MunitionVisualDto { Shape = shape, Length = 0.4f, Diameter = 0.1f, Tracer = shape == MunitionShape.Bullet };
-            var r = new ProjectileLayer.Round(look, new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, new Vector3(0, 0, 3), 1, Speed: 20f);
+            var r = new Hrot.Look.Effects.RoundState(look, new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, new Vector3(0, 0, 3), 1, Speed: 20f);
             if (shape == MunitionShape.Bullet) Assert.True(ProjectileLayer.TracerOf(r, out _, out _), "a tracer bullet draws its streak");
             else Assert.NotEmpty(ProjectileLayer.SolidsOf(r));
         }
-        var future = new ProjectileLayer.Round(new MunitionVisualDto { Shape = (MunitionShape)200, Length = 0.3f, Diameter = 0.08f },
+        var future = new Hrot.Look.Effects.RoundState(new MunitionVisualDto { Shape = (MunitionShape)200, Length = 0.3f, Diameter = 0.08f },
                                                new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, Vector3.Zero, 1);
         Assert.NotEmpty(ProjectileLayer.SolidsOf(future));                        // an unknown, future shape: a lump, not nothing
     }
@@ -950,12 +949,12 @@ public sealed partial class EffectTests
         Round(world, MunitionTkbCatalog.TkbThrowingStar, new Vector3(20, 10, 0.1f), Vector3.Zero, Landed);
         var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 0.5f };
 
-        List<ProjectileLayer.Round> At(double t)
+        List<Hrot.Look.Effects.RoundState> At(double t)
         {
             world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t });
             return layer.Resolve();
         }
-        ProjectileLayer.Round Of(List<ProjectileLayer.Round> rs, MunitionShape s, bool lying) => rs.Single(r => r.Look.Shape == s && r.Lying == lying);
+        Hrot.Look.Effects.RoundState Of(List<Hrot.Look.Effects.RoundState> rs, MunitionShape s, bool lying) => rs.Single(r => r.Look.Shape == s && r.Lying == lying);
 
         var t1 = At(0.1);
         var t2 = At(0.2);
@@ -983,13 +982,61 @@ public sealed partial class EffectTests
         }
     }
 
+    /// <summary>⭐ CE-1976 (bows BW-3, BW-4, BW-10; docs/designs/weapons/bows-visuals.svg) — an ARROW (the built-in TKB 6066) and a crossbow BOLT (6067): a shaft, a metal point and THREE vanes, the nose along the flight at
+    /// every time (no tumble — it pitches over its arc), a bolt shorter and thicker; and a STUCK one (lying + Sticks) is drawn along its replicated rotation, NOT flat (pitch ≠ 0) and NOT lifted onto the ground.</summary>
+    [Fact]
+    public void CE1976_AnArrowHasALook_FlyingAlongItsFlight_AndAStuckOneStandsOutAtItsAngle_NotFlat()
+    {
+        var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+        var world = RoundsWorld(tkb);
+        var v = new Vector3(40, 10, -12);
+        Round(world, MunitionTkbCatalog.TkbArrow, new Vector3(0, 0, 3), v);
+        Round(world, MunitionTkbCatalog.TkbCrossbowBolt, new Vector3(0, 5, 3), v);
+        // a stuck arrow: it came in 20 degrees nose-down and a bit sideways; its rotation takes +X onto the flight (BW-4), its point a third inside the wall
+        var flight = Vector3.Normalize(new Vector3(0.9f, 0.3f, -0.33f));
+        var axis = Vector3.Cross(Vector3.UnitX, flight);
+        var rotation = Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), MathF.Acos(Vector3.Dot(Vector3.UnitX, flight)));
+        var stuck = world.CreateEntity();
+        var place = new Vector3(20, 3, 1.7f);
+        world.AddComponent(stuck, new SimTransform { Position = place, Rotation = rotation });
+        world.AddComponent(stuck, new SimVelocity { Linear = Vector3.Zero });
+        world.AddComponent(stuck, new Fdp.Toolkit.Combat.Components.BallisticProjectile
+        {
+            Ammo = MunitionTkbCatalog.TkbArrow, Warhead = (byte)(Fdp.Toolkit.Combat.Components.WarheadRound.Landed | Fdp.Toolkit.Combat.Components.WarheadRound.Sticks), PreviousPosition = place,
+        });
+        var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 5f };
+        List<Hrot.Look.Effects.RoundState> At(double t) { world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t }); return layer.Resolve(); }
+
+        var vn = Vector3.Normalize(v);
+        var t1 = At(0.1); var t2 = At(0.2);
+        Assert.Equal(3, t1.Count);
+        foreach (var rs in new[] { t1, t2 })
+        {
+            var arrow = Assert.Single(rs, r => r.Look.Shape == MunitionShape.Arrow && !r.Look.Bolt && !r.Lying);
+            Assert.Equal(1f, Vector3.Dot(arrow.Nose, vn), 3);                     // along its flight at every time: no tumble
+            var solids = ProjectileLayer.SolidsOf(arrow);
+            Assert.Equal(5, solids.Count);                                        // the shaft, the point, three vanes
+            Assert.True(Vector3.Dot(solids[1].To - arrow.Centre, vn) > 0f, "the point leads");
+            Assert.All(solids.Skip(2), vane => Assert.True(Vector3.Distance(vane.To, arrow.Centre + vn * Vector3.Dot(vane.To - arrow.Centre, vn)) > 0.005f, "a vane stands out from the shaft"));
+        }
+        var arrowLen = t1.Single(r => r.Look.Shape == MunitionShape.Arrow && !r.Look.Bolt && !r.Lying).Look;
+        var bolt = t1.Single(r => r.Look.Bolt).Look;
+        Assert.True(bolt.Length < arrowLen.Length && bolt.Diameter > arrowLen.Diameter, "a bolt is shorter and thicker");
+
+        var s = Assert.Single(t1, r => r.Lying);
+        Assert.Equal(1f, Vector3.Dot(s.Nose, flight), 3);                         // drawn along its rotation
+        Assert.True(MathF.Abs(s.Nose.Z) > 0.2f, "stuck at its angle: NOT flat (pitch is not 0)");
+        Assert.Equal(place, s.Centre);                                            // where it stopped, not lifted onto the ground (5 m here)
+        Assert.Equal(s.Nose, Assert.Single(t2, r => r.Lying).Nose);               // and it does not turn
+    }
+
     /// <summary>⭐ P1 (§8 PR-B) — a munition with a smoke trail (a rocket, a missile) trails puffs back toward its muzzle, thinning;
     /// a grenade does not.</summary>
     [Fact]
     public void P1_ARocketTrailsSmokeBackToItsMuzzle()
     {
         var look = new MunitionVisualDto { Shape = MunitionShape.Missile, Length = 1.2f, Diameter = 0.12f, SmokeTrail = true };
-        var r = new ProjectileLayer.Round(look, new Vector3(40, 0, 2), Vector3.UnitX, false, 0f, new Vector3(20, 0, 2), 1);
+        var r = new Hrot.Look.Effects.RoundState(look, new Vector3(40, 0, 2), Vector3.UnitX, false, 0f, new Vector3(20, 0, 2), 1);
         var trail = ProjectileLayer.TrailOf(r);
         Assert.Equal(22, trail.Count);                                          // 20 m back, one puff each 0.9 m
         Assert.All(trail, p => Assert.InRange(p.At.X, 20f, 40f));             // between the missile and its muzzle
@@ -1004,7 +1051,7 @@ public sealed partial class EffectTests
     public void P2_ATracerBulletBurnsAStreakAlongItsRealFlight_AnOrdinaryBulletDrawsNothing()
     {
         var tracerLook = new MunitionVisualDto { Shape = MunitionShape.Bullet, Tracer = true };
-        var r = new ProjectileLayer.Round(tracerLook, new Vector3(300, 40, 2), Vector3.Normalize(new Vector3(1, 0.1f, 0)), false, 0f,
+        var r = new Hrot.Look.Effects.RoundState(tracerLook, new Vector3(300, 40, 2), Vector3.Normalize(new Vector3(1, 0.1f, 0)), false, 0f,
                                           Vector3.Zero, 1, Speed: 850f);
         Assert.True(ProjectileLayer.TracerOf(r, out var head, out var tail));
         Assert.Equal(r.Centre, head);
@@ -1063,6 +1110,10 @@ public sealed partial class EffectTests
                                             MunitionTkbCatalog.Tkb23mmHei,           // ⭐ CE-2190 — the ZU-23-2's HE-I (a new type on a new mount)
                                             MunitionTkbCatalog.TkbBatonRound, MunitionTkbCatalog.TkbStunGrenade,     // ⭐ CE-3223
                                             MunitionTkbCatalog.TkbTearGasGrenade,
+                                            MunitionTkbCatalog.TkbM61Hei, MunitionTkbCatalog.TkbGsh30Hei,   // ⭐ CE-1955 — the air-combat guns' HE-I (CE-4647 S3, new types on new mounts; this list was left short)
+                                            MunitionTkbCatalog.TkbAim9x, MunitionTkbCatalog.TkbAim120, MunitionTkbCatalog.TkbR73, MunitionTkbCatalog.TkbR77,   // ⭐ CE-1955 — the air-to-air missiles' warheads
+                                            MunitionTkbCatalog.TkbThrowingHatchet,   // ⭐ CE-1955 — the warrior (CE-4650) is the first MOUNT to load the existing hatchet (its kinetic warhead since CE-3247; no number moved)
+                                            MunitionTkbCatalog.TkbArrow, MunitionTkbCatalog.TkbCrossbowBolt,   // ⭐ CE-1955 — the bows' rounds (CE-4649): their warhead carries the Sticks flag
                                             MunitionTkbCatalog.TkbRadarSamMissile,   // ⭐ CE-4617 — the radar SAM's proximity-fused library warhead (a new type on a new mount; backend's B-2 left this list one short)
                                             MunitionTkbCatalog.TkbExplosiveCharge };   // ⭐ CE-3233 B-11b — the charge 618's 8 kg round (a new type on a new mount)   // ⭐ CE-3219 part 3 — the launcher man's gas grenades (a new type on a new mount); ⭐ CE-3223 — the security forces' non-lethal rounds (new types on new mounts)
         int mounts = 0, tracerMixed = 0;
@@ -1353,20 +1404,36 @@ public sealed partial class EffectTests
     /// stream along its rounds' launch, and a stream with no aim known runs along the gun — never to the map's origin. 🔒 User, 2026-10-25:
     /// "the majority of the stream of tracers is rendered to the corner of the terrain". ✅ Red-proof: StreamToward's launch fallback
     /// dropped ⇒ (0,0,0); Dashes' zero guard dropped ⇒ dashes toward the origin.</summary>
+    /// <summary>⭐ <c>CE-1960</c> — a possessed fighter's gun stream runs along its rounds, ahead of the nose, even while its weapon posture still holds the AI
+    /// attack point it has flown past (behind it) and the target it passed: a point outside 45° of the launch is stale. 🔒 User, 2026-11-17: "the tracers
+    /// and the fire is directed behind the aircraft". 📐 Reproduced in the editor (ac-guns-drone, possessed Viper): the round left the nose forward
+    /// (GET /combat/shots: muzzle ahead, aim ahead) while the posture point was the scenario's attack point behind it. ✅ Red-proof: drop <c>Along</c> ⇒ the stream ends behind.</summary>
+    [Fact]
+    public void CE1960_AFightersStream_RunsAheadOfTheNose_NeverToAStaleAimBehindIt()
+    {
+        var origin = new Vector3(486f, -52f, 1625f);
+        var velocity = new Vector3(1000f, 150f, 0f);                    // the round leaves the nose
+        var behind = new Vector3(0f, 0f, 1300f);                        // the AI's attack point, flown past
+        var toward = Hrot.Look.Effects.FireStreams.StreamToward(behind, behind, origin, velocity, 1500f);
+        Assert.True(Vector3.Dot(Vector3.Normalize(toward - origin), Vector3.Normalize(velocity)) > 0.999f, $"ahead along the rounds ({toward})");
+        var ahead = origin + new Vector3(600f, 120f, 30f);              // a target in front, off by its lead: kept
+        Assert.Equal(ahead, Hrot.Look.Effects.FireStreams.StreamToward(Vector3.Zero, ahead, origin, velocity, 1500f));
+    }
+
     [Fact]
     public void CE1357_AStationGunsStream_FollowsItsRounds_NeverTheOrigin()
     {
         var origin = new Vector3(116f, 282f, 26f);
         var velocity = new Vector3(-600f, 650f, -150f);
-        var toward = Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(Vector3.Zero, Vector3.Zero, origin, velocity, 1000f);
+        var toward = Hrot.Look.Effects.FireStreams.StreamToward(Vector3.Zero, Vector3.Zero, origin, velocity, 1000f);
         Assert.True(Vector3.Distance(origin, toward) > 900f, $"out along the launch ({toward})");
         Assert.True(Vector3.Dot(Vector3.Normalize(toward - origin), Vector3.Normalize(velocity)) > 0.999f);
-        var target = new Vector3(1f, 2f, 3f);
-        Assert.Equal(target, Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(target, new Vector3(9f, 9f, 9f), origin, velocity, 1000f));   // a unit wins
-        Assert.Equal(Vector3.Zero, Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(Vector3.Zero, Vector3.Zero, origin, Vector3.Zero, 0f));   // nothing known
+        var target = origin + Vector3.Normalize(velocity) * 400f + new Vector3(0f, 0f, 20f);   // ⭐ CE-1960 — a unit along the launch (a point behind it no longer wins)
+        Assert.Equal(target, Hrot.Look.Effects.FireStreams.StreamToward(target, new Vector3(9f, 9f, 9f), origin, velocity, 1000f));   // a unit wins
+        Assert.Equal(Vector3.Zero, Hrot.Look.Effects.FireStreams.StreamToward(Vector3.Zero, Vector3.Zero, origin, Vector3.Zero, 0f));   // nothing known
 
         var dashes = new System.Collections.Generic.List<(Vector3 From, Vector3 To)>();
-        Hrot.UI.Common.Effects.FireStreams.Dashes(origin, Vector3.Zero, new Vector3(0f, 1f, 0f), 0.2, dashes);
+        Hrot.Look.Effects.FireStreams.Dashes(origin, Vector3.Zero, new Vector3(0f, 1f, 0f), 0.2, dashes);
         Assert.NotEmpty(dashes);
         Assert.All(dashes, d => Assert.True(d.To.Y > origin.Y && MathF.Abs(d.To.X - origin.X) < 1e-3f, $"along the gun, not to the origin ({d.To})"));
     }

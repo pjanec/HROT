@@ -53,14 +53,15 @@ namespace Hrot.SimHost.Tests
             {
                 var wire = new Capture<EntityAnimalState>();
                 var egress = new EntityAnimalStateEgressTranslator(wire);
-                w.AddComponent(cow, new AnimalState { Species = AnimalSpecies.Cattle, Mode = AnimalMode.Calm });
+                w.AddComponent(cow, new AnimalState { Mode = AnimalMode.Calm });
                 egress.ScanAndPublish(w);
                 var first = Assert.Single(wire.Written);
-                Assert.Equal((71, (byte)AnimalSpecies.Cattle, (byte)0), (first.EntityId, first.Species, first.FearBand));
+                // ⭐ CE-4628 — the wire keeps its Species field (R-4295) but the component no longer has it (the TKB type's): written 0
+                Assert.Equal((71, (byte)0, (byte)0), (first.EntityId, first.Species, first.FearBand));
                 egress.ScanAndPublish(w);
                 Assert.Single(wire.Written);                                  // unchanged: nothing sent
 
-                w.GetComponentRW<AnimalState>(cow).FearBand = 3;
+                w.GetComponentRW<AnimalState>(cow).FearBand = 3;   // ⭐ CE-4628 §10b — the band stays, replicated
                 w.GetComponentRW<AnimalState>(cow).Mode = AnimalMode.Flee;
                 egress.ScanAndPublish(w);
                 Assert.Equal(2, wire.Written.Count);
@@ -71,7 +72,7 @@ namespace Hrot.SimHost.Tests
             using (other)
             {
                 var wire = new Capture<EntityAnimalState>();
-                other.AddComponent(theirs, new AnimalState { FearBand = 2 });
+                other.AddComponent(theirs, new AnimalState { Mode = AnimalMode.Alert });
                 new EntityAnimalStateEgressTranslator(wire).ScanAndPublish(other);
                 Assert.Empty(wire.Written);
             }
@@ -83,9 +84,9 @@ namespace Hrot.SimHost.Tests
             var (w, map, cow) = Node(primaryOwner: 2, localNode: 1);
             using (w)
             {
-                w.AddComponent(cow, new AnimalState { Species = AnimalSpecies.Cattle });   // the spawn's own calm state on this node
-                var sample = EntityAnimalStateEgressTranslator.ToSample(71, new AnimalState
-                    { Species = AnimalSpecies.Cattle, Mode = AnimalMode.Flee, FearBand = 3, Flags = AnimalFlags.Calling });
+                w.AddComponent(cow, new AnimalState());   // the spawn's own calm state on this node
+                var sample = EntityAnimalStateEgressTranslator.ToSample(71, new AnimalState { Mode = AnimalMode.Flee, Flags = AnimalFlags.Calling });
+                sample.FearBand = 3; sample.Species = 9;   // the band is the animal's; the species (the wire's own field) is ignored on ingress
                 using (var cmd = new EntityCommandBuffer())
                 {
                     new EntityAnimalStateIngressTranslator(null, map).Apply(in sample, cmd, w);
@@ -107,11 +108,11 @@ namespace Hrot.SimHost.Tests
             var (owner, ownerMap, own) = Node(primaryOwner: 1, localNode: 1);
             using (owner)
             {
-                owner.AddComponent(own, new AnimalState { FearBand = 1 });
+                owner.AddComponent(own, new AnimalState { Mode = AnimalMode.Alert });
                 using var cmd = new EntityCommandBuffer();
-                new EntityAnimalStateIngressTranslator(null, ownerMap).Apply(new EntityAnimalState { EntityId = 71, FearBand = 3 }, cmd, owner);
+                new EntityAnimalStateIngressTranslator(null, ownerMap).Apply(new EntityAnimalState { EntityId = 71, Mode = (byte)AnimalMode.Flee }, cmd, owner);
                 cmd.Playback(owner);
-                Assert.Equal(1, owner.GetComponentRO<AnimalState>(own).FearBand);
+                Assert.Equal(AnimalMode.Alert, owner.GetComponentRO<AnimalState>(own).Mode);   // the recorded owner never takes its own sample back
             }
         }
 

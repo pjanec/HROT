@@ -1,5 +1,6 @@
 using System;
 using Fdp.Core;
+using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
@@ -66,10 +67,61 @@ namespace Hrot.Common.Diagnostics.Gizmos
 
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
+            if (IsAircraft(view, entity) && !InAirUnit(view, entity)) return;   // ⭐ CE-1971 — a lone aircraft's name is AircraftNameGizmo's (no zoom limit); ⭐ CE-11029 — a swarm member's follows the ground's rule
+            DrawName(view, entity, draw);
+        }
+
+        internal static void DrawName(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
+        {
             int net = view.GetComponentRO<NetworkIdentity>(entity).Value;
             if (net == 0 || !Seeable.OnMap(view, entity)) return;   // ⭐ CE-4239
             string name = view.GetComponentRO<EntityInfo>(entity).Name.ToString();
             draw.Card(net, DebugTraceLayers.Labels, Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, entity)).Row(Row).Text(string.IsNullOrWhiteSpace(name) ? $"#{net}" : $"{name} #{net}", NameColour);
+        }
+
+        /// <summary>⭐ CE-1971 — a fixed-wing or rotary-wing aircraft (never a bird, a rope or a canopy).</summary>
+        internal static bool IsAircraft(ISimulationView view, Entity entity)
+            => view.HasComponent<Fdp.Toolkit.Motion.Locomotion>(entity)
+               && view.GetComponentRO<Fdp.Toolkit.Motion.Locomotion>(entity).Class is Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing or Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft;
+
+        /// <summary>
+        /// ⭐ <c>CE-11029</c> (SimNetGateway R-143 / R-144) — the aircraft's DIRECT commander is an AIR UNIT: a body-less unit commander whose live members are ALL
+        /// aircraft (a swarm of drones, a flight). Its card stands for the swarm, so the members' names keep the ground's zoom limit. 🔒 User, <c>2026-11-21</c>:
+        /// <i>"for expensive aircraft (scarse) each shoudl have a label"</i> — not each of <i>"a swarm of cheap drones (numerous)"</i>. An aircraft under a mixed
+        /// HQ (its members are not all aircraft) is NOT in an air unit: it keeps its always-on name. Allocation-free (at most 16 members, R-2084).
+        /// </summary>
+        internal static bool InAirUnit(ISimulationView view, Entity entity)
+        {
+            if (view is EntityRepository repo && (!repo.IsComponentTypeRegistered<UnitSubordinate>() || !repo.IsComponentTypeRegistered<UnitRoster>())) return false;
+            if (!view.HasComponent<UnitSubordinate>(entity)) return false;
+            var commander = view.GetComponentRO<UnitSubordinate>(entity).Commander;
+            if (!view.IsAlive(commander) || !Fdp.Toolkit.Squad.CombatEffective.IsUnit(view, commander) || !view.HasComponent<UnitRoster>(commander)) return false;
+            var roster = view.GetComponentRO<UnitRoster>(commander);
+            int aircraft = 0;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                if (!view.IsAlive(m)) continue;
+                if (!IsAircraft(view, m)) return false;   // a mixed unit is no air unit
+                aircraft++;
+            }
+            return aircraft > 0;
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-1971 — an AIRCRAFT's name, at EVERY zoom: the card zoom limit (<see cref="CardZoom"/>) suits ground units — under a pixel they pile into a band —
+    /// but an aircraft is small, far and high, few in number, and without its name nothing on the map says where it is. 🔒 User, 2026-11-17: <i>"for the
+    /// aircraft we might force different turn of distance, or maybe eliminate it whatsoever, so the label is always shown"</i>. Same row, same card.
+    /// </summary>
+    [GizmoProjector(typeof(NetworkIdentity), typeof(EntityInfo), typeof(Fdp.Toolkit.Motion.Locomotion))]
+    public sealed class AircraftNameGizmo : IStatelessGizmo
+    {
+        public GizmoInputs? Inputs { get; } = Seeable.Inputs(typeof(NetworkIdentity), typeof(EntityInfo));
+
+        public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
+        {
+            if (EntityNameGizmo.IsAircraft(view, entity) && !EntityNameGizmo.InAirUnit(view, entity)) EntityNameGizmo.DrawName(view, entity, draw);   // ⭐ CE-11029
         }
     }
 

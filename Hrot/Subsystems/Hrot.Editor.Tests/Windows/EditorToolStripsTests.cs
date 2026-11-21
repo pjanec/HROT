@@ -53,6 +53,44 @@ public sealed class EditorToolStripsTests : IDisposable
     // ── Scenario tools ──────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>The strip has ONE family, Add Entity (Friendly · Hostile · Neutral · Map graphic), and Measure; each member runs ITS existing handler (203…206, 200) from the host registry with the editor's world and no target. 🔴 Red-proof: map Hostile to 203 ⇒ red.</summary>
+    /// <summary>⭐ CE-1977 — with the host's disarm, a strip's SELECT tile (first) is lit while no tool is armed and its click disarms; a click on a LIT tool's
+    /// icon turns the tool off instead of running it again; an unlit icon runs its tool. 🔒 User, 2026-11-18: "The new arrow icon on the very left of the
+    /// toolbar is a great idea. Clicking the tool icon again to deactivate it is also approved." ✅ Red-proof: FaceClicked ignoring <c>lit</c> ⇒ red.</summary>
+    [Fact]
+    public void CE1977_TheSelectTile_AndAClickOnTheLitTool_DisarmIt()
+    {
+        var w = Scenario();
+        int disarmed = 0;
+        bool armed = false;
+        w.DisarmTool = () => { disarmed++; armed = false; };
+        w.AnyToolArmed = () => armed;
+        Assert.True(w.SelectEntry.IsLit!());                                  // nothing armed: Select is lit
+        armed = true;
+        Assert.False(w.SelectEntry.IsLit!());
+        ToolStripWindow.FaceClicked(w.SelectEntry, false, null);              // the Select tile's own click
+        Assert.Equal(1, disarmed);
+        var measure = w.StripEntries[1];
+        _ran.Clear();
+        ToolStripWindow.FaceClicked(measure, lit: true, w.DisarmTool);        // Measure is the lit one: off
+        Assert.Equal(2, disarmed);
+        Assert.Empty(_ran);
+        ToolStripWindow.FaceClicked(measure, lit: false, w.DisarmTool);       // not lit: it arms
+        Assert.Equal(new[] { 200 }, _ran.Select(r => r.Action).ToArray());
+    }
+
+    /// <summary>⭐ CE-1965 — a dropdown entry IS the shared split button (the main toolbar's): picking from its menu makes that member the face, and the
+    /// face's click (<c>Pick(Selected)</c>) runs it again. 🔒 User, 2026-11-17: "whatever I click in the menu it will be remembered for the next click of the icon".</summary>
+    [Fact]
+    public void CE1965_TheFaceRunsTheMemberChosenLast()
+    {
+        var w = Scenario();
+        var add = w.StripEntries[0];
+        add.Pick(2);                                                          // chosen from the menu
+        _ran.Clear();
+        add.Pick(add.Selected);                                               // what the face's click does
+        Assert.Equal(new[] { 205 }, _ran.Select(r => r.Action).ToArray());     // the same member again
+    }
+
     [Fact]
     public void TheScenarioStrip_HasAddEntityAndMeasure_AndEachMemberRunsItsOwnHandler()
     {
@@ -88,11 +126,14 @@ public sealed class EditorToolStripsTests : IDisposable
         var (w, _) = Terrain();
         Assert.False(w.IsOpen);
         string[] Names(string id) => w.StripEntries.Single(e => e.Id == "##ts_t_" + id).Family!.Select(m => m.Label).ToArray();
-        Assert.Equal(new[] { "wood", "trees", "walls", "obstacles", "earthworks", "water", "scatter" }, w.StripEntries.Select(e => e.Id["##ts_t_".Length..]).ToArray());
+        Assert.Equal(new[] { "wood", "trees", "walls", "obstacles", "earthworks", "buildings", "water", "scatter" }, w.StripEntries.Select(e => e.Id["##ts_t_".Length..]).ToArray());   // ⭐ CE-5030 the Buildings family
+        Assert.Equal(new[] { "Remove building", "Make enterable", "Add door" }, Names("buildings"));
         Assert.Equal(new[] { "Wood", "Scrub" }, Names("wood"));
         Assert.Equal(new[] { "Tree", "Tree row", "Tree group" }, Names("trees"));   // ⭐ CE-5008 (TE-3): One · Row · Group
         Assert.Equal(new[] { "Wall", "Wall around a plot", "Fence", "Hedge" }, Names("walls"));   // ⭐ CE-5012 (TE-7) added the closed-wall pick
-        Assert.Equal(new[] { "Car", "Sandbag wall", "Concrete block", "Crate", "Barrel", "Jersey barrier", "Guard booth", "Row of obstacles…" }, Names("obstacles"));   // ⭐ CE-5008 (TE-5): the row tool is the fifth member
+        // ⭐ CE-5008 (TE-5): every obstacle type of the ONE table, then the row tool (the table grows — 📐 water- and sand-filled barrels arrived; a hard-coded list went stale)
+        Assert.Equal(TerrainToolsWindow.ObstacleMembers.Select(o => o.Label).Append("Row of obstacles…").ToArray(), Names("obstacles"));
+        Assert.Contains("Sandbag wall", Names("obstacles"));
         Assert.Contains("Level", Names("earthworks")); Assert.DoesNotContain("Crater", Names("earthworks"));   // the disabled pick is not offered
         Assert.Equal(new[] { "Water", "Bridge" }, Names("water"));
         Assert.Equal(new[] { "Street clutter", "Undergrowth" }, Names("scatter"));
@@ -115,10 +156,12 @@ public sealed class EditorToolStripsTests : IDisposable
         spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("feature:14:tree:Line"))), Times.Once);
         E("trees").Pick(2);
         spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("feature:15:tree:Area"))), Times.Once);
-        E("obstacles").Pick(7);   // the obstacle ROW: a line tool whose spec is the row's, never a terrain feature
+        E("obstacles").Pick(TerrainToolsWindow.ObstacleMembers.Count());   // the obstacle ROW (the last member): a line tool whose spec is the row's, never a terrain feature
         spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains(ObstacleRowOptions.Spec))), Times.Once);
         E("scatter").Pick(1);
         spawn.Verify(s => s.StartAreaAuthoringMode(TkbEntityTypes.TerrainFeature, It.Is<string>(j => j.Contains("undergrowth"))), Times.Once);
+        E("buildings").Pick(1);   // ⭐ CE-5030 — a building edit is ONE click (a point), its action in the spec
+        spawn.Verify(s => s.StartPlacementMode(TkbEntityTypes.TerrainFeature, It.Is<string?>(j => j != null && j.Contains("feature:16:enterable:Point"))), Times.Once);
         Assert.Equal(1, E("scatter").Selected);
     }
 
@@ -179,6 +222,7 @@ public sealed class EditorToolStripsTests : IDisposable
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         var scenario = Scenario(); var (terrain, _) = Terrain(); terrain.IsOpen = true;
+        foreach (var strip in new ToolStripWindow[] { scenario, terrain }) { strip.DisarmTool = () => { }; strip.AnyToolArmed = () => _armed != null; }   // ⭐ CE-1977 — the Select tile first
         terrain.StripEntries.Single(e => e.Id == "##ts_t_walls").Pick(0); _armed = ScenarioToolIds.Spawn;   // Walls lit, as in panel A
         using var frame = UiFrameHarness.Begin();
         frame.StepN(3, () =>
@@ -190,6 +234,27 @@ public sealed class EditorToolStripsTests : IDisposable
         });
         Assert.Equal(ToolStripOrientation.Row, scenario.LastOrientation);
         Assert.Equal(ToolStripOrientation.Column, terrain.LastOrientation);
+        // ⭐ CE-1965 — every dropdown is the SHARED split button: a square face and a narrow ▾ bar to its right — two hit zones, never overlapping, the bar
+        //   as tall as the face and as wide as SplitArrow.BarWidth — in the row strip and the column strip alike; and the next icon never sits on the bar.
+        //   🔒 User, 2026-11-18: "Will the icon and the vertical bar on the right be separated hit zones?" 🔴 Red-proof: the old corner ▾ (no bar) ⇒ red.
+        int splits = 0;
+        foreach (var entries in new[] { scenario.StripEntries, terrain.StripEntries })
+        {
+            for (int i = 0; i < entries.Count; i++)
+            {
+                var e = entries[i];
+                if (e.Family is not { Count: > 0 }) continue;
+                splits++;
+                var (fMin, fMax) = e.LastFace; var (bMin, bMax) = e.LastBar;
+                Assert.True(fMax.X <= bMin.X, $"{e.Id}: the bar is right of the face, not on it ({fMax.X} > {bMin.X})");
+                Assert.InRange(bMin.X - fMax.X, 0f, 2f);                                          // side by side
+                Assert.Equal(fMax.Y - fMin.Y, bMax.Y - bMin.Y, 1);                                // one height
+                Assert.Equal(fMin.Y, bMin.Y, 1);
+                Assert.InRange(bMax.X - bMin.X, Fdp.Presentation.Icons.SplitArrow.BarWidth * 0.8f, Fdp.Presentation.Icons.SplitArrow.BarWidth * 1.2f);   // the shared bar, scaled with the font
+                Assert.InRange(fMax.X - fMin.X, (fMax.Y - fMin.Y) * 0.9f, (fMax.Y - fMin.Y) * 1.3f);   // the face is (about) square
+            }
+        }
+        Assert.True(splits >= 2, "both strips have a dropdown");
         if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "tool-strips.png"));
     }
 }

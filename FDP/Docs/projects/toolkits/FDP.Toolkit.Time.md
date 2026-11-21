@@ -1,4 +1,50 @@
+<!--STATUS
+state: LIVE (the top section only)
+updated: 2026-11-21 (CE-11022, backend: the anchor model replaces the PLL / TimePulse description)
+current-answer: "## ⭐ AS BUILT — the anchor model" directly below. It is the whole current answer.
+stale-below: EVERYTHING from "## Table of Contents" down describes the February 2026 design — TimePulse, a PLL, JitterFilter,
+  MasterTimeController / SlaveTimeController / SteppedMaster / SteppedSlave, DistributedTimeCoordinator, SlaveTimeModeListener.
+  ⛔ None of those types exists any more (grep over FDP/ + Hrot/, 2026-11-21: only MasterSyncController, SlaveSyncController and
+  SteppingTimeController remain). Do not quote it as current; it is kept as the record of what time-ctrl-unif replaced.
+superseded-by: docs/blueprints/DESIGN_Time_Architecture.md — the live architecture (§21 holds this fold)
+related-designs:
+  - docs/blueprints/DESIGN_Time_Architecture.md — OWNS the time architecture; this file is the toolkit's reference page
+  - .dev/_DONE/time-ctrl-unif/docs/DESIGN.md — the programme that replaced the PLL with the anchor model (§4.6 there is superseded the same way)
+-->
+
 # FDP.Toolkit.Time
+
+## ⭐ AS BUILT — the anchor model *(CE-11022, `2026-11-21`)*
+
+```mermaid
+sequenceDiagram
+  participant Op as an operator / a process manager
+  participant M as MasterSyncController (the Orchestrator)
+  participant W as the wire (SwitchTimeModeEvent)
+  participant S as SlaveSyncController (every other node)
+  Op->>M: Resume / Pause / Step / SetTimeScale / Jump
+  M->>W: SwitchTimeModeEvent(mode, BarrierWallTicks = anchor tick, SimTimeSnapshot, TimeScale)
+  W->>S: the same sample
+  Note over S: Continuous: TotalTime = SimTimeSnapshot + (SyncedWallTicks − anchor) / Freq × TimeScale
+  Note over S: no pulse, no PLL — between samples the slave EXTRAPOLATES on the shared (NTP-synced) wall clock
+```
+*What the picture shows that the old text hid:* time flows to a slave only when the master's running state CHANGES. Anything that changes how
+sim time advances — a resume, a jump, and (since CE-11019) a rate change while running — must publish a new anchor, or every slave keeps
+extrapolating the old one.
+
+| piece | what it does now |
+|---|---|
+| `MasterSyncController` | the one clock owner; states Continuous → BarrierPending → Stepping. Publishes a `SwitchTimeModeEvent` on every change of the running state: resume (re-announced when already running, CE-4087), jump, the pause barrier, a step, and a `SetTimeScale` that changes the rate while running (CE-11019) |
+| `SlaveSyncController` | computes `TotalTime` from the last anchor; a Deterministic sample is an absolute position; steps are applied and ACKed |
+| `SteppingTimeController` | the local single-node stepper (debugging, tests) |
+| the pause | two-phase: a FUTURE barrier `BarrierWallTicks = now + LookaheadWallTicks` that every node reaches on the synced wall clock |
+
+⚠ **Unused `TimeConfig` fields** *(measured `2026-11-21`, 0 production readers each)*: `PLLGain`, `MaxSlew`, `SnapThresholdMs`,
+`JitterWindowSize`, `AverageLatencyTicks`, `LockstepTimeoutMs`. They belonged to the PLL and the lockstep timeout of the old controllers. Setting
+them changes nothing. In use: `FixedDeltaSeconds`, `LookaheadWallTicks`, `MaxQueuedSteps`.
+
+---
+
 
 **Project Path**: `Toolkits/FDP.Toolkit.Time/FDP.Toolkit.Time.csproj`  
 **Created**: February 10, 2026  
@@ -6,6 +52,8 @@
 **README Status**: No README
 
 ---
+
+## ⛔ HISTORY — the February 2026 design (TimePulse + PLL), superseded
 
 ## Table of Contents
 

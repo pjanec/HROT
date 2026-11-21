@@ -1,0 +1,258 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1500' height='960' viewBox='0 0 1500 960'>
+<rect x='0' y='0' width='1500' height='960' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Bows and crossbows — the looks (CE-1976, BW-3 / BW-10)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope (R-4151): ONLY the bow, crossbow, quiver / bolt case, arrow, bolt, stuck arrow and the draw pose. The grey figure, the horse, the wall and the ground are the existing looks, drawn for context and unchanged.</text>
+<rect x='10' y='60' width='490' height='365' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='20' y='78' fill='#E8E8EE' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>1 · Archer aiming — the bow drawn to the cheek</text>
+<text x='20' y='94' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>bow arm straight out to the grip, the string hand at the cheek, elbow raised</text>
+<text x='20' y='107' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>and out;</text>
+<text x='20' y='120' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the arrow nocked: shaft, metal point, two crossed red vanes. From his left, and</text>
+<text x='20' y='133' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>from behind.</text>
+<polygon points='154.3,297.9 175.5,398.2 191.7,394.7 170.4,294.4' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='140.0,295.6 132.9,395.9 149.4,397.0 156.4,296.7' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='145.8' y='227.7' width='28.3' height='66.1' fill='#6A6D74' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='147.6' y='204.1' width='24.8' height='28.3' fill='#B9855F' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='135.2' y='261.9' width='9.4' height='35.4' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='135.2' y='232.4' width='9.4' height='35.4' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='135.2' y='207.7' width='9.4' height='30.7' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='138.2' y='193.5' width='3.5' height='11.8' fill='#BE2824' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='138.2' y='190.0' width='3.5' height='14.2' fill='#E2DAC4' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='138.2' y='195.3' width='3.5' height='10.6' fill='#BE2824' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='166.5,241.5 164.4,207.2 151.5,208.0 153.5,242.3' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='152.6,210.1 161.7,230.2 172.5,225.3 163.3,205.2' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='160.3,248.4 196.8,246.6 196.2,233.6 159.7,235.4' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='198.7,245.6 229.5,233.2 225.1,222.2 194.3,234.7' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='229.0,221.4 221.5,191.9 218.1,192.8 225.5,222.3' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='221.2,191.7 207.3,158.7 204.5,159.9 218.4,192.9' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='225.5,233.2 218.1,262.7 221.5,263.6 229.0,234.1' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='218.4,262.5 204.5,295.6 207.3,296.8 221.2,263.7' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='205.3,159.0 166.5,227.4 167.6,228.0 206.5,159.6' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='166.5,228.0 205.3,296.5 206.5,295.8 167.6,227.4' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='229.9,236.0 229.9,219.5 224.6,219.5 224.6,236.0' fill='#2B2A2E' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='167.1,228.4 231.1,228.4 231.1,227.0 167.1,227.0' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='231.1,229.1 237.5,229.1 237.5,226.3 231.1,226.3' fill='#6E7074' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='169.2,229.8 181.0,229.8 181.0,225.6 169.2,225.6' fill='#BE2824' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<text x='160' y='412' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>side (from his left)</text>
+<polygon points='383.8,296.2 383.8,396.5 400.3,396.5 400.3,296.2' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='409.7,296.2 409.7,396.5 426.2,396.5 426.2,296.2' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='381.4' y='227.7' width='47.2' height='66.1' fill='#6A6D74' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='393.2' y='204.1' width='23.6' height='28.3' fill='#B9855F' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='412.1' y='261.9' width='11.8' height='35.4' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='406.2' y='232.4' width='11.8' height='35.4' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='400.3' y='207.7' width='11.8' height='30.7' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='408.0' y='193.5' width='3.5' height='11.8' fill='#BE2824' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='402.1' y='190.0' width='3.5' height='14.2' fill='#E2DAC4' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='397.3' y='195.3' width='3.5' height='10.6' fill='#BE2824' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='379.9,245.2 380.9,243.5 369.8,236.8 368.8,238.5' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='379.1,244.7 394.5,232.3 387.1,223.1 371.7,235.5' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='441.8,244.1 454.4,209.9 442.2,205.4 429.6,239.6' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='445.0,202.8 415.8,222.9 422.5,232.6 451.7,212.5' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='392.6,222.0 396.1,192.5 392.6,192.1 389.1,221.6' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='395.9,192.6 402.4,159.6 399.4,159.0 392.9,192.0' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='389.1,233.8 392.6,263.3 396.1,262.9 392.6,233.4' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='392.9,263.4 399.4,296.5 402.4,295.9 395.9,262.8' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='400.3,159.4 418.5,227.9 419.8,227.6 401.5,159.1' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='418.5,227.6 400.3,296.0 401.5,296.3 419.8,227.9' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='393.5,236.0 393.5,219.5 388.2,219.5 388.2,236.0' fill='#2B2A2E' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='419.2,227.0 389.0,227.0 389.0,228.4 419.2,228.4' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='389.0,226.3 386.0,226.3 386.0,229.1 389.0,229.1' fill='#6E7074' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='418.2,225.6 412.6,225.6 412.6,229.8 418.2,229.8' fill='#BE2824' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<text x='405' y='412' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>from behind</text>
+<rect x='510' y='60' width='490' height='365' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='520' y='78' fill='#E8E8EE' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>2 · Archer carrying — bow in the left hand, quiver on the back</text>
+<text x='520' y='94' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>at ease / ready: the stave hangs upright at his side, its string toward his</text>
+<text x='520' y='107' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>body (a plane facing out);</text>
+<text x='520' y='120' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>no arrow in hand. The quiver slants from the right hip to over the left</text>
+<text x='520' y='133' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>shoulder, three fletchings showing.</text>
+<polygon points='664.7,296.2 664.7,396.5 681.2,396.5 681.2,296.2' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='638.8,296.2 638.8,396.5 655.3,396.5 655.3,296.2' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='636.4' y='227.7' width='47.2' height='66.1' fill='#6A6D74' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='648.2' y='197.0' width='23.6' height='28.3' fill='#B9855F' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='641.1' y='261.9' width='11.8' height='35.4' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='647.0' y='232.4' width='11.8' height='35.4' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='652.9' y='207.7' width='11.8' height='30.7' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='653.5' y='193.5' width='3.5' height='11.8' fill='#BE2824' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='659.4' y='190.0' width='3.5' height='14.2' fill='#E2DAC4' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='664.1' y='195.3' width='3.5' height='10.6' fill='#BE2824' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='685.1,234.6 704.0,265.6 715.1,258.9 696.2,227.9' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='703.9,260.3 692.2,294.2 703.3,298.1 715.1,264.2' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='622.8,230.8 620.5,266.2 633.4,267.1 635.8,231.7' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='621.1,266.7 621.1,302.1 632.9,302.1 632.9,266.7' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='699.5,289.9 693.6,260.4 690.1,261.1 696.0,290.6' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='693.3,260.3 682.7,227.3 679.8,228.2 690.4,261.2' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='696.0,301.7 690.1,331.2 693.6,331.9 699.5,302.4' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='690.4,331.1 679.8,364.1 682.7,365.1 693.3,332.0' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='680.6,227.7 680.6,364.6 681.9,364.6 681.9,227.7' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='700.4,304.4 700.4,287.9 695.1,287.9 695.1,304.4' fill='#2B2A2E' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<text x='660' y='412' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>front</text>
+<polygon points='899.3,297.9 920.5,398.2 936.7,394.7 915.4,294.4' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='885.0,295.6 877.9,395.9 894.4,397.0 901.4,296.7' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='890.8' y='227.7' width='28.3' height='66.1' fill='#6A6D74' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='892.6' y='197.0' width='24.8' height='28.3' fill='#B9855F' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='880.2' y='261.9' width='9.4' height='35.4' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='880.2' y='232.4' width='9.4' height='35.4' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='880.2' y='207.7' width='9.4' height='30.7' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='883.2' y='193.5' width='3.5' height='11.8' fill='#BE2824' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='883.2' y='190.0' width='3.5' height='14.2' fill='#E2DAC4' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='883.2' y='195.3' width='3.5' height='10.6' fill='#BE2824' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='898.5,231.3 898.5,266.7 911.5,266.7 911.5,231.3' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='899.1,267.1 901.5,302.5 913.2,301.7 910.9,266.3' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='898.6,232.2 903.2,263.2 916.1,261.3 911.4,230.3' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='903.9,263.5 911.0,297.4 922.6,294.9 915.4,261.0' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='918.6,290.3 918.6,260.8 915.0,260.8 915.0,290.3' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='918.3,260.8 918.3,227.7 915.3,227.7 915.3,260.8' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='915.0,302.1 915.0,331.6 918.6,331.6 918.6,302.1' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='915.3,331.6 915.3,364.6 918.3,364.6 918.3,331.6' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='916.1,227.7 916.1,364.6 917.4,364.6 917.4,227.7' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='919.5,304.4 919.5,287.9 914.1,287.9 914.1,304.4' fill='#2B2A2E' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<text x='905' y='412' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>side (stave edge-on)</text>
+<rect x='1010' y='60' width='480' height='360' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='1020' y='78' fill='#E8E8EE' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>3 · Crossbowman — stock, prod, spanned string, bolt</text>
+<text x='1020' y='94' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a wooden stock along the rifle's line; a prod of two swept limbs across its</text>
+<text x='1020' y='107' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>front; the string spanned back</text>
+<text x='1020' y='120' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>to a catch; a short thick bolt on the rail. A short leather bolt case at the</text>
+<text x='1020' y='133' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>right hip (no quiver).</text>
+<polygon points='1134.3,297.9 1155.5,398.2 1171.7,394.7 1150.4,294.4' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1120.0,295.6 1112.9,395.9 1129.4,397.0 1136.4,296.7' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='1125.8' y='227.7' width='28.3' height='66.1' fill='#6A6D74' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='1127.6' y='204.1' width='24.8' height='28.3' fill='#B9855F' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='1132.3' y='284.4' width='10.6' height='23.6' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='1135.9' y='277.3' width='3.5' height='7.1' fill='#E2DAC4' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1137.2,247.7 1166.7,261.9 1172.3,250.2 1142.8,236.0' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1172.9,260.8 1202.4,239.6 1195.6,230.0 1166.1,251.3' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1133.5,241.9 1133.5,258.4 1146.5,258.4 1146.5,241.9' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1144.9,261.7 1159.1,240.4 1149.3,233.9 1135.1,255.1' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1151.8,237.8 1236.8,237.8 1236.8,231.9 1151.8,231.9' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1222.6,233.0 1221.4,233.0 1221.4,236.6 1222.6,236.6' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1221.4,233.3 1214.3,233.3 1214.3,236.3 1221.4,236.3' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1214.3,234.2 1191.9,234.2 1191.9,235.5 1214.3,235.5' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1222.6,233.0 1221.4,233.0 1221.4,236.6 1222.6,236.6' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1221.4,233.3 1214.3,233.3 1214.3,236.3 1221.4,236.3' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1214.3,234.2 1191.9,234.2 1191.9,235.5 1214.3,235.5' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1191.9,229.8 1246.2,229.8 1246.2,228.0 1191.9,228.0' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1246.2,230.3 1252.1,230.3 1252.1,227.5 1246.2,227.5' fill='#6E7074' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='1325.8' y='286.4' width='28.3' height='47.2' fill='#6A6D74' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='1328.2' y='298.2' width='23.6' height='23.6' fill='#B9855F' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1351.8,329.5 1436.8,329.5 1436.8,323.6 1351.8,323.6' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1424.4,326.4 1423.2,308.7 1419.7,308.9 1420.8,326.6' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1422.8,308.3 1415.8,290.6 1412.9,291.7 1420.0,309.4' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1413.8,290.8 1391.4,326.2 1392.5,326.9 1414.9,291.5' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1420.8,326.4 1419.7,344.1 1423.2,344.3 1424.4,326.6' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1420.0,343.7 1412.9,361.4 1415.8,362.5 1422.8,344.8' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1414.9,361.6 1392.5,326.2 1391.4,326.9 1413.8,362.3' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1391.9,327.5 1446.2,327.5 1446.2,325.6 1391.9,325.6' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='1446.2,327.9 1452.1,327.9 1452.1,325.1 1446.2,325.1' fill='#6E7074' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<text x='1140' y='412' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>side</text>
+<text x='1355' y='412' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>from above (prod swept back)</text>
+<rect x='10' y='435' width='490' height='330' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='20' y='453' fill='#E8E8EE' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>4 · Warrior on his horse — bow in hand, quiver on his back</text>
+<text x='20' y='469' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the same type mounts the riding horse (703) and draws the bow from the saddle</text>
+<text x='20' y='482' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(BW-8); the hips sit</text>
+<text x='20' y='495' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>on the horse's back, the legs round the barrel. Horse and rider's legs are the</text>
+<text x='20' y='508' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>existing looks.</text>
+<polygon points='181.7,669.0 181.7,747.4 195.1,747.4 195.1,669.0' fill='#5E3418' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='288.1,669.0 288.1,747.4 301.5,747.4 301.5,669.0' fill='#5E3418' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='160.4' y='600.7' width='156.8' height='69.4' fill='#8A4E2A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='313.9,626.5 353.1,587.3 337.3,571.5 298.1,610.7' fill='#8A4E2A' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='343.0' y='569.3' width='33.6' height='20.2' fill='#5E3418' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='245.8,603.0 272.7,641.0 285.5,632.0 258.6,593.9' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='271.5,634.8 262.5,675.1 277.8,678.5 286.8,638.2' fill='#4E4A40' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='236.6' y='533.5' width='26.9' height='62.7' fill='#B9855F' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='238.2' y='511.1' width='23.5' height='26.9' fill='#B9855F' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='226.5' y='566.0' width='9.0' height='33.6' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='226.5' y='538.0' width='9.0' height='33.6' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='226.5' y='514.4' width='9.0' height='29.1' fill='#60422A' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='229.3' y='501.0' width='3.4' height='11.2' fill='#BE2824' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='229.3' y='497.6' width='3.4' height='13.4' fill='#E2DAC4' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='229.3' y='502.7' width='3.4' height='10.1' fill='#BE2824' rx='0' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='256.1,546.5 254.2,514.0 241.9,514.8 243.9,547.3' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='242.9,516.7 251.6,535.8 261.8,531.2 253.1,512.1' fill='#52555C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='250.3,553.1 285.0,551.4 284.4,539.1 249.7,540.8' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='286.8,550.5 315.9,538.7 311.7,528.3 282.6,540.1' fill='#6A6D74' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='315.5,527.5 308.4,499.5 305.1,500.3 312.2,528.3' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='308.1,499.3 294.9,468.0 292.2,469.1 305.4,500.4' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='312.2,538.7 305.1,566.7 308.4,567.5 315.5,539.5' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='305.4,566.5 292.2,597.9 294.9,599.0 308.1,567.6' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='293.0,468.2 256.2,533.2 257.3,533.8 294.1,468.8' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='256.2,533.8 293.0,598.8 294.1,598.1 257.3,533.2' fill='#E2DAC4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='316.4,541.3 316.4,525.6 311.3,525.6 311.3,541.3' fill='#2B2A2E' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='256.7,534.2 317.5,534.2 317.5,532.8 256.7,532.8' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='317.5,534.8 323.6,534.8 323.6,532.1 317.5,532.1' fill='#6E7074' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='258.7,535.5 269.9,535.5 269.9,531.5 258.7,531.5' fill='#BE2824' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<text x='250' y='757' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>side — drawn</text>
+<rect x='510' y='435' width='490' height='330' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='520' y='453' fill='#E8E8EE' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>5 · The arrow in flight (MunitionShape.Arrow) — and the bolt</text>
+<text x='520' y='469' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>a slim shaft, a metal point, THREE vanes round the tail; the nose along the</text>
+<text x='520' y='482' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>velocity, so it pitches over its arc.</text>
+<text x='520' y='495' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>A bolt is the same shape, shorter (0.40 m) and thicker (Ø 10 mm), its vanes</text>
+<text x='520' y='508' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>shorter and dark. Arrow 0.75 m × Ø 8 mm.</text>
+<polygon points='589.3,575.4 740.0,520.4 739.4,518.7 588.7,573.7' fill='#8B6036' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='740.4,521.5 751.7,517.3 750.3,513.5 739.0,517.7' fill='#6E7074' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='621.0,561.6 588.6,573.5 589.4,575.7 621.8,563.9' fill='#DED6C4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='620.8,561.7 590.2,578.3 591.3,580.4 622.0,563.8' fill='#DED6C4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='621.1,561.6 587.0,568.6 587.5,571.0 621.6,563.9' fill='#DED6C4' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<text x='670' y='581' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>arrow — 0.75 m</text>
+<polygon points='625.1,634.7 708.0,655.9 708.6,653.7 625.7,632.5' fill='#5A4A3A' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='707.7,657.2 713.9,658.8 715.2,653.9 709.0,652.3' fill='#6E7074' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='638.3,635.4 625.8,632.2 625.1,635.1 637.5,638.3' fill='#3C322C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='637.6,635.3 623.5,638.3 624.2,641.3 638.2,638.3' fill='#3C322C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='638.9,635.7 628.0,626.3 626.0,628.6 636.9,637.9' fill='#3C322C' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<text x='670' y='681' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>crossbow bolt — 0.40 m</text>
+<rect x='854' y='549' width='112' height='112' fill='#1E1E26' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<line x1='910' y1='605' x2='910.0' y2='565.0' stroke='#DED6C4' stroke-width='5'/>
+<line x1='910' y1='605' x2='875.3589838486224' y2='625.0' stroke='#DED6C4' stroke-width='5'/>
+<line x1='910' y1='605' x2='944.6410161513776' y2='625.0' stroke='#DED6C4' stroke-width='5'/>
+<circle cx='910' cy='605' r='4.5' fill='#8B6036' stroke='#14141A' stroke-width='0.6'/>
+<text x='910' y='679' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>end-on: three vanes at 120°</text>
+<text x='755' y='735' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>flight →   the point leads; no tumble (unlike the thrown axe)</text>
+<rect x='1010' y='435' width='480' height='330' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='1020' y='453' fill='#E8E8EE' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>6 · Arrows stuck in a wall and in the ground</text>
+<text x='1020' y='469' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>lying + Sticks (BW-4): drawn along the round's replicated rotation at its</text>
+<text x='1020' y='482' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>replicated place — NOT flat;</text>
+<text x='1020' y='495' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>its point already a third of its length inside the surface (backend sets the</text>
+<text x='1020' y='508' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>position), the shaft sticking out.</text>
+<rect x='1050' y='535' width='95' height='190' fill='#7A7C80' rx='0' stroke='#14141A' stroke-width='1' opacity='1'/>
+<text x='1097' y='625' fill='#D0D0D8' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>wall</text>
+<rect x='1020' y='725' width='460' height='24' fill='#4A6A38' rx='0' stroke='#14141A' stroke-width='1' opacity='1'/>
+<text x='1250' y='742' fill='#D0D0D8' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>ground</text>
+<line x1='1218.4' y1='579.4' x2='1108.3' y2='602.8' stroke='#8B6036' stroke-width='3' />
+<line x1='1203.7' y1='582.5' x2='1216.9' y2='572.6' stroke='#DED6C4' stroke-width='2.4'/>
+<line x1='1203.7' y1='582.5' x2='1219.8' y2='586.3' stroke='#DED6C4' stroke-width='2.4'/>
+<line x1='1145.0' y1='595.0' x2='1108.3' y2='602.8' stroke='#6E7074' stroke-width='2' stroke-dasharray='2 2' opacity='0.8'/>
+<text x='1218.3610700550355' y='571.406623188668' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>wall, 12° down</text>
+<line x1='1219.3' y1='675.4' x2='1107.9' y2='659.8' stroke='#5A4A3A' stroke-width='3' />
+<line x1='1204.4' y1='673.4' x2='1220.2' y2='668.5' stroke='#DED6C4' stroke-width='2.4'/>
+<line x1='1204.4' y1='673.4' x2='1218.3' y2='682.4' stroke='#DED6C4' stroke-width='2.4'/>
+<line x1='1145.0' y1='665.0' x2='1107.9' y2='659.8' stroke='#6E7074' stroke-width='2' stroke-dasharray='2 2' opacity='0.8'/>
+<text x='1219.2701051556178' y='667.4379825720049' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>wall, 8° up</text>
+<line x1='1245.0' y1='691.5' x2='1342.5' y2='747.8' stroke='#8B6036' stroke-width='3' />
+<line x1='1258.0' y1='699.0' x2='1241.5' y2='697.6' stroke='#DED6C4' stroke-width='2.4'/>
+<line x1='1258.0' y1='699.0' x2='1248.5' y2='685.4' stroke='#DED6C4' stroke-width='2.4'/>
+<line x1='1310.0' y1='729.0' x2='1342.5' y2='747.8' stroke='#6E7074' stroke-width='2' stroke-dasharray='2 2' opacity='0.8'/>
+<text x='1245.048094716167' y='683.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>ground, 30°</text>
+<line x1='1357.0' y1='667.6' x2='1421.5' y2='759.7' stroke='#8B6036' stroke-width='3' />
+<line x1='1365.6' y1='679.9' x2='1351.2' y2='671.6' stroke='#DED6C4' stroke-width='2.4'/>
+<line x1='1365.6' y1='679.9' x2='1362.7' y2='663.5' stroke='#DED6C4' stroke-width='2.4'/>
+<line x1='1400.0' y1='729.0' x2='1421.5' y2='759.7' stroke='#6E7074' stroke-width='2' stroke-dasharray='2 2' opacity='0.8'/>
+<text x='1356.9817672736715' y='659.5635966783257' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>ground, steep</text>
+<text x='1250' y='757' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>dashed = the part inside the surface (a third); drawn in 3-D by the surface hiding it</text>
+<rect x='10' y='775' width='490' height='150' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='20' y='793' fill='#E8E8EE' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>7 · The thrown tomahawk — the existing axe look (CE-1190)</text>
+<text x='20' y='809' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>his hatchet munition (TkbThrowingHatchet) is already MunitionShape.Axe: a haft</text>
+<text x='20' y='822' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>with a head block and a blade, tumbling end over end</text>
+<text x='20' y='835' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>in flight, flat on the ground when it lies (rails: CE1190_ThrownBlades_…).</text>
+<text x='20' y='848' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Nothing to build.</text>
+<polygon points='221.0,877.5 280.5,877.5 280.5,872.5 221.0,872.5' fill='#7A6A50' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='275.4,880.1 289.0,880.1 289.0,869.9 275.4,869.9' fill='#6E7074' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<polygon points='286.0,888.6 286.0,861.4 281.8,861.4 281.8,888.6' fill='#6E7074' stroke='#14141A' stroke-width='0.5' opacity='1'/>
+<rect x='510' y='775' width='980' height='150' fill='#0F0F0F' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<text x='520' y='793' fill='#E8E8EE' font-size='13' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>8 · Where each look lives, and how it is chosen</text>
+<text x='520' y='809' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>• HeldLook.Bow / Crossbow — WeaponCategory.Bow (14); the mount's round says which (an arrow ⇒ Bow, a bolt ⇒ Crossbow); BlockFigure.BowHeld reshapes the arms and</text>
+<text x='520' y='822' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>appends the stave / string / arrow parts.</text>
+<text x='520' y='835' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>• the quiver / bolt case — torso details of a man who holds a bow / crossbow; they follow every stance (crouch, prone, seated, mounted).</text>
+<text x='520' y='848' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>• the draw pose — when his weapon posture is Aimed; carried (left hand, string toward him) at ease / ready and when prone. A rider's bow is drawn when he fires</text>
+<text x='520' y='861' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(the firing seat).</text>
+<text x='520' y='874' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>• the arrow in flight — ProjectileLayer.SolidsOf, MunitionShape.Arrow (shaft + point + 3 vanes); the stuck arrow — the replicated rotation (StuckNose), not lifted</text>
+<text x='520' y='887' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>onto the ground, not flat.</text>
+<text x='520' y='900' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>• a nocked arrow is drawn 0.66 m long (the figure's draw length), not the flying arrow's 0.75 m — one deviation, named in the design's as-built.</text>
+</svg>

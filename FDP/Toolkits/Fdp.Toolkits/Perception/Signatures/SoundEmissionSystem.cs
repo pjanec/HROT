@@ -22,7 +22,12 @@ namespace Fdp.Toolkit.Perception.Signatures
         /// <summary>How long a shot or a detonation can still be heard (s) — covers a sensor deferred by the solver's budget.</summary>
         public const float SoundLingerSeconds = 0.5f;
 
+        /// <summary>⭐ <c>CE-4635</c> — a flame burst is one continuous roar: it goes into the ring once per this many seconds while the fuel shots go on
+        /// (10 a second), never once per shot.</summary>
+        public const float FlameRoarSeconds = 1f;
+
         // ⭐ CE-3315 — the world restores this system has numbered on from (WorldEpoch.RestoresOf)
+        [Fdp.Core.WorldDerived("the world restores already numbered on from (CE-3315); a watcher of `WorldEpoch.RestoresOf`, like `_epoch`")]
         private int _restoresSeen;
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -80,6 +85,7 @@ namespace Fdp.Toolkit.Perception.Signatures
                     a.CurrentMovingRange = a.MovingAudibleRange;
                 a.ShotTimeLeft       = MathF.Max(0f, a.ShotTimeLeft - deltaTime);
                 a.DetonationTimeLeft = MathF.Max(0f, a.DetonationTimeLeft - deltaTime);
+                a.RoarTimeLeft       = MathF.Max(0f, a.RoarTimeLeft - deltaTime);
             }
 
             if (repo.Bus.IsRegistered<WeaponFireNotification>())
@@ -98,6 +104,12 @@ namespace Fdp.Toolkit.Perception.Signatures
                     var p = repo.GetComponentRO<SimTransform>(shot.Shooter).Position;
                     a.ShotTimeLeft = SoundLingerSeconds;
                     a.ShotX = p.X; a.ShotY = p.Y; a.ShotZ = p.Z;
+                    // ⭐ CE-4635 (ui NOTE flamethrower sound) — a fuel shot is part of one ROAR: heard once a second while the burst lasts
+                    if (Fdp.Toolkit.Combat.CombatTkb.MountOf(repo, shot.Shooter, shot.WeaponIndex) is { Category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower })
+                    {
+                        if (a.RoarTimeLeft > 0f) continue;
+                        a.RoarTimeLeft = FlameRoarSeconds;
+                    }
                     if (a.FiringAudibleRange > 0f)
                         ring.Append(Emission(repo, shot.Shooter, SoundKind.Shot, a.FiringClass, p, a.FiringAudibleRange, ring.Now, TypeOf(repo, shot.Shooter), a.Family));
                 }
@@ -116,6 +128,7 @@ namespace Fdp.Toolkit.Perception.Signatures
 
             HearDoors(repo, ring);
             HearBreaks(repo, ring);   // ⭐ CE-4600 (B-3b, V-17) — a vehicle breaking a barrier is heard
+            HearGlass(repo, ring);    // ⭐ CE-5033 (glass windows D-8) — a pane shattering is heard
 
             // ⭐ CE-3315/CE-3316 — the world's count of this timeline's sounds and the newest of them, kept beside the ring (a checkpoint
             //   carries them; the ring it cannot)
@@ -131,6 +144,7 @@ namespace Fdp.Toolkit.Perception.Signatures
         // ⭐ AQ104 E ③ (Sensing §8.8) — a door whose replicated state changed since this node last heard it made a sound at its doorway:
         //   a short Movement sound (a man's doing — class Footsteps, High band), carried by DoorSounds.Carry, of the side of the man who
         //   stands at it. The first sight of a door only records its state (a load, a late join: no bang).
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each door pass and filled from this frame's world (AQ104 E ③)")]
         private readonly System.Collections.Generic.List<(Entity Door, Fdp.Toolkit.Terrain.TerrainDoorState State)> _doorsSeen = new();   // this frame's scratch
 
         private void HearDoors(EntityRepository repo, SoundEmissionRing ring)
@@ -181,6 +195,24 @@ namespace Fdp.Toolkit.Perception.Signatures
                 byte cls = Fdp.Toolkit.Motion.Locomotions.Of(repo, b.Vehicle) == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Tracked
                     ? (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.TrackedEngine : (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.WheeledEngine;
                 ring.Append(Emission(repo, b.Vehicle, SoundKind.Movement, cls, new System.Numerics.Vector3(b.X, b.Y, b.Z), BreakAudibleMetres, ring.Now, TypeOf(repo, b.Vehicle), 0));
+            }
+        }
+
+        /// <summary>⭐ CE-5033 (glass windows D-8) — how far a pane shattering is heard (m): a crash of glass.</summary>
+        public const float GlassAudibleMetres = 150f;
+
+        /// <summary>⭐ CE-5033 (D-8) — a pane SHATTERED (<see cref="Fdp.Toolkit.Terrain.WindowBrokenEvent"/>, on the deciding node) is a sound at the window, heard by AI ears like any
+        /// other: a Movement sound of no known source class, carried <see cref="GlassAudibleMetres"/>.</summary>
+        private static void HearGlass(EntityRepository repo, SoundEmissionRing ring)
+        {
+            if (!repo.Bus.IsRegistered<Fdp.Toolkit.Terrain.WindowBrokenEvent>()) return;
+            foreach (ref readonly var g in repo.ReadEvents<Fdp.Toolkit.Terrain.WindowBrokenEvent>())
+            {
+                var at = new System.Numerics.Vector3(g.X, g.Y, g.Z);
+                const byte cls = (byte)Fdp.Toolkit.Tkb.Domain.SoundSourceClass.Unknown;
+                ring.Append(repo.IsAlive(g.Source)
+                    ? Emission(repo, g.Source, SoundKind.Movement, cls, at, GlassAudibleMetres, ring.Now, 0L, 0)
+                    : new SoundEmission { Kind = (byte)SoundKind.Movement, Class = cls, At = at, Carry = GlassAudibleMetres, Time = (SimInstant)ring.Now });   // no known source: no force
             }
         }
 

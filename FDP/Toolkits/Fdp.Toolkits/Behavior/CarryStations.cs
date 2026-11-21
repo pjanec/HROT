@@ -119,6 +119,7 @@ namespace Fdp.Toolkit.Behavior
     public sealed class CarryStationSystem : IEcsModuleSystem
     {
         /// <summary>Moves applied on this node (rails read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Moved { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

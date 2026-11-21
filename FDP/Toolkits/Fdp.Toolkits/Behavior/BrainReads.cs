@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Behavior.Components.PausedTask>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.Roe>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Replication.Components.NetworkAuthority>();   // ⭐ CE-3470 — WeaponDeployment.Owns: does this node own the gunner's weapon? (OwnershipApplier writes it, outside the phase)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Squad.SquadLeadership>();   // a member's brain asks who leads his squad
             ParallelReadCheck.DeclareUnmanaged<Fdp.Core.CommandHierarchy.UnitRoster>();          // the squad assignment (StandardInputs.IsAssignedTarget)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Squad.SquadCognitiveState>();          // — and its squad's assigned targets
@@ -36,6 +37,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.StaticObstacle>();             // CE-7012 — the dozer's blocker (nobody writes it in the phase)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.ObstacleShape>();               // — and its box (its nearest face)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Animals.HerdState>();               // ⭐ CE-4623 AB-4 — an animal's herd (the HerdSystem writes it serially, before the phase)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Creatures.Group>();                 // ⭐ CE-4628 — the herd's header (count, centre, lead): the HerdSystem writes it serially, before the phase, with the HerdState
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Animals.AnimalState>();             // ⭐ CE-4623 AB-5 — "is that animal attacking?" (ThreatDanger.IsNeutral), and a guard dog's own; tick-start copy
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.CombatProficiency>(); // CE-2278 — a squad leader asks whether a man is Regular+ (nobody writes it in the phase)
             // ⭐ CE-7035 (X-1) — measured by the drills under HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1 (78 of 244 red): a squad play reads its MEMBERS.
@@ -61,6 +63,16 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Perception.Radar.RadarSignature>();    // ⭐ CE-4617 — the radar SAM's salvo reads a target's cross-section (AmmoChoice.InDomain's lock floor); stamped at spawn, written by nothing in the phase
             ParallelReadCheck.DeclareManaged<Fdp.Toolkit.Terrain.TerrainObjectKey>();                 // RoomDrill.OrderFor — a door / room key
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.DoorState>();                      // RoomDrill.OrderFor — the door's state
+            // ⭐ CE-3490 — the rest of what the world query's door table carries (DoorStates.Of → BuildingDamageTable, CraterTable, FelledTrees,
+            //   PlaceKnowledgeTable, WindowTable): any brain that asks the ground height or a line of sight (WorldQuery.Of) reads them. Each is written
+            //   only by its own system (BuildingDamageSystem, GroundDamageSystem, PlaceKnowledgeSystem), the weapon phase or network ingress — never in
+            //   the brain phase ⇒ tick-start reads. 📐 dr-dragon-village under HROT_READ_CHECK THREW in the air attack's missile defence (latent for any
+            //   brain near a scenario-placed building)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.BuildingDamage>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.WindowDamage>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.GroundDamage>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.TreeDamage>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Terrain.MinefieldKnowledge>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(); // an HSM condition on a member's capabilities
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.CombatTemperament>();  // TemperamentOf.Has — a member's temperament
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Motion.Descent>();                         // SquadFastRopePlay — a member on the rope
@@ -69,7 +81,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.CarrierSeats>();       // an HSM action on the carrier's seats (embark / dismount)
             // ⭐ CE-3450 (D-5) — measured by the read-check survey on showcases/city-battle and by reading the readers:
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Physics.Components.PhysicsCollider>();     // Embarkation.HullRadius — the vehicle's hull (nobody writes it in the phase)
-            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Gesture>();                         // ThreatDanger.ShowsHandsUp — another man's gesture: written in the
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Creatures.Demeanour>();                         // ThreatDanger.ShowsHandsUp — another man's gesture: written in the
                                                                                                        //   phase by CivilianBehavior (own) and AimAndFireExecutor's warning
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Components.Stress>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Perception.Components.SensorMount>();   // ⭐ CE-4591 (terrain lane, cross-lane) — ThreatDanger → EqsTerrainSight.Mount: a contact's eye point (nobody writes it in the phase); found red by wreck-blocks-street under HROT_READ_CHECK=1             // ⭐ CE-7015 — a platoon asks whether its men are broken (CombatEffective.IsStanding; the stress job writes it in its own phase)

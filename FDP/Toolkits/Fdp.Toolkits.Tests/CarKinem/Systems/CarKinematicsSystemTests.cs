@@ -2111,6 +2111,51 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-2450</c> (behaviors' note: a man inside a house held still on a short planned path) — a walker whose step avoidance bends INTO a
+        /// building's wall takes his PATH's step instead (the CE-6014 rule for a hull, now for a person): he walks on along his path, never through the
+        /// wall. 📌 Live (<c>pc-defend-house</c>): a rifleman 0.38 m from his path, beside a wall, was refused every step for minutes — speed 0 with
+        /// acceleration asked, turning on the spot — while his neighbour walked 14 m. 🔴 Red-proof: without the path-step retry he stands at the wall.
+        /// </summary>
+        [Fact]
+        public void CE2450_AWalkerAvoidanceBendsIntoAWall_TakesHisPathsStep_AndWalksOn()
+        {
+            var (openEast, _) = WalkPastAFileOfMen(house: false);
+            var (houseEast, north) = WalkPastAFileOfMen(house: true);
+            Assert.True(openEast > 1.5f, $"without the house the men only slow him ({openEast:F2} m in 10 s) — else this proves nothing");
+            Assert.True(north < 0.5f, $"pushed {north:F2} m north, through the wall at 0.5 m");
+            Assert.True(houseEast > 0.6f * openEast, $"he stood at the wall: {houseEast:F2} m along his path in 10 s (in the open: {openEast:F2} m)");
+        }
+
+        /// <summary>CE-2450's walk: 10 s on his path east along a file of men 0.45 m to his south; the house's south wall (when present) 0.5 m to his north.</summary>
+        private (float East, float North) WalkPastAFileOfMen(bool house)
+        {
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 1.5f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(VehicleClass.Pedestrian));
+            if (house)
+            {
+                const string walls = "\"walls\":[{\"from\":[0,0],\"to\":[30,0]},{\"from\":[30,0],\"to\":[30,10]},{\"from\":[30,10],\"to\":[0,10]},{\"from\":[0,10],\"to\":[0,0]}]";
+                repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+                repo.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(
+                    "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                    "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"label\":\"H\",\"building\":{\"footprint\":[[0,0],[30,0],[30,10],[0,10]]," +
+                    "\"storeys\":[{\"height\":3," + walls + "}]}},\"geometry\":{\"type\":\"Point\",\"coordinates\":[-5,0.5]}}]}"));
+            }
+            for (float x = 1f; x <= 25f; x += 0.6f) Stander(repo, new Vector3(x, -0.45f, 0f));
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float north = float.MinValue;
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                north = MathF.Max(north, repo.GetComponent<SimTransform>(e).Position.Y);
+            }
+            float east = repo.GetComponent<SimTransform>(e).Position.X;
+            pool.Dispose();
+            repo.Dispose();
+            return (east, north);
+        }
+
         /// <summary>⭐ AQ104 I (R-2079; behaviors' handoff item 1) — a person ARRIVES only on the destination's level. 📐 Peek and Fire
         /// §12.7: the attacker stood on the ground floor under the window man (z 3) and was "arrived" for 160 s — arrival was 2-D. ⭐ The
         /// same point on his own floor still arrives (the control); on a path and driven direct.</summary>
@@ -2653,11 +2698,11 @@ namespace CarKinem.Tests.Systems
             bool May() => CarKem_MayBreak(repo, e);
 
             Assert.False(May());                                                              // Manual, ManualDrive kept, nobody holds it (released)
-            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
             Assert.True(May());                                                               // a player drives it
-            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, Epoch = 2 });
+            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, Epoch = 2 });
             Assert.False(May());                                                              // a rider: not the hull's controls
-            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 3 });
+            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 3 });
             var nav = repo.GetComponent<NavState>(e); nav.Mode = KinematicsMode.Direct; repo.SetComponent(e, nav);
             Assert.False(May());                                                              // an autonomous move (the AI corner)
             nav.Mode = KinematicsMode.Manual; repo.SetComponent(e, nav);
@@ -2771,7 +2816,7 @@ namespace CarKinem.Tests.Systems
             CarKinem.Controllers.ContactBreach.Reset();
             var (repo, e) = ManualWorld(cls, new Fdp.Toolkit.Navigation.ManualDrive { Forward = throttle });
             repo.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
             repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)9001 });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
@@ -2963,6 +3008,40 @@ namespace CarKinem.Tests.Systems
             repo.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3452</c> (P1, the bug queue; 📌 live <c>ua-moto-parked-bomb</c>) — a vehicle whose path STARTS with a short join segment pointing away from
+        /// its heading (here 2 m back and south onto the lane, then 80 m east along it) drives on along the lane and its progress follows it: it never turns
+        /// back to the path's start, and the no-progress watchdog has nothing to see. 🔴 Red-proof: drop the <c>PathProgress.OnPathAhead</c> line ⇒ progress
+        /// stays ~0 while it drives east, and it loops back west.
+        /// </summary>
+        [Theory]
+        [InlineData(VehicleClass.Truck)]
+        [InlineData(VehicleClass.PersonalCar)]
+        public void CE3452_APathStartingAtAnAngle_IsFollowedAlongTheLane_NeverBackToItsStart(VehicleClass cls)
+        {
+            var (repo, e, pool) = TrajectoryWorld(10f, startSpeed: 0f, vehicle: VehiclePresets.GetPreset(cls));
+            pool.RegisterTrajectoryWithKey(new[] { new Vector3(0f, 0f, 0f), new Vector3(-1.5f, -1f, 0f), new Vector3(0f, -1.5f, 0f), new Vector3(80f, -1.5f, 0f) }, 13);
+            var nav = repo.GetComponent<NavState>(e);
+            nav.TrajectoryId = 13; nav.FinalDestination = new Vector3(80f, -1.5f, 0f); nav.ArrivalRadius = 3f;
+            repo.SetComponent(e, nav);
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(pool);
+            float farthest = 0f, turnedBack = 0f;
+            for (int i = 0; i < 12 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                float x = repo.GetComponent<SimTransform>(e).Position.X;
+                farthest = MathF.Max(farthest, x);
+                turnedBack = MathF.Max(turnedBack, farthest - x);
+            }
+            var end = repo.GetComponent<NavState>(e);
+            Assert.True(turnedBack < 3f, $"{cls}: it turned back {turnedBack:F1} m toward the path's start");
+            Assert.True(end.ProgressS > 50f && farthest > 50f, $"{cls}: progress {end.ProgressS:F1} at x {farthest:F1}");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
         /// <summary>A cow (Quadruped) at (0, 0) facing +X, driven forward (a running animal), its <see cref="Fdp.Toolkit.Animals.AnimalState"/> in
         /// <paramref name="mode"/> at <paramref name="band"/>, its species breaking fences when <paramref name="breaks"/>.</summary>
         private static (EntityRepository Repo, Entity E) RunningAnimal(bool breaks, Fdp.Toolkit.Animals.AnimalMode mode, byte band, string geojsonFeatures, bool jumps = false)
@@ -2970,7 +3049,9 @@ namespace CarKinem.Tests.Systems
             CarKinem.Controllers.ContactBreach.Reset();
             var (repo, e) = ManualWorld(VehicleClass.Quadruped, new Fdp.Toolkit.Navigation.ManualDrive { Forward = 1f });
             repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
-            repo.AddComponent(e, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Cattle, Mode = mode, FearBand = band });
+            repo.AddComponent(e, new Fdp.Toolkit.Animals.AnimalState { Mode = mode, FearBand = band });   // ⭐ CE-4628 — the species is the TKB type's; the band stays (§10b)
+            repo.RegisterComponent<Fdp.Toolkit.Creatures.Fear>();
+            repo.AddComponent(e, new Fdp.Toolkit.Creatures.Fear { Value = band >= 3 ? 0.9f : 0f });
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
             repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)700 });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
@@ -3013,7 +3094,7 @@ namespace CarKinem.Tests.Systems
                 Assert.True(nose > 15f + 3f, $"it ran on through: nose x={nose:F2}");
                 Assert.Contains(cues, c => c.Kind == (byte)Fdp.Toolkit.Terrain.ContactBreachKind.Broke);
             }
-            else Assert.True(nose < 15f + 1.5f, $"held at the barrier (an animal has no hull size: its centre stops at it): nose x={nose:F2}");
+            else Assert.True(nose <= 15f - thickness * 0.5f + 0.05f, $"held with its whole body short of the barrier (CE-1958): nose x={nose:F2}");
             repo.Dispose();
         }
 
@@ -3033,7 +3114,7 @@ namespace CarKinem.Tests.Systems
             var (nose, breaches, _) = DriveInto(repo, e, 8f);
             Assert.Empty(breaches);   // it cleared the fence, it did not break it
             if (clears) Assert.True(nose > 15f + 3f, $"it cleared the fence: nose x={nose:F2}");
-            else Assert.True(nose < 15f + 1.5f, $"held at the barrier: nose x={nose:F2}");
+            else Assert.True(nose <= 15f - thickness * 0.5f + 0.05f, $"held with its whole body short of the barrier (CE-1958): nose x={nose:F2}");
             repo.Dispose();
         }
 
@@ -3050,8 +3131,7 @@ namespace CarKinem.Tests.Systems
         {
             var (repo, e) = RunningAnimal(true, mode, band, FenceAtX15("fence-wood", 0.05f, 1.2f));
             repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(0f, 40f, 0f), TargetSpeed = 3f, ArrivalRadius = 3f });
-            repo.RegisterComponent<Fdp.Toolkit.Animals.Fear>();
-            repo.AddComponent(e, new Fdp.Toolkit.Animals.Fear { Value = band >= 3 ? 0.9f : 0f, FrightFrom = new Vector3(-20f, 0f, 0f), HasFrightFrom = 1 });
+            repo.GetComponentRW<Fdp.Toolkit.Creatures.Fear>(e) = new Fdp.Toolkit.Creatures.Fear { Value = band >= 3 ? 0.9f : 0f, FrightFrom = new Vector3(-20f, 0f, 0f), HasFrightFrom = 1 };
             var (nose, breaches, _) = DriveInto(repo, e, 8f);
             var at = repo.GetComponent<SimTransform>(e).Position;
             if (stampedes)
@@ -3064,6 +3144,106 @@ namespace CarKinem.Tests.Systems
                 Assert.Empty(breaches);
                 Assert.True(nose < 5f && at.Y > 20f, $"it followed its path north: at ({at.X:F1}, {at.Y:F1})");
             }
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-1958</c> (the user, from the editor: "pigs stuck in the fence — half the body each side, never gets out") — an AI animal standing nose to a
+        /// brick pen wall with its way on BEHIND it turns on the spot and walks there, and at no frame does any corner of its body cross the wall's face.
+        /// 🔴 Red-proofs: no turn on the spot (CarKinematicsSystem's held branch) ⇒ held facing the wall for good, never arrives; the centre-only trace
+        /// (HasHull for the corners) ⇒ walked at the wall it stands 1.1 m through.
+        /// </summary>
+        [Fact]
+        public void CE1958_AnAnimalNoseToAWall_TurnsOnTheSpot_AndWalksAway_NeverPartlyThroughIt()
+        {
+            var (repo, e) = RunningAnimal(false, Fdp.Toolkit.Animals.AnimalMode.Calm, 0, FenceAtX15("brick", 0.25f, 1.0f));
+            repo.RemoveComponent<Fdp.Toolkit.Navigation.ManualDrive>(e);
+            var p = repo.GetComponent<VehicleParams>(e);
+            float face = 15f - 0.125f;
+            var tf = repo.GetComponent<SimTransform>(e);
+            tf.Position = new Vector3(face - p.Length * 0.5f - 0.05f, 0f, 0f);   // its nose 5 cm off the wall, facing it
+            repo.SetComponent(e, tf);
+            // first it is sent THROUGH the wall: it walks up to it and stops with its whole body short of the face
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(30f, 0f, 0f), TargetSpeed = 1.5f, ArrivalRadius = 1f });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            float deepest = float.MinValue;
+            void Frame()
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                repo.Bus.SwapBuffers();
+                var t = repo.GetComponent<SimTransform>(e);
+                var f3 = Vector3.Transform(Vector3.UnitX, t.Rotation);
+                var f = Vector2.Normalize(new Vector2(f3.X, f3.Y));
+                foreach (var (a, b) in new[] { (1f, 1f), (1f, -1f), (-1f, 1f), (-1f, -1f) })
+                    deepest = MathF.Max(deepest, CarKinem.Controllers.HullClearance.Corner(new Vector2(t.Position.X, t.Position.Y), f, a * p.Length * 0.5f, b * p.Width * 0.5f).X);
+            }
+            for (int i = 0; i < 3 * 60; i++) Frame();
+            Assert.True(deepest <= face + 0.02f, $"a corner reached x={deepest:F2} (the wall's face at {face:F3})");
+            // then its way on is BEHIND it: it turns on the spot and walks there
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(0f, 0f, 0f), TargetSpeed = 1.5f, ArrivalRadius = 1f });
+            for (int i = 0; i < 20 * 60; i++) Frame();
+            var at = repo.GetComponent<SimTransform>(e).Position;
+            Assert.True(Vector2.Distance(new Vector2(at.X, at.Y), Vector2.Zero) < 3f, $"it turned and walked away: at ({at.X:F1}, {at.Y:F1})");
+            Assert.True(deepest <= face + 0.02f, $"a corner reached x={deepest:F2} while it turned (the wall's face at {face:F3})");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3471</c> (a pig walked through its pen's brick wall, farm-under-fire) — a point that starts EXACTLY ON a wall's face, or inside it, may move
+        /// out but never deeper: on farm-under-fire's 0.25 m brick wall (y = 10 here, its face 9.875), a step north from the face is held, a step from just inside
+        /// back south is free, a step along the face is free. 📐 The cause: a mover held at a wall restarts from rest, its steps shrink, and a float32 coordinate
+        /// lands EXACTLY on the face; the guard then read the T = 0 crossing as "already inside" and let it through. 🔴 Red-proof: <c>Deepens</c> returning false ⇒
+        /// the step north from the face passes ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3471_APointOnAWallsFace_MayLeaveIt_NeverGoDeeper()
+        {
+            var q = new Fdp.Toolkit.Terrain.TerrainWorldQuery(GardenWall(1.0f, thickness: 0.25f));
+            const float face = 9.875f;
+            bool Blocked(Vector2 from, Vector2 to) => CarKinem.Controllers.HullClearance.StepBarrier(q, from, Vector2.UnitY, 0f, to, Vector2.UnitY, 0f, 0f, 0f, out _);
+            Assert.True(Blocked(new Vector2(30f, face), new Vector2(30f, face + 0.0035f)), "a step north from ON the face went into the wall");
+            Assert.True(Blocked(new Vector2(30f, face), new Vector2(30.003f, face + 0.0018f)), "an oblique step from ON the face went into the wall");
+            Assert.True(Blocked(new Vector2(30f, 9.95f), new Vector2(30f, 10.05f)), "a point inside walked on toward the far side");
+            Assert.False(Blocked(new Vector2(30f, 9.9f), new Vector2(30f, 9.8f)), "a point just inside could not step back out");
+            Assert.False(Blocked(new Vector2(30f, face - 0.001f), new Vector2(31f, face - 0.001f)), "a step along the face was held");
+            Assert.True(Blocked(new Vector2(30f, face - 0.005f), new Vector2(30f, face + 0.0035f)), "a step from 5 mm short into the wall passed");   // the old rule still holds
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3471</c> — the same in the kinematics, the long way: an AI pig sent THROUGH a 0.25 m brick wall pushes at it for 60 s (held, restarting from rest
+        /// every frame, as farm-under-fire's pig did) and at no frame does its centre or any corner of its body pass the wall's face. ⚠ A GUARD, not a
+        /// reproduction: measured green with the CE-3471 fix off too (this approach never lands a point exactly on the face) — the face rail above is the red-proof.
+        /// </summary>
+        [Fact]
+        public void CE3471_APigPushingAtABrickWallForAMinute_NeverPassesItsFace()
+        {
+            var (repo, e) = RunningAnimal(false, Fdp.Toolkit.Animals.AnimalMode.Calm, 0, FenceAtX15("brick", 0.25f, 1.0f));
+            repo.RemoveComponent<Fdp.Toolkit.Navigation.ManualDrive>(e);
+            var p = repo.GetComponent<VehicleParams>(e);
+            float face = 15f - 0.125f;
+            var tf = repo.GetComponent<SimTransform>(e);
+            tf.Position = new Vector3(face - p.Length * 0.5f - 0.3f, 3f, 0f);
+            tf.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.5f);   // oblique, as the pig's path met its wall
+            repo.SetComponent(e, tf);
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.Direct, FinalDestination = new Vector3(40f, 20f, 0f), TargetSpeed = 0.6f, ArrivalRadius = 1f });
+            var spatial = new SpatialHashSystem();
+            var kin = new CarKinematicsSystem(new TrajectoryPoolManager());
+            float deepest = float.MinValue;
+            for (int i = 0; i < 60 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                repo.Bus.SwapBuffers();
+                var t = repo.GetComponent<SimTransform>(e);
+                var f3 = Vector3.Transform(Vector3.UnitX, t.Rotation);
+                var f = Vector2.Normalize(new Vector2(f3.X, f3.Y));
+                deepest = MathF.Max(deepest, t.Position.X);
+                foreach (var (a, b) in new[] { (1f, 1f), (1f, -1f), (-1f, 1f), (-1f, -1f) })
+                    deepest = MathF.Max(deepest, CarKinem.Controllers.HullClearance.Corner(new Vector2(t.Position.X, t.Position.Y), f, a * p.Length * 0.5f, b * p.Width * 0.5f).X);
+            }
+            Assert.True(deepest <= face + 0.02f, $"a point of the pig reached x={deepest:F3} (the wall's face at {face:F3})");
             repo.Dispose();
         }
 
@@ -3210,23 +3390,120 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
-        /// ⭐ <c>CE-4594</c> item 3 (B-3, MEASURED) — which obstacle materials a hull breaks, for each of the seven obstacle types (strength = the material's resistance × the box's short side × its height, against the hull row's limit): a TANK (60 t, limit 2000) breaks ALL SEVEN
-        /// (concrete block 1500, jersey barrier 720, barrel 540, guard booth 374, car 324, crate 60, sandbag wall 60); an IFV (25 t, limit 150) breaks ONLY the sandbag wall and the crate (60 each) — a concrete block, a jersey barrier, a barrel, a booth and a car are TooStrong for it.
+        /// ⭐ <c>CE-4594</c> item 3 (B-3, MEASURED) — which obstacle materials a hull breaks, for each of the obstacle types (strength = the material's resistance × the box's short side × its height, against the hull row's limit): a TANK (60 t, limit 2000) breaks ALL
+        /// (concrete block 1500, jersey barrier 720, guard booth 374, car 324, crate 60, sandbag wall 60, the barrels); an IFV (25 t, limit 150) breaks the sandbag wall, the crate and EVERY BARREL — a concrete block, a jersey barrier, a booth and a car are TooStrong for it.
+        /// ⭐ CE-3473 (user 2026-11-18) — a barrel's FILL: the empty drum 2.7 (was a solid steel box, 540), water-filled 65, sand-filled 86.
         /// 🔴 Red-proof: the tank row's limit lowered to 1000 ⇒ the concrete block holds ⇒ red.
         /// </summary>
         [Theory]
         [InlineData("Car", 60000f, true)] [InlineData("Sandbag wall", 60000f, true)] [InlineData("Concrete block", 60000f, true)] [InlineData("Crate", 60000f, true)]
         [InlineData("Barrel", 60000f, true)] [InlineData("Jersey barrier", 60000f, true)] [InlineData("Guard booth", 60000f, true)]
         [InlineData("Car", 25000f, false)] [InlineData("Sandbag wall", 25000f, true)] [InlineData("Concrete block", 25000f, false)] [InlineData("Crate", 25000f, true)]
-        [InlineData("Barrel", 25000f, false)] [InlineData("Jersey barrier", 25000f, false)] [InlineData("Guard booth", 25000f, false)]
+        [InlineData("Barrel", 25000f, true)] [InlineData("Jersey barrier", 25000f, false)] [InlineData("Guard booth", 25000f, false)]
+        [InlineData("Barrel, water-filled", 60000f, true)] [InlineData("Barrel, sand-filled", 60000f, true)] [InlineData("Barrel, water-filled", 25000f, true)] [InlineData("Barrel, sand-filled", 25000f, true)]
         public void CE4594_WhatAHullBreaks_ByTheMaterialTable_ForEachObstacleType(string type, float massKg, bool breaks)
         {
-            var box = Fdp.Toolkit.Terrain.ClutterTypes.All.Single(t => t.Name == type);
+            var box = ObstacleBox(type);
             var (repo, e) = Possessed(VehicleClass.Tank, massKg, 1f, "");
             var row = ObstacleRow(repo, box, 100f, 15f, -box.Length * 0.5f, 1, 92u);   // one member across the hull's centre line
             var (damage, _) = DriveCollectingDamage(repo, e, 8f);
             Assert.Equal(breaks, damage.Count > 0);
             if (breaks) Assert.Equal(row[0], damage[0].HitEntity);
+            repo.Dispose();
+        }
+
+        /// <summary>The obstacle box of <paramref name="name"/>: the generated clutter's, or a filled barrel (an obstacle type only — CE-3473).</summary>
+        private static Fdp.Toolkit.Terrain.ClutterTypes.Type ObstacleBox(string name)
+            => name == Fdp.Toolkit.Terrain.ClutterTypes.BarrelWater.Name ? Fdp.Toolkit.Terrain.ClutterTypes.BarrelWater
+             : name == Fdp.Toolkit.Terrain.ClutterTypes.BarrelSand.Name ? Fdp.Toolkit.Terrain.ClutterTypes.BarrelSand
+             : Fdp.Toolkit.Terrain.ClutterTypes.All.Single(t => t.Name == name);
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3473</c> (Checkpoint RM-5; user 2026-11-18: <i>"follow your lean; also realistic bullet stopping power (if barrel is full of liquid, it might be a serious/resistive
+        /// obstacle for both the ramming car as well as for bullets"</i>) — a WHEELED CAR (1.5 t) on a RAM ORDER breaks an EMPTY drum by driving into it, and is HELD by a water- or
+        /// sand-filled one; the same car WITHOUT the order breaks nothing (a car takes no breach row — Breaching B-D1). 📌 Found by <c>cp-ram-barrier</c>: no row took a wheeled hull, and
+        /// the drum was a solid steel box (540) — its old pass was the car going round the row. 🔴 Red-proof: drop the <c>ramming-car</c> row ⇒ the empty drum holds the ramming car.
+        /// </summary>
+        [Theory]
+        [InlineData("Barrel", true, true)]
+        [InlineData("Barrel, water-filled", true, false)]
+        [InlineData("Barrel, sand-filled", true, false)]
+        [InlineData("Barrel", false, false)]
+        public void CE3473_ARammingCar_BreaksAnEmptyDrum_IsHeldByAFilledOne(string type, bool ramming, bool breaks)
+        {
+            var (repo, e) = Possessed(VehicleClass.PersonalCar, 1500f, 1f, "");
+            repo.RegisterComponent<CarKinem.Core.RamOrder>();
+            if (ramming) repo.AddComponent(e, new CarKinem.Core.RamOrder { Active = 1 });
+            var box = ObstacleBox(type);
+            var row = ObstacleRow(repo, box, 100f, 15f, -box.Length * 0.5f, 1, 93u);   // one drum across the car's centre line
+            var (damage, nose) = DriveCollectingDamage(repo, e, 8f);
+            Assert.Equal(breaks, damage.Count > 0);
+            if (breaks) { Assert.Equal(row[0], damage[0].HitEntity); Assert.True(nose > 16f, $"through the drum: nose x={nose:F2}"); }
+            else Assert.True(nose < 15f, $"held at the drum: nose x={nose:F2}");
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3452</c> — the progress resync takes a point ahead only on a segment the vehicle TRAVELS along: on a U-turn path (east 6 m, back west 3 m south)
+        /// a vehicle near the return leg but heading NORTH (across it, turning) keeps its progress; heading WEST (along the return leg) it takes the point there.
+        /// 📌 Found by <c>ua-technical-scoot</c>: the jump skipped the technical's turn at its scoot point. 🔴 Red-proof: drop the travel test ⇒ the north case jumps.
+        /// </summary>
+        [Fact]
+        public void CE3452_TheProgressResync_NeverJumpsOntoALegItCrosses()
+        {
+            var wps = new[] { new Vector3(0f, 0f, 0f), new Vector3(6f, 0f, 0f), new Vector3(6f, -3f, 0f), new Vector3(0f, -3f, 0f) };
+            var pool = new TrajectoryPoolManager();
+            int id = pool.RegisterTrajectory(wps, new[] { 5f, 5f, 5f, 5f });
+            Assert.True(pool.TryGetTrajectory(id, out var traj));
+            var near = new Vector2(3f, -2.5f);   // beside the return leg (y = -3), 6 m + 3 m + 3 m = s 12 along it
+            Assert.Equal(1f, CarKinem.Controllers.PathProgress.OnPathAhead(in traj, 1f, near, 15f, new Vector2(0f, 1f)));              // crossing it
+            Assert.Equal(12f, CarKinem.Controllers.PathProgress.OnPathAhead(in traj, 1f, near, 15f, new Vector2(-1f, 0f)), 1);         // along it
+        }
+
+        /// <summary>A calm animal body standing at <paramref name="at"/> (a cow: a Quadruped, in the collider hash, carrying <c>AnimalState</c>).</summary>
+        private static Entity Cow(EntityRepository repo, Vector3 at)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Physics.Components.PhysicsCollider>()) repo.RegisterComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>()) repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
+            var n = repo.CreateEntity();
+            repo.AddComponent(n, new VehicleState());
+            repo.AddComponent(n, new SimTransform { Position = at, Rotation = SimMath.FacingEast });
+            repo.AddComponent(n, new SimVelocity());
+            repo.AddComponent(n, new NavState { Mode = KinematicsMode.None });
+            repo.AddComponent(n, VehiclePresets.GetPreset(VehicleClass.Quadruped));
+            repo.AddComponent(n, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = 0.6f, CollisionLayer = 1 });
+            repo.AddComponent(n, new Fdp.Toolkit.Animals.AnimalState());
+            return n;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3457</c> (P5, the bug queue; Animals AR-17) — a car driving its path at 8 m/s YIELDS to a cow standing in its lane: it slows and stands
+        /// short of it (never touches it), and drives on once the cow has moved off; a cow BESIDE the lane does not slow it. 📌 Before, a vehicle drove at
+        /// full speed into a herd (ua-animal-herd-road: only the herd's own fear cleared the lane). 🔴 Red-proof: drop the yield cap ⇒ the car runs into the cow.
+        /// </summary>
+        [Fact]
+        public void CE3457_ACar_YieldsToACowInItsLane_DrivesOnWhenItHasGone_NeverSlowsForOneBeside()
+        {
+            var car = VehiclePresets.GetPreset(VehicleClass.PersonalCar);
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 8f, startSpeed: 8f, vehicle: car);
+            var cow = Cow(repo, new Vector3(40f, 0f, 0f));
+            var beside = Cow(repo, new Vector3(20f, car.Width * 0.5f + 3f, 0f));   // off the lane: passed at speed
+            var spatial = new SpatialHashSystem(); var kin = new CarKinematicsSystem(pool);
+            float closest = float.MaxValue, speedPastBeside = 0f; string closestInfo = "";
+            for (int i = 0; i < 10 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f);
+                var at = repo.GetComponent<SimTransform>(e).Position;
+                float dNow = Vector2.Distance(new Vector2(at.X, at.Y), new Vector2(40f, 0f));
+                if (dNow < closest) { closest = dNow; closestInfo = $"at ({at.X:F2},{at.Y:F2}) speed {repo.GetComponent<VehicleState>(e).Speed:F2} t {i / 60f:F2}"; }
+                if (MathF.Abs(at.X - 20f) < 0.5f) speedPastBeside = repo.GetComponent<VehicleState>(e).Speed;
+            }
+            Assert.True(speedPastBeside > 6f, $"the cow beside the lane slowed it: {speedPastBeside:F2} m/s");
+            Assert.True(closest > car.Length * 0.5f + 1.5f, $"it came {closest:F2} m from the cow (its half-length {car.Length * 0.5f:F2}) {closestInfo}");
+            Assert.True(MathF.Abs(repo.GetComponent<VehicleState>(e).Speed) < 0.3f, "it stands for the cow");
+            var moved = repo.GetComponent<SimTransform>(cow); moved.Position = new Vector3(40f, 15f, 0f); repo.SetComponent(cow, moved);   // the cow wanders off
+            for (int i = 0; i < 8 * 60; i++) { spatial.Execute(repo, 1f / 60f); kin.Execute(repo, 1f / 60f); }
+            Assert.True(repo.GetComponent<SimTransform>(e).Position.X > 55f, $"it drove on: x={repo.GetComponent<SimTransform>(e).Position.X:F1}");
             repo.Dispose();
         }
 

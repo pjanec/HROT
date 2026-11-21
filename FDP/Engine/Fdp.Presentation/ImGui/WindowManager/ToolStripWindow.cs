@@ -36,7 +36,14 @@ public sealed class ToolStripEntry
         Family[index].OnClick();
     }
 
-    public ToolStripEntry(string id, IconGlyph glyph, string tooltip) { Id = id; MenuId = id + "_menu"; Glyph = glyph; Tooltip = tooltip; }
+    /// <summary>⭐ CE-1965 — the id of a dropdown entry's ▾ bar (built once).</summary>
+    public string BarId { get; }
+    /// <summary>⭐ CE-1965 — the face's and the bar's rectangles on the last drawn frame (screen px; a plain entry: default). For rails.</summary>
+    public (Vector2 Min, Vector2 Max) LastFace { get; internal set; }
+    /// <inheritdoc cref="LastFace"/>
+    public (Vector2 Min, Vector2 Max) LastBar { get; internal set; }
+
+    public ToolStripEntry(string id, IconGlyph glyph, string tooltip) { Id = id; MenuId = id + "_menu"; BarId = id + "_bar"; Glyph = glyph; Tooltip = tooltip; }
 }
 
 /// <summary>
@@ -46,8 +53,26 @@ public sealed class ToolStripEntry
 public abstract class ToolStripWindow : ManagedWindow
 {
     private Vector2[] _positions = new Vector2[16];
+    private float[] _widths = new float[16];
 
-    protected ToolStripWindow(string id, string title, string perspective, WindowScope scope) : base(id, title, perspective, scope) { }
+    protected ToolStripWindow(string id, string title, string perspective, WindowScope scope) : base(id, title, perspective, scope)
+    {
+        SelectEntry = new ToolStripEntry("##ts_select_" + id, new IconGlyph(Fdp.Presentation.Fonts.IconsFontAwesome6.ArrowPointer, new Vector4(0.92f, 0.92f, 0.95f, 1f)),
+                                         "Select — no tool (stop the armed tool)") { OnClick = () => DisarmTool?.Invoke(), IsLit = () => !(AnyToolArmed?.Invoke() ?? false) };
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1977</c> — the way back to plain selection, set by the host: with it, the strip draws a SELECT (arrow) tile at its start — lit while no tool is
+    /// armed, a click disarms — and a click on a LIT tool's icon turns that tool off. 🔒 User, 2026-11-18: "The new arrow icon on the very left of the toolbar
+    /// is a great idea. Clicking the tool icon again to deactivate it is also approved." Null ⇒ neither (a host with no tools).
+    /// </summary>
+    public Action? DisarmTool { get; set; }
+
+    /// <summary>⭐ CE-1977 — is any tool armed now (the Select tile is lit when not)?</summary>
+    public Func<bool>? AnyToolArmed { get; set; }
+
+    /// <summary>⭐ CE-1977 — the Select tile (drawn first when <see cref="DisarmTool"/> is set).</summary>
+    public ToolStripEntry SelectEntry { get; }
 
     /// <summary>The icons, in order. Read every frame — return a stable list.</summary>
     protected abstract IReadOnlyList<ToolStripEntry> Entries { get; }
@@ -58,16 +83,23 @@ public abstract class ToolStripWindow : ManagedWindow
     protected override void DrawClientArea()
     {
         var entries = Entries;
-        if (entries.Count > _positions.Length) _positions = new Vector2[Math.Max(entries.Count, _positions.Length * 2)];
+        int lead = DisarmTool is not null ? 1 : 0;   // ⭐ CE-1977 — the Select tile first
+        int count = entries.Count + lead;
+        if (count > _positions.Length) _positions = new Vector2[Math.Max(count, _positions.Length * 2)];
+        if (count > _widths.Length) _widths = new float[_positions.Length];
         float scale = Gui.GetFontSize() / 14f;   // ⭐ the tile is the mockup's 30 × 26 px at the default font size
         var tile = new Vector2(TileWidth * scale, TileHeight * scale);
         float spacing = Gui.GetStyle().ItemSpacing.X;
-        LastOrientation = ToolStripLayout.Compute(entries.Count, tile, spacing, Gui.GetContentRegionAvail(), _positions, out _);
+        float split = tile.X + Fdp.Presentation.Icons.SplitArrow.BarGap + Fdp.Presentation.Icons.SplitArrow.BarWidthNow;   // ⭐ CE-1965 — a dropdown is face + bar
+        if (lead == 1) _widths[0] = tile.X;
+        for (int i = 0; i < entries.Count; i++) _widths[lead + i] = entries[i].Family is { Count: > 0 } ? split : tile.X;
+        LastOrientation = ToolStripLayout.Compute(count, tile, spacing, Gui.GetContentRegionAvail(), _positions, out _, _widths);
         var origin = Gui.GetCursorPos();
+        if (lead == 1) { Gui.SetCursorPos(origin + _positions[0]); DrawEntry(SelectEntry, tile, scale, null); }
         for (int i = 0; i < entries.Count; i++)
         {
-            Gui.SetCursorPos(origin + _positions[i]);
-            DrawEntry(entries[i], tile, scale);
+            Gui.SetCursorPos(origin + _positions[lead + i]);
+            DrawEntry(entries[i], tile, scale, DisarmTool);
         }
     }
 
@@ -81,10 +113,10 @@ public abstract class ToolStripWindow : ManagedWindow
     private static Vector4 Rgb(int r, int g, int b) => new(r / 255f, g / 255f, b / 255f, 1f);
 
     /// <summary>
-    /// One framed tile like <c>glyph_toggle</c>: the neutral fill and a dim border, the glyph in its own colour at 65 % — LIT is the lighter fill, a 1.4 px light border and the glyph at full strength. A dropdown gets a tiny ▾ in its bottom-right corner.
+    /// One framed tile like <c>glyph_toggle</c>: the neutral fill and a dim border, the glyph in its own colour at 65 % — LIT is the lighter fill, a 1.4 px light border and the glyph at full strength. A dropdown's ▾ is the shared bar beside it (<see cref="Fdp.Presentation.Icons.SplitArrow.Bar"/>, CE-1965).
     /// Returns true on a click. Allocates nothing.
     /// </summary>
-    private static bool Tile(string id, in IconGlyph glyph, bool lit, bool hasMenu, string tooltip, Vector2 size, float scale)
+    private static bool Tile(string id, in IconGlyph glyph, bool lit, string tooltip, Vector2 size, float scale)
     {
         var pos = Gui.GetCursorScreenPos();
         bool clicked = Gui.InvisibleButton(id, size);
@@ -97,24 +129,24 @@ public abstract class ToolStripWindow : ManagedWindow
         float px = GlyphPx * scale;
         float gw = Gui.CalcTextSize(glyph.Glyph).X * (px / Gui.GetFontSize());
         dl.AddText(Gui.GetFont(), px, new Vector2(pos.X + (size.X - gw) * 0.5f, pos.Y + (size.Y - px) * 0.5f), Gui.GetColorU32(c), glyph.Glyph);
-        if (hasMenu)
-        {
-            float m = 3.5f * scale; var br = pos + size - new Vector2(3f * scale, 3f * scale);
-            dl.AddTriangleFilled(br + new Vector2(-2f * m, -m), br + new Vector2(0f, -m), br + new Vector2(-m, 0f), Gui.GetColorU32(new Vector4(0.78f, 0.78f, 0.83f, 0.9f)));
-        }
         IconButtonChrome.DrawHoverFrame(dl, pos, size, hovered);
         if (hovered && tooltip.Length > 0) Gui.SetTooltip(tooltip);
         return clicked;
     }
 
-    private static void DrawEntry(ToolStripEntry e, Vector2 tile, float scale)
+    private static void DrawEntry(ToolStripEntry e, Vector2 tile, float scale, Action? disarm)
     {
         bool lit = e.IsLit?.Invoke() ?? false;
         if (e.Family is { Count: > 0 } fam)
         {
             int sel = Math.Clamp(e.Selected, 0, fam.Count - 1);
-            if (Tile(e.Id, fam[sel].Glyph, lit, true, fam[sel].Tooltip, tile, scale)) Gui.OpenPopup(e.MenuId);
-            if (Gui.BeginPopup(e.MenuId))
+            // ⭐ CE-1965 — a SPLIT button, the SAME as the main toolbar's: the square face runs the member chosen last; the narrow ▾ bar beside it (or a
+            //   right-click on the face) opens the members — two hit zones, each lit on its own hover (SplitArrow.Bar)
+            if (Tile(e.Id, fam[sel].Glyph, lit, fam[sel].Tooltip, tile, scale)) FaceClicked(e, lit, disarm);
+            bool open = Fdp.Presentation.Icons.SplitArrow.Begin(e.BarId, e.MenuId, "Choose…");   // the ONE split arrow (the main toolbar's too)
+            e.LastFace = Fdp.Presentation.Icons.SplitArrow.LastFace;
+            e.LastBar = Fdp.Presentation.Icons.SplitArrow.LastBar;
+            if (open)
             {
                 // ⭐ a VERTICAL list: each row the member's glyph in its own colour, its label, a ✓ on the chosen one; each row has its own id scope (no clash with the face)
                 for (int i = 0; i < fam.Count; i++)
@@ -130,6 +162,17 @@ public abstract class ToolStripWindow : ManagedWindow
                 Gui.EndPopup();
             }
         }
-        else if (Tile(e.Id, e.Glyph, lit, false, e.Tooltip, tile, scale)) e.OnClick?.Invoke();
+        else if (Tile(e.Id, e.Glyph, lit, e.Tooltip, tile, scale)) FaceClicked(e, lit, disarm);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-1977</c> — a click on an entry's icon: a LIT tool's icon turns the tool off (<paramref name="disarm"/>, when the host gave one — never the Select
+    /// tile, whose own click is the disarm); otherwise a dropdown runs the member chosen last and a plain entry its action.
+    /// </summary>
+    public static void FaceClicked(ToolStripEntry e, bool lit, Action? disarm)
+    {
+        if (lit && disarm is not null) { disarm(); return; }
+        if (e.Family is { Count: > 0 } fam) e.Pick(Math.Clamp(e.Selected, 0, fam.Count - 1));
+        else e.OnClick?.Invoke();
     }
 }

@@ -15,12 +15,16 @@ namespace Fdp.Toolkit.Combat
     /// </summary>
     public static class LineOfFire
     {
-        /// <summary>True when a friendly collider lies on the line from <paramref name="shooter"/> to <paramref name="target"/>.
-        /// False when either end has no position or the shooter has no force (nothing to be friendly with).</summary>
-        public static bool BlockedByFriendly(EntityRepository world, Entity shooter, Entity target)
+        /// <summary>True when a friendly collider lies on the line from <paramref name="shooter"/> to <paramref name="target"/> — or within the
+        /// weapon's SPREAD of it: ⭐⭐ <c>CE-8308</c> (D-14, user-approved 2026-11-20: "one rule for friends and civilians") — his strike circle
+        /// is widened by <paramref name="sigma"/> (<see cref="HitModel.Sigma"/>) × his distance along the line, exactly as
+        /// <see cref="BlockedByNeutral(EntityRepository, Entity, Entity, float)"/> (AW-20). 📐 <c>pc-corridor-fight</c>: a burst at a point 172 m
+        /// out was released with a friend 0.65 m off its line 45 m out, and the spread hit him. ⛔ Was: the line alone. A guided or exact
+        /// weapon passes 0. False when either end has no position or the shooter has no force (nothing to be friendly with).</summary>
+        public static bool BlockedByFriendly(EntityRepository world, Entity shooter, Entity target, float sigma)
         {
             if (!world.HasComponent<SimTransform>(target)) return false;
-            return Blocked(world, shooter, target, world.GetComponentRO<SimTransform>(target).Position);
+            return Blocked(world, shooter, target, world.GetComponentRO<SimTransform>(target).Position, sigma);
         }
 
         /// <summary>
@@ -28,14 +32,14 @@ namespace Fdp.Toolkit.Combat
         /// round at a ground point. ⚠ XY only, like the entity form (a friend below a shot on a slope counts as blocking —
         /// conservative); both move behind <c>IWorldQuery.Trace(Fire)</c> with WQ-F (§10.8).
         /// </summary>
-        public static bool BlockedByFriendly(EntityRepository world, Entity shooter, Vector3 point)
-            => Blocked(world, shooter, Entity.Null, point);
+        public static bool BlockedByFriendly(EntityRepository world, Entity shooter, Vector3 point, float sigma)
+            => Blocked(world, shooter, Entity.Null, point, sigma);
 
         /// <summary>
         /// ⭐ <c>AW-20</c> (R-2026; docs/DESIGN_Civilians_And_Crowd_Control.md §5h) — <b>a neutral in the line of fire or within the weapon's
         /// spread holds the shot.</b> A neutral is a living PERSON (<see cref="PhysicsColliderReaders.IsPerson"/>) of
         /// <see cref="ForceId.Neutral"/> other than the target, when the shooter is not neutral himself (then he is a friend, and
-        /// <see cref="BlockedByFriendly(EntityRepository, Entity, Entity)"/> holds). His circle is widened by the spread at his range:
+        /// <see cref="BlockedByFriendly(EntityRepository, Entity, Entity, float)"/> holds). His circle is widened by the spread at his range:
         /// <paramref name="sigma"/> (<see cref="HitModel.Sigma"/>, the half-width of the uniform cone) × his distance along the line.
         /// <para>⭐ AW-24: the one new rule a soldier obeys, and it costs him one pass over the colliders — empty of neutrals in a
         /// military fight. ⛔ A wall, a wreck, a dropped weapon (default <see cref="ForceId.Neutral"/>) never holds it: people only.</para>
@@ -45,6 +49,96 @@ namespace Fdp.Toolkit.Combat
             if (!world.HasComponent<SimTransform>(target)) return false;
             return NeutralOnLine(world, shooter, target, world.GetComponentRO<SimTransform>(target).Position, sigma);
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3486</c> (flame FL-2, F-9 — Protocol III's rule; docs/designs/weapons/DESIGN_Flame_Weapons.md) — a FLAMETHROWER is never released
+        /// while a NEUTRAL person is inside the flame it would throw toward <paramref name="aim"/>: the AW-20 rule (<see cref="NeutralOnLine"/>, the
+        /// shared body grid) with the line run to the jet's full REACH (the flame does not stop at the target) and the spread its cone
+        /// (tan of the half-angle). False for any other mount. 0 B per call.
+        /// <para>⭐⭐ <c>CE-3490</c> BA-6 (DESIGN_Breath_Attack §2) — the flame it judges is THE jet <c>FlameSystem</c> burns with: from where it LEAVES
+        /// (<see cref="ShotOrigin.From"/> — the mouth / nozzle when the type places one, else the eye; <see cref="FlameJets.Origin"/>'s rule) along the 3-D line
+        /// to <paramref name="aim"/>, each neutral judged by <see cref="FlameCone.Contains"/> at his middle. 📐 Measured building D-1: from the body's centre
+        /// in 2-D the hold fell ~9 m short of a dragon's breath, and a flyer's slant reach was taken as flat.</para>
+        /// </summary>
+        public static bool NeutralInFlame(EntityRepository world, Entity shooter, int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Vector3 aim)
+        {
+            if (mount is not { Category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower } || !world.HasComponent<SimTransform>(shooter)) return false;
+            var warhead = loadedAmmo != 0 ? CombatTkb.WarheadOf(world, loadedAmmo) : CombatTkb.WarheadOf(world, mount);
+            if (warhead is not { FlameRangeM: > 0f } w) return false;
+            if (!world.IsComponentTypeRegistered<PhysicsCollider>() || !world.IsComponentTypeRegistered<EntityInfo>()) return false;
+            if (!world.HasComponent<EntityInfo>(shooter) || world.GetComponentRO<EntityInfo>(shooter).ForceId == ForceId.Neutral) return false;
+            var origin = ShotOrigin.From(world, shooter, mountIndex, ShotOrigin.Eye(world, shooter, out _), aim, out _);
+            var toAim = aim - origin;
+            if (toAim.LengthSquared() < 1e-6f) return false;
+            var dir = Vector3.Normalize(toAim);
+            float half = w.FlameHalfAngleDeg * (MathF.PI / 180f);
+            var end = origin + dir * w.FlameRangeM;
+            var bodies = Bodies.Of(world);
+            lock (bodies) bodies.Refresh(world);   // ⭐ CE-4516 — the lock covers only the build (as NeutralOnLine)
+            var test = new NeutralInConeTest { World = world, Shooter = shooter, Health = world.IsComponentTypeRegistered<Health>(), Origin = origin, Dir = dir,
+                                               Range = w.FlameRangeM, Half = half };
+            float pad = MathF.Max(FlameCone.StreamRadiusM, w.FlameRangeM * MathF.Tan(half));
+            return bodies.Grid.AnySegmentCandidate(new Vector2(origin.X, origin.Y), new Vector2(end.X, end.Y), bodies.Pad(pad), ref test, Bodies.EveryBodyForRails);
+        }
+
+        /// <summary>⭐ CE-3490 BA-6 — the flame-cone rule (<see cref="FlameCone.Contains"/>, the one <c>FlameSystem</c> burns by), applied LIVE to each body the frame
+        /// grid gives: a living neutral PERSON, not the shooter, not one of its own riders, his middle (<see cref="FlameJets.TargetMiddleM"/> up) in the cone.</summary>
+        private struct NeutralInConeTest : Fdp.Toolkit.Spatial.FrameEntityGrid.ICandidateTest
+        {
+            public EntityRepository World; public Entity Shooter; public bool Health; public Vector3 Origin, Dir; public float Range, Half;
+            public bool Test(Entity e)
+            {
+                var world = World;
+                if (!world.IsAlive(e) || e == Shooter || !world.HasComponent<PhysicsCollider>(e)) return false;
+                if (!Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e) || !PhysicsColliderReaders.IsPerson(world, e)) return false;
+                if (Health && world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f) return false;
+                if (FlameJets.RidesOn(world, e, Shooter)) return false;
+                var middle = world.GetComponentRO<SimTransform>(e).Position + new Vector3(0f, 0f, FlameJets.TargetMiddleM);
+                return FlameCone.Contains(Origin, Dir, Range, Half, middle);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3487</c> (flame FL-3, N-7 — F-9's Protocol III rule for napalm; DESIGN_Flame_Weapons §7b) — a NAPALM round is never released while a NEUTRAL
+        /// person stands inside the ellipse it would lay at <paramref name="impact"/>: the warhead's <c>AreaLengthM</c> × <c>AreaWidthM</c> along the carrier's
+        /// flight line (its replicated motion; east when it stands). The shared body grid walks the ellipse's axis padded by its half-width; each candidate is
+        /// judged by the exact ellipse (<see cref="Systems.NapalmSystem.InEllipse"/>, the one the burst lays). False for any other round. 0 B per call.
+        /// </summary>
+        public static bool NeutralInNapalm(EntityRepository world, Entity shooter, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Vector3 impact)
+        {
+            var warhead = loadedAmmo != 0 ? CombatTkb.WarheadOf(world, loadedAmmo) : mount != null ? CombatTkb.WarheadOf(world, mount) : null;
+            if (warhead is not { Kind: Fdp.Toolkit.Tkb.Domain.WarheadKind.Incendiary, AreaLengthM: > 0f, AreaWidthM: > 0f } w) return false;
+            if (!world.IsComponentTypeRegistered<PhysicsCollider>() || !world.IsComponentTypeRegistered<EntityInfo>()) return false;
+            if (world.HasComponent<EntityInfo>(shooter) && world.GetComponentRO<EntityInfo>(shooter).ForceId == ForceId.Neutral) return false;
+            var axis = Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, shooter, out _, out var v) ? Systems.NapalmSystem.Axis(v.X, v.Y) : Vector2.UnitX;
+            var half = axis * (w.AreaLengthM * 0.5f);
+            var c = new Vector2(impact.X, impact.Y);
+            var bodies = Bodies.Of(world);
+            lock (bodies) bodies.Refresh(world);   // ⭐ CE-4516 — the lock covers only the build (as NeutralOnLine)
+            var test = new NeutralInEllipseTest { World = world, Shooter = shooter, Health = world.IsComponentTypeRegistered<Health>(), At = impact, Axis = axis,
+                                                  Length = w.AreaLengthM, Width = w.AreaWidthM };
+            return bodies.Grid.AnySegmentCandidate(c - half, c + half, bodies.Pad(w.AreaWidthM * 0.5f), ref test, Bodies.EveryBodyForRails);
+        }
+
+        /// <summary>The napalm-ellipse rule (N-7), applied LIVE to each body the frame grid gives.</summary>
+        private struct NeutralInEllipseTest : Fdp.Toolkit.Spatial.FrameEntityGrid.ICandidateTest
+        {
+            public EntityRepository World; public Entity Shooter; public bool Health; public Vector3 At; public Vector2 Axis; public float Length, Width;
+            public bool Test(Entity e)
+            {
+                var world = World;
+                if (!world.IsAlive(e) || e == Shooter || !world.HasComponent<PhysicsCollider>(e)) return false;
+                if (!Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e) || !PhysicsColliderReaders.IsPerson(world, e)) return false;
+                if (Health && world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f) return false;
+                return Systems.NapalmSystem.InEllipse(At, Axis, Length, Width, world.GetComponentRO<SimTransform>(e).Position);
+            }
+        }
+
+        /// <summary>⭐ <c>CE-3486</c> — the same, toward a target entity (its middle — where <see cref="FlameJets"/> aims the jet at a unit).</summary>
+        public static bool NeutralInFlame(EntityRepository world, Entity shooter, int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Entity target)
+            => world.IsAlive(target) && world.HasComponent<SimTransform>(target)
+               && NeutralInFlame(world, shooter, mountIndex, mount, loadedAmmo,
+                                 world.GetComponentRO<SimTransform>(target).Position + new Vector3(0f, 0f, FlameJets.TargetMiddleM));
 
         /// <summary>⭐ <c>AW-20</c> — the same hold toward a POINT (a burst at a remembered spot).</summary>
         public static bool BlockedByNeutral(EntityRepository world, Entity shooter, Vector3 point, float sigma)
@@ -125,7 +219,7 @@ namespace Fdp.Toolkit.Combat
             return MathF.Max(r, reach);
         }
 
-        private static bool Blocked(EntityRepository world, Entity shooter, Entity target, Vector3 b3)
+        private static bool Blocked(EntityRepository world, Entity shooter, Entity target, Vector3 b3, float sigma)
         {
             if (!world.IsComponentTypeRegistered<PhysicsCollider>() || !world.IsComponentTypeRegistered<EntityInfo>()) return false;
             if (!world.HasComponent<SimTransform>(shooter)) return false;
@@ -141,14 +235,16 @@ namespace Fdp.Toolkit.Combat
             //   phase's shooters ask in parallel. ⛔ SUPERSEDED: the lock held across Refresh + Near + the walk — every shooter of the phase queued on it.
             var bodies = Bodies.Of(world);
             lock (bodies) bodies.Refresh(world);
-            var friend = new FriendOnLine { World = world, Shooter = shooter, Target = target, Force = force, A = a, AB = ab, Len2 = len2 };
-            return bodies.Grid.AnySegmentCandidate(a, a + ab, bodies.Pad(0f), ref friend, Bodies.EveryBodyForRails);
+            float len = MathF.Sqrt(len2);
+            sigma = MathF.Max(0f, sigma);
+            var friend = new FriendOnLine { World = world, Shooter = shooter, Target = target, Force = force, A = a, AB = ab, Len2 = len2, Len = len, Sigma = sigma };
+            return bodies.Grid.AnySegmentCandidate(a, a + ab, bodies.Pad(sigma * len), ref friend, Bodies.EveryBodyForRails);   // ⭐ CE-8308 — the spread's pad, as AW-20
         }
 
         /// <summary>The friendly-fire rule, applied LIVE to each body the frame grid gives (the same rule the walk applied under the lock).</summary>
         private struct FriendOnLine : Fdp.Toolkit.Spatial.FrameEntityGrid.ICandidateTest
         {
-            public EntityRepository World; public Entity Shooter, Target; public ForceId Force; public Vector2 A, AB; public float Len2;
+            public EntityRepository World; public Entity Shooter, Target; public ForceId Force; public Vector2 A, AB; public float Len2, Len, Sigma;
             public bool Test(Entity e)
             {
                 var world = World;
@@ -161,11 +257,11 @@ namespace Fdp.Toolkit.Combat
                 if (PhysicsColliderReaders.IsPerson(world, e) && !Injury.IsInTheFight(world, e)) return false;
                 float r = world.GetComponentRO<PhysicsCollider>(e).Radius;
                 if (r <= 0f) return false;
-                r = StrikeRadius(world, e);
                 var p3 = world.GetComponentRO<SimTransform>(e).Position;
                 var ap = new Vector2(p3.X, p3.Y) - A;
                 float t = Vector2.Dot(ap, AB) / Len2;
                 if (t <= 0f || t >= 1f) return false;                 // behind the shooter or beyond the target
+                r = StrikeRadius(world, e) + Sigma * t * Len;         // ⭐ CE-8308 — and the spread at his range (AW-20's rule)
                 return Vector2.DistanceSquared(AB * t, ap) < r * r;
             }
         }

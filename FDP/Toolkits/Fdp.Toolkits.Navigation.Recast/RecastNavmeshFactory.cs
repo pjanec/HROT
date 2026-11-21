@@ -199,6 +199,7 @@ public sealed class RecastNavmeshFactory : IIncrementalNavmeshFactory
         }
         var meshes = baker.Bake(source, Layers, volumes, FineAreas(world));
         LastStats = baker.LastStats;
+        TileCache?.Seal();   // ⭐ CE-3428 (UTM §12.4) — a bake INTO a terrain folder (a prefill cache) leaves it packed; every other cache: no-op
         _lastTileKeys = baker.LastTileKeys;   // ⭐ CE-4391 S-3 (P3-a)
         _previousKeys = baker.LastKeys; _previousFor = (world.BoundsMin, world.BoundsMax, Layers, TileMetres); long serial = ++BakeSerial;
         var st = LastStats;

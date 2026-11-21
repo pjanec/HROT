@@ -19,8 +19,10 @@ namespace Fdp.Network.Cyclone.Systems
     public class CycloneIngressSystem : IEcsModuleSystem
     {
         private readonly DdsParticipant _participant;
+        [Fdp.Core.NotState("translator list injected in ctor, never mutated")]
         private readonly INetworkTranslator[] _translators;
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.WorldDerived("per-translator profiling data; diagnostic only")]
         private readonly Dictionary<INetworkTranslator, SystemProfileData> _translatorProfileData = new();
 
         public IReadOnlyList<INetworkTranslator> Translators => _translators;

@@ -79,10 +79,10 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.OperatorUseStatus);
         // ⭐ CE-3219 (civilians B-1, CV-6) — a person's stored non-lethal effects, written beside Health by its owner (dtEffectState).
         brain.SetBit(GlobalComponentIds.EffectState);
-        // ⭐ CE-3224 (civilians B-6, CV-13) — what a person is doing with his arms, chosen by his behaviour (dtGesture).
-        brain.SetBit(GlobalComponentIds.Gesture);
         // ⭐ CE-4617 (RS-10) — a radar's emission, switched by the carrier's behaviour (dtRadarEmission).
         brain.SetBit(GlobalComponentIds.RadarEmission);
+        // ⭐ CE-4657 (thermal drivers TD-6, TD-16) — the fire on an entity, written by the Health owner when damage ignites it (dtFireState).
+        brain.SetBit(GlobalComponentIds.FireState);
         // ⭐ CE-3238 (civilians B-16, AW-22) — a man's hostile act, committed by his behaviour (dtHostileAct).
         brain.SetBit(GlobalComponentIds.HostileAct);
         brain.SetBit(GlobalComponentIds.Custody);   // ⭐ CE-3256 (BR-4) — a man in custody (dtCustody)
@@ -95,6 +95,10 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.PartDamage);
         // ⭐ CE-3110 I-2b (R-224) — the vehicle's passenger list: its brain's EmbarkationSystem is the one writer (dtPassengerBuffer).
         brain.SetBit(GlobalComponentIds.PassengerBuffer);
+        // ⭐ CE-4670 (VA-S2, VA-4) — the hatches / doors / ramps: the passenger list's owner writes them (dtVehicleOpenings).
+        brain.SetBit(GlobalComponentIds.VehicleOpenings);
+        // ⭐ CE-4670 (VA-S3, VA-3) — the lights: the crew (the Brain) decides them (dtVehicleLights).
+        brain.SetBit(GlobalComponentIds.VehicleLights);
         // ⭐ Weapon systems WS-1 (W-C, R-136) — a weapon system's deploy state: its brain's WeaponDeploySystem writes it (dtWeaponSystemState).
         brain.SetBit(GlobalComponentIds.WeaponSystemState);
         // ⭐ CE-3216 S1-0 (R-3012, W-6) — the scenario clock: the Brain that loads the scenario creates and owns it, applies an edit (dtScenarioClock).
@@ -160,6 +164,7 @@ public static class HrotOwnershipGroups
         // ⭐ CE-1223 (Entity Control §8k S-2, R-1010) — when a man was last under fire: stamped on the Muscle (near miss / hit), read by every node's
         //   hit model (a remote station's spread ring) — dtUnderFire.
         muscle.SetBit(GlobalComponentIds.UnderFire);
+        muscle.SetBit(GlobalComponentIds.HeatSource);   // ⭐ CE-4657 (TD-3) — the engine / body state, written by the node that moves the entity (dtHeatSource)
 
         // ── Perception (§1.2b, R-171) — perception EXECUTION ─────────────────────────────────────────
         var perception = default(BitMask512);

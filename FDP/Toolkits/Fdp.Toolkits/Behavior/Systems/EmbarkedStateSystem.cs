@@ -25,24 +25,36 @@ namespace Fdp.Toolkit.Behavior.Systems
     [TickMode(TickPolicy.EveryFrame)]
     public sealed class EmbarkedStateSystem : IEcsModuleSystem
     {
+        [Fdp.Core.WorldDerived("per-frame scratch cleared at end of Execute")]
         private readonly List<(Entity passenger, Entity vehicle, int seat)> _boarders = new();
+        [Fdp.Core.WorldDerived("per-frame scratch cleared at end of Execute")]
         private readonly List<(Entity passenger, Entity vehicle)> _leavers = new();
+        [Fdp.Core.WorldDerived("per-frame scratch cleared at end of Execute")]
         private readonly Dictionary<Entity, int> _leaving = new();
+        [Fdp.Core.WorldDerived("per-frame scratch cleared at end of Execute")]
         private readonly Dictionary<Entity, int> _order = new();
+        [Fdp.Core.ProtocolCache("kill-damage already-sent latch per passenger; cleared on WorldEpoch")]
         private readonly HashSet<Entity> _killSent = new();
         private int _epoch;   // ⭐ CE-3294 — the world the state below describes (passengers already killed with their vehicle)
+        [Fdp.Core.WorldDerived("per-frame scratch cleared after use")]
         private readonly HashSet<Entity> _drops = new();
+        [Fdp.Core.WorldDerived("scratch cleared after use")]
         private readonly List<Entity> _released = new();
 
         /// <summary>Passengers this node boarded from a list (a rail reads it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Boarded { get; private set; }
         /// <summary>Passengers this node took off because their vehicle no longer lists them.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Left { get; private set; }
         /// <summary>Passengers this node killed because their vehicle was destroyed (lethal damage events published).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Killed { get; private set; }
         /// <summary>⭐ CE-2152 — loads this node dropped because their person carrier went down (⭐ T-a — or his second man did).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public long Dropped { get; private set; }
         /// <summary>⭐ T-a — second men this node released because their carrier no longer names them.</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Released { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -176,6 +188,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         public const float OccupantHitChance = 0.3f;
 
         /// <summary>Occupant hits this process sent (rails).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of occupant hits")]
         public int OccupantHits { get; private set; }
 
         /// <summary>
@@ -190,7 +203,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (!repo.Bus.IsRegistered<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>()) return;
             uint frame = repo.HasSingleton<GlobalTime>() ? (uint)repo.GetSingleton<GlobalTime>().FrameNumber : 0u;
             uint k = 0;
-            foreach (var ev in repo.Bus.Read<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>())
+            foreach (var ev in repo.ReadEvents<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>())
             {
                 k++;
                 if (ev.TotalDamage <= 0f || ev.Effect != Fdp.Toolkit.Combat.HitEffect.Kinetic || ev.IsRemote) continue;

@@ -7,6 +7,7 @@ stale-below: nothing — what the build changed is in §8 with the earlier wordi
 known-rot: AU-3 (sound only while possessed) is amended twice — §8 D11 (3-D camera sound, CE-1137) and R-4059 (2026-10-21: sound in every non-FPS view behind a menu switch, FPS always; the 2-D ear and the films' sound track are designed in docs/DESIGN_Film_Director.md §4c). §8 lists where the build refined §2 / §6 / AU-8.
 known-conflict: none.
 related-designs:
+  - ../weapons/DESIGN_Flame_Weapons.md — §8 OWNS the flamethrower's roar (a held loop while the jet is lit, class Flame, CE-4635); §10 here records how the mover loops carry it
   - docs/blueprints/Architect_Question_105_Squad_Callouts.md — OWNS which calls exist and when a man shouts (R-2080, A–E); this file plays them (F, §9)
   - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS the speech data (§7.18: Utterance, Utterances.Say) that §9 reads
   - docs/DESIGN_People_Display.md — OWNS how an utterance is SHOWN (U15 overhead marks); §9 is how it is HEARD
@@ -266,7 +267,7 @@ Measured: the device opens (miniaudio | ALSA), every clip loads, the loop stream
 | ⭐ the **2-D ear** (D-14) | `AudioLayer.Ear2D`: at the 2-D view's centre (`MapViewSwitch.CurrentPose`, the overhead pose that shows the same), as high as half the visible width, looking north (the map is north-up) — the same spatializer, so a wide view hears only the loud things. ⛔ SUPERSEDES §8.1's "3-D view only" for the camera's ear |
 | ⭐ the switch | `AudioDirector.CameraSound` = a film take's `sound` if it set one, else Settings ▸ Sound (`AudioPreferences.CameraSound`); `GET/POST /audio` reads and sets the menu's switch, master and mute. ⭐ **FPS always sounds** — the switch is the camera's (rail `AudioTests.CE4038_ATakesSoundSwitch_RulesTheCamera_NeverFirstPerson_AndACaptureRecordsWithNoDevice`, red-proven) |
 | ⭐ the film's track | while `AudioDirector.Recorder` is set, the layer's output is a `RecordingAudioOutput` (over a `NullAudioOutput` when there is no device): every clip's samples and every started sound go into a `SoundTrack`, rendered offline to a WAV on the film's own timeline and muxed by ffmpeg |
-| ⛔ known gap | a clip loaded from an `.ogg` file is not decoded for the track (`WavReader` reads PCM WAV) — it plays live but is missing from a film |
+| ✅ OGG in the track (`CE-1239`, `2026-11-18`) | `OggReader` decodes an `.ogg` clip for the track (raylib's `LoadWave` — stb_vorbis, no window or device — downmixed to mono 16-bit at the file's rate). ⛔ SUPERSEDED: *"a clip loaded from an `.ogg` file is not decoded for the track"*. Rail `AudioTests.CE1239_…` |
 
 ## 9. AS BUILT — the VOICES: a line per utterance, a voice per side (`CE-2372`, AQ105 F, R-2080, ui, `2026-10-25`)
 
@@ -312,3 +313,6 @@ Rails: `AudioTests.CE4269_TheAudioDevice_OpensOnce_AndClosesOnlyWhenTheLastHostL
 PulseAudio null sink: before the fix it reports *"the device was closed under the first host"*). ⚠ On the VM PulseAudio's `module-suspend-on-idle`
 must be unloaded, or a sound never ends (the A0 smoke `CE1120` then fails on its click). ⏳ The user's Windows check: `run_Server.bat` without `HROT_AUDIO=0`.
 
+## 10. AS BUILT — held LOOP KINDS of a mover: the flail and the flamethrower's roar *(`CE-4624` MS-U4, `CE-4635` flame weapons §8; ui, `2026-11-19`)*
+
+`SoundSources.Movers` holds a mover's loop under a mixer key; a body may hold up to three at once, told apart by a small **loop kind** (a byte in the movers tuple, never a bool per kind): the body's own engine / steps (`Index + 1`), a mine clearer's **flail** while `FlailActivity.IsOn` (`FlailKey = (1<<40) + Index`, the tracked-engine clip a third higher and louder, CE-4624), and a flamethrower's **roar** while `FlameJets.TryGet` is lit (`FlameKey = (2<<40) + Index`, `SoundTkbCatalog.FlameRoar` 7357, synth `FlameRoar`: a rumble, a hiss and a little crackle, a seamless 1 s loop). The roar: gain by `Spatializer.Gain(d, ReferenceM, range)` with the range = the type's **firing audible range when its firing class is `Flame`** (backend's contract, the FlamethrowerSoldier's 200 m); pitch 1 × Doppler; held standing still; the reach pre-filter takes the larger of the moving and the flame range (`ReachOf`), so a flamer at 60–200 m is not dropped; `HoldMovers` re-asks `FlameJets.TryGet` every frame, so the loop ends with the jet, not a search later. ⛔ A fuel shot (`EffectRules.IsFuelShot` — the one predicate the muzzle-flash rule uses too) queues **no** `SoundEvents.Shot`. Owning design of the jet and its look: [`DESIGN_Flame_Weapons.md` §8](../weapons/DESIGN_Flame_Weapons.md). Rails: `AudioTests.Flame` (`CE4635_*`).

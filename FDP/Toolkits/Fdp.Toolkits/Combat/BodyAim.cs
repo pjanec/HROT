@@ -54,6 +54,20 @@ namespace Fdp.Toolkit.Combat
             return cos < MathF.Cos(mount.FixedConeDeg * MathF.PI / 180f);
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-1960</c> — where an OPERATOR's round from a fixed mount (a fighter's gun, a rocket pod) goes when his aim point lies outside its nose cone
+        /// (<see cref="OutsideFixedCone"/>): along the bore (<paramref name="unit"/>'s 3-D forward) at the aim's distance — a fixed gun cannot fire anywhere
+        /// else. Inside the cone, or with no cone, the point is unchanged. 🔒 User, 2026-11-17: "the tracers and the fire is directed behind the aircraft".
+        /// 📐 Reproduced: possessed Viper (ac-guns-drone), aim 800 m behind ⇒ every round left the nose toward the tail.
+        /// </summary>
+        public static Vector3 IntoFixedCone(EntityRepository world, Entity unit, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, Vector3 at)
+        {
+            if (!OutsideFixedCone(world, unit, mount, at)) return at;
+            ref readonly var tf = ref world.GetComponentRO<SimTransform>(unit);
+            var forward = Vector3.Normalize(Vector3.Transform(Vector3.UnitX, tf.Rotation));
+            return tf.Position + forward * MathF.Max(1f, Vector3.Distance(at, tf.Position));
+        }
+
         /// <summary>The point an aimed round at <paramref name="target"/> flies to, for <see cref="HoldsFire"/>: its position; false when
         /// it has none (then nothing is held).</summary>
         public static bool TargetPoint(EntityRepository world, Entity target, out Vector3 at)

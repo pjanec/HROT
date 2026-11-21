@@ -125,6 +125,29 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        /// <summary>⭐ <c>CE-4668</c> — an assign to a DEAD unit (Health 0) is refused, whoever sends it; the same unit alive accepts it.
+        /// 🔴 Red-proof: without the dead gate in <c>Admit</c> the dead unit takes the task.</summary>
+        [Fact]
+        public void CE4668_AnAssignToADeadUnit_IsRefused()
+        {
+            var (world, sys, registry) = CreateFixture();
+            registry.Register(3011, "Patrol", new BehaviorDefinition { Name = "Patrol", BrainTier = BehaviorConstants.BrainTierBTree });
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            world.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = "Patrol", JsonParams = "", Origin = BehaviorOrigin.Operator });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+            Assert.Equal(BehaviorIds.None, world.GetComponent<BehaviorState>(e).ActiveBehaviorHash);
+
+            world.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(e).Current = 100f;
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = "Patrol", JsonParams = "", Origin = BehaviorOrigin.Operator });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+            Assert.Equal(3011, world.GetComponent<BehaviorState>(e).ActiveBehaviorHash);
+            world.Dispose();
+        }
+
         // ── Test 3 ───────────────────────────────────────────────────────────────
 
         [Fact]

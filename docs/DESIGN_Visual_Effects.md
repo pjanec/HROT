@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: VE-B's "not recorded" — SUPERSEDED by §7 VE-R (U8, R-269 (ui)): effect entities are RECORDED (still never saved to a scenario).
 known-conflict: none.
 related-designs:
+  - DESIGN_Glass_Windows.md — a pane's crack is replicated STATE drawn from `BuildingDamage`, not a §10 impact mark; the round's puff stays §10; the shatter burst is a local effect on the state change
   - designs/weapons/DESIGN_Bows_And_Crossbows.md — bows and crossbows: the `Arrow` round shape and a lying round STUCK along its pose (BW-3, BW-4, CE-4649)
   - designs/air-attack/DESIGN_Air_Combat.md — air combat: the jet's afterburner, vortex trails, launch and falling-smoke effects (§4d)
   - docs/DESIGN_Node_Roles_And_Policies.md — §3.5 (CE-1148 S2): the RoundImpact pair is on every node with an own-sample skip; supersedes §10's MuscleGround exclusion.
@@ -429,7 +430,7 @@ classDiagram
   class EffectSpawnSystem { <<exists, W1>> stamps Lifespan.Starting(now, Duration); IsReplayActive ⇒ stands down; Housekeep: orphaned anchor, decal cap 256 }
   class MapInteractionContext { <<exists, W1>> + IsReplayActive — SimHost: the ELM's gate · CGF: rrController · replay browser: always · editor, IG: null }
   class WreckState { <<BUILT W2 as CombatLife.IsDestroyed — exists, has Health, Current ≤ 0 (later D1's destroyed state)>> }
-  class WreckSpawnSystem { <<BUILT W3, Hrot.Presentation Effects>> a vehicle's Health crossing to 0 ⇒ Fire + Smoke anchored to its body; IsReplayActive ⇒ off, forgets }
+  class WreckSpawnSystem { <<BUILT W3, CE-4660 reads FireState>> the hull's FireState starts or is first seen burning ⇒ Fire + Smoke anchored to its body; IsReplayActive ⇒ off, forgets }
   class EffectAnchor { <<exists, W3>> + Kind: Muzzle or Body (the body's top centre, every frame) }
   class EffectKind { <<exists TKB, W3>> + Fire = 4; + Smoke = 5 }
   class EffectTkbCatalog { <<exists, W3>> + Fire 7141 (60 s, fades 15 s), Smoke 7151 (180 s, fades 60 s); sized for a tank, scaled by the wreck }

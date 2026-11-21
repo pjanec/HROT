@@ -69,6 +69,10 @@ public static class HiddenWindow
         if (Active && _inFrame) Raylib_cs.Raylib.BeginTextureMode(_target);
     }
 
+    /// <summary>⭐ <c>CE-1984</c> — the GL framebuffer the frame draws into right now: the hidden-window target inside a frame, else the window's (0). A pass
+    /// that blits into the frame (the sensor post-process' depth) names it.</summary>
+    public static uint CurrentFramebuffer => Active && _inFrame && _hasTarget ? _target.Id : 0u;
+
     /// <summary>Call right before <c>EndDrawing</c>.</summary>
     public static void EndFrame()
     {

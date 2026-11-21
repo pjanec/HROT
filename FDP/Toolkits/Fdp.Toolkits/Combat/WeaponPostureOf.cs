@@ -36,6 +36,7 @@ namespace Fdp.Toolkit.Combat
                 or ActionReason.HoldNeutral   // ⭐ CE-2233 — a civilian: the weapon stays ready, never fired
                 or ActionReason.HoldSurrender // ⭐ CV-13a — hands up: covered, ready, never fired
                 or ActionReason.HoldForceLevel // ⭐ CE-2239 — the ROE caps the force: covered, ready, never fired
+                or ActionReason.HoldIncendiary // ⭐ CE-3486 — the ROE forbids a flame: covered, ready, never fired
                 or ActionReason.HoldConduct   // ⭐ CE-2238 part 4 — an unarmed civilian: covered, ready, never fired
                 or ActionReason.HoldWarn      // ⭐ CE-2239 part 3 — warned, covered, ready, never fired
                 or ActionReason.HoldStunned   // ⭐ CE-3255 (BR-2) — stunned: the weapon stays ready, never fired

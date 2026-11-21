@@ -160,7 +160,7 @@ namespace Fdp.Toolkit.Tests.Combat
             _world.Repo.AddComponent(dog, new SimTransform { Position = new Vector3(5f, 0f, 0f), Rotation = Quaternion.Identity });
             _world.Repo.AddComponent(dog, new Health { Current = 30, Max = 30 });
             _world.Repo.AddComponent(dog, new EntityInfo { ForceId = ForceId.Neutral });
-            _world.Repo.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Dog });
+            _world.Repo.AddComponent(dog, new Fdp.Toolkit.Animals.AnimalState());
             Assert.Equal(0f, ThreatDanger.Of(_world.Repo, me, dog));
             _world.Repo.GetComponentRW<Fdp.Toolkit.Animals.AnimalState>(dog).Flags = Fdp.Toolkit.Animals.AnimalFlags.Dangerous;
             Assert.Equal(1f, ThreatDanger.Of(_world.Repo, me, dog));
@@ -411,7 +411,7 @@ namespace Fdp.Toolkit.Tests.Combat
             _world.Repo.AddComponent(bird, new SimTransform { Position = new Vector3(40f, 0f, 20f), Rotation = Quaternion.Identity });
             _world.Repo.AddComponent(bird, new EntityInfo { ForceId = ForceId.Neutral });
             if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
-            _world.Repo.AddComponent(bird, new Fdp.Toolkit.Animals.AnimalState { Species = Fdp.Toolkit.Animals.AnimalSpecies.Bird });
+            _world.Repo.AddComponent(bird, new Fdp.Toolkit.Animals.AnimalState());
             var own = Observer(); var ordered = Observer(); var cop = Observer();
             foreach (var u in new[] { own, ordered, cop }) _world.Repo.AddComponent(u, new BehaviorState { InstanceId = 7, Origin = BehaviorOrigin.Superior });
             _world.Repo.GetComponentRW<BehaviorState>(own).Origin = BehaviorOrigin.Sop;
@@ -441,7 +441,15 @@ namespace Fdp.Toolkit.Tests.Combat
             if (!_world.Repo.IsComponentTypeRegistered<BehaviorState>()) _world.Repo.RegisterComponent<BehaviorState>();
             var hunterT = Typed("Hunter", 9301, new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)BulletAmmo });
             hunterT.AddDescriptor(new HuntingRulesDto { Species = new System.Collections.Generic.List<byte> { (byte)Fdp.Toolkit.Animals.AnimalSpecies.Rabbit } });
-            _world.UseTkb(hunterT, Typed("Soldier", RiflemanType, new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)BulletAmmo }));
+            // ⭐ CE-4628 — an animal's species is its TKB type's: one type per species (9310 + species) carrying the temperament descriptor
+            var speciesTypes = new System.Collections.Generic.List<Fdp.Interfaces.TkbTemplate> { hunterT, Typed("Soldier", RiflemanType, new WeaponMountDto { Category = WeaponCategory.SmallArms, AmmoGuid = (ulong)BulletAmmo }) };
+            foreach (var species in new[] { Fdp.Toolkit.Animals.AnimalSpecies.Rabbit, Fdp.Toolkit.Animals.AnimalSpecies.HuntingDog, Fdp.Toolkit.Animals.AnimalSpecies.Duck })
+            {
+                var st = new Fdp.Interfaces.TkbTemplate(species.ToString(), 9310 + (long)species);
+                st.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.AnimalTemperamentDto { Species = (byte)species });
+                speciesTypes.Add(st);
+            }
+            _world.UseTkb(speciesTypes.ToArray());
             var hunter = Man(9301, Vector3.Zero, ForceId.Friend);
             var soldier = Observer();
             Entity Animal(Fdp.Toolkit.Animals.AnimalSpecies sp)
@@ -450,7 +458,8 @@ namespace Fdp.Toolkit.Tests.Combat
                 _world.Repo.AddComponent(a, new SimTransform { Position = new Vector3(30f, 0f, 0f), Rotation = Quaternion.Identity });
                 _world.Repo.AddComponent(a, new EntityInfo { ForceId = ForceId.Neutral });
                 _world.Repo.AddComponent(a, new Health { Current = 3, Max = 3 });
-                _world.Repo.AddComponent(a, new Fdp.Toolkit.Animals.AnimalState { Species = sp });
+                _world.Repo.AddComponent(a, new Fdp.Toolkit.Animals.AnimalState());
+                _world.Repo.AddComponent(a, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)(9310 + (long)sp) });
                 return a;
             }
             var rabbit = Animal(Fdp.Toolkit.Animals.AnimalSpecies.Rabbit); var dog = Animal(Fdp.Toolkit.Animals.AnimalSpecies.HuntingDog); var duck = Animal(Fdp.Toolkit.Animals.AnimalSpecies.Duck);
@@ -546,7 +555,7 @@ namespace Fdp.Toolkit.Tests.Combat
         {
             for (int i = 0; i < 100; i++) _world.Repo.Tick();
             _world.Repo.SetSimulationTime(20f);
-            if (!_world.Repo.IsComponentTypeRegistered<Gesture>()) _world.Repo.RegisterComponent<Gesture>();
+            if (!_world.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Creatures.Demeanour>()) _world.Repo.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();
             var cop = Police(Vector3.Zero);
             var near = Man(PistolCivType, new Vector3(20f, 0f, 0f), ForceId.Neutral, civilian: true);
             var far = Man(PistolCivType, new Vector3(55f, 0f, 0f), ForceId.Neutral, civilian: true);

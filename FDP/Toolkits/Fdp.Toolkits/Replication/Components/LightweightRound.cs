@@ -15,8 +15,15 @@ namespace Fdp.Toolkit.Replication.Components
     ///   when the master is disposed.</item>
     /// </list>
     /// </summary>
-    [StructLayout(LayoutKind.Sequential, Size = 1)]
+    /// <para>⭐ CE-11011 (RR-11, R-11005; docs/designs/vehicle-appearance/DESIGN_Look_Rules_For_Renderers.md) — it carries its exact LAUNCH TIME (sim seconds), set once
+    /// where the round is made (<c>FireProcessingSystem.MarkIfVisible</c>) and sent with its <c>EntityMaster</c>, so a viewer or an external renderer knows how long it has
+    /// flown without converting frame counts. 🔒 User, 2026-11-20: "old recordings not important; rather widen the marker" (it was an empty tag).</para>
+    [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.LightweightRound)]
     [DataPolicy(DataPolicy.NoScenario | DataPolicy.NoPreview)]
-    public struct LightweightRound { }
+    public struct LightweightRound
+    {
+        /// <summary>The synced sim time the round was launched (0 = unknown: an older sender).</summary>
+        public SimInstant LaunchedAt;
+    }
 }

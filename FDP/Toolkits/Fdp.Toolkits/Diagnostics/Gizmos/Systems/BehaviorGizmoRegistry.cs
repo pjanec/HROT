@@ -7,6 +7,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
     /// Startup-time registry of behavior-gizmo factories, keyed by behavior name.
     /// Not thread-safe; must only be populated during application initialisation.
     /// </summary>
+    [Fdp.Core.NotState("startup-time factory table, only registered at init")]
     public sealed class BehaviorGizmoRegistry
     {
         private readonly Dictionary<string, IBehaviorGizmoFactory> _factories =

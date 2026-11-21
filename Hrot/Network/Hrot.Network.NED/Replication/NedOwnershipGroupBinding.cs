@@ -122,15 +122,18 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtDoorState, GlobalComponentIds.DoorState);
         // ⭐ CE-4391 S-1 — no group: the node that decided a building's breaches keeps its damage entity (the door's shape); the mapping makes it INGRESSIBLE.
         map.RegisterMapping((long)EDescriptorType.dtBuildingDamage, GlobalComponentIds.BuildingDamage);
+        map.RegisterMapping((long)EDescriptorType.dtWindowDamage, GlobalComponentIds.WindowDamage);   // ⭐ CE-5033 — the same entity's windows
         // ⭐ CE-4591 (P-4) — no group: the node that decided a cell's craters keeps its ground-damage entity (the breach's shape); the mapping makes it INGRESSIBLE.
         map.RegisterMapping((long)EDescriptorType.dtGroundDamage, GlobalComponentIds.GroundDamage);
         map.RegisterMapping((long)EDescriptorType.dtMinefield, GlobalComponentIds.Minefield);                 // ⭐ CE-4624 MS-T2
         map.RegisterMapping((long)EDescriptorType.dtMinefieldStrikes, GlobalComponentIds.MinefieldStrikes);
         map.RegisterMapping((long)EDescriptorType.dtMinefieldKnowledge, GlobalComponentIds.MinefieldKnowledge);
+        map.RegisterMapping((long)EDescriptorType.dtUnderFireKnowledge, GlobalComponentIds.UnderFireKnowledge);   // ⭐ CE-2468 UF-2
         map.RegisterMapping((long)EDescriptorType.dtMinefieldLanes, GlobalComponentIds.MinefieldLanes);        // ⭐ CE-4624 MS-T4 — the runtime lanes record (no group: the clearing node keeps it)
         map.RegisterMapping((long)EDescriptorType.dtRamOrder, GlobalComponentIds.RamOrder);                  // ⭐ CE-4622 K-2 — the hull's ram order: the Brain group's, read by the mover
         map.RegisterMapping((long)EDescriptorType.dtMineClearing, GlobalComponentIds.MineClearing);          // ⭐ CE-4624 MS-T4 — the clearer's tool marker: the Brain group's, read by the Muscle that clears
-        map.RegisterMapping((long)EDescriptorType.dtTreeDamage, GlobalComponentIds.TreeDamage);   // ⭐ CE-4603 (B-6) — the same shape
+        map.RegisterMapping((long)EDescriptorType.dtTreeDamage, GlobalComponentIds.TreeDamage);
+        map.RegisterMapping((long)EDescriptorType.dtGroundHeatMarks, GlobalComponentIds.GroundHeatMarks);   // ⭐ CE-4664 (TD-14) — the crater shape: no group, the moving node keeps it   // ⭐ CE-4603 (B-6) — the same shape
         // ⭐ CE-3136 P-7a — no group: the obstacle's creator keeps it. The mapping makes ObstacleShape INGRESSIBLE, so its
         //   [PerInstanceValue] holds a ghost until the box has arrived (MandatoryComponentResolver). 📄 docs/DESIGN_Peek_And_Fire.md §9.
         map.RegisterMapping((long)EDescriptorType.dtObstacleShape, GlobalComponentIds.ObstacleShape);
@@ -147,8 +150,11 @@ public static class NedOwnershipGroupBinding
         map.RegisterMapping((long)EDescriptorType.dtPossessedBy, GlobalComponentIds.PossessedBy);
         map.RegisterMapping((long)EDescriptorType.dtWeaponAmmo, GlobalComponentIds.WeaponAmmo);   // ⭐ CE-3174 — the HUD's ammunition
         map.RegisterMapping((long)EDescriptorType.dtOperatorUseStatus, GlobalComponentIds.OperatorUseStatus);   // ⭐ CE-1153 — the use verdict
-        map.RegisterMapping((long)EDescriptorType.dtGesture, GlobalComponentIds.Gesture);                       // ⭐ CE-3224 — a person's gesture
         map.RegisterMapping((long)EDescriptorType.dtRadarEmission, GlobalComponentIds.RadarEmission);           // ⭐ CE-4617 — a radar's emission
+        map.RegisterMapping((long)EDescriptorType.dtHeatSource, GlobalComponentIds.HeatSource);                 // ⭐ CE-4657 (TD-3) — the heat source (Muscle)
+        map.RegisterMapping((long)EDescriptorType.dtFireState, GlobalComponentIds.FireState);                   // ⭐ CE-4657 (TD-6) — the fire spots (Brain: the Health owner)
+        map.RegisterMapping((long)EDescriptorType.dtVehicleOpenings, GlobalComponentIds.VehicleOpenings);       // ⭐ CE-4670 (VA-S2) — hatches / doors / ramps (Brain: the passenger list's owner)
+        map.RegisterMapping((long)EDescriptorType.dtVehicleLights, GlobalComponentIds.VehicleLights);           // ⭐ CE-4670 (VA-S3) — lights (Brain: the light rule)
         map.RegisterMapping((long)EDescriptorType.dtHostileAct, GlobalComponentIds.HostileAct);                 // ⭐ CE-3238 — a man's hostile act
         map.RegisterMapping((long)EDescriptorType.dtCustody, GlobalComponentIds.Custody);                       // ⭐ CE-3256 — a man in custody
         map.RegisterMapping((long)EDescriptorType.dtLean, GlobalComponentIds.Lean);                             // ⭐ CE-3257 — a man leaning

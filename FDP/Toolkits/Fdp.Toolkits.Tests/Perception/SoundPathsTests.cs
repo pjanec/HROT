@@ -59,6 +59,32 @@ namespace Fdp.Toolkit.Tests.Perception
             Assert.True(r.HeardFrom.X > 9.5f || r.HeardFrom.Y < 0.5f, $"heard from an opening, not through the wall: {r.HeardFrom}");
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-5033</c> (glass windows D-5) — a glazed window is a portal CLOSED while its pane is intact (glass's 20 dB) and OPEN once broken: the same steps,
+        /// the same street ear, louder once the panes are broken — 🔒 "any broken window would let sound into a building", by construction. 🔴 Red-proof: ignore
+        /// <c>PaneBroken</c> in <c>ThroughOpenings</c> ⇒ the two routes are equal.
+        /// </summary>
+        [Fact]
+        public void CE5033_AnIntactPane_Muffles_ABrokenOneLetsTheSoundOut()
+        {
+            var w = House("");
+            Assert.NotEmpty(w.PaneLeaves);
+            var ear = new Vector3(4.2f, -6f, 0f); var source = new Vector3(8f, 4f, 0f);
+            var intact = Route(w, ear, source, Steps);
+
+            using var repo = new Fdp.Core.EntityRepository();
+            repo.RegisterComponent<WindowDamage>();
+            var d = new WindowDamage { Building = 0 };
+            foreach (var (panel, opening) in w.Panes) WindowDamages.Break(ref d, panel, opening);
+            repo.AddComponent(repo.CreateEntity(), d);
+            var windows = DoorStates.Of(repo, w);
+            Assert.NotNull(windows.Windows);
+            var broken = SoundPaths.Route(new TerrainWorldQuery(w), w, windows, ear, source, Steps);
+
+            Assert.True(broken.Factor > intact.Factor * 1.5f, $"intact {intact} · broken {broken}");
+            Assert.Equal(SoundVia.Openings, broken.Via);
+        }
+
         /// <summary>⭐ J — upstairs via the stair: steps in the upper room, an ear in the east room below; the straight line crosses the slab,
         /// the stairwell is the louder way.</summary>
         [Fact]

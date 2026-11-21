@@ -36,15 +36,20 @@ namespace CarKinem.Systems
                 _perfStopwatch = new System.Diagnostics.Stopwatch();
         }
 
+        [Fdp.Core.WorldDerived("wall-clock perf timing / silence timer; no sim decisions")]
         private System.Diagnostics.Stopwatch? _perfStopwatch;
+        [Fdp.Core.WorldDerived("perf-log accumulator, diagnostic only")]
         private double _totalUpdateTime = 0;
+        [Fdp.Core.WorldDerived("perf-log frame counter, diagnostic only")]
         private int _updateCount = 0;
         
+        [field: Fdp.Core.NotState("config property, default false, never written by system")]
         public bool EnablePerformanceLogging { get; set; } = false;
         
         /// <summary>
         /// For testing/debugging purposes.
         /// </summary>
+        [field: Fdp.Core.NotState("config property, default false, never written by system")]
         public bool ForceSerial { get; set; } = false;
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -79,6 +84,7 @@ namespace CarKinem.Systems
             // ⭐ CE-3287 — a wreck (Health ≤ 0) is not driven; a world without Health has none
             _health = repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>();
             _convoy = repo.IsComponentTypeRegistered<CarKinem.Convoy.ConvoyTrail>();   // ⭐ CE-9001 (C-6)
+            _animals = repo.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>();   // ⭐ CE-3457 — a world without animals never looks
 
             // Read spatial grid from singleton (Data-Oriented dependency)
             if (!repo.HasSingleton<SpatialGridData>()) return;
@@ -132,6 +138,7 @@ namespace CarKinem.Systems
             }
         }
         
+        [Fdp.Core.WorldDerived("static declare-once latch (component declaration), no effect on outcome")]
         private static bool s_declared;
 
         /// <summary>⭐ N-15 — what the avoidance reads on OTHER bodies that this loop also writes: served from the tick-start view (declared once,
@@ -169,7 +176,9 @@ namespace CarKinem.Systems
         // ⭐ CE-4621 MC-2 — the surface-class grid and what it was built from (the terrain world, the road network's segment count)
         private Fdp.Toolkit.Terrain.SurfaceClassGrid? _surface;
         private Fdp.Toolkit.Terrain.TerrainWorld? _surfaceWorld;
+        [Fdp.Core.WorldDerived("road-count stamp of the cached road surface: rebuilt from world on mismatch (CarKinematics.cs:187)")]
         private int _surfaceRoads = -1;
+        [Fdp.Core.WorldDerived("built-flag of the lazily built road surface cache: reset when roads change")]
         private bool _surfaceBuilt;
 
         /// <summary>⭐ CE-4621 MC-2 — the grid this tick's moves read (null: none built — no factored type, or no terrain and no roads).</summary>
@@ -187,13 +196,19 @@ namespace CarKinem.Systems
             foreach (var e in query)
                 if (Fdp.Toolkit.Terrain.OffRoad.Authored(in repo.GetComponentRO<VehicleParams>(e))) { needed = true; break; }
             if (!needed) return;
-            _surface = Fdp.Toolkit.Terrain.SurfaceClassGrid.Build(_terrainWorld, in roads);
+            _surface = Fdp.Toolkit.Terrain.GroundSurfaces.Of(repo);   // ⭐ CE-1987 (R-1058) — the ONE grid of the world, shared with the thermal sensor's background
             _surfaceBuilt = true;
         }
+        [Fdp.Core.NotState("set once in Initialize from component registration")]
         private bool _clampFlags;
+        [Fdp.Core.NotState("set once in Initialize from component registration")]
         private bool _recovery;
+        [Fdp.Core.NotState("set once in Initialize from component registration")]
         private bool _health;
+        [Fdp.Core.NotState("registration test read once at construction: is ConvoyTrail registered")]
         private bool _convoy;
+        [Fdp.Core.NotState("registration test read once at construction: is AnimalState registered")]
+        private bool _animals;
 
         /// <summary>⭐ R-249 — whether the movement model puts <paramref name="entity"/> on the surface: its ground-clamping flag, else yes.</summary>
         private bool Clamped(EntityRepository repo, Entity entity) => IsClamped(repo, entity, _clampFlags);
@@ -548,6 +563,19 @@ namespace CarKinem.Systems
             }
 
             // Calculate desired velocity
+            // ⭐⭐ CE-3457 (P5, the bug queue; Animals AR-17) — a DRIVING vehicle YIELDS to an animal in its way: it slows so it can stop short of the
+            //   first animal body ahead in its hull's lane (a cow on the road, a dog in the street), and stands until it moves off. Never a walker, an
+            //   animal, a possessed hull (the player decides) or a rammer (RM-2). 📌 Before, a convoy drove at 6 m/s into a herd and only the herd's own
+            //   fear cleared the lane (ua-animal-herd-road).
+            if (_animals && targetSpeed > 0f && !down && @params.Class != VehicleClass.Pedestrian && @params.Class != VehicleClass.Quadruped
+                && nav.Mode != KinematicsMode.Manual && !RamOrder.On(repo, entity, out _))
+            {
+                float yieldSpeed = AnimalYieldSpeed(repo, entity, pos2D, state.Speed < 0f ? -fwd2D : fwd2D, targetSpeed, spatialGrid, in @params);
+                byte yielding = yieldSpeed < targetSpeed ? (byte)1 : (byte)0;
+                targetSpeed = MathF.Min(targetSpeed, yieldSpeed);
+                if (_recovery && repo.HasComponent<FrustrationTicks>(entity) && repo.GetComponentRO<FrustrationTicks>(entity).YieldingToAnimal != yielding)
+                    repo.GetComponentRW<FrustrationTicks>(entity).YieldingToAnimal = yielding;   // the watchdog's exemption (its own entity)
+            }
             Vector2 desiredVelocity = targetHeading * targetSpeed;
             
             // Apply collision avoidance
@@ -621,16 +649,31 @@ namespace CarKinem.Systems
             Vector2 stepFrom = pos2D;
             float yawRate;
             Vector2 planarOut = default;
-            if (person && (aimedPerson || lookingPerson))
+            bool bent = avoidanceVelocity != desiredVelocity;
+            if (person)
             {
-                // ⭐ CE-3195 W-14d/e — the way he goes (or, stopping, the way he was going), the body turned to the aim
-                Vector2 travel = avoidanceVelocity.LengthSquared() > 1e-6f ? Vector2.Normalize(avoidanceVelocity)
-                               : movedBefore.LengthSquared() > 1e-6f ? Vector2.Normalize(movedBefore) : fwd2D;
-                yawRate = HumanGait.IntegrateFacing(ref pos2D, ref fwd2D, ref state, travel, Vector2.Normalize(toAim), accel, dt, out planarOut);
-            }
-            else if (person)
-            {
-                yawRate = HumanGait.Integrate(ref pos2D, ref fwd2D, ref state, avoidanceVelocity, targetSpeedAfterAvoidance > 0.01f, accel, dt);
+                var pos0 = pos2D; var fwd0 = fwd2D; var state0 = state;
+                yawRate = IntegratePerson(ref pos2D, ref fwd2D, ref state, out planarOut, avoidanceVelocity, movedBefore, toAim,
+                                          aimedPerson || lookingPerson, targetSpeedAfterAvoidance, accel, dt);
+                // ⭐⭐ CE-2450 (CE-6014's rule for a hull, now for a PERSON) — AVOIDANCE NEVER WALKS A MAN INTO A WALL: when avoidance bent his
+                //   step and the bent step crosses a closed barrier, his PATH's step is taken instead (the give-way is dropped for this tick).
+                //   📌 Live (pc-defend-house): a rifleman 0.38 m off his path beside a wall had every bent step refused below (FinishMove's
+                //   bentWalker trace) — speed 0, turning on the spot — for minutes, while his neighbour walked on.
+                if (bent && _terrain != null && dt > 0f
+                    && CrossesClosedBarrier(stepFrom, tf.Position.Z, pos2D, _terrain.SurfaceZ(pos2D.X, pos2D.Y, tf.Position.Z)))
+                {
+                    pos2D = pos0; fwd2D = fwd0; state = state0;
+                    // the PATH's speed target too (the bent one may say "turn first" and hold him at ~0): the same rule as above, for the desired velocity
+                    float pathSpeed = desiredVelocity.Length();
+                    float pathTarget = aimedPerson ? pathSpeed * HumanGait.FacingSpeedFactor(fwd0, desiredVelocity)
+                                                   : HumanGait.SpeedTarget(fwd0, desiredVelocity, pathSpeed);
+                    pathTarget = MathF.Min(pathTarget, @params.MaxSpeedFwd > 0f ? @params.MaxSpeedFwd : float.MaxValue);
+                    float pathAccel = SpeedController.CalculateAcceleration(state0.Speed, pathTarget, @params.AccelGain, @params.MaxAccel,
+                                                                            MathF.Max(@params.MaxDecel, HumanGait.StopDecel));
+                    yawRate = IntegratePerson(ref pos2D, ref fwd2D, ref state, out planarOut, desiredVelocity, movedBefore, toAim,
+                                              aimedPerson || lookingPerson, pathSpeed, pathAccel, dt);
+                    bent = false;
+                }
             }
             else
             {
@@ -676,7 +719,7 @@ namespace CarKinem.Systems
             //   sq-defend-house a rifleman ended 1 m outside the house he was posted in. Only a step avoidance bent is checked — the
             //   path-following step stays on the path (CE-3115, CE-3145), and that keeps the navmesh queries off the open-ground walkers.
             Vector2? keptPlanar = null;
-            if (person && dt > 0f && avoidanceVelocity != desiredVelocity
+            if (person && dt > 0f && bent
                 && repo.HasSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()
                 && ManualMotion.KeepOnNavmesh(repo.GetSingletonManaged<Fdp.Toolkit.Navigation.INavmeshProvider>()!,
                     (uint)Fdp.Toolkit.Navigation.NavLayerSelection.For(repo, entity, 0), stepFrom, ref pos2D, tf.Position.Z))
@@ -708,7 +751,14 @@ namespace CarKinem.Systems
                     // ⭐ CE-2167 (V5) — the way it MOVES, not the way it faces: a vehicle backing along its path makes progress too
                     //   (it froze: the forward vector points against the tangent while reversing).
                     var travel = state.Speed < 0f ? -fwd2D : fwd2D;
-                    nav.ProgressS += MathF.Abs(state.Speed) * dt * MathF.Max(0f, Vector2.Dot(travel, progressTangent ?? targetHeading));
+                    float along = MathF.Max(0f, Vector2.Dot(travel, progressTangent ?? targetHeading));
+                    nav.ProgressS += MathF.Abs(state.Speed) * dt * along;
+                    // ⭐ CE-3452 — a vehicle MOVING but heading more than ~75° off the tangent at its progress gains (almost) nothing by the tangent: then its
+                    //   progress is the point of the path it is ON, ahead within the lookahead (a path starting at an angle to its heading). Only then — in a
+                    //   corner the tangent still gains, and an early jump would move the aim point and cut it (the CE-3029 clearance rails)
+                    if (along < PathProgress.StuckAlong && MathF.Abs(state.Speed) > PathProgress.StuckSpeed
+                        && _trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out var driven))
+                        nav.ProgressS = PathProgress.OnPathAhead(in driven, nav.ProgressS, pos2D, MathF.Max(PathLookahead(in @params, MathF.Abs(state.Speed)), 5f), travel);
                 }
             }
             else if (nav.Mode == KinematicsMode.RoadGraph)
@@ -718,7 +768,7 @@ namespace CarKinem.Systems
             
             bool held = FinishMove(repo, entity, ref state, ref nav, ref tf, ref vel, pos2D, fwd2D,
                 keptPlanar ?? (aimedPerson ? (state.Speed > 0f ? planarOut : Vector2.Zero) : fwd2D * state.Speed), yawRate, person, dt,
-                bentWalker: person && avoidanceVelocity != desiredVelocity, hull: @params);
+                bentWalker: person && bent, hull: @params);
 
             // ⭐⭐ CE-3286 — the wall held this hull: at its move's end it has ARRIVED (the nose met the wall); else, held HoldSeconds, it backs out
             if (recoverable)
@@ -784,6 +834,32 @@ namespace CarKinem.Systems
             repo.SetComponent(entity, ft);
         }
 
+        /// <summary>⭐ CE-2304 (N3) / CE-2450 — does a walker's step from <paramref name="from"/> to <paramref name="to"/> cross a CLOSED barrier (a building's
+        /// wall, a closed door — R-252's meaning) at hull-probe height? The ONE trace both the step's path-retry and the final refusal use. 0 B (a reused buffer).</summary>
+        private bool CrossesClosedBarrier(Vector2 from, float fromZ, Vector2 to, float toZ)
+        {
+            if (_terrain == null || Vector2.DistanceSquared(from, to) <= 1e-8f) return false;
+            var crossings = t_crossings ??= new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
+            _terrain.Trace(new Vector3(from, fromZ + HullProbeM), new Vector3(to, toZ + HullProbeM), Fdp.Toolkit.World.TracePurpose.Fire, crossings);
+            for (int k = 0; k < crossings.Count; k++) if (crossings[k].ClosedBarrier) return true;
+            return false;
+        }
+
+        /// <summary>One step of a PERSON's gait toward <paramref name="velocity"/> — facing an aim (CE-3195 W-14d/e) or walking where he faces (CE-3145).</summary>
+        private static float IntegratePerson(ref Vector2 pos2D, ref Vector2 fwd2D, ref VehicleState state, out Vector2 planarOut, Vector2 velocity,
+                                             Vector2 movedBefore, Vector2 toAim, bool facingAim, float speed, float accel, float dt)
+        {
+            planarOut = default;
+            if (facingAim)
+            {
+                // ⭐ CE-3195 W-14d/e — the way he goes (or, stopping, the way he was going), the body turned to the aim
+                Vector2 travel = velocity.LengthSquared() > 1e-6f ? Vector2.Normalize(velocity)
+                               : movedBefore.LengthSquared() > 1e-6f ? Vector2.Normalize(movedBefore) : fwd2D;
+                return HumanGait.IntegrateFacing(ref pos2D, ref fwd2D, ref state, travel, Vector2.Normalize(toAim), accel, dt, out planarOut);
+            }
+            return HumanGait.Integrate(ref pos2D, ref fwd2D, ref state, velocity, speed > 0.01f, accel, dt);
+        }
+
         /// <summary>
         /// The output of a step, shared by the autonomous and the ⭐ CE-3173 manual integrators: the surface under the body, the
         /// ledge rule, the pose and the velocity (<paramref name="planar"/> — a manual person's carries his strafe). Returns whether a WALL
@@ -836,16 +912,11 @@ namespace CarKinem.Systems
                 var barrier = wall && Vector2.DistanceSquared(here, pos2D) > 1e-8f
                     ? new CarKinem.Controllers.BarrierHit(true, -1, pos2D, Vector2.Normalize(here - pos2D)) : default;   // ⭐ CE-4600 — the centre rose into a solid piece
                 if (!wall && person && Vector2.DistanceSquared(here, pos2D) > 1e-8f)
-                {
-                    var crossings = t_crossings ??= new System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>();
-                    _terrain.Trace(new Vector3(here, tf.Position.Z + HullProbeM), new Vector3(pos2D, z + HullProbeM),
-                                   Fdp.Toolkit.World.TracePurpose.Fire, crossings);
-                    foreach (var c in crossings) if (c.ClosedBarrier) { wall = true; break; }
-                }
+                    wall = CrossesClosedBarrier(here, tf.Position.Z, pos2D, z);
                 else if (!wall && !person)
                 {
                     hereFwd = FacingOf(tf.Rotation);
-                    bool sized = HullClearance.HasHull(in hull);
+                    bool sized = HullClearance.HasBody(in hull);   // ⭐ CE-1958 — an animal by its body too (HasHull leaves it out: no backing)
                     wall = HullClearance.StepBarrier(_terrain, here, hereFwd, tf.Position.Z, pos2D, fwd2D, z,
                                                      sized ? hull.Length : 0f, sized ? hull.Width : 0f, out barrier);
                 }
@@ -887,6 +958,19 @@ namespace CarKinem.Systems
                     planar = Vector2.Zero;
                     if (!person) { fwd2D = hereFwd; yawRate = 0f; }
                     held = true;
+                    // ⭐ CE-1958 — an AI animal held at a wall TURNS ON THE SPOT toward where it is going (it has no reverse and turns only while it
+                    //   walks, so facing a fence with its way on behind it, it stood there for good). Never a possessed one (its rider steers it).
+                    if (!person && hull.Class == VehicleClass.Quadruped && nav.Mode != KinematicsMode.Manual && HullClearance.HasBody(in hull))
+                    {
+                        var aim = AimOf(in nav, in hull, here, 0f) - here;
+                        if (aim.LengthSquared() > 1e-4f
+                            && HullClearance.TurnInPlace(_terrain, here, hereFwd, tf.Position.Z, Vector2.Normalize(aim), hull.Length, hull.Width,
+                                                         AnimalPivotRadPerS * dt, out var turnedAt, out var turnedFwd))
+                        {
+                            pos2D = turnedAt;
+                            fwd2D = turnedFwd;
+                        }
+                    }
                 }
             }
             float dz = z - tf.Position.Z;
@@ -1092,6 +1176,9 @@ namespace CarKinem.Systems
         /// only the roof (the footprint is solid), and a tank that overshot into a building was lifted onto its 15 m roof.</summary>
         public const float VehicleMaxStepM = 0.5f, VehicleMaxClimbSlope = 1.0f;
 
+        /// <summary>⭐ CE-1958 — how fast an animal held at a wall turns on the spot (rad/s): a quarter turn in about a second.</summary>
+        public const float AnimalPivotRadPerS = 1.5f;
+
         /// <summary>⭐ <c>CE-6014</c> — how far ahead an avoidance swerve is checked against the hull guard: this many seconds at the current
         /// speed, at least <see cref="SwerveLookaheadMinM"/>.</summary>
         public const float SwerveLookaheadSeconds = 1f, SwerveLookaheadMinM = 2f;
@@ -1101,6 +1188,7 @@ namespace CarKinem.Systems
         public const float HullProbeM = 0.5f;
 
         /// <summary>⭐ CE-3286 — one list PER THREAD: the update runs ForEachParallel (the single shared list since CE-2198 was a latent race).</summary>
+        [Fdp.Core.WorldDerived("thread-static scratch list for trace results")]
         [ThreadStatic] private static System.Collections.Generic.List<Fdp.Toolkit.World.TraceCrossing>? t_crossings;
 
         /// <summary>⭐ CE-2059 — the arrival tolerance at a trajectory's end when the move set no <c>ArrivalRadius</c>.</summary>
@@ -1165,6 +1253,40 @@ namespace CarKinem.Systems
             if (along < -p.Length * 0.5f) return false;   // behind the hull
             float side = MathF.Abs(to.X * dir.Y - to.Y * dir.X);
             return side <= p.Width * 0.5f + ManDownHullMarginM;
+        }
+
+        /// <summary>⭐ <c>CE-3457</c> — the gap (m) a yielding vehicle keeps between its nose and an animal in its way.</summary>
+        public const float AnimalYieldGapM = 3f;
+        /// <summary>⭐ <c>CE-3457</c> — an animal counts as IN the hull's way within its half-width plus this (m): a cow's half-width and a driver's margin.</summary>
+        public const float AnimalYieldSideM = 1.2f;
+
+        /// <summary>
+        /// ⭐ <c>CE-3457</c> — the speed at which this vehicle can still stop <see cref="AnimalYieldGapM"/> short of the nearest ANIMAL ahead in its lane
+        /// (<paramref name="travel"/>, unit): √(2 · its braking · the gap) — <paramref name="cap"/> when no animal is in its way. Looks as far as it needs to
+        /// stop from <paramref name="cap"/> (≤ 40 m). The neighbours come from the spatial grid (tick-start positions); an animal is a body carrying
+        /// <c>AnimalState</c> (a presence read). 0 B: a stack span.
+        /// </summary>
+        internal static float AnimalYieldSpeed(EntityRepository repo, Entity self, Vector2 pos, Vector2 travel, float cap, SpatialHashGrid grid, in VehicleParams p)
+        {
+            // half the hull's braking: the speed controller follows the cap with a lag, and a planned stop at full braking overran the gap
+            //   (📌 the rail: a car planned at 4 m/s² stood with its nose ON the cow)
+            float decel = 0.5f * (p.MaxDecel > 0.1f ? p.MaxDecel : 4f);
+            float reach = MathF.Min(40f, p.Length * 0.5f + AnimalYieldGapM + cap * cap / (2f * decel) + 2f);
+            Span<(Entity, Vector2)> near = stackalloc (Entity, Vector2)[32];
+            int n = grid.QueryNeighbors(pos, reach, near);
+            float best = cap;
+            for (int i = 0; i < n; i++)
+            {
+                var (other, at) = near[i];
+                if (other.IsNull || other == self || !Fdp.Toolkit.Animals.Animals.IsAnimal(repo, other)) continue;
+                var to = at - pos;
+                float along = Vector2.Dot(to, travel);
+                if (along <= 0f) continue;                                                       // behind the nose's line
+                if (MathF.Abs(to.X * travel.Y - to.Y * travel.X) > p.Width * 0.5f + AnimalYieldSideM) continue;   // beside the lane
+                float gap = along - p.Length * 0.5f - AnimalYieldGapM;
+                best = MathF.Min(best, gap < 0.5f ? 0f : MathF.Sqrt(2f * decel * gap));   // inside the gap: stand
+            }
+            return best;
         }
 
         /// <summary>⭐ <c>CE-4622</c> K-3 (KV-2) — a coasting hull's deceleration (m/s²): rolling resistance, no brakes.</summary>

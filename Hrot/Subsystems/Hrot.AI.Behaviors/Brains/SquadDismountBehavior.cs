@@ -166,6 +166,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no round at the squad for this long (s) is a LULL: the squad brings its wounded in itself.</summary>
         public const double LullSeconds = 10d;
 
+        /// <summary>
+        /// ⭐ <c>CE-2457</c> (the urban fight suite U1) — the squad still knows an enemy (its pool holds one; a heard contact counts — <see cref="SquadContacts.AnyEnemy"/>,
+        /// the rule the contact reaction's "nothing to fight" reads). The SOP's last row: with no task and an enemy known, the squad HOLDS (consolidates)
+        /// instead of its men standing about. 📐 uf-car-shootout: both squads broke contact and their survivors stood idle in the street for 60–120 s.
+        /// </summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool KnowsAnEnemy(Entity self, EntityRepository world)
+            => world.HasComponent<SquadCognitiveState>(self) && SquadContacts.AnyEnemy(world, in world.GetComponentRO<SquadCognitiveState>(self).Contacts);
+
         /// <summary>⭐ <c>CE-2344</c> (R-2066 E) — no near miss or hit on the squad for <see cref="LullSeconds"/> — ⭐ <c>CE-2351</c> and no NEW
         /// contact in that time: the quiet is counted from the fight's start, not from before it. 📐 Live <c>ua-casualty-care-heavy</c>: the
         /// reaction chose 4 s after the contact, before the first enemy round (5.5 s), so "no round for 10 s" held and it went for the man.</summary>
@@ -357,12 +366,24 @@ namespace Hrot.AI.Behaviors.Brains
                && area.Kind == Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Minefield
                && area.DistanceAlongRoute <= (p.WithinMetres > 0f ? p.WithinMetres : 30f);
 
+        /// <summary>
+        /// ⭐ <c>CE-2466</c> R6 (Squad Tactics §7.9) — the route reaches ground a known enemy covers (a <c>CoveredByFire</c> area of the side's
+        /// <c>UnderFire</c> knowledge) within <see cref="SopAreaParams.WithinMetres"/>: the planner could not go round it. Held short, never crossed.
+        /// </summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static bool CoveredByFireAhead(ref SopAreaParams p, Entity self, EntityRepository world)
+            => DangerCrossingPlay.NextArea(world, self, out var area)
+               && area.Kind == Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire
+               && area.DistanceAlongRoute <= (p.WithinMetres > 0f ? p.WithinMetres : 30f);
+
         [Fbt.Kernel.SharedAiCondition]
         public static bool DangerAreaAhead(ref SopAreaParams p, Entity self, EntityRepository world)
         {
             if (!DangerCrossingPlay.NextArea(world, self, out var area)) return false;
             // ⭐ CE-4624 MS-B4 (KG-7) — a MINEFIELD is never crossed as a drill: its own row halts the squad and calls the engineers
             if (area.Kind == Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.Minefield) return false;
+            // ⭐ CE-2466 R6 (S14) — ground a known enemy covers is never crossed as a drill either: its own row holds the squad short
+            if (area.Kind == Fdp.Toolkit.Squad.DangerArea.DangerAreaKind.CoveredByFire) return false;
             if (area.DistanceAlongRoute > (p.WithinMetres > 0f ? p.WithinMetres : 30f)) return false;
             var line = area.FarSideHandle - area.NearSideHandle; line.Z = 0f;
             if (line.LengthSquared() < 1f) return false;

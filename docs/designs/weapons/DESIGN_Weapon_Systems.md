@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none. (2026-10-14: StationPresets → SeatPresets and StartWith on ANY seat — W-I; the earlier "StartWith : weapon type id" / "fills its StartWith stations" wording is superseded in place.)
 known-conflict: DESIGN_Vehicle_Exposure_Cycle.md §6 builds the technicals (104 HMG, 105 ATGM) as a pickup TYPE whose pintle is its own turret mount — ⭐ WS-4 LANDED (§9): they are now presets (a pickup host + a weapon system in its station + a gunner), same numbers; that §6 is history for the weapon, still true for the pickup.
 related-designs:
+  - DESIGN_Flame_Weapons.md — the flamethrower (WeaponCategory.Flamethrower, a FlameJet instead of a round) and the napalm bomb
   - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/DESIGN_Entity_Control.md — §8h (CE-1144, PRELIMINARY): the FPS use key lets a possessed man take a standalone weapon's Gunner seat and fire it (U-5); ⭐ §8n (CE-1210, R-1018) seat switching — a POSSESSED gunner controls his vehicle's station (W-H amended)
   - docs/designs/hit-location/DESIGN_Body_Parts_And_Hit_Location.md — S2 gives a weapon system its parts, so a round meets a deployed weapon (§6's CE-2182 row)
@@ -486,6 +487,8 @@ sequenceDiagram
   S->>C: PutDown — Success at once when he carries nothing
   S->>C: Embark Role=Gunner — walk to it, board its Gunner seat (ManWeapon)
   S->>D: DeployWeapon { weapon }
+  D->>W: CanBegin(weapon) — read only (CE-3470)
+  Note over D,W: in the parallel brain phase the weapon is ANOTHER entity — Deploy/Pack runs as a follow-up after the phase (BatchContext.Later), outside a phase at once
   D->>W: Deploy(weapon) once — false when already Deployed
   loop each tick
     D->>W: read WeaponSystemState.Deploy
@@ -493,6 +496,8 @@ sequenceDiagram
   D-->>S: Success at Deployed · Failure: weapon gone / state not ours / Stowed again
   Note over S: now the controller (§6) — his weapon brain fires the weapon
 ```
+
+⭐ **As built `2026-11-19` (CE-3470, behaviors):** under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` the gunner's `DeployWeapon` read and WROTE the weapon's `WeaponSystemState` in the brain phase (a cross-entity write, R-4212) — the deploy now defers its write (`WeaponDeployment.CanBegin` decides, a follow-up writes); `WeaponSystemState` (AiBrainReads) and `NetworkAuthority` (BrainReads, `Owns`) are declared reads. `ua-m2-engage` / `ua-weapon-systems` pass under the strict env.
 
 ```mermaid
 graph TD

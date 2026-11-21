@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "cqb-village",
-    "description": "What: On cqb-village, 'Blue Platoon' (Friend, Regular, 3 squads of 4) runs UrbanMovement (CE-2284) east down Main Street to the Cross Road (200,190), then south down it to (200,110); 2 Militia insurgents in SNP (x 300..310, y 204..214), ~100 m off the route, fire on it. Judge: (1) a squad fired on senses FiredOnFromStructure and reports it; (2) the platoon does NOT react with ReactToFireFromBuilding \u2014 the building is off the route and the platoon is Regular, so it bypasses (DA-18; no smoke yet, CE-2278); (3) the squad in contact fights its own drill and the movement reaches the route's end. Fail: a squad is sent into SNP, or the movement never ends. Check: the twin PlatoonScenarioTests.CE2284_PcAmbushBypass_*"
+    "description": "What: On cqb-village, 'Blue Platoon' (Friend, Regular, 3 squads of 4) runs UrbanMovement (CE-2284) east down Main Street to the Cross Road (200,190), then south down it to (200,110); 2 Militia insurgents in SNP (x 300..310, y 204..214), ~100 m off the route, fire on it from its two WEST windows (ground and first floor, at y 208.6: the openings that see the Cross Road; posts on the south wall saw only the empty street east of it). Judge: (1) a squad fired on senses FiredOnFromStructure and reports it; (2) the platoon does NOT react with ReactToFireFromBuilding \u2014 the building is off the route and the platoon is Regular, so it bypasses (DA-18; no smoke yet, CE-2278); (3) the squad in contact fights its own drill and the movement reaches the route's end. Fail: a squad is sent into SNP, or the movement never ends. Check: the twin PlatoonScenarioTests.CE2284_PcAmbushBypass_*"
   },
   "entities": {
     "c2284f00-0000-4000-8000-000000009400": {
@@ -514,9 +514,9 @@
     "c2284f00-0000-4000-8000-000000009701": {
       "SimTransform": {
         "Position": [
-          301.5,
-          205.2,
-          0
+          300.7,
+          208.6,
+          3
         ],
         "Rotation": [
           0,
@@ -541,7 +541,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": {"Advance": {"Objective": [301.5, 205.2, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [301.5, 205.2, 0], "Radius": 2.0}},
+        "Params": {"Advance": {"Objective": [300.7, 208.6, 3], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [300.7, 208.6, 3], "Radius": 2.0, "Window": true}},
         "Origin": "Superior"
       },
       "Sop": {
@@ -560,8 +560,8 @@
     "c2284f00-0000-4000-8000-000000009702": {
       "SimTransform": {
         "Position": [
-          305.0,
-          205.2,
+          300.7,
+          208.6,
           0
         ],
         "Rotation": [
@@ -587,7 +587,7 @@
       },
       "Behavior": {
         "Name": "CombatPosture",
-        "Params": {"Advance": {"Objective": [305.0, 205.2, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [305.0, 205.2, 0], "Radius": 2.0}},
+        "Params": {"Advance": {"Objective": [300.7, 208.6, 0], "ArrivalRadius": 1}, "Stay": true, "Post": {"Point": [300.7, 208.6, 0], "Radius": 2.0, "Window": true}},
         "Origin": "Superior"
       },
       "Sop": {

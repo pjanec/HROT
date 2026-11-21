@@ -24,5 +24,7 @@ namespace Fdp.Toolkit.Behavior.Events
         public SimDuration ReturnFireWindowSeconds;
         /// <summary>⭐ <c>CE-2239</c> part 1 — the force level; <see cref="RoeForceLevel.ForceUnset"/> keeps the current one.</summary>
         public RoeForceLevel ForceLevel;
+        /// <summary>⭐ <c>CE-3486</c> (F-9) — the incendiary rule; <see cref="RoeIncendiary.IncendiaryUnset"/> keeps the current one.</summary>
+        public RoeIncendiary Incendiary;
     }
 }

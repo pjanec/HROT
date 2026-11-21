@@ -56,6 +56,28 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(near.Verts, again.Verts);   // the same placement every build
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-1968</c> (the user, `2026-11-17`: "after drawing a wood area the trees land ~10 m off, partly outside the polygon") — a wood drawn OFF the 25 m woods grid
+        /// (a 35 m square from (12, 13)) is planted INSIDE its polygon: no trunk outside it, and trees along every edge (no bare strip a cell wide). The rail above uses a wood on
+        /// the grid's lines, where the old drawing happened to fit. 🔴 Red-proof: plant whole cells whose centre is in the wood again ⇒ trunks reach x ≈ 50 (beyond the east edge 47).
+        /// </summary>
+        [Fact]
+        public void CE1968_AWoodDrawnOffTheGrid_IsPlantedInsideItsPolygon_ToEveryEdge()
+        {
+            var w = TerrainWorldParser.Parse("""
+                {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,100,100],"groundZ":0},"features":[
+                 {"type":"Feature","properties":{"kind":"surface","surface":"forest","density":115,"canopy":15},
+                  "geometry":{"type":"Polygon","coordinates":[[[12,13],[47,13],[47,48],[12,48],[12,13]]]}}]}
+                """, "off-grid");
+            var near = Part(new TerrainWorldQuery(w), TerrainChunkPart.ChunkTrees);
+            var trunks = new System.Collections.Generic.List<Vector3>();
+            for (int i = 0; i < near.Idx.Length; i++) if (near.Materials[i / 3] == TerrainWorldMesh.TrunkMaterial) trunks.Add(near.Verts[near.Idx[i]]);
+            Assert.NotEmpty(trunks);
+            Assert.All(trunks, v => Assert.True(v.X >= 12f - 0.2f && v.X <= 47f + 0.2f && v.Y >= 13f - 0.2f && v.Y <= 48f + 0.2f, $"a trunk outside the wood at ({v.X:F1}, {v.Y:F1})"));
+            Assert.Contains(trunks, v => v.X < 18f); Assert.Contains(trunks, v => v.X > 41f);   // planted to the west and east edges
+            Assert.Contains(trunks, v => v.Y < 19f); Assert.Contains(trunks, v => v.Y > 42f);   // and to the south and north
+        }
+
         [Fact]
         public void FarTrees_AreTheLoneCrowns_PlusACanopySheet_WithWallsOnlyOnTheWoodsEdge()
         {

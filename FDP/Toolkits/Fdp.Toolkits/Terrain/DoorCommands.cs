@@ -119,6 +119,18 @@ namespace Fdp.Toolkit.Terrain
         public const int MineStruck = 5105, MinefieldCellsSwept = 5106, MinefieldMarked = 5107, LaneCleared = 5108;
         /// <summary>⭐ CE-4624 MS-T4 (MR-15) — <c>MinesCleared</c>: a plough / flail / line charge cleared mines (5109 free on every lane, <c>2026-11-16</c>).</summary>
         public const int MinesCleared = 5109;
+        /// <summary>⭐ CE-4664 (thermal drivers TD-14) — <c>GroundHeatMarkEvent</c>: a vehicle left a warm stand (5110 free on every lane, <c>2026-11-18</c>).</summary>
+        public const int GroundHeatMark = 5110;
+        /// <summary>⭐ CE-5033 (glass windows GW-2) — <c>WindowHitEvent</c>: a pane was hit or must break (5111 free on every lane, <c>2026-11-18</c>).</summary>
+        public const int WindowHit = 5111;
+        /// <summary>⭐ CE-5033 (glass windows GW-2, D-8) — <c>WindowBrokenEvent</c>: a pane shattered (its sound; 5112 free on every lane, <c>2026-11-18</c>).</summary>
+        public const int WindowBroken = 5112;
+        /// <summary>⭐ CE-3487 (flame FL-3) — <c>GroundFireEvent</c>: a ground fire spot a napalm strike lays (5113 free on every lane, <c>2026-11-19</c>).</summary>
+        public const int GroundFire = 5113;
+        /// <summary>⭐ CE-3488 (flame FL-4) — <c>BuildingFireEvent</c>: a building set alight (5114 free on every lane, <c>2026-11-19</c>).</summary>
+        public const int BuildingFire = 5114;
+        /// <summary>⭐ CE-2468 (DESIGN_Minefields.md §9b) — <c>UnderFireLearned</c>: a side learned a place under fire (5115 free on every branch, <c>2026-11-21</c>).</summary>
+        public const int UnderFireLearned = 5115;
     }
 
     /// <summary>
@@ -142,6 +154,7 @@ namespace Fdp.Toolkit.Terrain
         public static readonly long DoorStateKey = Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey(DoorStateDescriptorOrdinal, 0);
 
         /// <summary>Commands this system applied (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter — read by tests and diagnostics only")]
         public long Applied { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)

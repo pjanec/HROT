@@ -182,10 +182,10 @@ public static class AttributeReaders
         I<Fdp.Toolkit.Weather.ScenarioClock>(AttributeIds.ScenarioUtcOffsetMinutes, static c => c.DisplayUtcOffsetMinutes);
 
         // ── a civilian's fright ──
-        D<Fdp.Toolkit.Civilians.CivilianState>(AttributeIds.CivilianFear, static c => c.Fear);
-        D<Fdp.Toolkit.Civilians.CivilianState>(AttributeIds.CivilianFrightFromX, static c => c.FrightFrom.X);
-        D<Fdp.Toolkit.Civilians.CivilianState>(AttributeIds.CivilianFrightFromY, static c => c.FrightFrom.Y);
-        D<Fdp.Toolkit.Civilians.CivilianState>(AttributeIds.CivilianFrightFromZ, static c => c.FrightFrom.Z);
+        D<Fdp.Toolkit.Creatures.Fear>(AttributeIds.CivilianFear, static c => c.Value);
+        D<Fdp.Toolkit.Creatures.Fear>(AttributeIds.CivilianFrightFromX, static c => c.FrightFrom.X);
+        D<Fdp.Toolkit.Creatures.Fear>(AttributeIds.CivilianFrightFromY, static c => c.FrightFrom.Y);
+        D<Fdp.Toolkit.Creatures.Fear>(AttributeIds.CivilianFrightFromZ, static c => c.FrightFrom.Z);
 
         // ── a rule entity's control (unmanaged) and live edit (a managed record) ──
         I<Fdp.Toolkit.ScenarioRules.RuleControl>(AttributeIds.RuleRequest, static c => c.Request);

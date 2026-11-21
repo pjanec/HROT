@@ -1,0 +1,1092 @@
+{
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "wide-corridor",
+    "description": "What: CE-4672 (HANDOFF_Coordinator_To_Terrain_Street_Fight_Scenario + its STEER): the real-1 street fight rebuilt on wide-corridor — a straight OPEN grass corridor 30 m wide (y 185..215, centreline y 200) between detached two-storey family houses (enterable, front doors on the corridor; brick garden walls, fences and hedges at its edges). 'Red Platoon' (Hostile) runs PlatoonDefend with each line squad's post ON the centreline ('Red Squad 1' at x 400, 'Red Squad 2' at x 440, SearchRadius 25 (was 10, the report's setup — at 10 the centreline posts find no cover: D-11, 2026-11-19); the nearest cover is ~14.5 m from a post, CE-4673) and 'Red Reserve' 40 m behind (x 480); 'Blue Platoon' (Friend, under 'Blue HQ') runs PlatoonAttack on (420,200) from 160 m down the corridor (x 240, three squads abreast). Behaviours unchanged, nothing scripted. Judge: the chain (Red defends, Blue attacks, both sides fire, no friendly hits) and what a REALISTIC fight looks like: Red's line is in cover (a cover point within 3 m) within its first minute; no Blue squad stands wholly in the open after 90 s; no squad stands bunched (every man within 2 m of the squad's centre) after 30 s; a dead man runs no behaviour. The realism rows are RED where the fight is still wrong — behaviors' targets (CE-4666…CE-4669); NOTE_Terrain_To_Behaviors_Corridor_Fight names them."
+  },
+  "entities": {
+    "c4672000-0000-4000-8000-000000000100": {
+      "SimTransform": {
+        "Position": [
+          420,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Red Platoon",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "PlatoonDefend",
+        "Params": {
+          "Position": [
+            420,
+            200,
+            0
+          ],
+          "Left": 225,
+          "Right": 315,
+          "MaxRange": 160,
+          "Speed": 2,
+          "Squads": [
+            {
+              "Squad": 1,
+              "Point": [
+                400,
+                200,
+                0
+              ],
+              "SearchRadius": 25
+            },
+            {
+              "Squad": 2,
+              "Point": [
+                440,
+                200,
+                0
+              ],
+              "SearchRadius": 25
+            },
+            {
+              "Squad": 3,
+              "Reserve": true,
+              "Point": [
+                480,
+                200,
+                0
+              ],
+              "SearchRadius": 25
+            }
+          ]
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000110": {
+      "SimTransform": {
+        "Position": [
+          400,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Squad 1",
+        "ForceId": "Hostile"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000111": {
+      "SimTransform": {
+        "Position": [
+          399,
+          197.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad 1 Leader",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000110",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000112": {
+      "SimTransform": {
+        "Position": [
+          399,
+          199.1,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad 1 Rifleman 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000110",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000113": {
+      "SimTransform": {
+        "Position": [
+          399,
+          200.7,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad 1 Rifleman 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000110",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000114": {
+      "SimTransform": {
+        "Position": [
+          399,
+          202.3,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad 1 Rifleman 3",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000110",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000120": {
+      "SimTransform": {
+        "Position": [
+          440,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Squad 2",
+        "ForceId": "Hostile"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000121": {
+      "SimTransform": {
+        "Position": [
+          439,
+          197.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad 2 Leader",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000120",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000122": {
+      "SimTransform": {
+        "Position": [
+          439,
+          199.1,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad 2 Rifleman 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000120",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000123": {
+      "SimTransform": {
+        "Position": [
+          439,
+          200.7,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad 2 Rifleman 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000120",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000124": {
+      "SimTransform": {
+        "Position": [
+          439,
+          202.3,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad 2 Rifleman 3",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000120",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000130": {
+      "SimTransform": {
+        "Position": [
+          480,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Reserve",
+        "ForceId": "Hostile"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000131": {
+      "SimTransform": {
+        "Position": [
+          479,
+          197.5,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Reserve Leader",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000130",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000132": {
+      "SimTransform": {
+        "Position": [
+          479,
+          199.1,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Reserve Rifleman 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000130",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000133": {
+      "SimTransform": {
+        "Position": [
+          479,
+          200.7,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Reserve Rifleman 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000130",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000134": {
+      "SimTransform": {
+        "Position": [
+          479,
+          202.3,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Reserve Rifleman 3",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000130",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000200": {
+      "SimTransform": {
+        "Position": [
+          200,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue HQ",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "SupportCommand",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000201": {
+      "SimTransform": {
+        "Position": [
+          230,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue Platoon",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatoonAttack",
+        "Params": {
+          "Position": [
+            420,
+            200,
+            0
+          ],
+          "SearchRadius": 35,
+          "Preset": "AttackPosition",
+          "Speed": 2
+        },
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000200",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000210": {
+      "SimTransform": {
+        "Position": [
+          240,
+          191,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000201",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000211": {
+      "SimTransform": {
+        "Position": [
+          237.5,
+          190,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000210",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000212": {
+      "SimTransform": {
+        "Position": [
+          239.1,
+          190,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000210",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000213": {
+      "SimTransform": {
+        "Position": [
+          240.7,
+          190,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1 Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000210",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000214": {
+      "SimTransform": {
+        "Position": [
+          242.3,
+          190,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000210",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000220": {
+      "SimTransform": {
+        "Position": [
+          240,
+          200,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000201",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000221": {
+      "SimTransform": {
+        "Position": [
+          237.5,
+          199,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000220",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000222": {
+      "SimTransform": {
+        "Position": [
+          239.1,
+          199,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000220",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000223": {
+      "SimTransform": {
+        "Position": [
+          240.7,
+          199,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2 Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000220",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000224": {
+      "SimTransform": {
+        "Position": [
+          242.3,
+          199,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000220",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000230": {
+      "SimTransform": {
+        "Position": [
+          240,
+          209,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000201",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000231": {
+      "SimTransform": {
+        "Position": [
+          237.5,
+          208,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3 Leader",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000230",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000232": {
+      "SimTransform": {
+        "Position": [
+          239.1,
+          208,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000230",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000233": {
+      "SimTransform": {
+        "Position": [
+          240.7,
+          208,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3 Rifleman 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000230",
+        "Designation": "Wingman"
+      }
+    },
+    "c4672000-0000-4000-8000-000000000234": {
+      "SimTransform": {
+        "Position": [
+          242.3,
+          208,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4672000-0000-4000-8000-000000000230",
+        "Designation": "Wingman"
+      }
+    }
+  }
+}

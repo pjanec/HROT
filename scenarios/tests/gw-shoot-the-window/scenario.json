@@ -1,0 +1,252 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "bt-range",
+    "description": "What: on bt-range (CE-5033, glass windows GW-2; docs/DESIGN_Glass_Windows.md §7) 'Window Man' (Friend, HOLD FIRE, stay on task) stands 1.6 m back from House A's ground-floor EAST window (glazed, y 103.0..104.2 on x 110, sill z 0.9, head z 2.1; no window above it) at (108.4,103.6), and three Hostile riflemen in the open ('Street Rifleman' at (128,103.6) beside 'Van 1', 'Street Rifleman 2' at (128,102.4), 'Street Rifleman 3' at (128,104.8)) attack him (CombatPosture, assault) — a level shot, so every aimed round crosses the pane. Standard behaviours only; nothing scripted. Judge: the pane is whole before the first shot; their rounds crack it (one crack, then two — kept in the replicated window state), and the third round through it breaks it; the Window Man never fires; they see him through the glass the whole time (they keep firing: glass changes no visibility)."
+  },
+  "entities": {
+    "2a970101-0000-4000-8000-000000000101": {
+      "SimTransform": {
+        "Position": [
+          108.4,
+          103.6,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Window Man",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "2a970102-0000-4000-8000-000000000102",
+            "PosX": 128.0,
+            "PosY": 103.6,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    },
+    "2a970102-0000-4000-8000-000000000102": {
+      "SimTransform": {
+        "Position": [
+          128,
+          103.6,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Street Rifleman",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "2a970101-0000-4000-8000-000000000101",
+            "PosX": 108.4,
+            "PosY": 103.6,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {
+          "target": "2a970101-0000-4000-8000-000000000101",
+          "assault": true
+        },
+        "Origin": "Superior"
+      }
+    },
+    "2a970103-0000-4000-8000-000000000103": {
+      "SimTransform": {
+        "Position": [
+          126.5,
+          101.2,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Van 1"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.9,
+        "Height": 1.8
+      }
+    },
+    "2a970104-0000-4000-8000-000000000104": {
+      "SimTransform": {
+        "Position": [
+          131,
+          98,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Van 2"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.9,
+        "Height": 1.8
+      }
+    },
+    "2a970106-0000-4000-8000-000000000106": {
+      "SimTransform": {
+        "Position": [
+          128,
+          102.4,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Street Rifleman 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "2a970101-0000-4000-8000-000000000101",
+            "PosX": 108.4,
+            "PosY": 103.6,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {
+          "target": "2a970101-0000-4000-8000-000000000101",
+          "assault": true
+        },
+        "Origin": "Superior"
+      }
+    },
+    "2a970107-0000-4000-8000-000000000107": {
+      "SimTransform": {
+        "Position": [
+          128,
+          104.8,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Street Rifleman 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": [
+          {
+            "Entity": "2a970101-0000-4000-8000-000000000101",
+            "PosX": 108.4,
+            "PosY": 103.6,
+            "PosZ": 0,
+            "Score": 500,
+            "Tick": 0,
+            "Modality": 1
+          }
+        ]
+      },
+      "Behavior": {
+        "Name": "CombatPosture",
+        "Params": {
+          "target": "2a970101-0000-4000-8000-000000000101",
+          "assault": true
+        },
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -138,6 +138,7 @@ internal readonly struct RoutingEntry
 /// Instances are created by <see cref="AttributeCompilerBuilder.Build"/>.
 /// The routing table is fixed at build time; no allocations occur during <see cref="Compile"/>.
 /// </remarks>
+[Fdp.Core.NotState("routing table built at setup; warn-once set diagnostic")]
 public sealed class JsonAttributeCompiler
 {
     // ── Constants ───────────────────────────────────────────

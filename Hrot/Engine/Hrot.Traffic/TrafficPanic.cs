@@ -54,11 +54,15 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
 
     private readonly TrafficRuntime _runtime;
     private readonly Func<TrafficReplicas?> _replicas;
+    [Fdp.Core.WorldDerived("scratch cleared at top of Execute")]
     private readonly List<TrafficIncident> _frame = new();
+    [Fdp.Core.WorldDerived("scratch cleared before TakeConversions")]
     private readonly List<TrafficConversion> _conversions = new();
     private readonly Fdp.Toolkit.Replication.Services.NetworkEntityMap? _entityMap;
+    [Fdp.Core.ProtocolCache("R-3039 S1 (was C): a hit held ≤ 10 s for the civilian SUMO is converting the replica into — the conversion is in flight between this node and SUMO, and SUMO (X) restarts at a restore, so the hit is lost with it (R-3041 accepts in-flight losses)")]
     private readonly Dictionary<int, (DamageAssessedEvent Hit, double Until)> _held = new();
     private int _worldEpoch;
+    [Fdp.Core.WorldDerived("scratch cleared before each use")]
     private readonly List<int> _done = new();
 
     /// <summary>How long a hit is held for the civilian it converts to (cluster seconds): a creation request round trip, with margin.</summary>
@@ -133,6 +137,7 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     /// frame, never the whole street at once).</summary>
     public const int MaxDriversPerFrame = 2;
 
+    [Fdp.Core.ProtocolCache("cars whose driver abandon was already reported to SUMO: report-once set, cleared at world move")]
     private readonly HashSet<int> _abandoned = new();
     private EntityQuery? _cars;
 
@@ -282,7 +287,9 @@ public sealed class TrafficPanicSystem : IEcsModuleSystem
     {
         demand = default;
         if (!world.IsComponentTypeRegistered<TrafficDemand>()) return false;
-        foreach (var e in world.Query().With<TrafficDemand>().Build()) { demand = world.GetComponentRO<TrafficDemand>(e); return demand.TargetPedestrians > 0; }
+        // ⭐ CE-1959 — ANY traffic: a hit car (K7 / §8.7 G4) and a driver who hears the fight (CE-7011) need no pedestrians. ⛔ Was "pedestrians > 0" (slice 5a's
+        //   gate, when this system only frightened walkers): in car-only traffic (the convoy scenarios) every hit on a SUMO car was ignored
+        foreach (var e in world.Query().With<TrafficDemand>().Build()) { demand = world.GetComponentRO<TrafficDemand>(e); return demand.TargetPedestrians > 0 || demand.TargetCars > 0; }
         return false;
     }
 }

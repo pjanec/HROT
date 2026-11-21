@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.Toolkit.Animals;
 using Fdp.Toolkit.Civilians;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Perception.Events;
 using Fdp.Toolkit.Perception.Tests;
 using Fdp.Toolkit.Replication.Components;
@@ -23,7 +24,7 @@ namespace Fdp.Toolkit.Animals.Tests
     /// </summary>
     public sealed class AnimalFearTests
     {
-        private const long CattleType = 700, DogType = 705, HorseType = 703;
+        private const long CattleType = 700, DogType = 705, HorseType = 703, BreakerType = 701;
         private static readonly AnimalTemperamentDto Cattle = new()
         {
             Species = (byte)AnimalSpecies.Cattle, FlightZoneM = 25f, PanicZoneM = 10f, FleeSpeed = 9f, FleeDistanceM = 200f, Recovery = 60f,
@@ -33,6 +34,7 @@ namespace Fdp.Toolkit.Animals.Tests
         {
             var w = PerceptionTestWorldFactory.Create();
             w.RegisterComponent<Fear>();
+            w.RegisterComponent<AnimalTasks>();
             w.RegisterComponent<AnimalState>();
             w.RegisterComponent<FlockState>();
             if (!w.IsComponentTypeRegistered<CivilianState>()) w.RegisterComponent<CivilianState>();
@@ -43,6 +45,9 @@ namespace Fdp.Toolkit.Animals.Tests
             if (!w.Bus.IsRegistered<SensorChangedEvent>()) w.Bus.Register<SensorChangedEvent>();
             var db = new TkbDatabase();
             var cow = new TkbTemplate("Cattle", CattleType); cow.AddDescriptor(Cattle); db.Register(cow);
+            var breaker = new TkbTemplate("Bull", BreakerType);   // ⭐ CE-4628 — a species that breaks fences when it panics
+            breaker.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.Cattle, FlightZoneM = 25f, PanicZoneM = 10f, Breaks = true });
+            db.Register(breaker);
             var dog = new TkbTemplate("Dog", DogType);
             dog.AddDescriptor(new AnimalTemperamentDto { Species = (byte)AnimalSpecies.Dog, Fearless = true, Territorial = true, FlightZoneM = 30f, PanicZoneM = 8f, Recovery = 20f });
             db.Register(dog);
@@ -60,8 +65,7 @@ namespace Fdp.Toolkit.Animals.Tests
             w.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)type });
             w.GetSingletonManaged<ITkbDatabase>().TryGetByType(type, out var t);
             new AnimalTkbTranslator().Inject(w, e, t!);
-            ref var f = ref w.GetComponentRW<Fear>(e);
-            f.NextZoneLookAt = default;   // look from the first frame
+            w.GetComponentRW<AnimalTasks>(e).NextZoneLookAt = default;   // look from the first frame
             return e;
         }
 
@@ -88,7 +92,34 @@ namespace Fdp.Toolkit.Animals.Tests
             sys.Execute(w, dt);
         }
 
-        private static byte Band(EntityRepository w, Entity e) => w.GetComponentRO<AnimalState>(e).FearBand;
+        private static byte Band(EntityRepository w, Entity e) => AnimalFear.Band(w.GetComponentRO<Fear>(e).Value);   // ⭐ CE-4628 — the band is read off the fear, not stored
+
+        /// <summary>
+        /// ⭐ <c>CE-4628</c> rail (d) — <see cref="AnimalFear.PanicBreaks"/> reads the REPLICATED band the fear system writes (§10b — kept: every node can read it,
+        /// and it is the pass's snapshot): fear 0.74 ⇒ band 2, no breach; 0.76 ⇒ band 3, a fleeing fence-breaker breaches; a calm one and a species that does not
+        /// break fences never do. 🔴 Red-proof: <c>PanicBreaks</c> reading the live fear ⇒ the "band still 2 after the fear rose" assertion fails.
+        /// </summary>
+        [Fact]
+        public void CE4628_PanicBreaks_ReadsTheFearAtBand3sOwnThreshold_074No_076Yes()
+        {
+            using var w = World();
+            var bull = Animal(w, BreakerType, Vector3.Zero);
+            var cow = Animal(w, CattleType, Vector3.Zero);   // a species that does not break fences
+            w.GetComponentRW<AnimalState>(bull).Mode = AnimalMode.Flee;
+            w.GetComponentRW<AnimalState>(cow).Mode = AnimalMode.Flee;
+            w.GetComponentRW<AnimalState>(bull).FearBand = AnimalFear.Band(0.74f);
+            w.GetComponentRW<AnimalState>(cow).FearBand = AnimalFear.Band(0.9f);
+            Assert.False(AnimalFear.PanicBreaks(w, bull));
+            w.GetComponentRW<Fear>(bull).Value = 0.9f;                         // the fear rose after the pass: the band is still the pass's
+            Assert.False(AnimalFear.PanicBreaks(w, bull));
+            w.GetComponentRW<AnimalState>(bull).FearBand = AnimalFear.Band(0.76f);
+            Assert.True(AnimalFear.PanicBreaks(w, bull));
+            Assert.False(AnimalFear.PanicBreaks(w, cow));                    // it does not break fences, however frightened
+            w.GetComponentRW<AnimalState>(bull).Mode = AnimalMode.Calm;
+            Assert.False(AnimalFear.PanicBreaks(w, bull));                   // not fleeing
+            Assert.Equal(AnimalFear.Band(0.76f), (byte)3);                   // the band's own edge is the threshold
+            Assert.Equal(AnimalFear.Band(0.74f), (byte)2);
+        }
 
         [Fact]
         public void CE4623_ATankDrivingAtTheHerd_FrightensItSilently_ThroughTheZones_AFearlessDogIsUntouched()
@@ -170,19 +201,22 @@ namespace Fdp.Toolkit.Animals.Tests
         public void CE4623_AHerd_HasACentre_CatchesFearFromOneMember_AndAllocatesNothing()
         {
             using var w = World();
-            w.RegisterComponent<HerdMember>();
+            w.RegisterComponent<GroupMember>();
             w.RegisterComponent<HerdState>();
-            w.RegisterComponent<AnimalHome>();
+            w.RegisterComponent<Group>();
+            w.RegisterComponent<Home>();
             var herd = w.CreateEntity();
             w.AddComponent(herd, new HerdState { Species = AnimalSpecies.Cattle });
+            w.AddComponent(herd, new Group { Kind = GroupKind.Herd });
             var a = Animal(w, CattleType, new Vector3(0, 0, 0));
             var b = Animal(w, CattleType, new Vector3(10, 0, 0));
-            w.AddComponent(a, new HerdMember { Herd = herd });
-            w.AddComponent(b, new HerdMember { Herd = herd });
+            w.AddComponent(a, new GroupMember { Group = herd });
+            w.AddComponent(b, new GroupMember { Group = herd });
             var herds = new HerdSystem();
             herds.Execute(w, 0.1f);
-            Assert.Equal(new Vector3(5, 0, 0), (Vector3)w.GetComponentRO<HerdState>(herd).Centre);
-            Assert.Equal(a, w.GetComponentRO<HerdState>(herd).Lead);
+            Assert.Equal(new Vector3(5, 0, 0), (Vector3)w.GetComponentRO<Group>(herd).Centre);
+            Assert.Equal(a, w.GetComponentRO<Group>(herd).Lead);
+            Assert.Equal(2, w.GetComponentRO<Group>(herd).Count);
 
             w.GetComponentRW<Fear>(a) = new Fear { Value = 0.95f, FrightFrom = new Vector3(-40, 0, 0), HasFrightFrom = 1 };
             for (int i = 0; i < 15; i++) { w.SetSimulationTime(w.SimulationTime + 0.1f); herds.Execute(w, 0.1f); }   // 1.5 s
@@ -204,18 +238,20 @@ namespace Fdp.Toolkit.Animals.Tests
         public void CE4623_AfterAFright_TheNextGrazingSpot_IsAwayFromIt_InsideTheHome()
         {
             using var w = World();
-            w.RegisterComponent<HerdMember>();
+            w.RegisterComponent<GroupMember>();
             w.RegisterComponent<HerdState>();
-            w.RegisterComponent<AnimalHome>();
+            w.RegisterComponent<Group>();
+            w.RegisterComponent<Home>();
             var herd = w.CreateEntity();
-            w.AddComponent(herd, new AnimalHome { Centre = Vector3.Zero, Radius = 60f });
+            w.AddComponent(herd, new Home { Centre = Vector3.Zero, Radius = 60f });
             var lead = Animal(w, CattleType, Vector3.Zero);
             w.GetComponentRW<Fear>(lead) = new Fear { Value = 0.2f, FrightFrom = new Vector3(-80, 0, 0), HasFrightFrom = 1, LastFrightAt = (SimInstant)10.0 };
-            var hs = new HerdState { Lead = lead };
+            var hs = new HerdState();
+            var grp = new Group { Kind = GroupKind.Herd, Lead = lead };
             float sumAfraid = 0f;
             for (int i = 0; i < 20; i++)
             {
-                var p = HerdSystem.PickGrazing(w, herd, in hs, 10.0 + i * 3.1);
+                var p = HerdSystem.PickGrazing(w, herd, in hs, in grp, 10.0 + i * 3.1);
                 Assert.True(p.Length() <= 60f, $"inside the home: {p}");
                 Assert.True(p.X > 0f, $"pick {i} lands on the far side from the fright: {p}");
                 sumAfraid += p.X;

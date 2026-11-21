@@ -22,6 +22,7 @@ namespace CarKinem.Convoy
     /// </summary>
     [ComponentId(GlobalComponentIds.ConvoyProgress)]
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct ConvoyProgress
     {
         /// <summary>This vehicle's position along the lead's trail (m, the trail's axis).</summary>
@@ -38,6 +39,7 @@ namespace CarKinem.Convoy
     /// </summary>
     [ComponentId(GlobalComponentIds.ConvoyTrail)]
     [StructLayout(LayoutKind.Sequential)]
+    [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3451 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public unsafe struct ConvoyTrail
     {
         public const int Capacity = 256;

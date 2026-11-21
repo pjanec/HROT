@@ -31,6 +31,7 @@ namespace Fdp.Toolkit.Combat.Systems
         //   here: a checkpoint restored into a fresh system carries them on.
 
         /// <summary>Irritant hits this node published (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Pulses { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -88,11 +89,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 ref var c = ref repo.GetComponentRW<AreaEffectCloud>(e);
                 if (c.Ending != 0) return;   // asked already; the teardown is under way
                 c.Ending = 1;
-                repo.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
-                {
-                    NetworkId = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(e).Value,
-                    Reason    = "AreaEffectCloud ended",
-                });
+                Fdp.Toolkit.NetworkSpawning.NetworkEntityDestroy.Request(repo, e, "AreaEffectCloud ended");   // ⭐ CE-2468 UF-1 — the one network destroy
                 return;
             }
             cmd.DestroyEntity(e);

@@ -66,7 +66,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 var value = new Roe { Fire = roe.Fire, Reactions = roe.Reactions, SetBy = roe.SetBy,
                                       ReturnFireWindowSeconds = roe.ReturnFireWindowSeconds,   // CE-2095
-                                      ForceLevel = roe.ForceLevel };   // CE-2239 part 1
+                                      ForceLevel = roe.ForceLevel,     // CE-2239 part 1
+                                      Incendiary = roe.Incendiary };   // CE-3486 (F-9)
                 if (repo.HasComponent<Roe>(entity)) repo.GetComponentRW<Roe>(entity) = value;
                 else repo.AddComponent(entity, value);
             }

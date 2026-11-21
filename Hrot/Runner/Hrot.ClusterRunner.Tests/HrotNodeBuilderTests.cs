@@ -277,6 +277,23 @@ public sealed class HrotNodeBuilderTests
         Assert.Equal((0.0, 0.0, 0.0), plain.GeoTransform!.Origin);   // ⛔ no Berlin default
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-5018 — the node's own id is a world singleton on every node (<see cref="Fdp.Toolkit.Replication.INetworkTopology"/>), so a system that
+    /// names THIS node as an entity's owner — a breach's damage entity (<c>BuildingDamageSystem</c>), a crater or minefield record — targets
+    /// this node, not 0 ("any default", which a cluster hands to the brain node). 🔴 Red-proof: drop the singleton from <c>HrotNodeBuilder.Build</c> ⇒ red.
+    /// </summary>
+    [Theory]
+    [InlineData(1)] [InlineData(7)]
+    public void CE5018_Build_PublishesTheNodesOwnId_OnTheWorld(int nodeId)
+    {
+        var ctx = new HrotNodeBuilder(HeadlessConfig(nodeId)).WithRole("Test", Fdp.Core.NodeRole.MuscleGround).Build();
+        var world = ctx.World;
+        Assert.True(world.HasSingletonManaged<Fdp.Toolkit.Replication.INetworkTopology>(), "the node frame publishes no node id");
+        Assert.Equal(nodeId, (int)world.GetSingletonManaged<Fdp.Toolkit.Replication.INetworkTopology>().LocalNodeId);
+
+        // ⭐ the consumer half (a breach's damage request names this id) is the feature suite's: BuildingDamageSystemTests.CE5018_*
+    }
+
     // ── CE-3330 — every ECS node keeps a LIVE event-timeline index, served on its debug surface ──────────
 
     private static HrotNodeContext InitialisedNode(int nodeId)
@@ -749,7 +766,7 @@ public sealed class HrotNodeBuilderTests
         Assert.Equal(Fdp.Toolkit.Orchestration.ClusterState.OperatingEdit, ctx.ClusterSlave.View.State);
         Assert.True(choice.Gate.Open, choice.ClosedReason);
 
-        Hrot.UI.Common.RunMode.UserTransport.UserPlayPause(adapter);               // ▶, Live armed, in edit
+        choice.Choose(Hrot.UI.Common.RunMode.RunArmed.Live);                      // ⭐ CE-3451 — R1′ (CE-3405, AQ108 §0): the switch to Live asks; ▶ in Edit is always the Preview
         bus.SwapBuffers();
         var asked = System.Linq.Enumerable.Single(bus.ReadManaged<Fdp.Toolkit.Orchestration.CheckUnsavedIntent>());   // the master's ONE round
         Frame();
@@ -765,6 +782,7 @@ public sealed class HrotNodeBuilderTests
 
         Assert.Empty(control.Calls);                                                // still nothing loaded: the user decides
         Assert.NotNull(choice.Pending);
-        Assert.Equal(new[] { "Save and go live", "Cancel" }, System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(choice.Pending!.Buttons, b => b.Label)));
+        Assert.Equal(new[] { "Save", "Discard", "Cancel" },   // ⭐ CE-3451 — the ONE door's unsaved question (R1′); "Save and go live" retired with ▶-arms-Live
+             System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(choice.Pending!.Buttons, b => b.Label)));
     }
 }

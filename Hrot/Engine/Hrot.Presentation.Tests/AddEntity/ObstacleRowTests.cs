@@ -161,7 +161,7 @@ public sealed class ObstacleRowTests
     {
         var db = new Fdp.Toolkit.Tkb.TkbDatabase();
         Hrot.Map.Definitions.Tkb.NedTkbCatalog.RegisterObstacles(db);
-        Assert.Equal(7, TkbEntityTypes.Obstacles.Length);
+        Assert.Equal(9, TkbEntityTypes.Obstacles.Length);   // ⭐ CE-3473 — + the water- and sand-filled barrels (8823, 8824)
         Assert.Equal(TkbEntityTypes.Obstacles.Length, TkbEntityTypes.Obstacles.Distinct().Count());
         Assert.Equal(TkbEntityTypes.Obstacles, ObstacleRowOptions.Types.Select(t => t.Type).ToArray());
         Assert.Equal((8820L, 8821L, 8822L), (TkbEntityTypes.Obstacle_Barrel, TkbEntityTypes.Obstacle_JerseyBarrier, TkbEntityTypes.Obstacle_GuardBooth));
@@ -174,6 +174,7 @@ public sealed class ObstacleRowTests
         }
         var health = TkbEntityTypes.Obstacles.ToDictionary(t => t, t => db.GetByType(t)!.GetDescriptor<Fdp.Toolkit.Tkb.Domain.StaticObstacleDto>()!.MaxHealth);
         Assert.Equal((50f, 400f, 120f), (health[TkbEntityTypes.Obstacle_Barrel], health[TkbEntityTypes.Obstacle_JerseyBarrier], health[TkbEntityTypes.Obstacle_GuardBooth]));   // starter values
+        Assert.Equal((150f, 250f), (health[TkbEntityTypes.Obstacle_BarrelWater], health[TkbEntityTypes.Obstacle_BarrelSand]));   // ⭐ CE-3473 — the filled drums
     }
 
     private sealed class FloatCmp : IEqualityComparer<float> { public bool Equals(float a, float b) => System.MathF.Abs(a - b) < 0.01f; public int GetHashCode(float f) => 0; }

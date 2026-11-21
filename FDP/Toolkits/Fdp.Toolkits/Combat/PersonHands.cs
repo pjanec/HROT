@@ -245,6 +245,20 @@ namespace Fdp.Toolkit.Combat
             public bool Visit(long ammo) => Lethal = ItemAppearances.IsLethal(World, ammo);
         }
 
+        private struct AnyVisitor : IHeldAmmoVisitor
+        {
+            public bool Visit(long ammo) => false;   // the first kind with rounds is enough: stop the walk
+        }
+
+        /// <summary>⭐ <c>CE-1298</c> (DESIGN_Entity_Control §8s) — <paramref name="mount"/> is <paramref name="owner"/>'s HANDS mount and the hands are
+        /// EMPTY: nothing to throw, so the operator's trigger is a blow (<see cref="Melee"/>), and the HUD shows no lock. Allocation-free.</summary>
+        public static bool EmptyHanded(EntityRepository world, Entity owner, WeaponMountDto? mount)
+        {
+            if (!IsHands(mount)) return false;
+            var v = new AnyVisitor();
+            return !Holding(world, owner, ref v);
+        }
+
         /// <summary>⭐ AW-9 — does <paramref name="owner"/> hold a LETHAL round in his hands (a live grenade)? Stones, a canister: no.</summary>
         public static bool HoldsLethal(EntityRepository world, Entity owner)
         {

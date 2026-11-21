@@ -175,6 +175,33 @@ namespace Hrot.Core.Tkb
         /// <c>Kinetic</c> round on the arc (the hatchet's <c>Indirect</c> path, launched on the LOW solution), SILENT (<c>WarheadDto.Silent</c>, R-3100), STICKING where it
         /// stops (<c>MunitionVisualDto.Sticks</c>) and lying as a hand item for <see cref="ArrowLiesSeconds"/>. ⛔ Permanent wire values.</summary>
         public const int TkbArrow = 6066, TkbCrossbowBolt = 6067;
+        /// <summary>⭐ <c>CE-4670</c> (VA-S5) — a vehicle's smoke DISCHARGER grenade (6068 free on every lane, <c>2026-11-19</c>).</summary>
+        public const int TkbVehicleSmokeGrenade = 6068;
+        public const string VehicleSmokeGrenadeName = "vehicle smoke grenade";
+        /// <summary>⭐ <c>CE-4635</c> FL-1 (R-3111; DESIGN_Flame_Weapons F-6) — a flamethrower's thickened FUEL (6069 free on every lane, <c>2026-11-19</c>): an
+        /// incendiary jet <see cref="FlameReachM"/> long, 6° wide (half-angle), full intensity; what it lights burns 60 s. ⛔ A permanent wire value.</summary>
+        public const int TkbFlameFuel = 6069;
+        public const string FlameFuelName = "flamethrower fuel";
+        /// <summary>The man-portable jet's reach (m) — LPO-50 / M2 class (20–70 m).</summary>
+        public const float FlameReachM = 40f;
+        /// <summary>⭐ <c>CE-3486</c> FL-2 (DESIGN_Flame_Weapons F-6, F-11) — a flame TANK's fuel (6070 free on every lane, <c>2026-11-19</c>): the same
+        /// jet thrown <see cref="TankFlameReachM"/> by a pump, a little narrower; what it lights burns 60 s. ⛔ A permanent wire value.</summary>
+        public const int TkbTankFlameFuel = 6070;
+        public const string TankFlameFuelName = "flame tank fuel";
+        /// <summary>⭐ CE-3486 — how far a flame tank's jet reaches (m).</summary>
+        public const float TankFlameReachM = 60f;
+        /// <summary>⭐ <c>CE-3487</c> FL-3 (DESIGN_Flame_Weapons F-5, §7b) — the Mk 77 FIREBOMB (napalm; 6071 free on every lane, <c>2026-11-19</c>): a free-fall
+        /// incendiary canister that lays its fire in an ellipse <see cref="NapalmLengthM"/> × <see cref="NapalmWidthM"/> along the flight line, burning
+        /// <see cref="NapalmBurnSeconds"/>, under a smoke cloud. No blast, no fragments. ⛔ A permanent wire value.</summary>
+        public const int TkbMk77Firebomb = 6071;
+        /// <summary>⭐ <c>CE-4634</c> D-1 (DESIGN_Dragon DR-4) — a DRAGON's FIRE: its breath as the flame's fuel (6072 free on every lane, <c>2026-11-19</c>) — a jet
+        /// <see cref="DragonFireReachM"/> long, wider than a pump's (9°), burning what it lights 60 s. ⛔ A permanent wire value.</summary>
+        public const int TkbDragonFire = 6072;
+        public const string DragonFireName = "dragon fire";
+        /// <summary>⭐ CE-4634 — how far a dragon's breath reaches (m).</summary>
+        public const float DragonFireReachM = 50f;
+        public const string Mk77Name = "Mk-77 firebomb";
+        public const float NapalmLengthM = 80f, NapalmWidthM = 25f, NapalmBurnSeconds = 300f;
         public const string ArrowName = "arrow", CrossbowBoltName = "crossbow bolt";
         /// <summary>⭐ CE-4649 (BW-6, §5) — a bow arrow's penetration (mm RHA: a soft vest and a helmet stop it) and damage (0.45 of a soldier's 100 health), a bolt's 6 mm / 0.55;
         /// how long a stuck round lies (BW-4).</summary>
@@ -288,6 +315,10 @@ namespace Hrot.Core.Tkb
             // ⭐ Air Ops slice 4 — a free-fall bomb: indirect + area from the library (falls under gravity, bursts where it lands)
             Register(tkb, Mk82Name, TkbMk82Bomb, Dis(9, Usa, 2, 73),                                // "Mk-82" (ballistic)
                      LibraryWarhead(Mk82Name), 50f, 1200f);   // CE-3201: the library's own bomb entry (indirect, 94 kg)
+            // ⭐ CE-3487 FL-3 — the napalm firebomb: falls like the Mk 82 (indirect), bursts into the ellipse of fire (NapalmSystem) under a smoke cloud
+            Register(tkb, Mk77Name, TkbMk77Firebomb, Dis(9, Usa, 2),
+                     new WarheadDto { Kind = WarheadKind.Incendiary, Indirect = true, AreaLengthM = NapalmLengthM, AreaWidthM = NapalmWidthM,
+                                      BurnSeconds = NapalmBurnSeconds, FlameIntensity = 1f, CloudRadiusM = 30f, CloudHeightM = 12f });
             // ⭐ Air Ops 6a (AW-2, AW-4) — the air weapons' rounds: every number from the library entry (its generic pair: penetration
             //   and damage; its generated warhead); the rocket's flight is its own (700 m/s, self-destruct after 6 s, ~4 km).
             Register(tkb, Gau8HeiName, TkbGau8Hei, Dis(2, Usa, 2, 4),     // "30 mm" (SISO lists only the PGU-14 / PGU-13 belts, not each round)
@@ -367,13 +398,15 @@ namespace Hrot.Core.Tkb
             //   ⭐ Each with its OWN warhead (behaviors' mf-at-vs-vehicle finding: with none, the blast radii came from a default that hurt a man 35 m off an AT burst).
             //   Starter values: an AP mine (~0.1–0.2 kg) maims at the foot; an AT mine (~7.5 kg, directed up into the belly) kills within a few metres; the line charge's
             //   bursts are its 8 m strip's.
+            //   ⭐ CE-2446 — and the blast law's DAMAGE (the reference library's one value): with radii alone the damage inside them was 0, so an AP mine under a man hurt nobody.
+            float blast = Fdp.Toolkit.Tkb.Reference.ReferenceLibrary.Shared.BlastLethalDamage;
             Register(tkb, MineAntiPersonnelName, TkbMineAntiPersonnel, Dis(8, 0, 2),
-                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 1f, BlastInjuryRadiusM = MineApInjuryRadiusM });
+                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 1f, BlastInjuryRadiusM = MineApInjuryRadiusM, BlastLethalDamage = blast });
             Register(tkb, MineAntiTankName, TkbMineAntiTank, Dis(2, 0, 2),
-                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 3f, BlastInjuryRadiusM = MineAtInjuryRadiusM },
+                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 3f, BlastInjuryRadiusM = MineAtInjuryRadiusM, BlastLethalDamage = blast },
                      penetrationMm: AntiTankMinePenetrationMm, damage: AntiTankMineDamage);
             Register(tkb, LineChargeName, TkbLineCharge, Dis(9, 0, 2),
-                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 4f, BlastInjuryRadiusM = LineChargeInjuryRadiusM });
+                     new WarheadDto { Kind = WarheadKind.HighExplosive, BlastLethalRadiusM = 4f, BlastInjuryRadiusM = LineChargeInjuryRadiusM, BlastLethalDamage = blast });
             Register(tkb, StunGrenadeName, TkbStunGrenade, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Stun, BlastLethalRadiusM = 0.5f, BlastInjuryRadiusM = 8f, EffectSeconds = 8f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-3230 (B-8, AW-7) — thrown on the arc
@@ -399,19 +432,35 @@ namespace Hrot.Core.Tkb
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f });
             Register(tkb, TearGasCanisterName, TkbTearGasCanister, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Irritant, EffectSeconds = 2f, CloudRadiusM = 8f, CloudHeightM = 3f, CloudSeconds = 90f });
+            // ⭐ CE-4670 (VA-S5, VA-9) — the discharger's grenade: a SCREENING round (red phosphorus class) — it blocks the thermal sight too (CE-4662,
+            //   TD-12), a larger, taller cloud than the hand signal smoke, burst a moment after it leaves the tube (starter values)
+            Register(tkb, VehicleSmokeGrenadeName, TkbVehicleSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 10f, CloudHeightM = 6f, CloudSeconds = 60f,
+                                      Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true, SmokeBlocksInfrared = true });
+            // ⭐ CE-4635 FL-1 — the flamethrower's fuel: no round flies (FireProcessingSystem); FlameJets reads this jet off the burst record
+            Register(tkb, FlameFuelName, TkbFlameFuel, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Incendiary, FlameRangeM = FlameReachM, FlameHalfAngleDeg = 6f, FlameIntensity = 1f, BurnSeconds = 60f });
+            // ⭐ CE-3486 FL-2 — the flame tank's fuel
+            Register(tkb, TankFlameFuelName, TkbTankFlameFuel, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Incendiary, FlameRangeM = TankFlameReachM, FlameHalfAngleDeg = 5f, FlameIntensity = 1f, BurnSeconds = 60f });
+            // ⭐ CE-4634 D-1 — a dragon's breath (the fun pack's carrier of the shared flame, DESIGN_Flame_Weapons F-11)
+            Register(tkb, DragonFireName, TkbDragonFire, new DISEntityType { Kind = 2, Domain = 8, Category = 2 },
+                     new WarheadDto { Kind = WarheadKind.Incendiary, FlameRangeM = DragonFireReachM, FlameHalfAngleDeg = 9f, FlameIntensity = 1f, BurnSeconds = 60f });
             Register(tkb, SmokeGrenadeName, TkbSmokeGrenade, new DISEntityType { Kind = 2, Domain = 9, Category = 2 },
                      new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 8f, CloudHeightM = 4f, CloudSeconds = 75f,
                                       Fuze = FuzeKind.Time, FuzeDelayS = 1.5f, Indirect = true });   // ⭐ CE-2278 — thrown on the arc (as the stun grenade, CE-3230)
+            // ⭐ CE-4662 (TD-12) — the mortar bombs are phosphorus screens and block infrared too (starter); the hand grenade is a signal
+            //   smoke that blocks only the eye.
             // ⭐ CE-7025 (IF-5) — the mortar smoke bombs: a screen ≈ 15 / 20 / 25 m across for 90 s where each lands (starter values; an M302-
             //   class 81 mm WP/RP screen is of that order). Impact-fused, indirect, the HE bomb's charges; DIS battlefield support, its calibre.
             Register(tkb, Mortar60mmSmokeName, Tkb60mmMortarSmoke, Dis(9, Usa, 2, 5),
-                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 15f, CloudHeightM = 6f, CloudSeconds = 90f, Indirect = true },
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 15f, CloudHeightM = 6f, CloudSeconds = 90f, Indirect = true, SmokeBlocksInfrared = true },
                      charges: ChargesFor(Mortar60RangesKm));
             Register(tkb, Mortar81mmSmokeName, Tkb81mmMortarSmoke, Dis(9, Usa, 2, 8),
-                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 20f, CloudHeightM = 8f, CloudSeconds = 90f, Indirect = true },
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 20f, CloudHeightM = 8f, CloudSeconds = 90f, Indirect = true, SmokeBlocksInfrared = true },
                      charges: ChargesFor(Mortar81RangesKm));
             Register(tkb, Mortar120mmSmokeName, Tkb120mmMortarSmoke, Dis(9, Usa, 2, 11),
-                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 25f, CloudHeightM = 10f, CloudSeconds = 90f, Indirect = true },
+                     new WarheadDto { Kind = WarheadKind.Smoke, CloudRadiusM = 25f, CloudHeightM = 10f, CloudSeconds = 90f, Indirect = true, SmokeBlocksInfrared = true },
                      charges: ChargesFor(Mortar120RangesKm));
         }
 
@@ -510,7 +559,7 @@ namespace Hrot.Core.Tkb
                 [Tkb105mmHowitzerHe] = 80, [TkbTankHeatMp] = 80, [Tkb120mmApfsds] = 100, [Tkb125mmApfsds] = 100,
                 [Tkb155mmHowitzerHe] = 100,                                                      // shells
                 [TkbFpvWarhead] = 50, [TkbHydra70Rocket] = 100, [TkbTowMissile] = 300, [TkbNlawMissile] = 300,
-                [TkbKornetMissile] = 300, [TkbMk82Bomb] = 300, [TkbJavelinMissile] = 500,         // guided / air
+                [TkbKornetMissile] = 300, [TkbMk82Bomb] = 300, [TkbMk77Firebomb] = 300, [TkbJavelinMissile] = 500,         // guided / air
                 [Tkb23mmHei] = 15, [Tkb23mmApi] = 15,                                            // ⭐ CE-2190 — the ZU-23's rounds
                 [TkbIglaMissile] = 400, [TkbStingerMissile] = 600,                               // ⭐ CE-2187 — the MANPADS
                 [TkbRadarSamMissile] = 800,                                                      // ⭐ CE-4617 — the radar SAM's missile
@@ -520,6 +569,10 @@ namespace Hrot.Core.Tkb
                 [TkbFlare] = 2, [TkbChaff] = 2,                                                  // ⭐ CE-2188 — expendables (never chosen to hurt)
                 [TkbStone] = 0.1f, [TkbBatonRound] = 2, [TkbStunGrenade] = 5,                    // ⭐ CE-3223 — non-lethal (CV-9)
                 [TkbTearGasGrenade] = 5, [TkbTearGasCanister] = 4, [TkbSmokeGrenade] = 4,        // ⭐ CE-3219 part 3 — the cloud rounds
+                [TkbVehicleSmokeGrenade] = 6,                                                    // ⭐ CE-4670 — the discharger's
+                [TkbFlameFuel] = 1,
+                [TkbDragonFire] = 1,                                                             // ⭐ CE-4634 — one breath shot of a dragon
+                [TkbTankFlameFuel] = 1,                                                          // ⭐ CE-3486 — one fuel shot of the flame tank                                                              // ⭐ CE-4635 — one fuel shot (a tenth of a second of flame)
                 [Tkb60mmMortarSmoke] = 25, [Tkb81mmMortarSmoke] = 40, [Tkb120mmMortarSmoke] = 60, // ⭐ CE-7025 — the smoke bombs
                 [TkbThrowingHatchet] = 1, [TkbThrowingSpear] = 1, [TkbThrowingStar] = 0.5f,      // ⭐ CE-3247 — the thrown blades
                 [TkbArrow] = 1, [TkbCrossbowBolt] = 1.5f,                                         // ⭐ CE-4649 — the bow's and the crossbow's rounds
@@ -567,6 +620,7 @@ namespace Hrot.Core.Tkb
                 [TkbTankHeFrag] = new() { Shape = MunitionShape.Shell, Length = 0.98f, Diameter = 0.12f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FFB050" },
                 [Tkb762Tracer] = new() { Shape = MunitionShape.Bullet, Length = 0.033f, Diameter = 0.0078f, Tracer = true, TracerColorHex = "#FF6A30" },
                 [TkbMk82Bomb] = new() { Shape = MunitionShape.Bomb, Length = 2.2f, Diameter = 0.27f, ColorHex = "#4B5320" },
+                [TkbMk77Firebomb] = new() { Shape = MunitionShape.Bomb, Length = 3.0f, Diameter = 0.5f, ColorHex = "#8A8F86" },   // ⭐ CE-3487
                 // ⭐ Air Ops 6a — the GAU-8's rounds trace (a gun run is seen); the Hydra is a rocket with a smoke trail
                 [TkbGau8Hei] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#5A5E3A", Tracer = true, TracerColorHex = "#FF8A30" },
                 [TkbGau8Api] = new() { Shape = MunitionShape.Shell, Length = 0.29f, Diameter = 0.03f, ColorHex = "#2F2F2F", Tracer = true, TracerColorHex = "#FF8A30" },
@@ -600,6 +654,7 @@ namespace Hrot.Core.Tkb
                 [TkbTearGasGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.15f, Diameter = 0.065f, ColorHex = "#5A6B3A" },
                 [TkbTearGasCanister] = new() { Shape = MunitionShape.Grenade, Length = 0.12f, Diameter = 0.04f, ColorHex = "#5A6B3A" },
                 [TkbSmokeGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.15f, Diameter = 0.065f, ColorHex = "#7A7A7A" },
+                [TkbVehicleSmokeGrenade] = new() { Shape = MunitionShape.Grenade, Length = 0.24f, Diameter = 0.076f, ColorHex = "#6B6F4E" },   // ⭐ CE-4670 — a 76 mm round
                 // ⭐ CE-3247 (TC-3) — the thrown blades are drawn as blades (three appended shapes), in flight and lying
                 [TkbThrowingHatchet] = new() { Shape = MunitionShape.Axe, Length = 0.4f, Diameter = 0.1f, ColorHex = "#6B5A45" },
                 [TkbThrowingSpear] = new() { Shape = MunitionShape.Spear, Length = 1.6f, Diameter = 0.03f, ColorHex = "#7A6A50" },

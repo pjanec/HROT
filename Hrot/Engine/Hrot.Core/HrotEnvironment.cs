@@ -46,6 +46,7 @@ namespace Hrot.Map.Common
             //    synced to all nodes (user, 2026-08-31).
             Hrot.Core.Tkb.UrbanCombatTkbCatalog.RegisterAll(tkb);
             Hrot.Core.Tkb.CivilianTkbCatalog.RegisterAll(tkb);   // ⭐ CE-3220 (civilians B-2, R-3013) — the civilian family + security forces
+            Hrot.Core.Tkb.FunTkbCatalog.RegisterAll(tkb);   // ⭐ CE-4650 — the fun pack (R-4281)
             Hrot.Core.Tkb.AnimalTkbCatalog.RegisterAll(tkb);   // ⭐ CE-4623 AB-1 — the animals (700…711)
             Hrot.Core.Tkb.MunitionTkbCatalog.RegisterAll(tkb);   // ⭐ CE-1032 — the munition types mounts load (warheads by name)
             Hrot.Core.Tkb.EffectTkbCatalog.RegisterAll(tkb);     // ⭐ CE-1042 E1 — the realism effect types + the munitions' effect sets
@@ -54,6 +55,8 @@ namespace Hrot.Map.Common
             Hrot.Core.Tkb.MapCameraTkb.RegisterAll(tkb);         // ⭐ CE-1033 S5 — the map camera entity's type (R-260)
             Hrot.Core.Tkb.AreaEffectCloudTkb.RegisterAll(tkb);   // ⭐ CE-3219 part 3 — a gas / smoke cloud entity's type
             Hrot.Core.Tkb.GroundDamageTkb.RegisterAll(tkb);
+            Hrot.Core.Tkb.GroundHeatMarksTkb.RegisterAll(tkb);
+            Hrot.Core.Tkb.GroundFireTkb.RegisterAll(tkb);   // ⭐ CE-3487 (flame FL-3) — a cell's ground fire (7210), bare like the ground damage   // ⭐ CE-4664 (TD-14) — a cell's warm vehicle stands (7209), bare like the ground damage's
             Hrot.Core.Tkb.MinefieldRecordTkb.RegisterAll(tkb);   // ⭐ CE-4624 — the minefield's strikes and knowledge record entities (7207 / 7206), bare like the ground damage's
             Hrot.Core.Tkb.TreeDamageTkb.RegisterAll(tkb);        // ⭐ CE-4603 (B-6) — a cell's felled trunks      // ⭐ CE-4591 (P-4) — a ground cell's craters
             Hrot.Core.Tkb.BuildingDamageTkb.RegisterAll(tkb);    // ⭐ CE-4391 S-1 — a building's breaches (the entity a detonation's wall breach is written to)

@@ -85,14 +85,21 @@ public static class HrotSharedComponentRegistry
         // ⭐ CE-3172 / CE-3173 S4e (docs/DESIGN_Entity_Control.md §8c) — possession's replicated state, on every host
         world.RegisterComponent<Fdp.Toolkit.Navigation.ManualDrive>();
         // ⭐ CE-2168 (Motion Domains MD-A) / M7 (FPV) — how a body moves, and a flyer's parameters and state; every node.
+        // ⭐ CE-3451 (CE-3268's rail) — the road column's formation pair: the shared pack carries their egress translators (CE-9007), so every node
+        //   that builds the pack registers what they target (SimHost's KinematicComponentRegistry registers them too — a repeat is a no-op)
+        world.RegisterComponent<CarKinem.Formation.FormationController>();
+        world.RegisterComponent<CarKinem.Formation.FormationFollower>();
         world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightParams>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
-        world.RegisterComponent<Fdp.Toolkit.Combat.Gesture>();                          // ⭐ CE-3224 — a person's gesture (dtGesture)
         world.RegisterComponent<Fdp.Toolkit.Perception.Radar.RadarEmission>();          // ⭐ CE-4617 (RS-10) — is a radar radiating (dtRadarEmission)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.HeatSource>();       // ⭐ CE-4657 (TD-3) — an engine's / a body's heat state (dtHeatSource)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.VehicleOpenings>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.VehicleLights>();     // ⭐ CE-4670 (VA-S3) — lights (dtVehicleLights)   // ⭐ CE-4670 (VA-S2) — hatches / doors / ramps (dtVehicleOpenings)
+        world.RegisterComponent<Fdp.Toolkit.Perception.Signatures.FireState>();        // ⭐ CE-4657 (TD-6) — the fire spots (dtFireState)
         // ⭐ CE-8001 (CE-4616 ST-0 ③) — the stochastic unit (dtAggregateUnit / dtUnitSlotTable / dtUnitHoldings) on every host; the node-local
         //   attrition / sensor state and the run seed too, so a recording carries them wherever it is played (SV-12).
         world.RegisterComponent<Fdp.Toolkit.Aggregate.AggregateUnit>();
@@ -107,7 +114,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterManagedComponent<Fdp.Toolkit.Aggregate.UnitRoute>();   // ⭐ CE-8004 — the follower's route (node-local, NoScenario | NoReplay)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Custody>();                       // ⭐ CE-3256 — detained / restrained / searched (dtCustody)
         world.RegisterComponent<Fdp.Toolkit.Civilians.Utterance>();                     // ⭐ CE-3264 (G1) — what a man says (dtUtterance)
-        world.RegisterComponent<Fdp.Toolkit.Civilians.Demeanour>();                     // ⭐ CE-3265 (G2) — how a civilian seems (dtDemeanour)
+        world.RegisterComponent<Fdp.Toolkit.Creatures.Demeanour>();                      // ⭐ CE-3265 (G2) / CE-4628 — how a creature seems (dtDemeanour; was Demeanour)
         world.RegisterComponent<Fdp.Toolkit.NetworkSpawning.SpawnLevelRequest>();       // ⭐ CE-3271 (Q94 D) — a spawn's birth level (dtSpawnLevel)
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.UnderFire>();             // ⭐ CE-1223 — when a man was last under fire (dtUnderFire); idempotent beside CombatComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();                     // ⭐ CE-4623 AB-3 — an animal's state (dtAnimalState), on every node
@@ -163,16 +170,22 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Terrain.TerrainFeature>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.PlacementGroup>();   // ⭐ CE-5008 (R-5041) — a placed obstacle row's group id, saved with each member
         world.RegisterEvent<Fdp.Toolkit.Terrain.BuildingDamageEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.BuildingFireEvent>();   // ⭐ CE-3488 (flame FL-4) — a building set alight: the record writer adds its FireState
         world.RegisterEvent<Fdp.Toolkit.Terrain.ContactBreachEvent>();
         // ⭐ CE-4591 (P-4, G-7) — the craters of one ground cell (dtGroundDamage): a runtime entity its deciding node owns, replicated, read by every view's
         //   DoorStates.Craters (the cratered ground, D-1). The event is the local "a burst made this crater" the deciding node's system turns into the component.
         world.RegisterComponent<Fdp.Toolkit.Terrain.GroundDamage>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.CraterEvent>();
+        // ⭐ CE-3487 (flame FL-3) — a ground fire spot a napalm burst lays: the local event the cell's fire-record writer turns into FireState (dtFireState)
+        world.RegisterEvent<Fdp.Toolkit.Terrain.GroundFireEvent>();
         // ⭐ CE-4624 (minefields §3a, MS-T1) — the minefield (authored: parameters + lanes), its ground-truth strikes record and the per-side knowledge record (every node: KG-9),
         //   and the local events the trigger and the recon brain raise for the writers (§6.1)
         world.RegisterComponent<Fdp.Toolkit.Terrain.Minefield>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldStrikes>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldKnowledge>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.UnderFireKnowledge>();   // ⭐ CE-2468 (§9b) — the second place-knowledge kind (every node: the readers take the union)
+        world.RegisterManagedComponent<Fdp.Toolkit.Terrain.UnderFireSightHolder>();   // ⭐ CE-2468 — the published sight, a derived singleton a background snapshot carries
+        world.RegisterEvent<Fdp.Toolkit.Terrain.UnderFireLearned>();         //   and the local event its detectors raise for the writer
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldLanes>();     // ⭐ CE-4624 MS-T4 — the lanes a node cleared (a runtime record), and the clearer's tool marker
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineClearing>();
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineBreadcrumbs>();   // ⭐ CE-4624 MS-T2 (MR-5) — a unit's back-out track near a field (its brain node writes it)
@@ -186,6 +199,14 @@ public static class HrotSharedComponentRegistry
         // ⭐ CE-4603 (B-6) — the lone trunks one node felled in one cell (dtTreeDamage), read by every view's DoorStates.Trees; the local "a trunk was felled"
         world.RegisterComponent<Fdp.Toolkit.Terrain.TreeDamage>();
         world.RegisterEvent<Fdp.Toolkit.Terrain.TreeFellEvent>();
+        // ⭐ CE-4664 (thermal drivers TD-14) — the warm stands one moving node's vehicles left in one cell (dtGroundHeatMarks); the local "a vehicle left a warm stand"
+        world.RegisterComponent<Fdp.Toolkit.Terrain.GroundHeatMarks>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.GroundHeatMarkEvent>();
+        // ⭐ CE-5033 (glass windows GW-2) — a building's damaged window panes (dtWindowDamage), on its damage entity, read by every view's DoorStates.Windows; the local
+        //   "a pane was hit / must break" and "a pane shattered" (its sound)
+        world.RegisterComponent<Fdp.Toolkit.Terrain.WindowDamage>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.WindowHitEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Terrain.WindowBrokenEvent>();
         // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker (Brain group, dtBladeCut): written by its ClearObstacle point order, read by the Muscle's DozerCutSystem
         world.RegisterComponent<Fdp.Toolkit.Terrain.BladeCut>();   // ⭐ CE-4600 (B-3) — a vehicle broke a barrier / met one too strong
         // ⭐ CE-10000 (air lane, DESIGN_Air_Combat §4a) — air combat: the brain's order (dtAirCombatSteer), the motion node's report (dtFighterPilotState),
@@ -212,6 +233,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpRoundEvent>();
         world.RegisterEvent<Fdp.Toolkit.Combat.PickUpGrantEvent>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.RestationEvent>();
+        world.RegisterEvent<Fdp.Toolkit.Behavior.OpeningRequestEvent>();   // ⭐ CE-4670 (VA-4) — a crewman's head out / in (interaction kind 15)
+        world.RegisterEvent<Fdp.Toolkit.Behavior.LightsRequestEvent>();    // ⭐ CE-4670 (VA-3) — a station's light switch (interaction kind 16)
         world.RegisterEvent<Fdp.Toolkit.Combat.Events.DamageAssessedEvent>();   // ⭐ CE-3246 — the EntityHitDamage ingress runs on every node
         world.RegisterEvent<Fdp.Toolkit.Combat.Events.ManDownedEvent>();   // ⭐ CE-3364 D5 — the dtManDowned ingress runs on every node
         world.RegisterEvent<Fdp.Toolkit.Combat.StrikeNotification>();   // ⭐ CE-3266 (G3) — a blow struck (MeleeStrike topic)

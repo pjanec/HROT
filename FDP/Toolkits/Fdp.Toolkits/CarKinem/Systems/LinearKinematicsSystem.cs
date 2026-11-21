@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.CarKinem.Systems
     [TickMode(TickPolicy.WhenTimeAdvances)]
     public class LinearKinematicsSystem : IEcsModuleSystem
     {
+        [Fdp.Core.NotState("required component ids fixed at ctor")]
         private readonly int[] _requiredComponentIds;
 
         /// <summary>Default: integrate everything that is not a vehicle or a crowd agent.</summary>

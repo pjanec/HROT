@@ -52,7 +52,7 @@ public sealed class ScoreHudFrameRail
         var unit = Man(4242, "Kral", ForceId.Friend);
         world.AddComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 0f), Rotation = Quaternion.Identity });
         world.AddComponent(unit, new Health { Current = 80f, Max = 100f });
-        world.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+        world.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
         Man(4300, "Hawk", ForceId.Friend); Man(4400, "Raven", ForceId.Hostile); Man(1, "Blue", ForceId.Friend); Man(2, "Red", ForceId.Hostile);
         var map = new NetworkEntityMap(); map.Register(4242, unit); world.SetSingletonManaged(map);
         world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 378.0 });

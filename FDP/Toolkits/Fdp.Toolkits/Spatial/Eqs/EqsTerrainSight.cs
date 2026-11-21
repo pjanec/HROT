@@ -40,9 +40,25 @@ namespace Fdp.Toolkit.Spatial.Eqs
             var query = Fdp.Toolkit.World.WorldQuery.Of(view);
             if (query == null) return null;
             // ⚠ the vehicles' boxes still come from the terrain stand-in's material table — entities join the world query in WQ-F (Q5)
+            // ⭐ CE-3425 — ONE sight per thread per world state, not per batch: the vehicles' boxes (a query, a list, a prism and a name per
+            //   vehicle) were built for EVERY batch of every sight test — 📐 scale-1, 1 000 men, two sides: CheapLineOfSight + ThreatExposure
+            //   ~385 KB / frame of SimHost's 1.69 MB EQS garbage. Same view, tick, version clock and world query ⇒ the same boxes: the solver
+            //   reads a view that does not change within its tick (it runs WhenTimeAdvances), and a new tick builds them again. ⚠ The version
+            //   clock is per frame, not per write: a caller that moves a vehicle and asks again IN THE SAME FRAME gets the boxes of that frame's
+            //   first ask. Per thread: the batches run in parallel.
+            uint tick = view.Tick, version = view is EntityRepository repo ? repo.GlobalVersion : 0u;
+            if (t_sight != null && ReferenceEquals(t_view, view) && ReferenceEquals(t_query, query) && t_tick == tick && t_version == version)
+                return t_sight;
             var materials = World(view)?.Materials ?? TerrainMaterialLibrary.Shared;
-            return new TerrainLosService(query, VehicleCover.Collect(view, materials, standingOnly: false));   // ⭐ CE-3142 — once per batch
+            t_sight = new TerrainLosService(query, VehicleCover.Collect(view, materials, standingOnly: false));   // ⭐ CE-3142 — the boxes, once
+            t_view = view; t_query = query; t_tick = tick; t_version = version;
+            return t_sight;
         }
+
+        [System.ThreadStatic] private static ILosService? t_sight;
+        [System.ThreadStatic] private static ISimulationView? t_view;
+        [System.ThreadStatic] private static object? t_query;
+        [System.ThreadStatic] private static uint t_tick, t_version;
 
         /// <summary>True when <paramref name="p"/> (XY) is inside a building or wall footprint.</summary>
         public static bool InsideSolid(TerrainWorld world, Vector2 p)

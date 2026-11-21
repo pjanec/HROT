@@ -35,6 +35,52 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class RoomSuspicion
     {
+        /// <summary>A member within this of a contact (m) is at its building's door — the stack outside counts as being at the building.</summary>
+        public const float AtTheBuildingMetres = 12f;
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-2453</c> (Building Clearing §7.3 CB-66 / CB-72 / CB-73; the <c>NotDefending</c> precedent, CE-2359) — FALSE when the squad is CLEARING
+        /// (its order's kind is <c>ClearBuilding</c>, <see cref="Hrot.AI.Behaviors.Orders.CurrentOrders"/>) and EVERY contact in its pool is INSIDE a building one
+        /// of its men is in or at the door of: the room drill answers that contact itself (a heard one suspects the room ⇒ the grenade before the entry; a
+        /// seen one or a hit at the way in holds the entry). True otherwise — a contact in the STREET, or in another building, still pauses the clear
+        /// (<c>ReactToContact</c>): between buildings the clear only walks. 📐 Before: <c>ia-area-defend</c>, a lone clearer at House A's door heard the
+        /// guard upstairs and the contact row's reaction HELD him at the entry for 60 s+.
+        /// </summary>
+        [Fbt.Kernel.SharedAiCondition]
+        public static unsafe bool NotClearingItsContact(Entity self, EntityRepository world)
+        {
+            if (Hrot.AI.Behaviors.Orders.CurrentOrders.Of(world, self).Kind != Hrot.AI.Behaviors.Orders.OrderKind.ClearBuilding) return true;
+            if (!world.HasComponent<SquadCognitiveState>(self) || !world.HasComponent<Fdp.Core.CommandHierarchy.UnitRoster>(self)) return true;
+            ref readonly var squad = ref world.GetComponentRO<SquadCognitiveState>(self);
+            if (squad.Contacts.Count == 0) return true;
+            var pool = MemoryMarshal.CreateReadOnlySpan(
+                ref System.Runtime.CompilerServices.Unsafe.As<SquadContactPoolSlots, SquadContact>(
+                    ref System.Runtime.CompilerServices.Unsafe.AsRef(in squad.Contacts.Contacts)), 16);
+            ref readonly var roster = ref world.GetComponentRO<Fdp.Core.CommandHierarchy.UnitRoster>(self);
+            for (int c = 0; c < squad.Contacts.Count && c < 16; c++)
+            {
+                var at = new Vector3(pool[c].PositionX, pool[c].PositionY, pool[c].PositionZ);
+                if (!GrenadeRules.Indoors(world, at, out int building)) return true;   // in the street: the SOP answers
+                if (!AnyManAt(world, in roster, at, building)) return true;            // another building: the SOP answers
+            }
+            return false;
+        }
+
+        private static bool AnyManAt(EntityRepository world, in Fdp.Core.CommandHierarchy.UnitRoster roster, Vector3 contact, int building)
+        {
+            float r2 = AtTheBuildingMetres * AtTheBuildingMetres;
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                if (m.IsNull || !world.IsAlive(m) || !world.HasComponent<SimTransform>(m) || !Injury.IsInTheFight(world, m)) continue;
+                var p = world.GetComponentRO<SimTransform>(m).Position;
+                if (GrenadeRules.Indoors(world, p, out int his) && his == building) return true;
+                var d = new Vector2(p.X - contact.X, p.Y - contact.Y);
+                if (d.LengthSquared() <= r2) return true;
+            }
+            return false;
+        }
+
         /// <summary>"Seen now": an identified contact refreshed within this many ticks (1.5 s at 60 Hz).</summary>
         public const uint SeenTicks = 90;
 
@@ -72,15 +118,14 @@ namespace Hrot.AI.Behaviors.Brains
     /// </summary>
     public static class GrenadeCheck
     {
-        /// <summary>CB-30 — no throw when a friend would be stunned longer than this (s).</summary>
-        public const float FriendStunSeconds = 0.5f;
+        /// <summary>CB-30 — no throw when a friend would be stunned longer than this (s) (⭐ CE-2452: the one rule, <see cref="GrenadeRules"/>).</summary>
+        public const float FriendStunSeconds = GrenadeRules.FriendStunSeconds;
         /// <summary>CB-70 — a fragmentation grenade's lethal radius, as a share of its fragment reach (⭐ CE-2360: the one rule, <see cref="GrenadeRules"/>).</summary>
         public const float LethalShareOfReach = GrenadeRules.LethalShareOfReach;
-        /// <summary>CB-70 — fragments still getting through a wall above this share count as reaching the man (the same transmission the
-        /// area effect applies, <see cref="AreaEffect.FragmentTransmission"/>).</summary>
-        public const float FragmentsThrough = 0.05f;
-        /// <summary>A man's body point the prediction is made at: his chest (m above his feet).</summary>
-        public const float ChestHeight = 1.2f;
+        /// <summary>CB-70 — fragments still getting through a wall above this share count as reaching the man (<see cref="GrenadeRules"/>).</summary>
+        public const float FragmentsThrough = GrenadeRules.FragmentsThrough;
+        /// <summary>A man's body point the prediction is made at: his chest (m above his feet) (<see cref="GrenadeRules"/>).</summary>
+        public const float ChestHeight = GrenadeRules.ChestHeight;
 
         /// <summary>CB-67 — the grenade the room gets: not suspected ⇒ none; Precision ⇒ stun; HighIntensity ⇒ fragmentation, a stun when
         /// civilians are known.</summary>
@@ -139,20 +184,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// left out — it only ever shrinks the effect, so leaving it out errs safe. No world query ⇒ no barrier (errs safe too).
         /// </summary>
         public static bool Hurts(IWorldQuery? query, WarheadDto warhead, Vector3 burst, Vector3 friend, List<TraceCrossing> scratch)
-        {
-            var chest = friend + new Vector3(0f, 0f, ChestHeight);
-            float r = Vector3.Distance(burst, chest);
-            float reach = MathF.Max(warhead.BlastInjuryRadiusM, warhead.FragmentRadiusM);
-            if (r > reach) return false;
-            scratch.Clear();
-            query?.Trace(burst, chest, TracePurpose.Fire, scratch);
-            float barrier = query == null ? 1f : AreaEffect.ClosedBarrierTransmission(scratch);
-            if (warhead.Kind == WarheadKind.Stun)
-                return warhead.EffectSeconds * AreaEffect.BlastFalloff(r, warhead.BlastLethalRadiusM, warhead.BlastInjuryRadiusM) * barrier > FriendStunSeconds;
-            float lethal = GrenadeRules.LethalRadius(warhead);
-            float through = query == null ? 1f : AreaEffect.FragmentTransmission(scratch, warhead.FragmentPenetrationMm);
-            return r <= lethal && through > FragmentsThrough;
-        }
+            => GrenadeRules.Hurts(query, warhead, burst, friend, scratch);   // ⭐ CE-2452 — the one law, in FDP Combat
 
         /// <summary>CB-70 — is <paramref name="burst"/> safe for every man at <paramref name="men"/> — where each will stand at the BANG (the
         /// stack at its stack points behind the wall, the thrower back at his), never where he stands while the grenade is thrown.</summary>

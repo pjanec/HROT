@@ -60,6 +60,7 @@ namespace Hrot.Common.EntityCreation
     public sealed class SeatPresetSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _done = new();
 
         public SeatPresetSystem(NetworkEntityMap entityMap) => _entityMap = entityMap;

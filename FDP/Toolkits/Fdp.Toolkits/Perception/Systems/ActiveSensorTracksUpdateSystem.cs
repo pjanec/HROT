@@ -37,11 +37,14 @@ namespace Fdp.Toolkit.Perception.Systems
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
     [TickMode(TickPolicy.WhenTimeAdvances)]
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class ActiveSensorTracksUpdateSystem : IEcsModuleSystem
     {
         // ⭐ CE-3073 — this frame's working copy per observer, and the order observers were first seen (reused, no per-frame
         //   allocation once warm).
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly Dictionary<Entity, (ActiveSensorTracks Tracks, bool Had)> _working = new();
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each run and filled from this frame's world")]
         private readonly List<Entity> _order = new();
 
         /// <inheritdoc/>

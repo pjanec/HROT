@@ -1,0 +1,172 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: the same sun-heated parked vehicle is NOT seen by thermal against hot bare ground (CE-1987, R-1058; docs/DESIGN_Thermal_And_Acoustic_Sensing.md \u00a79.2, \u00a79.7) \u2014 the crossover is a property of the PAIR. On basic-desert (bare ground) at 13:36 local (solar ~12:30), clear sky: 'Observer' (TKB 215, 4 K) at (50, 300); 'Soil Tank', a T-72 parked with its engine OFF, at (450, 300), 400 m east. Judge: the hull and the sun-baked ground are within the sight's 4 K, so the observer's memory never carries the THERMAL bit for it (his eyes may still see it in daylight). Fail: a thermal bit. Red-proof: the background read as grass everywhere and the hull stands out. Its sibling th-hull-in-the-sun holds the other half.",
+  "world": {
+   "ScenarioClock": {
+    "Start": "2025-06-22T13:36:00+02:00"
+   },
+   "WeatherConditions": {
+    "GroundTemperatureC": 26,
+    "LapseRateKPerKm": 6.5,
+    "SeaLevelPressureHpa": 1013.25,
+    "RelativeHumidity": 0.6,
+    "WindCount": 0,
+    "CloudCount": 1,
+    "VisibilityM": 25000,
+    "FogTopM": 0,
+    "FogVisibilityM": 200,
+    "Precipitation": 0,
+    "PrecipitationMmPerHour": 0,
+    "FeatherM": 0,
+    "WindAltitudeM": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindFromDeg": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindSpeedMps": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "WindGustMps": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "CloudBaseM": [
+     1500,
+     0,
+     0,
+     0
+    ],
+    "CloudThicknessM": [
+     600,
+     0,
+     0,
+     0
+    ],
+    "CloudOctas": [
+     1,
+     0,
+     0,
+     0
+    ],
+    "CloudKind": [
+     1,
+     0,
+     0,
+     0
+    ]
+   }
+  }
+ },
+ "entities": {
+  "c1987c00-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     50,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 215
+   },
+   "EntityInfo": {
+    "Name": "Observer",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "c1987c00-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     450,
+     300,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 2500,
+    "Max": 2500
+   },
+   "TkbIdentity": {
+    "TkbType": 103
+   },
+   "EntityInfo": {
+    "Name": "Soil Tank",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "HeatSource": {
+    "State": "Off",
+    "Since": 0,
+    "MotionSince": 0
+   }
+  }
+ }
+}

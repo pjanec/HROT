@@ -39,6 +39,7 @@ namespace Hrot.Core.Tkb
     /// <para>⛔ Hard-coded C#, no data file (R-279, R-280). Add a class here; a rail checks names and masks are unique and that
     /// two classes of equal specificity never overlap (which would make "most specific" a tie).</para>
     /// </summary>
+    [Fdp.Core.NotState("static built-in entity class table")]
     public sealed class EntityClassTable
     {
         private readonly EntityClass[] _classes;
@@ -212,6 +213,9 @@ namespace Hrot.Core.Tkb
             yield return C("ReconnaissanceAircraft", "Reconnaissance", "1.2.*.7");
             yield return C("SurveillanceAircraft", "Surveillance/C2 (AEW)", "1.2.*.8");
             yield return C("AttackHelicopter", "Attack Helicopter", "1.2.*.20");
+            // ⭐ CE-4634 (ui, DESIGN_Dragon §8.2 K-1; cross-lane: behaviors owns the dragon, TKB 411 DIS 1.2.0.20.99) — a HROT subcategory under the attack
+            //   helicopter (the TwinEngineFighter precedent), so the dragon's look is keyed by a class: more specific, so it is not drawn as an AH-64
+            yield return C("Dragon", "Dragon (HROT)", "1.2.*.20.99");
             yield return C("UtilityHelicopter", "Utility Helicopter", "1.2.*.21");
             yield return C("PatrolHelicopter", "ASW/Patrol Helicopter", "1.2.*.22");
             yield return C("CargoHelicopter", "Cargo Helicopter", "1.2.*.23");
@@ -243,6 +247,7 @@ namespace Hrot.Core.Tkb
             yield return C("Poultry", "Poultry (HROT)", "3.1.*.206");
             yield return C("Pig", "Pig (HROT)", "3.1.*.207");
             yield return C("Goat", "Goat (HROT)", "3.1.*.208");
+            yield return C("Rabbit", "Rabbit (HROT)", "3.1.*.209");   // ⭐ the rabbit (TKB 715, AN-21e): without a class of its own it fell back to Person and was drawn as a child
             yield return C("Bird", "Bird (HROT)", "3.2.*.205");
 
             // ⭐ CE-2139 (C3, R-278) — UNITS, under their own Kind (UnitDis): Category = arm, Subcategory = echelon. The Kind's

@@ -77,6 +77,7 @@ namespace Fdp.ModuleHost.Scheduling
     /// cannot see a raw-memory restore.</b> The question was *"does anything write lifecycle?"* and the
     /// answer was written by a chunk copy.</para>
     /// </summary>
+    [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class NetworkLifecycleSystemGroup
     {
         private readonly IEcsModuleSystem[] _innerSystems;

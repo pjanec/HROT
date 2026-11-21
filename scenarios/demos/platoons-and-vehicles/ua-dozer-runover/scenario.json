@@ -1,0 +1,170 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "bt-range",
+  "description": "What: CE-1967 (user report: a bulldozer driving over soldiers only knocked them down; they stood up after it passed) - on bt-range a 49 t bulldozer (TKB 112) drives north from (150,130) to (150,175) at 4.5 m/s, its top speed, WITHOUT giving way to anyone - a RamTarget at a place (the mover's avoidance gives way to no person), as the user's possessed dozer drove; \u26a0 an ordinary MoveToLocation steers round a standing man (measured: the hull passed 4 m beside him); 'Victim' stands on its line at (150,145), 'Bystander' 7 m east of it at (157,145); both hold (no brain reaction, so the run-over is not avoided by the man). Judge: the dozer reaches its point; the Victim is DEAD once the hull has passed over him (a heavy hull crushes what it drives over, R-2138) and never stands up again; the Bystander, beside the 4.3 m blade, is untouched. Fail: the Victim alive after the dozer passed (the defect), or the Bystander hurt. Check: scripts/scenario-regression.sh ua-dozer-runover"
+ },
+ "entities": {
+  "d1967000-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     150,
+     130,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.70710678,
+     0.70710678
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 112
+   },
+   "EntityInfo": {
+    "Name": "Dozer",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 1000,
+    "Max": 1000
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "RamTarget",
+    "Params": {
+     "At": [
+      150,
+      175,
+      0
+     ],
+     "Speed": 4.5
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d1967000-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     150,
+     145,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.70710678,
+     0.70710678
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Victim",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d1967000-0000-4000-9000-000000000003",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  },
+  "d1967000-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     157,
+     145,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0.70710678,
+     0.70710678
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 2002
+   },
+   "EntityInfo": {
+    "Name": "Bystander",
+    "ForceId": "Friend"
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "MissionPlan": {
+    "PlanData": {
+     "activeTaskId": "00000000-0000-0000-0000-000000000000",
+     "tasks": [
+      {
+       "taskId": "d1967000-0000-4000-9000-000000000004",
+       "executingEngine": "",
+       "behaviorName": "HoldStance",
+       "behaviorParams": {
+        "stance": "Standing"
+       },
+       "triggers": [
+        {
+         "type": "BehaviorFinished",
+         "params": ""
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   }
+  }
+ }
+}

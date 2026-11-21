@@ -219,7 +219,9 @@ namespace Hrot.AI.Behaviors.Brains
             }
         }
 
+        [Fdp.Core.FrameScratch("scratch — refilled from 0 each run; the parallel job reads only [0, n)")]
         private Entity[] _list = new Entity[64];
+        [Fdp.Core.FrameScratch("scratch — written by this run's DecideJob at its own index, read by the same run's deferred Say")]
         private Entity[] _about = new Entity[64];   // the contact a deferred call is about, by the man's index in _list
 
         private struct DecideJob : Fdp.Core.Jobs.IEntityBatchJob

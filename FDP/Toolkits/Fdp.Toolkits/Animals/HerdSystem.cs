@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Creatures;
 using Fdp.Toolkit.Determinism;
 using Fdp.Toolkit.Weather;
 
@@ -49,9 +50,13 @@ namespace Fdp.Toolkit.Animals
             public Entity Afraid;   // the most frightened member
         }
 
+        [Fdp.Core.FrameScratch("per-herd sums of this run: cleared at the top of each run")]
         private readonly Dictionary<Entity, Acc> _acc = new();   // grown once, cleared every frame (0 B in the steady state)
+        [Fdp.Core.FrameScratch("this run's herd members: refilled from index 0")]
         private Entity[] _members = new Entity[64];
+        [Fdp.Core.WorldDerived("is-night memo refreshed every NightLookSeconds from sim time")]
         private bool _night;
+        [Fdp.Core.WorldDerived("next time to re-evaluate night: cache refresh schedule")]
         private double _nextNightLook = double.NegativeInfinity;
 
         /// <summary>The last night verdict (a rail reads it).</summary>
@@ -59,7 +64,7 @@ namespace Fdp.Toolkit.Animals
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<HerdState>() || !repo.IsComponentTypeRegistered<HerdMember>()) return;
+            if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<HerdState>() || !repo.IsComponentTypeRegistered<GroupMember>() || !repo.IsComponentTypeRegistered<Group>()) return;
             double now = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : repo.SimulationTime;
             if (now >= _nextNightLook) { _night = IsNight(repo, now); _nextNightLook = now + NightLookSeconds; }
 
@@ -69,9 +74,9 @@ namespace Fdp.Toolkit.Animals
             _acc.Clear();
             int n = 0;
             bool fears = repo.IsComponentTypeRegistered<Fear>();
-            foreach (var m in repo.Query().With<HerdMember>().With<SimTransform>().Build())
+            foreach (var m in repo.Query().With<GroupMember>().With<SimTransform>().Build())
             {
-                var herd = repo.GetComponentRO<HerdMember>(m).Herd;
+                var herd = repo.GetComponentRO<GroupMember>(m).Group;
                 if (herd.IsNull || !repo.IsAlive(herd) || !repo.HasComponent<HerdState>(herd)) continue;
                 if (!Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, m)) continue;
                 if (n == _members.Length) Array.Resize(ref _members, n * 2);
@@ -93,19 +98,21 @@ namespace Fdp.Toolkit.Animals
             }
 
             // ② each herd's state
-            foreach (var h in repo.Query().With<HerdState>().Build())
+            foreach (var h in repo.Query().With<HerdState>().With<Group>().Build())
             {
                 ref var hs = ref repo.GetComponentRW<HerdState>(h);
-                if (!_acc.TryGetValue(h, out var a) || a.Count == 0) { hs.Lead = Entity.Null; hs.Members = 0; continue; }
-                hs.Centre = a.Sum / a.Count;
-                hs.Lead = a.Lead;
-                hs.Members = (ushort)Math.Min(a.Count, ushort.MaxValue);
+                ref var grp = ref repo.GetComponentRW<Group>(h);   // ⭐ CE-4628 — the herd's centre, lead and count are its Group header
+                if (!_acc.TryGetValue(h, out var a) || a.Count == 0) { grp.Lead = Entity.Null; grp.Count = 0; continue; }
+                grp.Kind = GroupKind.Herd;
+                grp.Centre = a.Sum / a.Count;
+                grp.Lead = a.Lead;
+                grp.Count = Math.Min(a.Count, ushort.MaxValue);
                 var was = hs.Mode;
                 hs.Mode = a.Mode != AnimalMode.Calm ? a.Mode : (_night ? AnimalMode.Rest : AnimalMode.Calm);
                 bool unset = hs.NextGrazing == Vector3.Zero;
-                bool reached = Flat(hs.Centre - hs.NextGrazing) <= ReachedMetres;
+                bool reached = Flat(grp.Centre - hs.NextGrazing) <= ReachedMetres;
                 bool afterFlight = was is AnimalMode.Flee or AnimalMode.Recover;   // calm again after a run: a new spot, away from the fright
-                if ((unset || reached || afterFlight) && hs.Mode == AnimalMode.Calm) hs.NextGrazing = PickGrazing(repo, h, in hs, now);
+                if ((unset || reached || afterFlight) && hs.Mode == AnimalMode.Calm) hs.NextGrazing = PickGrazing(repo, h, in hs, in grp, now);
             }
 
             // ③ contagion through the crowd's rule
@@ -114,7 +121,7 @@ namespace Fdp.Toolkit.Animals
             {
                 var m = _members[i];
                 if (!repo.HasComponent<Fear>(m)) continue;
-                var herd = repo.GetComponentRO<HerdMember>(m).Herd;
+                var herd = repo.GetComponentRO<GroupMember>(m).Group;
                 if (!_acc.TryGetValue(herd, out var a) || a.Afraid == m || a.Afraid.IsNull || a.MaxFear <= 0f) continue;
                 ref readonly var src = ref repo.GetComponentRO<Fear>(a.Afraid);
                 float mine = repo.GetComponentRO<Fear>(m).Value;
@@ -131,30 +138,31 @@ namespace Fdp.Toolkit.Animals
             }
         }
 
+        [Fdp.Core.FrameScratch("this run's animals with no herd: cleared and refilled from this frame's world")]
         private readonly List<Entity> _unlinked = new();
 
         /// <summary>
-        /// ⭐ <c>CE-4623</c> AB-9 — an animal POPULATED from an area (its <see cref="AnimalHome"/> is the area's, no herd yet) joins the area's herd: the
+        /// ⭐ <c>CE-4623</c> AB-9 — an animal POPULATED from an area (its <see cref="Home"/> is the area's, no herd yet) joins the area's herd: the
         /// area entity carrying a <see cref="HerdState"/> of its species and the same home centre. By VALUE, not by an entity id — the creation request
         /// may be served on another node, where the area has another handle.
         /// </summary>
         private void LinkToAreas(EntityRepository repo)
         {
-            if (!repo.IsComponentTypeRegistered<AnimalHome>() || !repo.IsComponentTypeRegistered<AnimalArea>() || !repo.IsComponentTypeRegistered<AnimalState>()) return;
+            if (!repo.IsComponentTypeRegistered<Home>() || !repo.IsComponentTypeRegistered<AnimalArea>() || !repo.IsComponentTypeRegistered<AnimalState>()) return;
             _unlinked.Clear();
-            foreach (var e in repo.Query().With<AnimalHome>().With<AnimalState>().Without<HerdMember>().Build()) _unlinked.Add(e);
+            foreach (var e in repo.Query().With<Home>().With<AnimalState>().Without<GroupMember>().Build()) _unlinked.Add(e);
             if (_unlinked.Count == 0) return;
             for (int i = 0; i < _unlinked.Count; i++)
             {
                 var e = _unlinked[i];
-                var home = repo.GetComponentRO<AnimalHome>(e);
-                var species = repo.GetComponentRO<AnimalState>(e).Species;
-                foreach (var area in repo.Query().With<AnimalArea>().With<HerdState>().With<AnimalHome>().Build())
+                var home = repo.GetComponentRO<Home>(e);
+                if (!AnimalSpeciesOf.TryOf(repo, e, out var species)) continue;   // ⭐ CE-4628 — the species is the TKB type's, not state
+                foreach (var area in repo.Query().With<AnimalArea>().With<HerdState>().With<Home>().Build())
                 {
                     if (repo.GetComponentRO<HerdState>(area).Species != species) continue;
-                    if (Flat((Vector3)repo.GetComponentRO<AnimalHome>(area).Centre - (Vector3)home.Centre) > 0.5f) continue;
-                    repo.AddComponent(e, new HerdMember { Herd = area });
-                    repo.GetComponentRW<AnimalHome>(e).Area = area;
+                    if (Flat((Vector3)repo.GetComponentRO<Home>(area).Centre - (Vector3)home.Centre) > 0.5f) continue;
+                    repo.AddComponent(e, new GroupMember { Group = area });
+                    repo.GetComponentRW<Home>(e).Area = area;
                     break;
                 }
             }
@@ -170,22 +178,22 @@ namespace Fdp.Toolkit.Animals
         private static float Cohesion(EntityRepository repo, Entity m)
             => AnimalFear.TemperamentOf(repo, m)?.HerdCohesion ?? 0.5f;
 
-        /// <summary>The next grazing spot: inside the herd's home (its own <see cref="AnimalHome"/>, else round its centre); after a recent fright,
+        /// <summary>The next grazing spot: inside the herd's home (its own <see cref="Home"/>, else round its centre); after a recent fright,
         /// the candidate farthest from it. Deterministic: the herd's index and the sim time seed it.</summary>
-        internal static Vector3 PickGrazing(EntityRepository repo, Entity herd, in HerdState hs, double now)
+        internal static Vector3 PickGrazing(EntityRepository repo, Entity herd, in HerdState hs, in Group grp, double now)
         {
-            Vector3 centre = hs.Centre;
+            Vector3 centre = grp.Centre;
             float radius = RoamMetres;
-            if (repo.IsComponentTypeRegistered<AnimalHome>() && repo.HasComponent<AnimalHome>(herd))
+            if (repo.IsComponentTypeRegistered<Home>() && repo.HasComponent<Home>(herd))
             {
-                var home = repo.GetComponentRO<AnimalHome>(herd);
+                var home = repo.GetComponentRO<Home>(herd);
                 if (home.Radius > 0f) { centre = home.Centre; radius = home.Radius; }
             }
             bool fright = false;
             Vector3 from = default;
-            if (!hs.Lead.IsNull && repo.IsComponentTypeRegistered<Fear>() && repo.HasComponent<Fear>(hs.Lead))
+            if (!grp.Lead.IsNull && repo.IsComponentTypeRegistered<Fear>() && repo.HasComponent<Fear>(grp.Lead))
             {
-                var f = repo.GetComponentRO<Fear>(hs.Lead);
+                var f = repo.GetComponentRO<Fear>(grp.Lead);
                 if (f.HasFrightFrom != 0 && now - f.LastFrightAt <= FrightMemorySeconds) { fright = true; from = f.FrightFrom; }
             }
             var rng = SimRng.FromSim((int)herd.Index, 0x4623, (float)now);

@@ -14,7 +14,7 @@ namespace Hrot.AI.Behaviors
     /// gates as the hand-written reference, and that the editor's reflector discovers it
     /// identically.
     /// </summary>
-    [ComponentId(192)] // Hrot application-level block (160-199, HrotComponentIds); next free after 191 (BpFixedListDemo).
+    [ComponentId(GlobalComponentIds.BpGenListDemo)] // Hrot application-level block (160-199, HrotComponentIds); next free after 191 (BpFixedListDemo).
     [StructLayout(LayoutKind.Sequential)]
     [BlueprintWritable]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)

@@ -35,16 +35,25 @@ namespace Fdp.Toolkit.Combat.Systems
     public sealed class AreaEffectSystem : IEcsModuleSystem
     {
         private readonly ColliderOcclusion _occlusion = new();
+        [Fdp.Core.WorldDerived("scratch list refilled per use")]
         private readonly List<TerrainWorld.FireCrossing> _crossings = new();   // BreachDoors — the stand-in's door list (not on the seam yet)
+        [Fdp.Core.WorldDerived("scratch trace results refilled per use")]
         private readonly List<TraceCrossing> _traces = new();                   // ⭐ CE-1035 Q1 — exposure, through IWorldQuery
+        [Fdp.Core.WorldDerived("scratch refilled per target")]
         private readonly List<Vector3> _points = new(3);
+        [Fdp.Core.FrameScratch("buildings near a burst: cleared at 591 before each use")]
         private readonly List<int> _buildings = new();                           // ⭐ CE-4391 S-2 — the buildings near a burst (the collapse test)
+        [Fdp.Core.FrameScratch("buildings collapsed in this burst: cleared at 558 before each use")]
         private readonly List<int> _collapsedNow = new();
+        [Fdp.Core.FrameScratch("panels near a burst: cleared at 561 before each use")]
         private readonly List<int> _panels = new();                              // ⭐ CE-4391 — BreachWalls: the building panels near a burst
+        [Fdp.Core.WorldDerived("scratch array refilled per target")]
         private readonly float[] _shares = new float[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts];       // ⭐ CE-3212
+        [Fdp.Core.WorldDerived("scratch array cleared per target")]
         private readonly float[] _partDamage = new float[Fdp.Toolkit.Physics.BodyParts.PartDamage.MaxParts];   // ⭐ CE-3212
 
         /// <summary>Detonations this system assessed (a rail and a diagnostics counter read it).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter")]
         public long Assessed { get; private set; }
 
         public void Execute(ISimulationView view, float deltaTime)
@@ -126,6 +135,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 // ⭐ CE-4155 (SR-82) — who threw it (and who threw it first): every pulse of the cloud names them
                 CreatorNetworkId = NetworkIdOf(repo, evt.Shooter),
                 OriginalCreatorNetworkId = NetworkIdOf(repo, evt.OriginalShooter),
+                BlocksInfrared = (byte)(!gas && w.SmokeBlocksInfrared ? 1 : 0),   // ⭐ CE-4662 (TD-12) — the munition says; tear gas never
             });
         }
 
@@ -169,9 +179,15 @@ namespace Fdp.Toolkit.Combat.Systems
                 FragmentRadius = w.FragmentRadiusM, BlastInjuryRadius = w.BlastInjuryRadiusM,
             };
 
+            // ⭐⭐ CE-4654 D-3 (user 2026-11-18) — an anti-personnel mine MAIMS the man who stepped on it: his legs, not his whole body
+            //   ⭐ the body the trigger NAMED (DetonationNotification.TriggeredBy); the nearest person only for a burst that names none (a scripted one)
+            var triggerMan = evt.Ammo != Fdp.Toolkit.Terrain.Minefields.MunitionAntiPersonnel ? Entity.Null
+                : !evt.TriggeredBy.IsNull && repo.IsAlive(evt.TriggeredBy) ? evt.TriggeredBy : TriggerManOf(repo, burst);
+
             foreach (var e in repo.Query().With<Health>().With<SimTransform>().Build())
             {
                 if (!repo.IsAlive(e)) continue;   // ⚠ the STRUCK entity is included: it is at the burst (its direct hit is extra)
+                if (e == triggerMan) { Maim(repo, in evt, e, record); continue; }
                 if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, e)) continue;   // ⭐ CE-3110 I-2c (R-271) — inside an enclosed hull
                 if (repo.GetComponentRO<Health>(e).Current <= 0f) continue;
                 var tf = repo.GetComponentRO<SimTransform>(e);
@@ -276,8 +292,10 @@ namespace Fdp.Toolkit.Combat.Systems
 
             BreachDoors(repo, in evt, w, burst, terrain, doors, record);
             BreachWalls(repo, in evt, w, burst, terrain, doors, record);   // ⭐ CE-4391 S-1 (B-5) — the walls, by the same detonation
-            MakeCrater(repo, in evt, w, burst, terrain, record);           // ⭐ CE-4591 (P-4) — the ground, by the same detonation
+            if (!_spentOnWall) MakeCrater(repo, in evt, w, burst, terrain, record);   // ⭐ CE-4591 (P-4) — the ground, by the same detonation
+            else record.Crater = "none: spent on the wall it breached";   // ⭐ CE-5019 (R-5064) — a contact burst's energy went into the wall
             FellTrees(repo, in evt, w, burst, terrain, doors, record);     // ⭐ CE-4603 (B-6) — the lone trunks, by the same detonation
+            ShatterPanes(repo, in evt, w, burst, terrain, doors);          // ⭐ CE-5033 (GW-2, D-4) — the window panes, by the same detonation
             // ⭐ CE-8005 (R-171) — the STOCHASTIC units the burst reaches are NOT applied here: a hidden UnitEntity is skipped above, and
             //   Fdp.Toolkit.Aggregate.StochasticAreaEffectSystem applies the burst on the node that owns the unit (its slot table is the Brain's)
             log.Add(record);
@@ -415,7 +433,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 if (state == TerrainDoorState.Destroyed || state == TerrainDoorState.Open) continue;
                 terrain.QueryFire(burst, centre, _crossings, doors);
                 bool clear = true;
-                foreach (var c in _crossings) if (c.Kind != "door") { clear = false; break; }
+                foreach (var c in _crossings) if (c.Kind != "door" && c.Kind != TerrainWorld.PaneKind) { clear = false; break; }   // ⭐ CE-5032 — glass spares nothing
                 if (!clear) continue;
                 var door = TerrainObjects.Find(repo, d.Key);
                 if (!repo.IsAlive(door)) continue;
@@ -468,11 +486,68 @@ namespace Fdp.Toolkit.Combat.Systems
                 record.TreesFelled++;
             }
         }
+        [Fdp.Core.FrameScratch("trees near a burst: cleared at 475 before each use")]
         private readonly List<int> _trees = new();
+
+        /// <summary>
+        /// ⭐ <c>CE-5033</c> (glass windows GW-2, D-4; 📄 docs/DESIGN_Glass_Windows.md) — a burst SHATTERS every unbroken pane within EITHER radius of <c>glass.json</c>
+        /// (<see cref="GlassShatterTable"/>): its PRESSURE (∛kg of its explosive — through walls), or its FRAGMENTS (a fragmenting warhead, with a clear line from the
+        /// burst to the pane: nothing but glass between). Each as a <see cref="WindowHitEvent"/> (Shatter) its <see cref="BuildingDamageSystem"/> writes.
+        /// ⚠ A loop over the world's panes per burst (bursts are rare; a pane is a centre test).
+        /// </summary>
+        private void ShatterPanes(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst, TerrainWorld? terrain, DoorStates? doors)
+        {
+            if (terrain == null || terrain.PaneLeaves.Count == 0 || NonLethalEffectOf(w.Kind) != HitEffect.Kinetic || !repo.Bus.IsRegistered<WindowHitEvent>()) return;
+            var table = GlassShatterTable.Shared;
+            float pressure = table.PressureRadius(w.ExplosiveKg);
+            float fragments = w.FragmentRadiusM > 0f ? table.FragmentShatterM : 0f;
+            float reach = MathF.Max(pressure, fragments);
+            if (reach <= 0f) return;
+            var panes = terrain.PaneLeaves;
+            var windows = doors?.Windows;
+            for (int i = 0; i < panes.Count; i++)
+            {
+                var pane = panes[i];
+                if ((pane.Min.X - burst.X) > reach || (burst.X - pane.Max.X) > reach || (pane.Min.Y - burst.Y) > reach || (burst.Y - pane.Max.Y) > reach) continue;
+                var (panel, opening) = terrain.Panes[i];
+                if (pane.Building < 0 || (windows != null && windows.PaneBroken(panel, opening))) continue;
+                var centre = new Vector3((pane.Min + pane.Max) * 0.5f, (pane.BaseZ + pane.TopZ) * 0.5f);
+                float d = Vector3.Distance(burst, centre);
+                bool shatter = d <= pressure;
+                if (!shatter && d <= fragments)
+                {
+                    terrain.QueryFire(burst, centre, _crossings, doors);
+                    shatter = true;
+                    for (int k = 0; k < _crossings.Count && shatter; k++) shatter = _crossings[k].Kind == TerrainWorld.PaneKind;   // only glass between
+                }
+                if (shatter)
+                    repo.Bus.Publish(new WindowHitEvent { Building = pane.Building, Panel = panel, Opening = opening, Shatter = 1, Source = evt.Shooter });
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-5019</c> (R-5064; 📄 docs/DESIGN_Ground_Patches_And_Road_Blockage.md G-7) — set by <see cref="BreachWalls"/> when this burst breached a wall it was
+        /// TOUCHING (within <c>craters.json</c>'s <c>wallContactM</c> of the panel's face): a contact charge spends itself on the wall, so <see cref="MakeCrater"/>
+        /// makes no pit at the wall's foot. 📐 Before: an 8 kg charge on House A's wall made the passage AND a 1.6 m × 0.7 m crater in front of it, and the
+        /// breachers stood in the pit and never climbed onto the floor (bd-destruction).
+        /// </summary>
+        [Fdp.Core.FrameScratch("wall-contact flag reset at 545 at the start of each burst and read in the same call")]
+        private bool _spentOnWall;
+
+        /// <summary>The burst's horizontal distance to the panel's nearer face (0 when it is inside the wall's thickness).</summary>
+        private static float FaceDistance(TerrainWallPanel panel, Vector3 burst)
+        {
+            var ab = panel.B - panel.A;
+            float len2 = ab.LengthSquared();
+            var p = new Vector2(burst.X, burst.Y);
+            float t = len2 > 1e-8f ? Math.Clamp(Vector2.Dot(p - panel.A, ab) / len2, 0f, 1f) : 0f;
+            return MathF.Max(0f, Vector2.Distance(p, panel.A + ab * t) - panel.Thickness * 0.5f);
+        }
 
         private void BreachWalls(EntityRepository repo, in DetonationNotification evt, Tkb.Domain.WarheadDto w, Vector3 burst,
             TerrainWorld? terrain, DoorStates? doors, DetonationRecord record)
         {
+            _spentOnWall = false;
             if (terrain == null || terrain.Panels.Count == 0 || w.ExplosiveKg <= 0f || !repo.Bus.IsRegistered<BuildingDamageEvent>()) return;
             var table = terrain.Breaches;
             if (w.ExplosiveKg < table.MinKg) return;
@@ -503,6 +578,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Building = group, Panel = pi, From = breach.From, To = breach.To, Bottom = breach.Bottom, Top = breach.Top,
                     Kind = (byte)breach.Kind, Shooter = evt.Shooter,
                 });
+                if (FaceDistance(panel, burst) <= CraterRuleTable.Shared.WallContactM) _spentOnWall = true;   // ⭐ CE-5019 — a contact burst: no crater
                 record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, group)} panel {pi} {breach.Kind} " +
                     $"{breach.From:0.##}..{breach.To:0.##} m x z {breach.Bottom:0.##}..{breach.Top:0.##}");
             }
@@ -563,7 +639,8 @@ namespace Fdp.Toolkit.Combat.Systems
             if (dh <= panel.Thickness * 0.5f + 0.03f) return true;   // against (or inside) the wall
             var face = onWall + toward / dh * (panel.Thickness * 0.5f + 0.02f);
             terrain.QueryFire(burst, new Vector3(face, z), _crossings, doors);
-            return _crossings.Count == 0;
+            for (int i = 0; i < _crossings.Count; i++) if (_crossings[i].Kind != TerrainWorld.PaneKind) return false;   // ⭐ CE-5032 GW-1 — glass spares no wall
+            return true;
         }
 
         /// <summary>
@@ -581,6 +658,52 @@ namespace Fdp.Toolkit.Combat.Systems
                 return (AreaEffect.FragmentTarget.Hull, ArmorModel.PresentedArea(radius, hullHeight), MathF.Max(distance, radius));
             }
             return (AreaEffect.FragmentTarget.Person, AreaEffect.PersonArea(stance), distance);
+        }
+
+        /// <summary>⭐ <c>CE-4654</c> D-3 — how close to an AP mine's burst (2-D, m) the man who set it off stands (the trigger tests his feet against
+        /// the mine).</summary>
+        internal const float TriggerManRadius = 1.5f;
+
+        /// <summary>⭐ <c>CE-4654</c> D-3 — what share of his incapacitation line a maimed man is left at: under it (out of the fight, bleeding, carried),
+        /// never dead.</summary>
+        internal const float MaimedShareOfLine = 0.75f;
+
+        /// <summary>⭐ <c>CE-4654</c> D-3 — the man an AP mine burst is under: the nearest living PERSON within <see cref="TriggerManRadius"/> of it
+        /// (the lower index on a tie), else none.</summary>
+        internal static Entity TriggerManOf(EntityRepository repo, Vector3 burst)
+        {
+            Entity best = Entity.Null;
+            float bestD = TriggerManRadius;
+            var at = new Vector2(burst.X, burst.Y);
+            foreach (var e in repo.Query().With<Health>().With<SimTransform>().Build())
+            {
+                if (!repo.IsAlive(e) || repo.GetComponentRO<Health>(e).Current <= 0f || !IsPerson(repo, e)) continue;
+                if (Fdp.Toolkit.Perception.PhysicalPresence.IsHidden(repo, e)) continue;   // terrain's review #2 — a body inside a hull never stood on the mine
+                var p = repo.GetComponentRO<SimTransform>(e).Position;
+                float d = Vector2.Distance(at, new Vector2(p.X, p.Y));
+                if (d < bestD || (d == bestD && !best.IsNull && e.Index < best.Index)) { best = e; bestD = d; }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4654</c> D-3 (user, `2026-11-18`: <i>"the trigger man is MAIMED, not killed"</i>; 📄 DESIGN_Minefields MF-5) — the burst's share on
+        /// the man who stepped on the mine goes to his LEGS (both shins, half each), leaving him at <see cref="MaimedShareOfLine"/> of his
+        /// incapacitation line: out of the fight, alive, bleeding — the squad's casualty drill carries him. ⛔ Not the whole-body blast law, which
+        /// killed him outright.
+        /// </summary>
+        private static void Maim(EntityRepository repo, in DetonationNotification evt, Entity e, DetonationRecord record)
+        {
+            ref readonly var h = ref repo.GetComponentRO<Health>(e);
+            float line = repo.IsComponentTypeRegistered<InjuryThresholds>() && repo.HasComponent<InjuryThresholds>(e)
+                ? repo.GetComponentRO<InjuryThresholds>(e).IncapacitatedBelow * h.Max : 0.3f * h.Max;
+            float left = MathF.Max(MaimedShareOfLine * line, 0.01f * h.Max);
+            float damage = h.Current - left;
+            if (damage <= 0f) return;
+            repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = damage * 0.5f, HasBodyPart = 1, BodyPart = Fdp.Toolkit.Physics.BodyParts.PersonPart.ShinL, Effect = HitEffect.Kinetic, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
+            repo.Bus.Publish(new DamageAssessedEvent { HitEntity = e, TotalDamage = damage * 0.5f, HasBodyPart = 1, BodyPart = Fdp.Toolkit.Physics.BodyParts.PersonPart.ShinR, Effect = HitEffect.Kinetic, Source = evt.Shooter, OriginalSource = evt.OriginalShooter });
+            var tf = repo.GetComponentRO<SimTransform>(e);
+            record.Effects.Add(new DetonationEffect(e, "maimed (the man on the mine)", 0, 0f, 1f, 0f, 1f, 0f, 0f, 1f, 1f, damage, damage, null) { At = tf.Position });
         }
 
         /// <summary>⭐ <c>CE-4584</c> — a person in the sense <see cref="FragmentTargetOf"/> uses: no stated presented area (equipment) and no hull,

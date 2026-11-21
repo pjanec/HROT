@@ -44,6 +44,7 @@ namespace Fdp.Toolkit.Replication.Services
     /// publishes it — is a configuration error, and <c>GhostPromotionSystem</c> reports it rather than
     /// absorbing it silently.</para>
     /// </summary>
+    [Fdp.Core.WorldDerived("cache keyed by descriptor, invalidated by ingress generation")]
     public sealed class MandatoryComponentResolver
     {
         private readonly Dictionary<long, int[]> _cache = new();
