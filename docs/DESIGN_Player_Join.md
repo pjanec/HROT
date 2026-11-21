@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT (S1, §9.4/§9.5 — run live) · BUILT (S2, §10.4/§10.5 — run live) — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted")
-updated: 2026-11-05 (§9 S1 technical design, §7 answered there) · 2026-10-31 (rev 2 — gameplay as PACKS composed by choice, never in the orchestrator; the name DEPLOY; a Player with no gameplay server observes) · 2026-10-31 (rev 1 — superseded, see HISTORY)
-current-answer: §10 S2 design (roles, spawn areas, death, respawn) · §9 S1 technical design (classes, sequence, who ticks what; §7's three answers) · §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices · §7a the AUDIT of hard-wired gameplay (G1…G7, B1/B2; candidates await the user)
+build-state: READY-TO-BUILD (§12 seats on one node, Q114) · BUILT (S1, §9.4/§9.5 — run live) · BUILT (S2, §10.4/§10.5 — run live) — the architecture APPROVED by the user 2026-10-31 (§2 R-4101…R-4103; §5 D-1…D-16 "Accepted")
+updated: 2026-11-21 (§12 seats on one node — the build design of Q114 rev 2) · 2026-11-05 (§9 S1 technical design, §7 answered there) · 2026-10-31 (rev 2 — gameplay as PACKS composed by choice, never in the orchestrator; the name DEPLOY; a Player with no gameplay server observes) · 2026-10-31 (rev 1 — superseded, see HISTORY)
+current-answer: ⭐ §12 seats on one node (Q114, R-11011; READY-TO-BUILD) · §10 S2 design (roles, spawn areas, death, respawn) · §9 S1 technical design (classes, sequence, who ticks what; §7's three answers) · §2 the rulings · §4 the diagrams · §5 decisions D-1…D-16 · §6 slices · §7a the AUDIT of hard-wired gameplay (G1…G7, B1/B2; candidates await the user)
 stale-below: §8 HISTORY (rev 1: the join on the master's ClusterOpRequest, a ReservedFor component — superseded)
 known-rot: docs/blueprints/Architect_Question_91_Player_Nodes.md §0 "a Player is an ordinary IG node (NodeRole.Map2D), no Player role" — the NAME is superseded by R-4101 (IG is the obsolete name of the Player); being a player stays a composition choice
 known-conflict: none
@@ -682,3 +682,147 @@ Rails: `DeployAreaMapLayerTests` (`Hrot.Presentation.Tests/Map2D`) — the click
 📐 UC-32 ✅ (`DESIGN_Cluster_Membership_Use_Cases.md` §2.1): offers carry the kit labels and one Area offer per spawn area; kit 1 in a named area spawns the kit's
 type inside that area; an unset kit is refused `NoSuchKit`. ✅ **Facing settled `2026-11-05`** (yaw sampled every 0.5 s on owner and Player): born at 180°, held 180°; the −11.8° was a one-sample heading transient at the
 possession HANDOVER (re-run: −32.2° for one sample, both nodes, then 180°) — not the spawn. Filed **CE-3368**. ⚠ Known (§11.1 deviation 4): an area renamed while the server runs keeps its first label until the server restarts.
+
+## 12. Seats on one node — the editor as the all-in-one server *(ui, `2026-11-21`; Q114 rev 2 APPROVED R-11011; `build-state: READY-TO-BUILD`)*
+
+⭐ The decisions are [Q114](blueprints/Architect_Question_114_Seats_On_One_Node.md) §2 + §2a (its INVENTORY and claim table are the measurement);
+the gateway half is SimNetGateway DD-023 (built there as T-047: seats, partitions, one `HrotPlayerStation` per seat as station `node | n<<16`).
+This section is the BUILD design: what each node composes, the new types, the flows.
+
+### 12.1 Who composes and ticks what
+
+```mermaid
+graph TD
+    subgraph Editor["Editor node (networkless)"]
+        EB[EditorNodeBootstrapper] -->|composes, no election| SP[GameplayServerPack]
+        SP --> DPS[DeployProcessorSystem]
+        SP --> SR[ServerPlayerSlotReaderSystem]
+        EB -->|composes| HUB[LocalGameplayHub]
+        DPS -->|IGameplayWire: local| HUB
+        SR -->|local| HUB
+        GW[Gateway extension, DisGatewaySystem] -->|ticks each frame| F1[DeployFlowSystem seat 1..N]
+        F1 -->|IGameplayWire: local end per seat| HUB
+        F1 -->|Possess via the seat's EntityOrders| PS[PossessionSystem]
+    end
+    subgraph Brain["Brain node (cluster)"]
+        CB[CgfNodeBootstrapper] --> SP2[GameplayServerPack] -->|IGameplayWire: DDS| DDS[(DDS gameplay topics)]
+    end
+    subgraph Player["Player node (cluster)"]
+        PB[PlayerNodeBootstrapper] --> CP[GameplayClientPack] --> F0[DeployFlowSystem seat 0] -->|DDS| DDS
+    end
+    EB -. today: composes NO server .-> NONE[no deploy server in the editor today]
+    style NONE stroke:#c33,stroke-dasharray:4
+```
+
+Caption — what the picture shows that prose hid: in the editor nothing TICKS a seat's flow except the gateway (seats come and go at run time, so
+they are not ECS systems composed at start); the server and every flow meet through ONE in-process hub, while the cluster keeps its DDS wire unchanged.
+The dashed red box is today's state (the editor composes no server, `EditorNodeBootstrapper.cs:278`), which §12.4 S12-4 changes.
+
+### 12.2 Classes
+
+```mermaid
+classDiagram
+    class NodeId { <<existing Fdp.Core>> +int Value }
+    class StationId {
+        <<new Fdp.Core, LayoutHashAs NodeId>>
+        +int Value
+        +NodeId Node
+        +int Index
+        +Of(NodeId node, int index)$ StationId
+    }
+    class LayoutHashAsAttribute { <<new Fdp.Core>> +Type As }
+    class ComponentLayoutHasher { <<existing>> hashes a field's type name, honours LayoutHashAs }
+    class IGameplayWire {
+        <<new Hrot.Gameplay>>
+        +Requests : IGameplayIn~DeployRequestTopic~
+        +RequestWriter : IGameplayOut~DeployRequestTopic~
+        +Status : IGameplayOut~DeployStatusTopic~
+        +StatusReader : IGameplayIn~DeployStatusTopic~
+        +Offers : IGameplayOut~DeployOfferTopic~
+        +OfferReader : IGameplayIn~DeployOfferTopic~
+        +SlotWriter : IGameplayOut~PlayerSlotTopic~
+        +SlotReader : IGameplayIn~PlayerSlotTopic~
+    }
+    class IGameplayIn~T~ { +TakeInto(List~GameplaySample~T~~ into) int }
+    class IGameplayOut~T~ { +Write(in T) +DisposeInstance(in T key) }
+    class GameplaySample~T~ { +T Data +bool Alive }
+    class GameplayWire { <<existing, becomes the DDS IGameplayWire>> }
+    class LocalGameplayHub { <<new>> +ServerEnd() IGameplayWire +ClientEnd() IGameplayWire }
+    class DeployFlowSystem { <<existing>> +ctor(wire, world, map, station, env, register) +Of(world, station)$ +Side }
+    class DeployProcessorSystem { <<existing>> +Leave handling +forgets at WorldEpoch.Moved +replay-gated +RoleFull counts pending }
+    class PossessionSystem { <<existing>> +ReleaseStation(repo, StationId)$ }
+    class ReleaseStationEvent { <<new event>> +StationId StationNodeId }
+    IGameplayWire <|.. GameplayWire
+    IGameplayWire <|.. LocalGameplayHub : its ends
+    StationId ..> NodeId
+    StationId ..> LayoutHashAsAttribute
+    ComponentLayoutHasher ..> LayoutHashAsAttribute
+    DeployFlowSystem --> IGameplayWire
+    DeployProcessorSystem --> IGameplayWire
+    DeployProcessorSystem ..> ReleaseStationEvent : publishes on Leave
+    PossessionSystem ..> ReleaseStationEvent : handles
+```
+
+Caption: one wire interface, two transports — the server and the flow code do not know which (no second implementation of either); `StationId`
+hashes as `NodeId` and the possession fields KEEP THEIR NAMES (`StationNodeId`) — the recording hash folds in the field NAME too
+(`ComponentLayoutHasher.cs:57`), so a rename would break old recordings exactly as a retype would.
+
+| rule | why (measured) |
+|---|---|
+| ⭐ the four possession fields (`Possession.cs:44, 57, 73, 130`) retype `NodeId` → `StationId`, names unchanged; the DDS / NED topics keep their plain `int` | same 4 bytes; `LayoutHashAs` keeps the event hash (`SchemaValidator.cs:141-147` refuses a changed one) |
+| ⭐ `GameplaySample<T>.Alive == false` carries the KEY in `Data` | the DDS end decodes it with `DdsTypeSupport.FromNative` (`PlayerSlotReaderSystem.cs:50-54`) so the four read loops become one shape: `if Alive … else remove(key)` |
+| ⭐ the local hub = last value per key per topic; offers / status / slots BROADCAST to every client end (each end its own queue); requests to the server end; a client end created late receives the current last values; closing the server end delivers every slot not-alive ("writer gone", `PlayerSlotReaderSystem.cs:12`) | the semantics the readers rely on (Q114-C) |
+| ⭐ `TakeInto` with nothing pending allocates 0 bytes; buffers are reused | they run every frame (R-2084) |
+
+### 12.3 Flows
+
+```mermaid
+sequenceDiagram
+    participant G as Gateway seat n (ticks the flow)
+    participant F as DeployFlowSystem (station node/n, local end)
+    participant H as LocalGameplayHub
+    participant D as DeployProcessorSystem (server end)
+    participant P as PossessionSystem
+    D->>H: Offers.Write (placed, roles, areas)
+    H-->>F: a copy per client end
+    G->>F: Request(side, role, kit, area)
+    F->>H: RequestWriter.Write(station node/n)
+    H-->>D: Requests.TakeInto
+    D->>D: rules, spawn (EntityCreationRequest), SetSlot
+    D->>H: Status.Write + SlotWriter.Write
+    H-->>F: status accepted, slot TakingControl
+    F->>P: Possess via the seat's EntityOrders
+    P-->>F: PossessedBy = node/n, Playing
+    G->>F: the client left (Leave / liveliness)
+    F->>H: RequestWriter.Write(Leave, node/n)
+    H-->>D: Leave
+    D->>D: free the slot and the answer
+    D->>P: ReleaseStationEvent(node/n)
+    P->>P: release EVERY unit PossessedBy node/n (a ridden vehicle too)
+```
+
+```mermaid
+sequenceDiagram
+    participant W as World (load or replay)
+    participant D as DeployProcessorSystem
+    participant P as PossessionSystem
+    W->>D: WorldEpoch.Moved (a load)
+    D->>D: forget slots, answers, pending spawns, dispose them on the wire
+    W->>D: ReplayState restoring
+    D->>D: gated off (no offers, no slots against the recording)
+    W->>P: a Riding man is killed
+    P->>P: ReleaseKilled, then ReleaseStation(his station)
+    W->>P: NodeDeparted(node)
+    P->>P: release every station whose Node == node
+```
+
+### 12.4 Slices *(each its own rails; red-proved; the gates of CLAUDE.md T-1 … T2)*
+
+| slice | builds | acceptance (rails) |
+|---|---|---|
+| **S12-1** (Q114 A, A′) | `StationId` + converters (JSON, type) + `LayoutHashAs`; the four fields retyped (Roslyn, never text); `ReleaseDeparted` and `ReadDepartures` compare `.Node`; `Index` ≤ 1024 | ⭐ a recording made BEFORE the retype plays (a committed tiny recording or one made by the rail at the old type); the event hashes equal before/after; two stations on one node possess two units and each frame reaches only its own unit; a departed node frees every station on it |
+| **S12-2** (C, D) | `IGameplayWire`, the DDS end (today's code), `LocalGameplayHub`; the four read loops on `TakeInto`; `register` flag + `Of(world, station)`; the flow's `Side` | ⭐ every existing deploy rail passes over BOTH transports (one parameterised fixture); broadcast: two client ends each see every offer and their own status; late end gets the last values; server end closed ⇒ slots not-alive; 0 bytes per empty `TakeInto` |
+| **S12-3** (E, G, H) | `Leave` (appended on `DeployRequestTopic`), `ReleaseStationEvent` + `ReleaseStation`, the killed-rider release; `RoleFull` counts pending; forget at `WorldEpoch.Moved`; replay gate | ⭐ a station riding and driving leaves ⇒ both units free; two stations request one full-minus-one role in one frame ⇒ one spawn; a load clears the tables; a replay publishes no offer |
+| **S12-4** (B, I, J, K) | the editor composes `GameplayServerPack` + the hub (role table row + the composition rail updated); `PlayerMessages.Addressed` moved below Presentation; spawns seeded from the scenario; measure K (the edit gate on seat orders) | ⭐ in the editor a role's man spawns and a local flow takes him; the same scenario seed ⇒ the same spawn point; HTTP `/deploy?station=` reads a seat; the scenarios of DD-023 D-16 then follow on the gateway |
+
+⚠ Cross-lane: `Fdp.Core` / `Fdp.Toolkits` possession and the load-phase-adjacent world boundary are backend's — said in each commit.
