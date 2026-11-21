@@ -198,6 +198,7 @@ namespace Fdp.Toolkit.Terrain
     /// cached by (subject, side, range) across snapshots, so a record's new evidence that leaves its range builds nothing.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
+    [TickMode(TickPolicy.EveryFrame)]   // ⭐ a scenario load while PAUSED must still get its sight and route-cost maps; a steady frame is three reference compares
     public sealed class UnderFireSightSystem : IEcsModuleSystem
     {
         [Fdp.Core.WorldDerived("the grids built, by (subject, side, range): derived from the authored terrain; cleared on a world move")]

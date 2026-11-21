@@ -152,6 +152,10 @@ namespace Hrot.SimHost.Tests
             // ⭐ CE-2468 (backend, 2026-11-21) — stale again: +3 the flame lane's NapalmSystem, StructureFlameSystem, GroundFireSystem (CE-3487 / CE-3488, DamageAssessmentModule)
             //   and +2 UnderFireWriter, UnderFireSightSystem (UF-2 / UF-4) ⇒ 28.
             Assert.Equal(28, pack.SimulationSystems.Count);
+            // ⭐ CE-2468 — every system the pack registers declares its tick mode (CE-3293): 📌 UnderFireSightSystem shipped without one and every node aborted on its first frame
+            //   while the pack's rails stayed green (they never reach the scheduler). 🔴 Red-proof: drop its [TickMode] ⇒ this throws naming it.
+            foreach (var s in pack.InputSystems) Fdp.ModuleHost.Abstractions.TickModes.OfSystem(s.GetType());
+            foreach (var s in pack.SimulationSystems) Fdp.ModuleHost.Abstractions.TickModes.OfSystem(s.GetType());
             Assert.Contains(pack.SimulationSystems, s => s is Fdp.Toolkit.Terrain.GroundHeatMarkSystem);
             Assert.Contains(pack.SimulationSystems, s => s is Fdp.Toolkit.Squad.DangerArea.ShelledAreaSystem);
 
