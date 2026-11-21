@@ -211,8 +211,9 @@ sequenceDiagram
 (R-3075, `DESIGN_Cluster_Load_Phase.md` §11.10) — the same `ILoadPartProvider` shape as `MapBuildLoadStep` (poll a status, fail with its
 reason, report its step), required while a renderer is offered: the node is play-ready only after BOTH HROT's 3-D map and the renderer's world;
 the master, live play and the director all wait through one path. ⚠ Every load that changes the world (user: *"any terrain load … It must work
-also in the live"*): a live / edit load runs the chain; a replay open runs `ReferenceReplayLoadHandler` instead (`LoadPhaseChain.cs:160`), so its
-prepare must resolve the same providers (Q113-I) — to measure with the build. ⛔ SUPERSEDED (same day): a first version had the director's runner wait on its own — a second readiness path the
+also in the live"*): a live / edit load runs the chain; a replay open runs `ReferenceReplayLoadHandler` instead (`LoadPhaseChain.cs:160`) and — measured — makes NO terrain
+resident at all (F-H3: `TerrainWorld` / `TerrainDefinition` are `NoReplay`; the replay plan has no terrain step; only the Replay Browser loads a
+recording's terrain). Q113-J: the replay open runs the chain's shared Terrain / Map3D / renderer parts for the recording's terrain. ⛔ SUPERSEDED (same day): a first version had the director's runner wait on its own — a second readiness path the
 master and live play could not see.
 
 ## 3. The items — HROT's requests from DD-022, with their ids
@@ -227,6 +228,7 @@ master and live play could not see.
 | H-8 / F-H2 | [CE-11022](../../blueprints/Blueprint_Issues_Tracker.md) | the time docs say the anchor model (no pulse, no PLL); the stale comment at `MasterSyncController.cs:153`; the unused `TimeConfig` PLL fields named | Time Architecture, FDP.Toolkit.Time.md |
 | (G) | [CE-11023](../../blueprints/Blueprint_Issues_Tracker.md) | the editor's director gets the editor's recording opener (`ScenarioDoor.OpenRecording`) — a job or reel item naming another recording then plays in the editor | Hrot.Editor |
 | (H) | [CE-11024](../../blueprints/Blueprint_Issues_Tracker.md) | `EffectCause.Kind` + `EffectCause.Shooter` from `RoundImpactNotification` — the gateway makes `Impact` from the effect entities, live and in replay (R-11007) | Hrot.Core, the effect spawner |
+| (J) / F-H3 | [CE-11025](../../blueprints/Blueprint_Issues_Tracker.md) | a replay open makes the recording's terrain resident through the load chain's shared parts (Terrain with the recording's name and overlay hash, then Map3D, then the renderer) | the load phase (backend's: a cross-lane change) |
 
 **Acceptance (R-4277 — a feature works when its scenarios pass):** the `showcases/player-station` scenario with a promoted take rendered
 twice — once with no renderer (the map, as today: frame count, MP4) and once with the gateway's reference client in `--render` mode (the same
