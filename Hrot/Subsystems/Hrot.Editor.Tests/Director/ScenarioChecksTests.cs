@@ -620,7 +620,7 @@ public sealed class ScenarioChecksTests
         Parse("""{ "runFor": 1, "expect": [{"name": "a", "on": "still", "who": "A", "m": 1}, {"name": "b", "on": "shot", "by": "A", "for": 3}, {"name": "c", "on": "near", "who": "A", "point": [0,0], "fighting": true}] }""", out var bad);
         Assert.Contains(bad, p => p.Contains("a still cue needs for", StringComparison.Ordinal));
         Assert.Contains(bad, p => p.Contains("for belongs to a state cue", StringComparison.Ordinal));
-        Assert.Contains(bad, p => p.Contains("fighting belongs to a cover, still, field, bunched or exposed cue", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("fighting belongs to a cover, still, field, bunched, exposed, close or far cue", StringComparison.Ordinal));
     }
 
     /// <summary>

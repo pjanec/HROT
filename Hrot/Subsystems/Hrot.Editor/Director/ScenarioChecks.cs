@@ -343,7 +343,7 @@ namespace Hrot.Editor.Director
             }
             if (forSeconds < 0d) problems.Add($"{where}: for is seconds (>= 0)");
             if (forSeconds > 0d && on is "shot" or "blast" or "hit") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
-            if (fighting && on is not ("cover" or "still" or "field" or "bunched" or "exposed")) problems.Add($"{where}: fighting belongs to a cover, still, field, bunched or exposed cue");
+            if (fighting && on is not ("cover" or "still" or "field" or "bunched" or "exposed" or "close" or "far")) problems.Add($"{where}: fighting belongs to a cover, still, field, bunched, exposed, close or far cue");
             if (dead && on != "field") problems.Add($"{where}: dead belongs to a field cue");
             if (upright && on is not ("cover" or "exposed")) problems.Add($"{where}: upright belongs to a cover or exposed cue");
             if (also.Count > 0 && on != "field") problems.Add($"{where}: also belongs to a field cue");
